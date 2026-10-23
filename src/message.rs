@@ -123,6 +123,14 @@ fn selected_source_post(metadata: &Metadata, selected: &Option<IndexRange>) -> b
     })
 }
 
+/// A parent queue without a concrete source-post ID may contain selected
+/// posts in its children (for example, a 4chan board listing). Only defer
+/// unknown identity at the queue boundary; concrete directory/URL events
+/// must still match their actual source-post ID.
+fn selected_queue_source_post(metadata: &Metadata, selected: &Option<IndexRange>) -> bool {
+    !metadata.contains_key("source_post_id") || selected_source_post(metadata, selected)
+}
+
 /// Per-file identity fields must not leak into unrelated child extractors.
 /// Contextual fields such as collection_id and username may be inherited.
 fn child_context(metadata: &Metadata) -> Metadata {
@@ -221,15 +229,14 @@ where
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if !frame.directory_included
-                    || !selected_source_post(metadata, &selection.source_posts)
-                {
-                    emit = false;
-                } else {
+                let eligible = frame.directory_included
+                    && selected_queue_source_post(metadata, &selection.source_posts);
+                if eligible {
                     child_ordinal += 1;
+                } else {
+                    emit = false;
                 }
-                if frame.directory_included
-                    && selected_source_post(metadata, &selection.source_posts)
+                if eligible
                     && selection
                         .children
                         .as_ref()
@@ -1055,6 +1062,61 @@ mod tests {
             &serde_json::from_value(json!({"post_id":121})).unwrap(),
             &selected.source_posts,
         ));
+    }
+
+    #[tokio::test]
+    async fn source_post_selection_allows_board_queues_to_discover_child_posts() {
+        use std::cell::Cell;
+
+        let requests = Cell::new(0usize);
+        let board_queue = queued_url(
+            "https://boards.4chan.org/g/thread/456".into(),
+            serde_json::from_value(json!({"board":"g","thread_id":456})).unwrap(),
+        );
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("457").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(
+            vec![board_queue],
+            1,
+            8,
+            &selected,
+            |url| {
+                requests.set(requests.get() + 1);
+                async move {
+                    assert_eq!(url, "https://boards.4chan.org/g/thread/456");
+                    Ok::<_, Box<dyn Error + Send + Sync>>(vec![
+                        ExtractorMessage::Directory {
+                            metadata: serde_json::from_value(json!({"source_post_id":456})).unwrap(),
+                        },
+                        ExtractorMessage::Url {
+                            url: "https://example.org/excluded.jpg".into(),
+                            metadata: Metadata::new(),
+                        },
+                        ExtractorMessage::Directory {
+                            metadata: serde_json::from_value(json!({"source_post_id":457})).unwrap(),
+                        },
+                        ExtractorMessage::Url {
+                            url: "https://example.org/selected.jpg".into(),
+                            metadata: Metadata::new(),
+                        },
+                    ])
+                }
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(requests.get(), 1);
+        assert_eq!(output.len(), 3);
+        assert!(matches!(output[0], ExtractorMessage::Queue { .. }));
+        assert_eq!(serde_json::to_value(&output[1]).unwrap()["metadata"]["source_post_id"], 457);
+        assert_eq!(
+            serde_json::to_value(&output[2]).unwrap()["url"],
+            "https://example.org/selected.jpg"
+        );
     }
 
     #[tokio::test]
