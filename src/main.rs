@@ -130,7 +130,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         println!("danbooru (post URLs and tag searches only; partial parity)");
         println!("e621 (e621/e926/e6ai posts and tag searches only; partial parity)");
         println!("gelbooru (post and tag-search URLs only; partial parity)");
-        println!("4chan (thread media only; partial parity)");
+        println!("4chan (threads and bounded board listings only; partial parity)");
         return Ok(());
     }
 

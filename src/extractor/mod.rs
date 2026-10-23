@@ -10,7 +10,7 @@ use reqwest::Client;
 use std::error::Error;
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if fourchan::match_url(input).is_some() {
+    if fourchan::match_url(input).is_some() || fourchan::match_board_url(input).is_some() {
         Some("4chan")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
@@ -32,6 +32,9 @@ pub async fn resolve(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve(client, target).await;
+    }
+    if let Some(board) = fourchan::match_board_url(input) {
+        return fourchan::resolve_board(client, &board, max_pages).await;
     }
     if let Some(target) = gelbooru::match_url(input) {
         return gelbooru::resolve(client, target, max_pages).await;

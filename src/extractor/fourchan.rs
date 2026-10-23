@@ -1,10 +1,10 @@
 //! Read-only 4chan / 4channel thread-media preview.
-//! Uses documented JSON endpoints; board-wide recursion, directory templates,
-//! thumbnail fallback and source metadata are not yet at upstream parity.
+//! Uses documented JSON endpoints; full directory templates, thumbnail fallback
+//! and source metadata are not yet at upstream parity.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
-use std::error::Error;
+use std::{collections::HashSet, error::Error, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +48,78 @@ pub fn match_url(input: &str) -> Option<Thread> {
         board: board.into(),
         id,
     })
+}
+
+/// Recognize a board listing without treating arbitrary paths as boards.
+pub fn match_board_url(input: &str) -> Option<String> {
+    let url = Url::parse(input).ok()?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("boards.4chan.org" | "boards.4channel.org"))
+    {
+        return None;
+    }
+    let mut parts = url.path_segments()?.filter(|part| !part.is_empty());
+    let board = parts.next()?;
+    if board.is_empty()
+        || board.len() > 8
+        || !board.bytes().all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+    {
+        return None;
+    }
+    if parts.next().is_some_and(|page| page.parse::<u8>().is_err()) || parts.next().is_some() {
+        return None;
+    }
+    Some(board.to_owned())
+}
+
+fn board_thread_ids(data: &Value, max_pages: u16) -> Result<Vec<u64>, Box<dyn Error + Send + Sync>> {
+    let pages = data.as_array().ok_or("4chan board API must contain pages")?;
+    let mut ids = Vec::new();
+    let mut seen = HashSet::new();
+    for page in pages.iter().take(max_pages.max(1) as usize) {
+        let threads = page.get("threads").and_then(Value::as_array)
+            .ok_or("4chan board API page missing threads")?;
+        for thread in threads {
+            if let Some(id) = thread.get("no").and_then(Value::as_u64) {
+                if id != 0 && seen.insert(id) {
+                    ids.push(id);
+                }
+            }
+        }
+    }
+    Ok(ids)
+}
+
+pub async fn resolve_board(
+    client: &Client,
+    board: &str,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let api = Url::parse("https://a.4cdn.org/")?;
+    resolve_board_at_base(client, board, max_pages, &api).await
+}
+
+async fn resolve_board_at_base(
+    client: &Client,
+    board: &str,
+    max_pages: u16,
+    api: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let endpoint = api.join(&format!("{board}/threads.json"))?;
+    let pages: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let threads = board_thread_ids(&pages, max_pages)?;
+    let mut items = Vec::new();
+    for (index, id) in threads.into_iter().enumerate() {
+        if index > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        items.extend(resolve_at_base(
+            client,
+            Thread { board: board.to_owned(), id },
+            api,
+        ).await?);
+    }
+    Ok(items)
 }
 
 fn files(body: &Value, board: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
@@ -135,6 +207,55 @@ mod tests {
         assert_eq!(match_url("https://boards.4chan.org/../../thread/123"), None);
         assert_eq!(match_url("https://boards.4chan.org/a/thread/0"), None);
         assert_eq!(match_url("https://evil.example/a/thread/123"), None);
+    }
+
+    #[test]
+    fn board_listing_matches_only_bounded_board_paths() {
+        assert_eq!(match_board_url("https://boards.4chan.org/g/"), Some("g".into()));
+        assert_eq!(match_board_url("https://boards.4channel.org/a/4"), Some("a".into()));
+        assert_eq!(match_board_url("https://boards.4chan.org/a/thread/1"), None);
+        assert_eq!(match_board_url("https://boards.4chan.org/a/not-a-page"), None);
+        assert_eq!(match_board_url("https://evil.example/g/"), None);
+    }
+
+    #[test]
+    fn board_page_selection_and_thread_deduplication() {
+        let data = json!([
+            {"page": 1, "threads": [{"no": 123}, {"no": 456}]},
+            {"page": 2, "threads": [{"no": 456}, {"no": 789}]}
+        ]);
+        assert_eq!(board_thread_ids(&data, 1).unwrap(), vec![123, 456]);
+        assert_eq!(board_thread_ids(&data, 2).unwrap(), vec![123, 456, 789]);
+        assert!(board_thread_ids(&json!({"bad": true}), 1).is_err());
+    }
+
+    #[tokio::test]
+    async fn board_listing_recurses_into_thread_using_synthetic_api() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (url, response) in [
+                ("/a/threads.json", r#"[{"page":1,"threads":[{"no":123}]}]"#),
+                ("/a/thread/123.json", r#"{"posts":[{"no":123,"tim":4455,"filename":"art","ext":".png"}]}"#),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let length = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..length]);
+                assert!(request.starts_with(&format!("GET {url} HTTP/1.1")), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{response}",
+                    response.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let items = resolve_board_at_base(&Client::new(), "a", 1, &base).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "4455 art.png");
+        server.await.unwrap();
     }
 
     #[test]
