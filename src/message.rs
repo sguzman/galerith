@@ -7,6 +7,7 @@
 use crate::MediaItem;
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::{collections::HashSet, error::Error, future::Future};
 
 pub type Metadata = Map<String, Value>;
 
@@ -50,6 +51,39 @@ pub fn from_media(items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
 /// The caller is responsible for URL validation and for enforcing queue limits.
 pub fn queued_url(url: String, metadata: Metadata) -> ExtractorMessage {
     ExtractorMessage::Queue { url, metadata }
+}
+
+/// Expand at most 16 distinct direct queue children, preserving the queue
+/// events themselves and inserting resolved child messages after each parent.
+/// This does *not* recursively expand grandchildren. The caller owns API
+/// pacing and must supply a safe resolver.
+pub async fn expand_queues_with<F, Fut>(
+    events: Vec<ExtractorMessage>,
+    max_children: usize,
+    mut resolve_child: F,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>>,
+{
+    let limit = max_children.min(16);
+    let mut result = Vec::new();
+    let mut visited = HashSet::new();
+    for event in events {
+        let to_expand = match &event {
+            ExtractorMessage::Queue { url, .. }
+                if visited.len() < limit && visited.insert(url.clone()) =>
+            {
+                Some(url.clone())
+            }
+            _ => None,
+        };
+        result.push(event);
+        if let Some(child) = to_expand {
+            result.extend(resolve_child(child).await?);
+        }
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -113,4 +147,56 @@ mod tests {
         let value = serde_json::to_value(&events[1]).unwrap();
         assert!(value["metadata"].get("post_id").is_none());
     }
+    #[tokio::test]
+    async fn queue_expansion_preserves_parents_and_stops_at_one_level() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let queue = |url: &str| queued_url(url.into(), Metadata::new());
+        let events = vec![
+            queue("https://example.org/album/a"),
+            queue("https://example.org/album/a"),
+            queue("https://example.org/album/b"),
+        ];
+        let expanded = expand_queues_with(events, 1, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![queued_url(
+                    format!("{url}/grandchild"),
+                    Metadata::new(),
+                )])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(expanded.len(), 4);
+        assert!(matches!(expanded[0], ExtractorMessage::Queue { .. }));
+        assert_eq!(
+            serde_json::to_value(&expanded[1]).unwrap()["url"],
+            "https://example.org/album/a/grandchild"
+        );
+        assert_eq!(
+            serde_json::to_value(&expanded[2]).unwrap()["url"],
+            "https://example.org/album/a"
+        );
+        assert_eq!(
+            serde_json::to_value(&expanded[3]).unwrap()["url"],
+            "https://example.org/album/b"
+        );
+    }
+
+    #[tokio::test]
+    async fn queue_expansion_zero_budget_leaves_all_events_untouched() {
+        let events = vec![queued_url("https://example.org/album/a".into(), Metadata::new())];
+        let expanded = expand_queues_with(events.clone(), 0, |_| async {
+            panic!("zero child budget must not call resolver");
+            #[allow(unreachable_code)]
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        assert_eq!(expanded, events);
+    }
+
 }
