@@ -31,7 +31,7 @@ pub mod wikimedia;
 
 use crate::{
     extract_direct_media,
-    message::{from_media, ExtractorMessage},
+    message::{expand_queues_with, from_media, ExtractorMessage},
     MediaItem,
 };
 use reqwest::Client;
@@ -285,6 +285,24 @@ pub async fn resolve_messages(
         return wallhaven::queued_collections(client, &user, max_pages).await;
     }
     Ok(from_media(resolve(client, input, max_pages).await?))
+}
+
+/// Opt-in, one-level expansion for message inspection. The parent queue
+/// messages remain in the stream; child extractors are resolved read-only.
+/// A conservative inter-child delay prevents rapid back-to-back API calls.
+/// Complete recursive job traversal and cross-site rate scheduling are pending.
+pub async fn resolve_messages_expanding(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    max_children: u8,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let events = resolve_messages(client, input, max_pages).await?;
+    expand_queues_with(events, max_children as usize, |url| async move {
+        tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
+        resolve_messages(client, &url, max_pages).await
+    })
+    .await
 }
 
 #[cfg(test)]
