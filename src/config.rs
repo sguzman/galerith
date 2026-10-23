@@ -41,7 +41,11 @@ fn overlay_field(destination: &mut Map<String, Value>, name: &str, value: Value)
 }
 
 impl Config {
-    pub fn load(&mut self, path: &Path, format: Format) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub fn load(
+        &mut self,
+        path: &Path,
+        format: Format,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let source = fs::read_to_string(path)?;
         let parsed: Value = match format {
             Format::Json => serde_json::from_str(&source)?,
@@ -56,8 +60,7 @@ impl Config {
     }
 
     pub fn option(&mut self, assignment: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let (key, source) = assignment.split_once('=')
-            .ok_or("expected -o KEY=VALUE")?;
+        let (key, source) = assignment.split_once('=').ok_or("expected -o KEY=VALUE")?;
         if key.split('.').any(|part| part.is_empty()) {
             return Err("invalid empty component in configuration option".into());
         }
@@ -68,26 +71,41 @@ impl Config {
             if !at.is_object() {
                 *at = Value::Object(Map::new());
             }
-            at = at.as_object_mut().expect("created config object")
-                .entry(part).or_insert(Value::Null);
+            at = at
+                .as_object_mut()
+                .expect("created config object")
+                .entry(part)
+                .or_insert(Value::Null);
         }
         *at = value;
         Ok(())
     }
 
     fn path(&self, path: &[&str]) -> Option<&Value> {
-        path.iter().try_fold(&self.root, |v, segment| v.get(*segment))
+        path.iter()
+            .try_fold(&self.root, |v, segment| v.get(*segment))
     }
 
     pub fn filename(&self, extractor: &str) -> Option<&str> {
-        self.path(&["filename"]).and_then(Value::as_str)
-            .or_else(|| self.path(&["extractor", extractor, "filename"]).and_then(Value::as_str))
-            .or_else(|| self.path(&["extractor", "filename"]).and_then(Value::as_str))
+        self.path(&["filename"])
+            .and_then(Value::as_str)
+            .or_else(|| {
+                self.path(&["extractor", extractor, "filename"])
+                    .and_then(Value::as_str)
+            })
+            .or_else(|| {
+                self.path(&["extractor", "filename"])
+                    .and_then(Value::as_str)
+            })
     }
 
     pub fn base_directory(&self) -> Option<&str> {
-        self.path(&["base-directory"]).and_then(Value::as_str)
-            .or_else(|| self.path(&["extractor", "base-directory"]).and_then(Value::as_str))
+        self.path(&["base-directory"])
+            .and_then(Value::as_str)
+            .or_else(|| {
+                self.path(&["extractor", "base-directory"])
+                    .and_then(Value::as_str)
+            })
     }
 }
 
@@ -99,7 +117,9 @@ mod tests {
     fn nested_and_global_filename_precedence() {
         let mut config = Config::default();
         config.option("extractor.filename={filename}").unwrap();
-        config.option("extractor.danbooru.filename={id}.{extension}").unwrap();
+        config
+            .option("extractor.danbooru.filename={id}.{extension}")
+            .unwrap();
         assert_eq!(config.filename("directlink"), Some("{filename}"));
         assert_eq!(config.filename("danbooru"), Some("{id}.{extension}"));
         config.option("filename=GLOBAL_{filename}").unwrap();
@@ -112,7 +132,10 @@ mod tests {
         config.option("base-directory=\"pictures\"").unwrap();
         assert_eq!(config.base_directory(), Some("pictures"));
         config.option("extractor.danbooru.disabled=true").unwrap();
-        assert_eq!(config.path(&["extractor", "danbooru", "disabled"]), Some(&Value::Bool(true)));
+        assert_eq!(
+            config.path(&["extractor", "danbooru", "disabled"]),
+            Some(&Value::Bool(true))
+        );
         assert!(config.option("invalid-no-equals").is_err());
         assert!(config.option("extractor..filename=foo").is_err());
     }
@@ -120,13 +143,22 @@ mod tests {
     #[test]
     fn merges_nested_options_instead_of_replacing_the_whole_extractor_tree() {
         let mut config = Config::default();
-        overlay(&mut config.root, serde_json::json!({
-            "extractor": {"danbooru": {"filename": "{id}.jpg", "sleep": 2}}
-        }));
-        overlay(&mut config.root, serde_json::json!({
-            "extractor": {"danbooru": {"filename": "{id}.webp"}}
-        }));
+        overlay(
+            &mut config.root,
+            serde_json::json!({
+                "extractor": {"danbooru": {"filename": "{id}.jpg", "sleep": 2}}
+            }),
+        );
+        overlay(
+            &mut config.root,
+            serde_json::json!({
+                "extractor": {"danbooru": {"filename": "{id}.webp"}}
+            }),
+        );
         assert_eq!(config.filename("danbooru"), Some("{id}.webp"));
-        assert_eq!(config.path(&["extractor", "danbooru", "sleep"]), Some(&Value::from(2)));
+        assert_eq!(
+            config.path(&["extractor", "danbooru", "sleep"]),
+            Some(&Value::from(2))
+        );
     }
 }

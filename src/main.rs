@@ -173,7 +173,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .build()?;
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
-            config.base_directory().map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+            config
+                .base_directory()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
         }),
         retries: cli.retries,
         no_skip: cli.no_skip,
@@ -198,8 +201,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         };
         for mut item in items {
             if !cli.get_urls {
-                if let Some(template) = cli.filename_template.as_deref()
-                    .or_else(|| config.filename(item.extractor)) {
+                if let Some(template) = cli
+                    .filename_template
+                    .as_deref()
+                    .or_else(|| config.filename(item.extractor))
+                {
                     match render_filename(template, &item) {
                         Ok(name) => item.filename = name,
                         Err(error) => {
