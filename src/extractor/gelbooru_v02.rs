@@ -255,4 +255,35 @@ mod tests {
         assert_eq!(output[0].filename, "44.png");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn tag_search_uses_xml_dapi_and_stops_on_short_page() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0_u8; 4096];
+            let length = socket.read(&mut bytes).await.unwrap();
+            let request = String::from_utf8_lossy(&bytes[..length]);
+            assert!(request.starts_with("GET /index.php?"), "{request}");
+            assert!(request.contains("tags=blue+sky"), "{request}");
+            assert!(request.contains("pid=0"), "{request}");
+            assert!(request.contains("limit=100"), "{request}");
+            let xml = r#"<posts count="1"><post id="18" file_url="https://img.example.test/a.jpg"/></posts>"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{xml}", xml.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target::Search {
+            host: "xbooru.com".into(),
+            tags: "blue sky".into(),
+        };
+        let files = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "18.jpg");
+        assert_eq!(files[0].extractor, "xbooru");
+        server.await.unwrap();
+    }
 }
