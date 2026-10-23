@@ -999,7 +999,7 @@
               "id": "T512",
               "emoji": "🗄️",
               "name": "FoolFuuka archive family thread media preview",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Match nine pinned archive hosts and strict thread URL forms",
@@ -1024,6 +1024,11 @@
                   "title": "Verify bounded board listing, explicit page selection and thread recursion",
                   "passed": true,
                   "evidence": "src/extractor/foolfuuka.rs; CI 39963113023 (localhost board index, URL parser and full regression suite)"
+                },
+                {
+                  "title": "Resolve bounded gallery pages and skip missing media in offline fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/foolfuuka.rs; CI 39963720920 (gallery URL and local JSON fixtures)"
                 }
               ]
             }

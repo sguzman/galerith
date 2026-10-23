@@ -6,7 +6,7 @@
 
 **Color:** `#90D8AA` · `oklch(82.22% 0.0973 155.6)` ([rationale](docs/COLOR.md)).
 
-> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, , Moebooru, Philomena, FoolFuuka archives (threads and bounded boards), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
+> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, , Moebooru, Philomena, FoolFuuka archives (threads, bounded boards and galleries), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
 
 ## Native CLI preview
 
@@ -49,7 +49,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39963113023](https://github.com/sguzman/galerith/actions/runs/39963113023) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39963720920](https://github.com/sguzman/galerith/actions/runs/39963720920) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 

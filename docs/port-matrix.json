@@ -495,7 +495,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "FoolFuuka pinned host thread and bounded board APIs, synthetic fixtures; CI 39963113023; search, galleries, redirects and metadata not complete"
+        "FoolFuuka thread, bounded board and gallery API subsets; synthetic HTTP and parsing CI 39963720920; remaining search, archive redirects and metadata not fully ported"
       ]
     },
     {
