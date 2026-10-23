@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 56%` across 83 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 57%` across 85 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,10 +119,10 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 70%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `██████░░░░ 59%`
+### 🧬 P4 — Extractor architecture — `██████░░░░ 63%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -175,6 +175,18 @@
   - [x] Expose read-only file/child selectors and reject invalid or silently ignored CLI mode combinations — src/main.rs message-file-range/message-child-range and tests/message_cli.rs; CI 40037263139
   - [x] Apply directory-scope selection before file and queue actions, preserve ordinal ordering and validate it in CLI tests — src/message.rs directory scope suppression + nested queue count fixtures, src/main.rs and tests/message_cli.rs; CI 40037566729
   - [ ] Implement full upstream file/post/child predicate expression and filtering semantics, early API pagination termination and live differential acceptance
+- ⏩ **T410** Safe finite file-range pushdown and Wallhaven early API stop — `████████░░ 80%`
+  - [x] Calculate conservative finite upper bounds for valid single, stepped and multi-clause file selectors — src/range.rs bounded/open-ended tests; CI 40039010520
+  - [x] Stop Wallhaven HTTP pagination once enough validated, unique media have been collected — src/extractor/wallhaven.rs resolve_at_base_limited and local request-count fixture; CI 40039010520
+  - [x] Push finite selected-file bounds from typed job dispatcher before parent and child Wallhaven API requests — src/extractor/mod.rs resolve_messages_bounded and source-specific parser; CI 40039010520
+  - [x] Disable unsafe pushdown with directory-filtered or open-ended selection and preserve legacy extraction — src/message.rs scope-aware JobSelection early_file_ceiling, src/range.rs and local regression tests; CI 40039081132
+  - [ ] Implement complete early termination across all upstream paginators with streaming, post and file filters plus live differential acceptance
+- 🧵 **T411** API-backed 4chan thread post grouping and distinct media identity — `████████░░ 80%`
+  - [x] Emit typed directory events from actual 4chan API post numbers, preserving text-only posts — src/extractor/fourchan.rs thread_messages, source_post_id and synthetic post fixture; CI 40039010520
+  - [x] Preserve existing tim-based native media identifiers distinct from source post numbers — src/extractor/fourchan.rs media_from_post + thread_messages regression tests and unchanged legacy projection; CI 40039010520
+  - [x] Dispatch thread URLs through typed native extraction rather than synthetic per-file directories — src/extractor/mod.rs resolve_messages for fourchan::match_url, CI 40039010520
+  - [x] Verify 4chan typed post scopes with one local HTTP thread request and malformed attachment handling — src/extractor/fourchan.rs resolve_messages_at_base loopback and text/no-file fixtures; CI 40039010520
+  - [ ] Reproduce full upstream thread/board post queue, comments, metadata, filename and archive semantics through reference differential testing
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
