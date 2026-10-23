@@ -180,7 +180,9 @@ mod tests {
             assert_eq!(extractor_name(url), Some(expected));
             assert!(names.contains(expected), "undocumented preview: {expected}");
         }
-        assert_eq!(PREVIEW_EXTRACTORS.len(), fixtures.len());
+        let covered: std::collections::HashSet<_> =
+            fixtures.iter().map(|(_, expected)| *expected).collect();
+        assert_eq!(names, covered);
     }
 
     #[test]
