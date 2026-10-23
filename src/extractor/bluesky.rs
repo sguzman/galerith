@@ -15,6 +15,7 @@ pub enum Target {
     Replies { actor: String },
     Avatar { actor: String },
     Banner { actor: String },
+    Search { query: String, sort: Option<String> },
 }
 
 fn valid_segment(value: &str) -> bool {
@@ -32,6 +33,49 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
+        ["search"] | ["search", ""] => {
+            let query = url
+                .query_pairs()
+                .find(|(key, _)| key == "q")
+                .map(|(_, value)| value.into_owned())?;
+            let sort = url
+                .query_pairs()
+                .find(|(key, _)| key == "sort")
+                .map(|(_, value)| value.into_owned());
+            if !valid_search(&query) || !valid_sort(sort.as_deref()) {
+                return None;
+            }
+            Some(Target::Search { query, sort })
+        }
+        ["search", raw] => {
+            let query = percent_encoding::percent_decode_str(raw)
+                .decode_utf8()
+                .ok()?
+                .replace('+', " ");
+            if !valid_search(&query) {
+                return None;
+            }
+            Some(Target::Search { query, sort: None })
+        }
+        ["hashtag", raw] | ["hashtag", raw, "top"] | ["hashtag", raw, "latest"] => {
+            let hashtag = percent_encoding::percent_decode_str(raw).decode_utf8().ok()?;
+            if hashtag.is_empty()
+                || hashtag.len() > 128
+                || !hashtag
+                    .chars()
+                    .all(|ch| ch.is_alphanumeric() || ch == '_' || ch == '-')
+            {
+                return None;
+            }
+            let sort = match parts.get(2) {
+                Some(order) => Some((*order).to_owned()),
+                None => None,
+            };
+            Some(Target::Search {
+                query: format!("#{hashtag}"),
+                sort,
+            })
+        }
         ["profile", actor, "post", rkey] if valid_segment(actor) && valid_segment(rkey) => {
             Some(Target::Post {
                 actor: (*actor).to_owned(),
@@ -62,6 +106,21 @@ pub fn match_url(input: &str) -> Option<Target> {
         }
         _ => None,
     }
+}
+
+fn valid_search(query: &str) -> bool {
+    !query.is_empty() && query.len() <= 256 && !query.chars().any(char::is_control)
+}
+
+fn valid_sort(sort: Option<&str>) -> bool {
+    sort.is_none_or(|value| matches!(value, "top" | "latest"))
+}
+
+fn next_cursor(body: &Value, prior: Option<&str>) -> Option<String> {
+    body.get("cursor")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 512 && Some(*value) != prior)
+        .map(str::to_owned)
 }
 
 fn cdn_image(raw: &str) -> Option<(Url, String)> {
@@ -115,10 +174,11 @@ fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
     if author_did != expected_did {
         return Vec::new();
     }
+    let prefix = format!("at://{author_did}/app.bsky.feed.post/");
     let Some(rkey) = post
         .get("uri")
         .and_then(Value::as_str)
-        .and_then(|uri| uri.rsplit('/').next())
+        .and_then(|uri| uri.strip_prefix(&prefix))
         .filter(|rkey| valid_segment(rkey))
     else {
         return Vec::new();
@@ -146,6 +206,71 @@ fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
         });
     }
     items
+}
+
+fn parse_public_media(post: &Value) -> Vec<MediaItem> {
+    let Some(did) = post
+        .get("author")
+        .and_then(|author| author.get("did"))
+        .and_then(Value::as_str)
+    else {
+        return Vec::new();
+    };
+    parse_media(post, did)
+}
+
+async fn resolve_search(
+    client: &Client,
+    base: &Url,
+    query: &str,
+    sort: Option<&str>,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut items = Vec::new();
+    let mut seen = HashSet::new();
+    let mut cursor: Option<String> = None;
+    for offset in 0..max_pages.max(1) {
+        if offset > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        let mut endpoint = base.join("xrpc/app.bsky.feed.searchPosts")?;
+        {
+            let mut params = endpoint.query_pairs_mut();
+            params.append_pair("q", query).append_pair("limit", "100");
+            if let Some(sort) = sort {
+                params.append_pair("sort", sort);
+            }
+            if let Some(cursor) = &cursor {
+                params.append_pair("cursor", cursor);
+            }
+        }
+        let body: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let posts = body
+            .get("posts")
+            .and_then(Value::as_array)
+            .ok_or("Bluesky search response missing posts")?;
+        if posts.is_empty() {
+            break;
+        }
+        for post in posts {
+            for item in parse_public_media(post) {
+                if seen.insert(item.url.clone()) {
+                    items.push(item);
+                }
+            }
+        }
+        cursor = next_cursor(&body, cursor.as_deref());
+        if cursor.is_none() {
+            break;
+        }
+    }
+    Ok(items)
 }
 
 async fn resolve_actor(
@@ -191,8 +316,12 @@ async fn resolve_at_base(
     target: Target,
     max_pages: u16,
     base: &Url,
-) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+ ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Target::Search { query, sort } = &target {
+        return resolve_search(client, base, query, sort.as_deref(), max_pages).await;
+    }
     let actor = match &target {
+        Target::Search { .. } => unreachable!("search is resolved separately"),
         Target::Post { actor, .. }
         | Target::Media { actor }
         | Target::Posts { actor }
@@ -244,7 +373,10 @@ async fn resolve_at_base(
                 Target::Media { .. } => "posts_with_media",
                 Target::Posts { .. } => "posts_and_author_threads",
                 Target::Replies { .. } => "posts_with_replies",
-                Target::Post { .. } | Target::Avatar { .. } | Target::Banner { .. } => {
+                Target::Post { .. }
+                | Target::Avatar { .. }
+                | Target::Banner { .. }
+                | Target::Search { .. } => {
                     unreachable!("single posts and profile images are resolved above")
                 }
             };
@@ -289,11 +421,7 @@ async fn resolve_at_base(
                         }
                     }
                 }
-                cursor = body
-                    .get("cursor")
-                    .and_then(Value::as_str)
-                    .filter(|value| !value.is_empty() && value.len() <= 512)
-                    .map(str::to_owned);
+                cursor = next_cursor(&body, cursor.as_deref());
                 if cursor.is_none() {
                     break;
                 }
@@ -365,6 +493,30 @@ mod tests {
                 actor: "did:plc:alice".into(),
             })
         );
+        assert_eq!(
+            match_url("https://bsky.app/search?q=blue+fox&sort=latest"),
+            Some(Target::Search {
+                query: "blue fox".into(),
+                sort: Some("latest".into()),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/hashtag/%E8%8A%B1/latest"),
+            Some(Target::Search {
+                query: "#花".into(),
+                sort: Some("latest".into()),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/search/blue%20fox"),
+            Some(Target::Search {
+                query: "blue fox".into(),
+                sort: None,
+            })
+        );
+        assert!(match_url("https://bsky.app/search").is_none());
+        assert!(match_url("https://bsky.app/search?q=fox&sort=unknown").is_none());
+        assert!(match_url("https://bsky.app/hashtag/art/unknown").is_none());
         assert!(match_url("https://bsky.app/profile/alice.bsky.social/likes").is_none());
         assert!(match_url("https://bsky.evil.app/profile/a/media").is_none());
         assert!(match_url("http://bsky.app/profile/a/media").is_none());
@@ -464,6 +616,68 @@ mod tests {
             "avatar": "https://evil.example.org/img/cid@png"
         });
         assert!(profile_image(&invalid_host, "did:plc:alice", "avatar").is_none());
+    }
+
+    #[test]
+    fn search_does_not_accept_foreign_uri_or_repeating_cursors() {
+        let invalid = json!({
+            "uri": "at://did:plc:forged/app.bsky.feed.post/3n9",
+            "author": {"did": "did:plc:alice"},
+            "embed": {"images": [
+                {"fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:alice/cid@jpeg"}
+            ]}
+        });
+        assert!(parse_public_media(&invalid).is_empty());
+        let response = json!({"cursor": "again"});
+        assert_eq!(next_cursor(&response, Some("again")), None);
+        assert_eq!(next_cursor(&response, None), Some("again".into()));
+        assert_eq!(next_cursor(&json!({"cursor": ""}), None), None);
+    }
+
+    #[tokio::test]
+    async fn public_search_and_hashtags_use_search_posts_json_api() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                (
+                    "GET /xrpc/app.bsky.feed.searchPosts?q=blue+fox&limit=100&sort=latest HTTP/1.1",
+                    r#"{"posts":[{"uri":"at://did:plc:alice/app.bsky.feed.post/aa","author":{"did":"did:plc:alice"},"embed":{"images":[{"fullsize":"https://cdn.bsky.app/img/feed_fullsize/plain/cidA@jpeg"}]}},{"uri":"at://did:plc:bob/app.bsky.feed.post/bb","author":{"did":"did:plc:bob"},"embed":{"images":[{"fullsize":"https://cdn.bsky.app/img/feed_fullsize/plain/cidB@webp"}]}}]}"#,
+                ),
+                (
+                    "GET /xrpc/app.bsky.feed.searchPosts?q=%23art&limit=100&sort=top HTTP/1.1",
+                    r#"{"posts":[{"uri":"at://did:plc:alice/app.bsky.feed.post/cc","author":{"did":"did:plc:alice"},"embed":{"media":{"images":[{"fullsize":"https://cdn.bsky.app/img/feed_fullsize/plain/cidC@png"}]}}}]}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let count = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..count]);
+                assert!(request.starts_with(needle), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = resolve_search(&Client::new(), &base, "blue fox", Some("latest"), 1)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].filename, "aa_1.jpeg");
+        assert_eq!(result[1].filename, "bb_1.webp");
+        let tags = resolve_search(&Client::new(), &base, "#art", Some("top"), 1)
+            .await
+            .unwrap();
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].filename, "cc_1.png");
+        server.await.unwrap();
     }
 
     #[tokio::test]
