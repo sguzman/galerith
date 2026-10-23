@@ -22,9 +22,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     match url.path_segments()?.collect::<Vec<_>>().as_slice() {
         ["photovogue", "photographers", id]
-            if !id.is_empty()
-                && id.len() <= 18
-                && id.bytes().all(|byte| byte.is_ascii_digit()) =>
+            if !id.is_empty() && id.len() <= 18 && id.bytes().all(|byte| byte.is_ascii_digit()) =>
         {
             Some(Target::Photographer {
                 id: (*id).to_owned(),
@@ -147,7 +145,13 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_api_base(client, &Url::parse("https://api.vogue.com/")?, target, max_pages).await
+    resolve_at_api_base(
+        client,
+        &Url::parse("https://api.vogue.com/")?,
+        target,
+        max_pages,
+    )
+    .await
 }
 
 #[cfg(test)]
