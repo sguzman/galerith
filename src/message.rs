@@ -208,7 +208,12 @@ mod tests {
 
         let calls = Cell::new(0usize);
         let queued: Vec<_> = (0..20)
-            .map(|index| queued_url(format!("https://example.org/gallery/{index}"), Metadata::new()))
+            .map(|index| {
+                queued_url(
+                    format!("https://example.org/gallery/{index}"),
+                    Metadata::new(),
+                )
+            })
             .collect();
         let expanded = expand_queues_with(queued.clone(), usize::MAX, |_| {
             calls.set(calls.get() + 1);
