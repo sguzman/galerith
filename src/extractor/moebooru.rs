@@ -12,7 +12,10 @@ pub enum Query {
     Post(u64),
     Tags(String),
     Pool(u64),
-    Popular { feed: &'static str, parameters: Vec<(String, String)> },
+    Popular {
+        feed: &'static str,
+        parameters: Vec<(String, String)>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,13 +65,20 @@ pub fn match_url(input: &str) -> Option<Target> {
                 "popular_recent" => "popular_recent",
                 _ => return None,
             };
-            let parameters: Vec<(String, String)> = url.query_pairs()
+            let parameters: Vec<(String, String)> = url
+                .query_pairs()
                 .map(|(key, value)| (key.into_owned(), value.into_owned()))
                 .collect();
-            if parameters.len() > 12 || parameters.iter().any(|(key, value)| {
-                key.is_empty() || key.len() > 32 || value.len() > 128
-                    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-            }) {
+            if parameters.len() > 12
+                || parameters.iter().any(|(key, value)| {
+                    key.is_empty()
+                        || key.len() > 32
+                        || value.len() > 128
+                        || !key
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+                })
+            {
                 return None;
             }
             Query::Popular { feed, parameters }
@@ -155,7 +165,13 @@ async fn resolve_at_base(
                 query.append_pair(key, value);
             }
         }
-        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        let body: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
         return parse_items(&body, target.category);
     }
     let tags = match &target.query {
@@ -230,10 +246,14 @@ mod tests {
         assert_eq!(
             match_url("https://yande.re/post/popular_by_day?year=2025&month=10"),
             Some(Target {
-                host: "yande.re", category: "yandere",
+                host: "yande.re",
+                category: "yandere",
                 query: Query::Popular {
                     feed: "popular_by_day",
-                    parameters: vec![("year".into(), "2025".into()), ("month".into(), "10".into())]
+                    parameters: vec![
+                        ("year".into(), "2025".into()),
+                        ("month".into(), "10".into())
+                    ]
                 }
             })
         );
@@ -335,7 +355,10 @@ mod tests {
     }
     #[tokio::test]
     async fn local_popular_feed_matches_upstream_json_endpoint() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -343,7 +366,10 @@ mod tests {
             let mut bytes = [0_u8; 4096];
             let count = socket.read(&mut bytes).await.unwrap();
             let request = String::from_utf8_lossy(&bytes[..count]);
-            assert!(request.starts_with("GET /post/popular_by_week.json?"), "{request}");
+            assert!(
+                request.starts_with("GET /post/popular_by_week.json?"),
+                "{request}"
+            );
             assert!(request.contains("year=2025"), "{request}");
             assert!(request.contains("month=10"), "{request}");
             let payload = r#"[{"id":84,"file_url":"https://img.example.org/pic.jpg"}]"#;
@@ -359,13 +385,17 @@ mod tests {
             category: "yandere",
             query: Query::Popular {
                 feed: "popular_by_week",
-                parameters: vec![("year".into(), "2025".into()), ("month".into(), "10".into())],
+                parameters: vec![
+                    ("year".into(), "2025".into()),
+                    ("month".into(), "10".into()),
+                ],
             },
         };
-        let items = resolve_at_base(&Client::new(), target, 9, &base).await.unwrap();
+        let items = resolve_at_base(&Client::new(), target, 9, &base)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "yandere_84.jpg");
         server.await.unwrap();
     }
-
 }
