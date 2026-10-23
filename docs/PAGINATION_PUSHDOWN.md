@@ -10,6 +10,9 @@ Galerith's native **typed message job preview** can push a finite, positive file
 | Gelbooru JSON | public `post` JSON/DAPI | Valid media reach finite ceiling; source-post count controls short-page detection | `src/extractor/gelbooru.rs` local HTTP fixtures |
 | Gelbooru v0.2 XML family | public XML/DAPI of five allowlisted hosts | Valid media reach finite ceiling; raw `<post>` count controls short-page detection | `src/extractor/gelbooru_v02.rs` local HTTP fixtures |
 | Moebooru | public JSON post/tag/pool/popular feeds | Valid media reach finite ceiling; raw JSON record count controls short-page detection | `src/extractor/moebooru.rs` local HTTP fixtures |
+| Danbooru tag searches | public `posts.json` tag/page API | Valid media reach finite ceiling; source array count retains existing short-page threshold | `src/extractor/danbooru.rs` local HTTP fixtures |
+
+Danbooru early stopping is limited to **public tag searches**. Pools, favorite groups, popular feeds, media assets, artist queries and random posts retain their previous resolver behavior.
 
 The XML family is Rule34, Safebooru, TBIB, Hypnohub and Xbooru as registered by the current preview. Moebooru includes the project's registered Yande.re, Konachan, Sakugabooru and Lolibooru host routes. These are **preview capabilities**, not fully ported gallery-dl extractor modules.
 
@@ -25,6 +28,6 @@ The XML family is Rule34, Safebooru, TBIB, Hypnohub and Xbooru as registered by 
 
 ## Acceptance boundary
 
-Offline loopback fixtures verify early request termination and continuation past unavailable media. The documented implementation reached green Linux CI (format, Clippy, tests and release build) in [run 40039969843](https://github.com/sguzman/galerith/actions/runs/40039969843).
+Offline loopback fixtures verify early request termination and continuation past unavailable media. The documented implementation reached green Linux CI (format, Clippy, tests and release build) in [run 40039969843](https://github.com/sguzman/galerith/actions/runs/40039969843) and Danbooru search fixtures in [run 40040566586](https://github.com/sguzman/galerith/actions/runs/40040566586).
 
 **Still open:** pushing down file/post/child predicates into all pinned upstream paginators, preserving real grouped post semantics in every extractor, request cancellation during streaming, per-site differential tests, complete filename/metadata handling, and authenticated live-site conformance. No extra extractor module is counted as fully ported on the strength of this optimization.
