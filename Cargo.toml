@@ -13,6 +13,7 @@ fs2 = "0.4"
 httpdate = "1.0"
 percent-encoding = "2.3"
 rusqlite = { version = "0.32", features = ["bundled"] }
+roxmltree = "0.20"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json", "cookies"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

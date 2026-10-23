@@ -4,13 +4,16 @@ pub mod danbooru;
 pub mod e621;
 pub mod fourchan;
 pub mod gelbooru;
+pub mod gelbooru_v02;
 
 use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
 use std::error::Error;
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if fourchan::match_url(input).is_some() || fourchan::match_board_url(input).is_some() {
+    if gelbooru_v02::match_url(input).is_some() {
+        Some("gelbooru_v02")
+    } else if fourchan::match_url(input).is_some() || fourchan::match_board_url(input).is_some() {
         Some("4chan")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
@@ -30,6 +33,9 @@ pub async fn resolve(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Some(target) = gelbooru_v02::match_url(input) {
+        return gelbooru_v02::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve(client, target).await;
     }
