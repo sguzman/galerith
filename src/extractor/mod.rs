@@ -12,6 +12,7 @@ pub mod imagebam;
 pub mod imgbox;
 pub mod moebooru;
 pub mod philomena;
+pub mod pixeldrain;
 
 use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
@@ -36,6 +37,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbox", "public image pages and bounded galleries"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
+    ("pixeldrain", "public file and album JSON APIs"),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
@@ -67,6 +69,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
         Some("danbooru")
+    } else if pixeldrain::match_url(input).is_some() {
+        Some("pixeldrain")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -127,6 +131,9 @@ pub async fn resolve(
     if let Some(target) = danbooru::match_url(input) {
         return danbooru::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = pixeldrain::match_url(input) {
+        return pixeldrain::resolve(client, target).await;
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -158,6 +165,7 @@ mod tests {
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
+            ("https://pixeldrain.com/u/File12", "pixeldrain"),
         ];
         let mut names = std::collections::HashSet::new();
         for &(name, description) in PREVIEW_EXTRACTORS {
@@ -228,6 +236,10 @@ mod tests {
         assert_eq!(
             extractor_name("https://catbox.moe/c/album123"),
             Some("catbox")
+        );
+        assert_eq!(
+            extractor_name("https://pixeldrain.com/l/album123#item=1"),
+            Some("pixeldrain")
         );
         assert_eq!(
             extractor_name("https://imgbox.com/g/abcdefghij"),
