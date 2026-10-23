@@ -1885,9 +1885,14 @@
     {
       "path": "gallery_dl/extractor/wallhaven.py",
       "module": "wallhaven",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/wallhaven.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent read-only Wallhaven v1 API preview for public wallpapers, q-only searches, and user uploads; approved CDN URL/filename checks, 2 MiB JSON limit, 1400ms paging, resource caps and offline tests; GitHub Actions 40026953430 passed. Full search options, collections, private/authenticated media, metadata/archive and live upstream behavior not accepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/wallpapercave.py",
