@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 5 · Not ported: 267.**
+**Complete: 0 · Partial: 6 · Not ported: 266.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -82,7 +82,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/fuskator.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/gelbooru.py` | 🟡 Partial | `src/extractor/gelbooru.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/gelbooru_v01.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/gelbooru_v02.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/gelbooru_v02.py` | 🟡 Partial | `src/extractor/gelbooru_v02.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/generic.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/girlsreleased.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/girlswithmuscle.py` | ⚪ Not ported | — |

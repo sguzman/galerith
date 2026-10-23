@@ -8,6 +8,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 | Danbooru | Single posts and bounded tag searches | Pools, artists, metadata, login, full pagination |
 | e621 family | e621/e926/e6ai posts and tags; MD5 URL fallback | Pools, favorites, popular feeds, artist URLs, authorization |
 | Gelbooru | Posts and tag search via JSON API | Pools, favorites, redirects, rich metadata, pagination edge cases |
+| Gelbooru v0.2 XML | Partial posts/tag-search API for rule34, safebooru.org, tbib, hypnohub and xbooru | Pools, favorites, auth, site fallback URLs, tags, metadata, full paging |
 | 4chan / 4channel | Thread attachments and bounded board-to-thread traversal | Upstream directory/filename/metadata, archive edge cases, full queue model |
 | `-f / --filename` | `{filename}`, `{stem}`, `{extension}`, `{category}`, `{extractor}`, `{id}`, `{post_id}`, escaped braces and integer ID padding | Full gallery-dl format grammar, transformations, conditions, arbitrary metadata |
 | `--range` | 1-based single, inclusive, open-ended and stepped slice expressions | Early stopping and per-message file/post/child range semantics |
@@ -21,6 +22,6 @@ These features are **implemented subsets**; the full port is still the first MVP
 
 The source-module parity inventory is in [PORT_MATRIX.md](PORT_MATRIX.md). A source module may define multiple extractor classes and URL variants; source-module counts **must not** be confused with site counts. No module may be marked complete solely for having a Rust file or passing a small subset test.
 
-Verification: [Linux CI run 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428).
+Verification: [Linux CI run 39959270238](https://github.com/sguzman/galerith/actions/runs/39959270238).
 
 No Python runtime dependency. This public repository uses only synthetic test credentials and assets.

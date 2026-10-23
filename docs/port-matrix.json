@@ -550,9 +550,14 @@
     {
       "path": "gallery_dl/extractor/gelbooru_v02.py",
       "module": "gelbooru_v02",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/gelbooru_v02.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Five host XML DAPI post/tag search subset; localhost fixtures; GitHub Actions 39959270238; full upstream parity unverified"
+      ]
     },
     {
       "path": "gallery_dl/extractor/generic.py",

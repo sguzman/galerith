@@ -8,7 +8,8 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
   │    ├── direct media links
   │    ├── Danbooru posts and tags
   │    ├── e621/e926/e6ai posts and tags
-  │    ├── Gelbooru posts and tags
+  │    ├── Gelbooru JSON posts and tags
+  │    ├── Gelbooru v0.2 XML API family (five hosts)
   │    └── 4chan / 4channel thread and bounded board media
   ├── 1-based range selector / bounded filename formatter
   └── HTTP(S) client with Netscape cookie jar and bounded pacing
@@ -19,7 +20,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 ```
 
 - `src/lib.rs`: shared `MediaItem` and direct media matcher
-- `src/extractor/`: independently written, limited booru API extractors; no global gallery-dl-equivalent registry or recursive queues yet
+- `src/extractor/`: independently written, limited JSON/XML booru API extractors; no gallery-dl-equivalent message queue or metadata contract yet
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
 - `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
 - `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
