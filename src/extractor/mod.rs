@@ -315,6 +315,10 @@ mod tests {
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
+            (
+                "https://wallhaven.cc/user/example-1/favorites/12345",
+                "wallhaven",
+            ),
             ("https://webmshare.com/play/ABc_123", "webmshare"),
             (
                 "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
