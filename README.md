@@ -30,11 +30,11 @@ cargo run -- --sleep 0.15 -d ./media 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 ```
 
-`galerith` is the executable name. The native preview includes stream/resume/retries, path locks, a Galerith-specific SQLite archive, explicit JSON/YAML/TOML configuration, Netscape cookies, filename fields, index ranges, redacted JSON metadata sidecars, proxy/user-agent options and limited `--sleep` pacing. The read-only `--dump-messages` flag exposes typed directory/URL/queue events; opt-in `--expand-queues` resolves only one child level (default 8, hard cap 16) without downloading media. Neither mode is upstream-equivalent JSON; see [message protocol](docs/MESSAGE_PROTOCOL.md). See [downloader](docs/DOWNLOADER.md), [network options](docs/NETWORK_OPTIONS.md), [configuration](docs/CONFIG.md), [extractor previews](docs/EXTRACTOR_PREVIEWS.md) and [Gelbooru XML subset](docs/GELBOORU_V02.md), and [full compatibility gaps](docs/COMPATIBILITY.md). Full source-site extraction, auth, metadata, format templates, archive interchange, postprocessors, full recursive message job handling and live-site conformance are still missing. Previews are not production replacements.
+`galerith` is the executable name. The native preview includes stream/resume/retries, path locks, a Galerith-specific SQLite archive, explicit JSON/YAML/TOML configuration, Netscape cookies, filename fields, index ranges, redacted JSON metadata sidecars, proxy/user-agent options and limited `--sleep` pacing. The read-only `--dump-messages` flag exposes typed directory/URL/queue events. Opt-in `--expand-queues --queue-depth N` (1–4 levels, default 1) inspects bounded child queues without downloading. Separately, `--follow-queues` uses the two-level, maximum-eight-child message pipeline for actual media downloading, keeping the original resolver as the default. Neither mode is full upstream message-job parity; see [message protocol](docs/MESSAGE_PROTOCOL.md). See [downloader](docs/DOWNLOADER.md), [network options](docs/NETWORK_OPTIONS.md), [configuration](docs/CONFIG.md), [extractor previews](docs/EXTRACTOR_PREVIEWS.md) and [Gelbooru XML subset](docs/GELBOORU_V02.md), and [full compatibility gaps](docs/COMPATIBILITY.md). Full source-site extraction, auth, metadata, format templates, archive interchange, postprocessors, full recursive message job handling and live-site conformance are still missing. Previews are not production replacements.
 
 ## Port tracking
 
-**Overall MVP:** `██████░░░░ 55%` (81 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `██████░░░░ 56%` (82 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📨 Message preview](docs/MESSAGE_PROTOCOL.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
@@ -49,7 +49,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 40033265412](https://github.com/sguzman/galerith/actions/runs/40033265412) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo. Push CI publishes a `galerith/rust-ci` commit status for machine-readable verification.
+**Verified Linux CI:** [run 40035028633](https://github.com/sguzman/galerith/actions/runs/40035028633) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo. Push CI publishes a `galerith/rust-ci` commit status for machine-readable verification.
 
 ## License
 
