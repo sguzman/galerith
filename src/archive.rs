@@ -64,9 +64,11 @@ mod tests {
 
     #[test]
     fn successful_records_survive_reopen_without_persisting_token_url() {
-        let path = std::env::temp_dir().join(format!("galerith-archive-{}.sqlite", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("galerith-archive-{}.sqlite", std::process::id()));
         let _ = fs::remove_file(&path);
-        let item = extract_direct_media("https://example.org/image.jpg?token=private-token-test").unwrap();
+        let item =
+            extract_direct_media("https://example.org/image.jpg?token=private-token-test").unwrap();
         {
             let archive = Archive::open(&path).unwrap();
             assert!(!archive.contains(&item).unwrap());
@@ -81,14 +83,16 @@ mod tests {
             assert!(!archive.contains(&different).unwrap());
         }
         let bytes = fs::read(&path).unwrap();
-        assert!(!bytes.windows(b"private-token-test".len())
+        assert!(!bytes
+            .windows(b"private-token-test".len())
             .any(|chunk| chunk == b"private-token-test"));
         fs::remove_file(path).unwrap();
     }
 
     #[test]
     fn post_identity_is_scoped_by_extractor() {
-        let path = std::env::temp_dir().join(format!("galerith-categories-{}.sqlite", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("galerith-categories-{}.sqlite", std::process::id()));
         let _ = fs::remove_file(&path);
         let archive = Archive::open(&path).unwrap();
         let item = MediaItem {

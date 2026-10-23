@@ -125,7 +125,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let archive = if cli.get_urls || cli.dump_json || cli.simulate || cli.no_download {
         None
     } else {
-        cli.download_archive.as_ref().map(|path| Archive::open(path)).transpose()?
+        cli.download_archive
+            .as_ref()
+            .map(|path| Archive::open(path))
+            .transpose()?
     };
     let mut failed = 0usize;
     for url in urls {

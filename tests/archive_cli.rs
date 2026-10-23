@@ -8,7 +8,10 @@ use std::{
 };
 
 fn temp(name: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("galerith-archive-cli-{name}-{}", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "galerith-archive-cli-{name}-{}",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -19,9 +22,9 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
         let (mut socket, _) = listener.accept().unwrap();
         let mut bytes = [0u8; 1024];
         assert!(socket.read(&mut bytes).unwrap() > 0);
-        socket.write_all(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS"
-        ).unwrap();
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS")
+            .unwrap();
     });
     let dir = temp("stored");
     let _ = fs::remove_dir_all(&dir);
@@ -40,7 +43,11 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
         .args(&args)
         .output()
         .unwrap();
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     server.join().unwrap();
     assert_eq!(fs::read(dir.join("saved.jpg")).unwrap(), b"PASS");
     assert!(db.exists());
@@ -52,7 +59,11 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
         .args(&args)
         .output()
         .unwrap();
-    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
     assert!(String::from_utf8_lossy(&second.stdout).contains("archived saved.jpg"));
     assert!(!dir.join("saved.jpg").exists());
     fs::remove_dir_all(dir).unwrap();
@@ -70,7 +81,11 @@ fn extraction_only_modes_do_not_create_archive_database() {
         .arg("https://example.org/asset.png")
         .output()
         .unwrap();
-    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert!(!db.exists());
     fs::remove_dir_all(dir).unwrap();
 }
