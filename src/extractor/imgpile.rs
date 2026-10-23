@@ -1,8 +1,9 @@
 //! Independent, partial public Imgpile post-media extractor.
-//! Profile feeds, complete metadata, authentication and live-site equivalence
-//! are not yet supported.
+//! Public profile feed pagination is bounded; complete metadata, authentication
+//! and live-site equivalence are not yet supported.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
+use serde_json::Value;
 use std::{collections::HashSet, error::Error};
 use url::Url;
 
@@ -12,12 +13,21 @@ const MAX_POST_MEDIA: usize = 2000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post { slug: String },
+    User { name: String },
 }
 
 fn valid_slug(slug: &str) -> bool {
     !slug.is_empty()
         && slug.len() <= 128
         && slug.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
+fn valid_user(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
@@ -29,6 +39,9 @@ pub fn match_url(raw: &str) -> Option<Target> {
     match url.path_segments()?.collect::<Vec<_>>().as_slice() {
         ["p", slug] if valid_slug(slug) => Some(Target::Post {
             slug: (*slug).to_owned(),
+        }),
+        ["u", name] if valid_user(name) => Some(Target::User {
+            name: (*name).to_owned(),
         }),
         _ => None,
     }
@@ -110,24 +123,117 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
     Ok(String::from_utf8(bytes)?)
 }
 
+async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    let mut response = client.get(url).send().await?.error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_HTML_BYTES as u64)
+    {
+        return Err("Imgpile API JSON exceeds the configured safety bound".into());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len().saturating_add(chunk.len()) > MAX_HTML_BYTES {
+            return Err("Imgpile API JSON exceeds the configured safety bound".into());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+async fn user_media(
+    client: &Client,
+    base: &Url,
+    name: &str,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut first = base.join("api/v1/posts")?;
+    first.query_pairs_mut()
+        .append_pair("limit", "100")
+        .append_pair("sort", "latest")
+        .append_pair("period", "all")
+        .append_pair("visibility", "public")
+        .append_pair("username", name);
+    let mut page = first.clone();
+    let mut visited_pages = HashSet::new();
+    let mut slugs = Vec::new();
+    let mut seen_slugs = HashSet::new();
+    for index in 0..max_pages.clamp(1, 10) {
+        if !visited_pages.insert(page.to_string()) {
+            break;
+        }
+        if index > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
+        let response = read_json(client, page.clone()).await?;
+        let posts = response
+            .get("data")
+            .and_then(Value::as_array)
+            .ok_or("Imgpile public profile API missing posts")?;
+        for post in posts.iter().take(100) {
+            if let Some(slug) = post
+                .get("slug")
+                .and_then(Value::as_str)
+                .filter(|slug| valid_slug(slug))
+            {
+                if seen_slugs.insert(slug.to_owned()) {
+                    slugs.push(slug.to_owned());
+                }
+            }
+        }
+        if slugs.len() >= 1000 {
+            break;
+        }
+        let next = response
+            .get("links")
+            .and_then(|links| links.get("next"))
+            .and_then(Value::as_str)
+            .filter(|link| !link.is_empty() && link.len() <= 1024);
+        let Some(next) = next.and_then(|link| page.join(link).ok()) else {
+            break;
+        };
+        if next.origin() != first.origin() || next.path() != first.path() {
+            break;
+        }
+        page = next;
+    }
+    let mut media = Vec::new();
+    let mut seen_urls = HashSet::new();
+    for (index, slug) in slugs.iter().enumerate() {
+        if index > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
+        let html = read_html(client, base.join(&format!("p/{slug}"))?).await?;
+        for item in post_media(&html) {
+            if seen_urls.insert(item.url.clone()) {
+                media.push(item);
+            }
+        }
+    }
+    Ok(media)
+}
+
 async fn resolve_at_base(
     client: &Client,
     base: &Url,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Post { slug } => {
             let html = read_html(client, base.join(&format!("p/{slug}"))?).await?;
             Ok(post_media(&html))
         }
+        Target::User { name } => user_media(client, base, &name, max_pages).await,
     }
 }
 
 pub async fn resolve(
     client: &Client,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base(client, &Url::parse("https://imgpile.com/")?, target).await
+    resolve_at_base(client, &Url::parse("https://imgpile.com/")?, target, max_pages).await
 }
 
 #[cfg(test)]
@@ -142,12 +248,18 @@ mod tests {
                 slug: "AbCdEfG".into(),
             })
         );
+        assert_eq!(
+            match_url("https://imgpile.com/u/creator-1"),
+            Some(Target::User {
+                name: "creator-1".into(),
+            })
+        );
         for url in [
             "http://imgpile.com/p/AbCdEfG",
             "https://evil.imgpile.com/p/AbCdEfG",
             "https://imgpile.com/p/bad%2Fpath",
             "https://imgpile.com/p/",
-            "https://imgpile.com/u/AbCdEfG",
+            "https://imgpile.com/u/invalid%2Fuser",
         ] {
             assert!(match_url(url).is_none(), "{url}");
         }
@@ -167,6 +279,72 @@ mod tests {
         assert_eq!(images[0].post_id, Some(17));
         assert_eq!(images[1].filename, "two.webp");
         assert_eq!(images[1].post_id, Some(18));
+    }
+
+    #[tokio::test]
+    async fn public_user_feed_preserves_order_across_two_json_pages() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (route, body) in [
+                (
+                    "GET /api/v1/posts?limit=100&sort=latest&period=all&visibility=public&username=creator HTTP/1.1",
+                    r#"{"data":[{"slug":"first12"},{"slug":"first12"}],"links":{"next":"?page=2"}}"#,
+                ),
+                (
+                    "GET /api/v1/posts?page=2 HTTP/1.1",
+                    r#"{"data":[{"slug":"second34"}],"links":{"next":null}}"#,
+                ),
+                (
+                    "GET /p/first12 HTTP/1.1",
+                    r#"<div class="post-media" data-media-id="71"><a href="https://cdn.imgpile.com/image/one.jpg">one</a></div>"#,
+                ),
+                (
+                    "GET /p/second34 HTTP/1.1",
+                    r#"<div class="post-media" data-media-id="72"><a href="https://cdn.imgpile.com/image/two.png">two</a></div>"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let count = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..count]);
+                assert!(request.starts_with(route), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::User {
+                name: "creator".into(),
+            },
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].filename, "one.jpg");
+        assert_eq!(items[0].post_id, Some(71));
+        assert_eq!(items[1].filename, "two.png");
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn profile_pagination_next_page_must_not_escape_its_origin() {
+        let first = Url::parse("https://imgpile.com/api/v1/posts?username=owner").unwrap();
+        let hostile = first.join("https://evil.example.org/api/v1/posts?page=2").unwrap();
+        assert_ne!(first.origin(), hostile.origin());
+        let wrong = first.join("/admin?page=2").unwrap();
+        assert_ne!(first.path(), wrong.path());
     }
 
     #[tokio::test]
@@ -197,6 +375,7 @@ mod tests {
             Target::Post {
                 slug: "PostAB12".into(),
             },
+            1,
         )
         .await
         .unwrap();
