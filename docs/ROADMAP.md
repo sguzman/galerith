@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 53%` across 76 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 54%` across 77 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -377,6 +377,12 @@
   - [x] Follow bounded generator continuations, preserve unique media order and reject untrusted upload hosts — src/extractor/wikimedia.rs article and category two-page local HTTP tests, duplicate filtering and trusted URL checks; CI 40026028078
   - [x] Reject invalid continuation tokens, bound page/media counts and pace sequential API requests — src/extractor/wikimedia.rs 512-byte token validation, cycle detection, 100-page/2000-media limits and 1s request pacing; CI 40026028078
   - [ ] Support subcategory recursion, cross-wiki hosts, complete metadata/revisions, archive naming and live upstream differential conformance
+- 🏞️ **T533** Wallhaven public wallpaper, search and upload API preview — `████████░░ 80%`
+  - [x] Route only supported public wallpaper, search-query and user-upload URLs — src/extractor/wallhaven.rs strict URL fixtures and src/extractor/mod.rs dispatch tests; CI 40026953430
+  - [x] Read individual public wallpaper JSON and validate original Wallhaven CDN images/IDs — src/extractor/wallhaven.rs single-image localhost HTTP test and host/path/extension/ID rejection cases; CI 40026953430
+  - [x] Page public searches with ordered ID deduplication and safe pagination metadata — src/extractor/wallhaven.rs two-page localhost search fixture, bad-host filtering, page limits and API metadata assertions; CI 40026953430
+  - [x] Verify user-upload query, resource bounds and API-compliant paced requests without embedded API keys — src/extractor/wallhaven.rs @username local HTTP test, 2 MiB response guard fixture, 100-page/2000-media caps, 1400ms request pacing; CI 40026953430
+  - [ ] Match all upstream filters, user collections, account auth, rich metadata, naming/archive rules and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
