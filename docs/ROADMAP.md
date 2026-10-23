@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 55%` across 81 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 56%` across 82 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 70%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `█████░░░░░ 53%`
+### 🧬 P4 — Extractor architecture — `██████░░░░ 56%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -163,6 +163,12 @@
   - [x] Expose read-only CLI --expand-queues with explicit 1..16 child limit and mutually dependent flags — src/main.rs and tests/message_cli.rs parser/legacy-output regression fixtures; CI 40033265412
   - [x] Connect deferred child URLs to the native extractor message resolver with conservative per-child pacing — src/extractor/mod.rs resolve_messages_expanding dispatch and 1400ms wait; Rust compilation, Clippy and tests in CI 40033265412
   - [ ] Verify actual multi-site end-to-end queue execution, metadata inheritance, redirects, multi-level recursion and live upstream differential parity
+- 🧰 **T408** Bounded recursive message job and opt-in native download bridge — `████████░░ 80%`
+  - [x] Implement deterministic multi-level stack traversal with limits, queue-cycle suppression and retained parent events — src/message.rs iterative JobFrame, 4-depth/16-child/8192-event hard limits and synthetic regression cases; CI 40034433893
+  - [x] Inherit parent directory/queue metadata without overriding child fields or leaking parent file identity — src/message.rs scope precedence and filename/extractor/post_id isolation tests; CI 40035028633
+  - [x] Expose explicit --queue-depth inspection controls while preserving all existing output modes by default — src/main.rs, tests/message_cli.rs; bounded 1..4 CLI fixture checks; CI 40034433893
+  - [x] Convert URL-only events into validated native media downloads behind opt-in --follow-queues with local end-to-end transfer verification — src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633
+  - [ ] Prove full gallery-dl download-job parity: recursive filters, redirects, metadata/postprocessing/archive propagation, all extractor classes and live differential testing
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
