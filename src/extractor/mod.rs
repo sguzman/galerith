@@ -15,6 +15,7 @@ pub mod imgbb;
 pub mod imgbox;
 pub mod imgpile;
 pub mod imgth;
+pub mod lightroom;
 pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
@@ -56,6 +57,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "imgth",
         "public gallery originals and bounded page traversal",
     ),
+    ("lightroom", "public Lightroom shared albums and image renditions"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
     ("photovogue", "public photographer photo API feeds"),
@@ -110,6 +112,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgpile")
     } else if imgth::match_url(input).is_some() {
         Some("imgth")
+    } else if lightroom::match_url(input).is_some() {
+        Some("lightroom")
     } else if e621::match_url(input).is_some() {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
@@ -195,6 +199,9 @@ pub async fn resolve(
     if let Some(target) = imgth::match_url(input) {
         return imgth::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = lightroom::match_url(input) {
+        return lightroom::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
     }
@@ -259,6 +266,7 @@ mod tests {
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
             ("https://imgth.com/gallery/123/great", "imgth"),
+            ("https://lightroom.adobe.com/shares/abcdef0123", "lightroom"),
             ("https://imgpile.com/u/creator-1", "imgpile"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://telegra.ph/Article-03-04", "telegraph"),
