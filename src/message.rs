@@ -1079,40 +1079,37 @@ mod tests {
             directories: None,
             source_posts: Some(IndexRange::parse("457").unwrap()),
         };
-        let output = traverse_queue_job_filtered_with(
-            vec![board_queue],
-            1,
-            8,
-            &selected,
-            |url| {
-                requests.set(requests.get() + 1);
-                async move {
-                    assert_eq!(url, "https://boards.4chan.org/g/thread/456");
-                    Ok::<_, Box<dyn Error + Send + Sync>>(vec![
-                        ExtractorMessage::Directory {
-                            metadata: serde_json::from_value(json!({"source_post_id":456})).unwrap(),
-                        },
-                        ExtractorMessage::Url {
-                            url: "https://example.org/excluded.jpg".into(),
-                            metadata: Metadata::new(),
-                        },
-                        ExtractorMessage::Directory {
-                            metadata: serde_json::from_value(json!({"source_post_id":457})).unwrap(),
-                        },
-                        ExtractorMessage::Url {
-                            url: "https://example.org/selected.jpg".into(),
-                            metadata: Metadata::new(),
-                        },
-                    ])
-                }
-            },
-        )
+        let output = traverse_queue_job_filtered_with(vec![board_queue], 1, 8, &selected, |url| {
+            requests.set(requests.get() + 1);
+            async move {
+                assert_eq!(url, "https://boards.4chan.org/g/thread/456");
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![
+                    ExtractorMessage::Directory {
+                        metadata: serde_json::from_value(json!({"source_post_id":456})).unwrap(),
+                    },
+                    ExtractorMessage::Url {
+                        url: "https://example.org/excluded.jpg".into(),
+                        metadata: Metadata::new(),
+                    },
+                    ExtractorMessage::Directory {
+                        metadata: serde_json::from_value(json!({"source_post_id":457})).unwrap(),
+                    },
+                    ExtractorMessage::Url {
+                        url: "https://example.org/selected.jpg".into(),
+                        metadata: Metadata::new(),
+                    },
+                ])
+            }
+        })
         .await
         .unwrap();
         assert_eq!(requests.get(), 1);
         assert_eq!(output.len(), 3);
         assert!(matches!(output[0], ExtractorMessage::Queue { .. }));
-        assert_eq!(serde_json::to_value(&output[1]).unwrap()["metadata"]["source_post_id"], 457);
+        assert_eq!(
+            serde_json::to_value(&output[1]).unwrap()["metadata"]["source_post_id"],
+            457
+        );
         assert_eq!(
             serde_json::to_value(&output[2]).unwrap()["url"],
             "https://example.org/selected.jpg"
