@@ -95,6 +95,14 @@ struct Cli {
     #[arg(long, default_value_t = 30)]
     http_timeout: u64,
 
+    /// User-Agent HTTP header (upstream -a/--user-agent)
+    #[arg(short = 'a', long = "user-agent", value_name = "UA")]
+    user_agent: Option<String>,
+
+    /// Proxy URL for HTTP(S) requests; credentials are not printed
+    #[arg(long = "proxy", value_name = "URL")]
+    proxy: Option<String>,
+
     /// Netscape cookie jar for authenticated media and API requests
     #[arg(short = 'C', long = "cookies", value_name = "FILE")]
     cookies: Option<PathBuf>,
@@ -177,13 +185,23 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(jar) = cookies {
         client_builder = client_builder.cookie_provider(jar);
     }
-    let client = client_builder
-        .timeout(Duration::from_secs(cli.http_timeout))
-        .user_agent(format!(
+    if let Some(ref proxy_url) = cli.proxy {
+        // Never include proxy credentials in diagnostic output.
+        let proxy = reqwest::Proxy::all(proxy_url)
+            .map_err(|_| "invalid proxy configuration")?;
+        client_builder = client_builder.proxy(proxy);
+    }
+    let user_agent = cli.user_agent.unwrap_or_else(|| {
+        format!(
             "Galerith/{} (+https://github.com/sguzman/galerith)",
             env!("CARGO_PKG_VERSION")
-        ))
-        .build()?;
+        )
+    });
+    let client = client_builder
+        .timeout(Duration::from_secs(cli.http_timeout))
+        .user_agent(user_agent)
+        .build()
+        .map_err(|_| "invalid HTTP client configuration")?;
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
             config
