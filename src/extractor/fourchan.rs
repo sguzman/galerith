@@ -2,7 +2,7 @@
 //! Uses documented JSON endpoints; full directory templates, thumbnail fallback
 //! and source metadata are not yet at upstream parity.
 use crate::{
-    message::{media_metadata, ExtractorMessage, Metadata},
+    message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
 };
 use reqwest::Client;
@@ -103,6 +103,72 @@ fn board_thread_ids(
         }
     }
     Ok(ids)
+}
+
+const MAX_BOARD_QUEUES: usize = 256;
+const MAX_BOARD_INDEX_BYTES: usize = 2 * 1024 * 1024;
+
+/// Generate deferred source threads from a read-only public board listing.
+/// Emitting a Queue does not fetch a thread or media file.
+fn board_queue_messages(
+    body: &Value,
+    board: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    Ok(board_thread_ids(body, max_pages)?
+        .into_iter()
+        .take(MAX_BOARD_QUEUES)
+        .map(|id| {
+            let mut metadata = Metadata::new();
+            metadata.insert("category".into(), "4chan".into());
+            metadata.insert("board".into(), board.into());
+            metadata.insert("thread_id".into(), id.into());
+            queued_url(
+                format!("https://boards.4chan.org/{board}/thread/{id}"),
+                metadata,
+            )
+        })
+        .collect())
+}
+
+async fn queue_board_at_base(
+    client: &Client,
+    board: &str,
+    max_pages: u16,
+    api: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let endpoint = api.join(&format!("{board}/threads.json"))?;
+    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_BOARD_INDEX_BYTES as u64)
+    {
+        return Err("4chan board JSON exceeded the response limit".into());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len().saturating_add(chunk.len()) > MAX_BOARD_INDEX_BYTES {
+            return Err("4chan board JSON exceeded the response limit".into());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    board_queue_messages(&serde_json::from_slice(&bytes)?, board, max_pages)
+}
+
+/// Native read-only board index queue preview. Ordinary downloads keep their
+/// legacy media traversal unless the explicit queue-job mode is selected.
+pub async fn resolve_board_messages(
+    client: &Client,
+    board: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    queue_board_at_base(
+        client,
+        board,
+        max_pages,
+        &Url::parse("https://a.4cdn.org/")?,
+    )
+    .await
 }
 
 pub async fn resolve_board(
