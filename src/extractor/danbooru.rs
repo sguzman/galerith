@@ -795,7 +795,8 @@ mod tests {
                 let n = socket.read(&mut buf).await.unwrap();
                 let request = String::from_utf8_lossy(&buf[..n]);
                 assert!(request.starts_with(route), "{request}");
-                let body = r#"[{"id":78,"file_url":"https://cdn.example.org/78.jpg","file_ext":"jpg"}]"#;
+                let body =
+                    r#"[{"id":78,"file_url":"https://cdn.example.org/78.jpg","file_ext":"jpg"}]"#;
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
