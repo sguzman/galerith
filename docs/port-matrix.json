@@ -1898,9 +1898,14 @@
     {
       "path": "gallery_dl/extractor/webmshare.py",
       "module": "webmshare",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/webmshare.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Webmshare video/page OG URL extractor, strict numbered CDN host checks, readable names, 2 MiB bounded HTML and offline TCP test; CI 40012334306 verified. Complete metadata, archive/filename variation and live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/webtoons.py",

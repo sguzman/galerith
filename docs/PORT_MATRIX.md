@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 22 · Not ported: 250.**
+**Complete: 0 · Partial: 23 · Not ported: 249.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -262,7 +262,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/wallpapercave.py` | 🟡 Partial | `src/extractor/wallpapercave.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/warosu.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/weasyl.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/webmshare.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/webmshare.py` | 🟡 Partial | `src/extractor/webmshare.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/webtoons.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/weebcentral.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/weebdex.py` | ⚪ Not ported | — |

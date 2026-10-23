@@ -1651,6 +1651,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T526",
+              "emoji": "🎞️",
+              "name": "Webmshare public video-page extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize bounded public Webmshare video, play and download URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/webmshare.rs canonical and numbered host/ID fixtures; src/extractor/mod.rs dispatch; CI 40012334306"
+                },
+                {
+                  "title": "Extract safe OG video download link and readable filename",
+                  "passed": true,
+                  "evidence": "src/extractor/webmshare.rs protocol-relative media, title extraction, fallback and malicious-host fixtures; CI 40012334306"
+                },
+                {
+                  "title": "Reject unsafe/unrecognized hosts and invalid video metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/webmshare.rs bad-host, invalid scheme and route fixtures; CI 40012334306"
+                },
+                {
+                  "title": "Fetch bounded public video HTML using an offline TCP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/webmshare.rs 2 MiB buffered HTML guard and local public-video page fixture; CI 40012334306"
+                },
+                {
+                  "title": "Port full upstream metadata, title/date/archive formatting, all CDN variants and live conformance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

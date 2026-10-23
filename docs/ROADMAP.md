@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 51%` across 69 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 51%` across 70 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 70%`
+### 🧱 P5 — Shared website families — `███████░░░ 71%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -334,6 +334,12 @@
   - [x] Paginate the pinned PhotoVogue public JSON API, preserving order and deduplicating IDs — src/extractor/photovogue.rs two-page, three-image localhost JSON fixture and dedup tests; CI 40011442029
   - [x] Bound JSON responses, page counts and malformed pagination responses — src/extractor/photovogue.rs 2 MiB buffered API response, max_pages and 50-item page checks; CI 40011442029
   - [ ] Reproduce all Vogue CDNs, complete metadata/date/archives, filename and live reference behavior
+- 🎞️ **T526** Webmshare public video-page extractor preview — `████████░░ 80%`
+  - [x] Recognize bounded public Webmshare video, play and download URLs — src/extractor/webmshare.rs canonical and numbered host/ID fixtures; src/extractor/mod.rs dispatch; CI 40012334306
+  - [x] Extract safe OG video download link and readable filename — src/extractor/webmshare.rs protocol-relative media, title extraction, fallback and malicious-host fixtures; CI 40012334306
+  - [x] Reject unsafe/unrecognized hosts and invalid video metadata — src/extractor/webmshare.rs bad-host, invalid scheme and route fixtures; CI 40012334306
+  - [x] Fetch bounded public video HTML using an offline TCP fixture — src/extractor/webmshare.rs 2 MiB buffered HTML guard and local public-video page fixture; CI 40012334306
+  - [ ] Port full upstream metadata, title/date/archive formatting, all CDN variants and live conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

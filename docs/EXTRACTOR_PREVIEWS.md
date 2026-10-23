@@ -20,6 +20,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | `speakerdeck` | `speakerdeck.com/USER/SLUG` public presentations | oEmbed JSON to player HTML and ordered, validated slide-image URLs with bounded extraction | Full metadata, archive/filename formatting, private/authenticated decks and live conformance |
 | `telegraph` | `telegra.ph/SLUG` and `www.telegra.ph/SLUG` | Public article images, bounded HTML responses, figure and bare-image parsing, canonical media validation and embed filtering | Article metadata, figure captions, archive and naming equivalence, live upstream acceptance |
 | `wallpapercave` | `wallpapercave.com/w/wpID` and selected `*-wallpapers` pages | Public download links, direct-download fallback and picture-gallery original images with strict host validation and bounded HTML | All upstream URL forms, metadata/archive formatting and opt-in live parity |
+| `webmshare` | `webmshare.com/ID`, `/play/ID`, `/download-webm/ID`, numbered `sN.webmshare.com` | Public video OG metadata and approved Webmshare video/CDN links, filename handling and bounded HTML | Complete metadata, dynamic titles/dates/archive formatting, all CDN variations and opt-in live conformance |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search, pool posts and four popular-feed modes | Popular metadata, auth and complete upstream naming |
 | `philomena` | `derpibooru.org`, `ponybooru.org`, `furbooru.org` | JSON images, bounded search and galleries, tag slugs, SVG originals | Full auth, filters, metadata and SVG edge cases |
 | `photovogue` | `vogue.com/photovogue/photographers/ID` public photographer galleries | Bounded photographer-photo JSON pagination, official Vogue media hosts, ID/title filenames and deduplication | Complete photo metadata/date and archive formatting, all CDN variations and opt-in live upstream conformance |
@@ -29,4 +30,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 40011442029](https://github.com/sguzman/galerith/actions/runs/40011442029) (PhotoVogue public photographer JSON pagination and local HTTP fixtures, Rust formatting, Clippy, tests and release build).
+**Verified integration:** [CI 40012334306](https://github.com/sguzman/galerith/actions/runs/40012334306) (Webmshare public OG video fixtures, Rust formatting, Clippy, tests and release build).
