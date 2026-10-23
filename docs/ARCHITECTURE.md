@@ -14,7 +14,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
   ├── read-only typed message inspection (directory, URL, deferred queue)
   │    ├── opt-in, four-level bounded queue traversal with scoped metadata
   │    ├── typed directory/file/child ordinal selection before actions
-  │    └── true 4chan API post scopes; finite Wallhaven page-request stopping
+  │    └── true 4chan API post scopes; finite Wallhaven/Gelbooru/Moebooru API page stopping
   ├── opt-in --follow-queues: typed URL events feed native downloads
   ├── 1-based range selector / bounded filename formatter
   └── HTTP(S) client with Netscape cookie jar and bounded pacing
