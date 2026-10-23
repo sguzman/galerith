@@ -1816,6 +1816,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T531",
+              "emoji": "🌐",
+              "name": "Wikimedia Commons public File: imageinfo API preview",
+              "checks": [
+                {
+                  "title": "Route only canonical public Commons File: pages and reject untrusted URL shapes",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs strict File URL fixtures, src/extractor/mod.rs dispatch/registry; GitHub Actions 40024629371"
+                },
+                {
+                  "title": "Use read-only MediaWiki Action API GET with a contact-bearing User-Agent and maxlag",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs localhost query parameter, request method and identification tests; GitHub Actions 40024629371"
+                },
+                {
+                  "title": "Parse Commons imageinfo, validate allowed image-host paths, and create safe filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs imageinfo and forbidden-media URL tests; GitHub Actions 40024629371"
+                },
+                {
+                  "title": "Bound API response size, reject malformed/error payloads and verify HTTP overflow handling",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs 2 MiB content-length HTTP fixture and malformed/missing imageinfo tests; GitHub Actions 40024629371"
+                },
+                {
+                  "title": "Implement all upstream Wikimedia/MediaWiki hosts, category/article generators, revisions, metadata, archive naming and live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
