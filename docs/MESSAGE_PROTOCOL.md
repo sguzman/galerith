@@ -30,16 +30,30 @@ For `https://wallhaven.cc/user/USER/favorites` the same flag instead reads
 the public collection index and emits `queue` events for validated unique
 collection IDs. They retain `username`, `collection_id`, `category` and
 `subcategory`. No child galleries are downloaded or traversed in this mode.
-The normal downloader still uses the bounded flattened-media pipeline.
+The normal downloader still uses the bounded flattened-media pipeline by default.
 
-Optional `--expand-queues` follows only the **first level** of deferred
-children in this read-only inspection mode. It preserves each parent `queue`
-message and inserts the selected child's directory/URL messages immediately
-after it. Child URLs are deduplicated, the default child cap is 8, the hard
-cap is 16 (via `--max-queue-children N`), and each child request begins
-after a conservative 1400ms delay. Unexpanded queues remain visible as
-deferred events. Grandchildren are not traversed. This is not gallery-dl's
-full recursive job engine.
+Optional `--expand-queues --queue-depth N` follows **one to four levels**
+of deferred children in this read-only inspection mode (default depth 1).
+It preserves parent `queue` events and inserts child events in depth-first
+order. Child URLs are deduplicated across the job, the default child cap is
+8, the hard cap is 16 (`--max-queue-children N`), the global event cap is
+8192, and every child starts after a conservative 1400ms delay. Child
+extractor pages are bounded separately to at most four. Unexpanded queues
+remain visible as deferred events. Cycles do not recurse forever.
+
+The iterative job carries parent directory/queue context into child messages,
+but child-supplied values take precedence. It deliberately strips inherited
+`filename`, `extractor` and `post_id` at child boundaries so an unrelated
+parent media identity cannot contaminate child files.
+
+**Opt-in file jobs:** `galerith --follow-queues 'URL'` resolves queued children
+to depth two, with at most eight distinct children, then passes **only** typed
+`url` events to the normal downloader/archive/sidecar pipeline. Directory
+and queue messages cannot be misinterpreted as downloadable files. Candidate
+file URLs must be HTTP(S), must not contain URL credentials, and require a
+single safe filename and recognized extractor provenance. An offline CLI
+fixture verifies actual HTTP transfer and atomic file creation. This is
+not a complete replacement for upstream archive/metadata/job semantics.
 
 The flag is intentionally distinct from upstream command aliases. It
 conflicts with other preview output modes, media ranges, filename overrides,
@@ -51,13 +65,16 @@ archive writing and metadata writing. It creates no local files.
 - The generic `src/extractor/mod.rs` adapter cannot reconstruct original
   post groupings or metadata omitted by upstream site previews.
 - Wallhaven collection indexes preserve deferred queue boundaries in
-  inspection mode, but flatten child collections in download mode.
-- Full gallery-dl message-job control, child extractor instantiation,
-  filter ordering, redirects, metadata propagation, queue recursion
-  and differential comparison remain unaccepted.
+  inspection mode, and can opt into the new bounded child-download path.
+  Regular downloads still use the older flattened path by default.
+- The new iterative stack is a **bounded preview**; full gallery-dl
+  message-job control, extractor class instantiation, filter ordering,
+  redirects, arbitrary recursion, archive/metadata propagation and
+  differential comparison remain unaccepted.
 - Queue consumers must never treat deferred child URLs as media downloads.
 - JSON-lines output is Galerith's inspection format, **not** byte-for-byte
   compatibility with gallery-dl's `--dump-json`.
 
 Offline regression tests: `src/message.rs`, Wallhaven extractor fixtures,
-and `tests/message_cli.rs`. Synthetic tests cannot establish live parity.
+`tests/message_cli.rs`, and `tests/message_download_cli.rs`. Synthetic and
+loopback-only tests cannot establish live parity.
