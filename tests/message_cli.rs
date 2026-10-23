@@ -419,7 +419,10 @@ fn source_post_range_requires_true_source_metadata() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(output.stdout.is_empty(), "direct media has no source-post ID");
+    assert!(
+        output.stdout.is_empty(),
+        "direct media has no source-post ID"
+    );
 
     let message = run(&[
         "--dump-messages",
@@ -442,18 +445,8 @@ fn source_post_range_is_bounded_and_never_ignored_in_other_modes() {
     for args in [
         vec!["--job-source-post-range", "120", url],
         vec!["--message-source-post-range", "120", url],
-        vec![
-            "--dump-messages",
-            "--message-source-post-range",
-            "120",
-            url,
-        ],
-        vec![
-            "--follow-queues",
-            "--job-source-post-range",
-            "0",
-            url,
-        ],
+        vec!["--dump-messages", "--message-source-post-range", "120", url],
+        vec!["--follow-queues", "--job-source-post-range", "0", url],
         vec![
             "--dump-messages",
             "--expand-queues",
@@ -461,12 +454,7 @@ fn source_post_range_is_bounded_and_never_ignored_in_other_modes() {
             "0",
             url,
         ],
-        vec![
-            "--follow-queues",
-            "--job-source-post-range",
-            "12:1",
-            url,
-        ],
+        vec!["--follow-queues", "--job-source-post-range", "12:1", url],
     ] {
         let result = run(&args);
         assert!(!result.status.success(), "{args:?} should be rejected");
