@@ -175,6 +175,42 @@ pub async fn resolve(
 mod tests {
     use super::*;
 
+    async fn read_json_request(socket: &mut tokio::net::TcpStream) -> (String, Value) {
+        use tokio::io::AsyncReadExt;
+
+        let mut request = Vec::new();
+        let header_end = loop {
+            let mut chunk = [0_u8; 2048];
+            let n = socket.read(&mut chunk).await.unwrap();
+            assert!(n > 0, "request ended before headers");
+            request.extend_from_slice(&chunk[..n]);
+            assert!(request.len() <= 16384, "request exceeded test bound");
+            if let Some(index) = request.windows(4).position(|x| x == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        let header = String::from_utf8_lossy(&request[..header_end]).into_owned();
+        let length: usize = header
+            .lines()
+            .find_map(|line| {
+                let (key, value) = line.split_once(':')?;
+                key.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().ok())
+                    .flatten()
+            })
+            .expect("JSON request must have Content-Length");
+        assert!(length <= 8192, "unexpectedly large JSON request");
+        while request.len() - header_end < length {
+            let mut chunk = [0_u8; 2048];
+            let n = socket.read(&mut chunk).await.unwrap();
+            assert!(n > 0, "request ended before JSON body");
+            request.extend_from_slice(&chunk[..n]);
+        }
+        let payload: Value =
+            serde_json::from_slice(&request[header_end..header_end + length]).unwrap();
+        (header, payload)
+    }
+
     #[test]
     fn search_url_is_root_only_and_preserves_query_spaces() {
         assert_eq!(
@@ -221,10 +257,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_posts_cursor_pages_and_stops_on_cycle_with_local_http() {
-        use tokio::{
-            io::{AsyncReadExt, AsyncWriteExt},
-            net::TcpListener,
-        };
+        use tokio::{io::AsyncWriteExt, net::TcpListener};
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -239,40 +272,7 @@ mod tests {
                 ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
-                let mut request = Vec::new();
-                let header_end = loop {
-                    let mut chunk = [0_u8; 2048];
-                    let n = socket.read(&mut chunk).await.unwrap();
-                    assert!(n > 0, "request ended before headers");
-                    request.extend_from_slice(&chunk[..n]);
-                    assert!(request.len() <= 16384, "request exceeded test bound");
-                    if let Some(index) = request.windows(4).position(|x| x == b"\r\n\r\n") {
-                        break index + 4;
-                    }
-                };
-                let header = String::from_utf8_lossy(&request[..header_end]);
-                assert!(
-                    header.starts_with("POST /api/infinite-prompts HTTP/1.1"),
-                    "{header}"
-                );
-                let length: usize = header
-                    .lines()
-                    .find_map(|line| {
-                        let (key, value) = line.split_once(':')?;
-                        key.eq_ignore_ascii_case("content-length")
-                            .then(|| value.trim().parse::<usize>().ok())
-                            .flatten()
-                    })
-                    .expect("JSON request must have Content-Length");
-                assert!(length <= 8192, "unexpectedly large JSON request");
-                while request.len() - header_end < length {
-                    let mut chunk = [0_u8; 2048];
-                    let n = socket.read(&mut chunk).await.unwrap();
-                    assert!(n > 0, "request ended before JSON body");
-                    request.extend_from_slice(&chunk[..n]);
-                }
-                let payload: Value =
-                    serde_json::from_slice(&request[header_end..header_end + length]).unwrap();
+                let (header, payload) = read_json_request(&mut socket).await;
                 assert_eq!(payload["cursor"], expected_cursor);
                 assert_eq!(payload["text"], "blue sky");
                 assert_eq!(payload["searchMode"], "images");
@@ -308,16 +308,12 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_declared_oversized_api_response_before_reading_body() {
-        use tokio::{
-            io::{AsyncReadExt, AsyncWriteExt},
-            net::TcpListener,
-        };
+        use tokio::{io::AsyncWriteExt, net::TcpListener};
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.unwrap();
-            let mut request = [0_u8; 1024];
-            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let _ = read_json_request(&mut socket).await;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 MAX_RESPONSE + 1
@@ -332,16 +328,12 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_api_page_without_images_array() {
-        use tokio::{
-            io::{AsyncReadExt, AsyncWriteExt},
-            net::TcpListener,
-        };
+        use tokio::{io::AsyncWriteExt, net::TcpListener};
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.unwrap();
-            let mut request = [0_u8; 1024];
-            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let _ = read_json_request(&mut socket).await;
             let body = r#"{"prompts":[],"nextCursor":123}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
