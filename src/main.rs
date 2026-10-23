@@ -4,7 +4,7 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::resolve,
+    extractor::{resolve, PREVIEW_EXTRACTORS},
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
@@ -119,7 +119,7 @@ struct Cli {
     #[arg(long)]
     no_skip: bool,
 
-    /// Maximum Danbooru search pages to fetch (preview default: 1)
+    /// Maximum extractor feed/search pages to fetch (preview default: 1)
     #[arg(long, default_value_t = 1)]
     max_pages: u16,
 
@@ -138,17 +138,9 @@ async fn main() {
 
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     if cli.list_extractors {
-        println!("directlink (direct HTTP(S) media URLs only; partial parity)");
-        println!("danbooru (post URLs and tag searches only; partial parity)");
-        println!("e621 (e621/e926/e6ai posts and tag searches only; partial parity)");
-        println!("gelbooru (post and tag-search URLs only; partial parity)");
-        println!("gelbooru_v02 (rule34/safebooru/tbib/hypnohub/xbooru XML post/tag subset)");
-        println!("4chan (threads and bounded board listings only; partial parity)");
-        println!("moebooru (four site families, post, tags and pools; partial parity)");
-        println!("philomena (three site families, images/search/galleries; partial parity)");
-        println!(
-            "foolfuuka (nine archive families, thread, board, gallery and search media; partial parity)"
-        );
+        for (name, description) in PREVIEW_EXTRACTORS {
+            println!("{name} ({description}; partial parity)");
+        }
         return Ok(());
     }
 
