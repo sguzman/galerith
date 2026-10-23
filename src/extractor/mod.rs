@@ -12,6 +12,7 @@ pub mod imagebam;
 pub mod imgbb;
 pub mod imgbox;
 pub mod imgpile;
+pub mod imgth;
 pub mod moebooru;
 pub mod philomena;
 pub mod pixeldrain;
@@ -41,6 +42,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("imgpile", "public post media and multiple-image pages"),
+    ("imgth", "public gallery originals and bounded page traversal"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
     (
@@ -83,6 +85,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgbox")
     } else if imgpile::match_url(input).is_some() {
         Some("imgpile")
+    } else if imgth::match_url(input).is_some() {
+        Some("imgth")
     } else if e621::match_url(input).is_some() {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
@@ -153,6 +157,9 @@ pub async fn resolve(
     if let Some(target) = imgpile::match_url(input) {
         return imgpile::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = imgth::match_url(input) {
+        return imgth::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
     }
@@ -199,6 +206,7 @@ mod tests {
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
+            ("https://imgth.com/gallery/123/great", "imgth"),
             ("https://imgpile.com/u/creator-1", "imgpile"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://telegra.ph/Article-03-04", "telegraph"),
