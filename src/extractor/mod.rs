@@ -37,7 +37,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
-    ("desktopography", "site, exhibition and portfolio wallpaper pages"),
+    (
+        "desktopography",
+        "site, exhibition and portfolio wallpaper pages",
+    ),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     (
         "foolfuuka",
@@ -237,7 +240,10 @@ mod tests {
                 "comedywildlifephoto",
             ),
             ("https://danbooru.donmai.us/posts/123", "danbooru"),
-            ("https://desktopography.net/portfolios/forest-glow", "desktopography"),
+            (
+                "https://desktopography.net/portfolios/forest-glow",
+                "desktopography",
+            ),
             ("https://e621.net/posts/123", "e621"),
             ("https://archive.4plebs.org/tg/thread/123", "foolfuuka"),
             (
