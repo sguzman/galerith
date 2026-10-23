@@ -896,9 +896,14 @@
                   "title": "Verify native e621 single-artist lookup to bounded tag search",
                   "passed": true,
                   "evidence": "src/extractor/e621.rs synthetic two-request artist fixture; CI 39983600876"
+                },
+                {
+                  "title": "Verify bounded e621 artist-search expansion from API results",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs; synthetic artist-list and post-list requests; CI 39985013467"
                 }
               ],
-              "progress": 88
+              "progress": 89
             },
             {
               "id": "T507",

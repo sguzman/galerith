@@ -182,7 +182,7 @@
   - [x] Verify Danbooru original media-asset API variant selection — src/extractor/danbooru.rs synthetic media-asset fixture; CI 39981891550
   - [x] Verify bounded Danbooru popular feed JSON endpoints — src/extractor/danbooru.rs popular API fixture; CI 39981891550
   - [x] Verify Danbooru single-artist to tag-query expansion — src/extractor/danbooru.rs two-request localhost artist fixture; CI 39984232755
-- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `█████████░ 88%`
+- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `█████████░ 89%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
   - [x] Verify post and paginated tag-search API fixtures in Linux CI — GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)
@@ -191,6 +191,7 @@
   - [x] Verify e621 pool metadata ordering with unavailable media — src/extractor/e621.rs local ordered pool fixture; CI 39982529550
   - [x] Verify wrapped and array e621 JSON API result lists — src/extractor/e621.rs dual response shape fixtures; CI 39983115079
   - [x] Verify native e621 single-artist lookup to bounded tag search — src/extractor/e621.rs synthetic two-request artist fixture; CI 39983600876
+  - [x] Verify bounded e621 artist-search expansion from API results — src/extractor/e621.rs; synthetic artist-list and post-list requests; CI 39985013467
 - 🌸 **T507** Initial Gelbooru JSON API post and tag-search extraction — `████████░░ 75%`
   - [x] Recognize post and tag searches with query-order independence — src/extractor/gelbooru.rs URL matching and parser tests
   - [x] Resolve synthetic Gelbooru JSON post API media records — src/extractor/gelbooru.rs local API fixture

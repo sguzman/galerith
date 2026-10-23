@@ -392,7 +392,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "e621 posts, tag search, popular/favorites, pool ordering, single-artist lookup and JSON array/wrapper handling, MD5 fallback; CI 39983600876; artist searches, auth and full metadata still open."
+        "e621 posts, tags, popular, favorites, ordered pools, artist IDs and artist searches; accepts wrapped/bare JSON and supports MD5 fallback. Offline API CI 39985013467; account and metadata parity incomplete."
       ]
     },
     {
