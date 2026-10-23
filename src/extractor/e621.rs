@@ -918,11 +918,20 @@ mod tests {
         let server = tokio::spawn(async move {
             for (page, posts) in [
                 (1, {
-                    let mut posts = vec![json!({"id":1,"file":{"ext":"jpg","url":"https://static1.e621.net/one.jpg"}})];
-                    posts.extend((2..=320).map(|id| json!({"id":id,"file":{"ext":"jpg","url":null}})));
+                    let mut posts = vec![
+                        json!({"id":1,"file":{"ext":"jpg","url":"https://static1.e621.net/one.jpg"}}),
+                    ];
+                    posts.extend(
+                        (2..=320).map(|id| json!({"id":id,"file":{"ext":"jpg","url":null}})),
+                    );
                     posts
                 }),
-                (2, vec![json!({"id":321,"file":{"ext":"png","url":"https://static1.e621.net/two.png"}})]),
+                (
+                    2,
+                    vec![
+                        json!({"id":321,"file":{"ext":"png","url":"https://static1.e621.net/two.png"}}),
+                    ],
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buffer = [0_u8; 4096];
