@@ -561,7 +561,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Five host post/tag JSON? No: XML DAPI subset, full-page XML count and all-tag selection, tests CI 39967220021; pool/favorite/auth/metadata parity missing"
+        "Five-host XML DAPI post/tag subset, full-page XML pagination and unrestricted 'all' tag handling; synthetic API fixtures and GitHub Actions 39967220021. Pool, favorite, authentication and metadata parity remain outstanding."
       ]
     },
     {
