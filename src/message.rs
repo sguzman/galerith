@@ -1056,4 +1056,50 @@ mod tests {
             &selected.source_posts,
         ));
     }
+
+    #[tokio::test]
+    async fn source_post_identity_does_not_leak_across_queued_child_frames() {
+        let events = vec![
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({
+                    "source_post_id":120,
+                    "category":"4chan"
+                }))
+                .unwrap(),
+            },
+            queued_url("https://example.org/child".into(), Metadata::new()),
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("120").unwrap()),
+        };
+        let expanded = traverse_queue_job_filtered_with(events, 1, 1, &selected, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(vec![
+                ExtractorMessage::Url {
+                    url: "https://example.org/child-file.jpg".into(),
+                    metadata: Metadata::new(),
+                },
+                ExtractorMessage::Directory {
+                    metadata: serde_json::from_value(json!({"source_post_id":120})).unwrap(),
+                },
+                ExtractorMessage::Url {
+                    url: "https://example.org/new-post-file.jpg".into(),
+                    metadata: Metadata::new(),
+                },
+            ])
+        })
+        .await
+        .unwrap();
+        let values: Vec<Value> = expanded
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        assert_eq!(values.len(), 4);
+        assert_eq!(values[1]["type"], "queue");
+        assert_eq!(values[2]["type"], "directory");
+        assert_eq!(values[3]["url"], "https://example.org/new-post-file.jpg");
+        assert_eq!(values[3]["metadata"]["source_post_id"], 120);
+    }
 }
