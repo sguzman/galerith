@@ -76,7 +76,8 @@ archive writing and metadata writing. It creates no local files.
 ## Acceptance boundary
 
 - Existing `MediaItem` CLI/download/archive behavior remains intact.
-- The native 4chan typed **thread** adapter does preserve source API post scopes
+- The native 4chan typed **board** adapter now emits bounded deferred thread
+  queues, while the native 4chan typed **thread** adapter does preserve source API post scopes
   (including text-only posts). The generic `src/extractor/mod.rs` adapter cannot reconstruct original
   post groupings or metadata omitted by upstream site previews.
 - Wallhaven collection indexes preserve deferred queue boundaries in
