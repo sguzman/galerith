@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 56%` across 82 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 56%` across 83 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 70%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `██████░░░░ 56%`
+### 🧬 P4 — Extractor architecture — `██████░░░░ 59%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -169,6 +169,12 @@
   - [x] Expose explicit --queue-depth inspection controls while preserving all existing output modes by default — src/main.rs, tests/message_cli.rs; bounded 1..4 CLI fixture checks; CI 40034433893
   - [x] Convert URL-only events into validated native media downloads behind opt-in --follow-queues with local end-to-end transfer verification — src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633; queued child HTTP(S)/credential guard tests CI 40035532138; registered website extractor/hostname allowlist and local-IP rejection CI 40035944411
   - [ ] Prove full gallery-dl download-job parity: recursive filters, redirects, metadata/postprocessing/archive propagation, all extractor classes and live differential testing
+- 🔎 **T409** Typed job-time file, child and directory selection — `████████░░ 80%`
+  - [x] Select 1-based file event ordinals before projection into native downloads with verified CLI behavior — src/message.rs global JobSelection.files, src/extractor/mod.rs and tests/message_cli.rs direct link fixtures; CI 40037041019
+  - [x] Select queued child ordinals before child HTTP resolution while retaining skipped queue control events — src/message.rs synthetic child request count, duplicate queue tests and processed-event cap; CI 40037041019
+  - [x] Expose read-only file/child selectors and reject invalid or silently ignored CLI mode combinations — src/main.rs message-file-range/message-child-range and tests/message_cli.rs; CI 40037263139
+  - [x] Apply directory-scope selection before file and queue actions, preserve ordinal ordering and validate it in CLI tests — src/message.rs directory scope suppression + nested queue count fixtures, src/main.rs and tests/message_cli.rs; CI 40037566729
+  - [ ] Implement full upstream file/post/child predicate expression and filtering semantics, early API pagination termination and live differential acceptance
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
