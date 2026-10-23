@@ -15,6 +15,7 @@ pub enum Target {
     Search {
         host: String,
         tags: String,
+        page: u16,
     },
     Pool {
         host: String,
@@ -58,7 +59,11 @@ pub fn match_url(input: &str) -> Option<Target> {
                 .query_pairs()
                 .find(|(key, _)| key == "tags")
                 .map(|(_, value)| value.into_owned())?;
-            Some(Target::Search { host, tags })
+            Some(Target::Search {
+                host,
+                tags,
+                page: 1,
+            })
         }
         ["p", code] => {
             let id = u64::from_str_radix(code, 32).ok()?;
@@ -123,12 +128,16 @@ pub fn match_url(input: &str) -> Option<Target> {
             }
         }
         ["posts"] | ["posts.json"] => {
-            let tags = url
-                .query_pairs()
-                .find(|(key, _)| key == "tags")
-                .map(|(_, value)| value.into_owned())
-                .unwrap_or_default();
-            Some(Target::Search { host, tags })
+            let mut tags = String::new();
+            let mut page = 1;
+            for (key, value) in url.query_pairs() {
+                match key.as_ref() {
+                    "tags" => tags = value.into_owned(),
+                    "page" => page = value.parse::<u16>().ok().filter(|p| *p > 0)?,
+                    _ => {}
+                }
+            }
+            Some(Target::Search { host, tags, page })
         }
         _ => None,
     }
@@ -418,12 +427,12 @@ async fn resolve_at_base(
             let post = data.get("post").ok_or("missing e621 post object")?;
             Ok(parse_post(post, base).into_iter().collect())
         }
-        Target::Search { tags, .. } => {
+        Target::Search { tags, page, .. } => {
             paginate_posts(
                 client,
                 base,
                 "posts.json",
-                &[("tags".into(), tags)],
+                &[("tags".into(), tags), ("page".into(), page.to_string())],
                 max_pages,
             )
             .await
@@ -455,7 +464,8 @@ mod tests {
             match_url("https://e926.net/posts?tags=blue+sky"),
             Some(Target::Search {
                 host: "e926.net".into(),
-                tags: "blue sky".into()
+                tags: "blue sky".into(),
+                page: 1
             }),
         );
         assert_eq!(
@@ -521,9 +531,20 @@ mod tests {
             match_url("https://e621.cc/?tags=blue+sky"),
             Some(Target::Search {
                 host: "e621.net".into(),
-                tags: "blue sky".into()
+                tags: "blue sky".into(),
+                page: 1
             })
         );
+        assert_eq!(
+            match_url("https://e621.net/posts?tags=fox&page=2"),
+            Some(Target::Search {
+                host: "e621.net".into(),
+                tags: "fox".into(),
+                page: 2
+            })
+        );
+        assert!(match_url("https://e621.net/posts?tags=fox&page=0").is_none());
+        assert!(match_url("https://e621.net/posts?tags=fox&page=bogus").is_none());
         assert!(match_url("https://e621.net/p/w").is_none());
         assert!(match_url("https://e621.net/p/0").is_none());
         assert!(match_url("https://e621.cc/?other=irrelevant").is_none());
@@ -760,7 +781,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for page in 1..=2 {
+            for page in 2..=3 {
                 let (mut connection, _) = listener.accept().await.unwrap();
                 let mut buf = [0u8; 4096];
                 let count = connection.read(&mut buf).await.unwrap();
@@ -768,7 +789,7 @@ mod tests {
                 assert!(request.starts_with("GET /posts.json?"), "{request}");
                 assert!(request.contains("tags=blue+sky"), "{request}");
                 assert!(request.contains(&format!("page={page}")), "{request}");
-                let body = if page == 1 {
+                let body = if page == 2 {
                     r#"{"posts":[{"id":5,"file":{"url":"/media/5.png","ext":"png"}},{"id":6,"file":{"url":null,"ext":"jpg"}}]}"#
                 } else {
                     r#"{"posts":[]}"#
@@ -783,6 +804,7 @@ mod tests {
         let target = Target::Search {
             host: "e621.net".into(),
             tags: "blue sky".into(),
+            page: 2,
         };
         let items = resolve_at_base(&Client::new(), target, 5, &base)
             .await
