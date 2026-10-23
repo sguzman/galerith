@@ -29,8 +29,12 @@ It does not infer source-site metadata already lost in a flattened list.
 For `https://wallhaven.cc/user/USER/favorites` the same flag instead reads
 the public collection index and emits `queue` events for validated unique
 collection IDs. They retain `username`, `collection_id`, `category` and
-`subcategory`. No child galleries are downloaded or traversed in this mode.
-The normal downloader still uses the bounded flattened-media pipeline by default.
+`subcategory`, plus bounded public `label`, `count` and `public` fields if
+the collection API supplies them with matching types. Oversized/control-character
+labels and arbitrary API properties are not forwarded. Repeated collection IDs
+retain the first record. No child galleries are downloaded or traversed in this
+mode. The normal downloader still uses the bounded flattened-media pipeline by
+default.
 
 Optional `--expand-queues --queue-depth N` follows **one to four levels**
 of deferred children in this read-only inspection mode (default depth 1).
