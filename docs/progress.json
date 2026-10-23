@@ -977,7 +977,7 @@
               "id": "T511",
               "emoji": "🦄",
               "name": "Philomena JSON API images, searches and galleries preview",
-              "progress": 75,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Match only pinned Philomena host and supported routes",
@@ -995,8 +995,18 @@
                   "evidence": "src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804"
                 },
                 {
-                  "title": "Implement full tags, search filters, auth, SVG rules and upstream metadata",
+                  "title": "Implement full tag metadata, search filters, auth, SVG edge cases and upstream formatting",
                   "passed": false
+                },
+                {
+                  "title": "Verify Philomena tag slugs and query decoding",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs URL parser and local tag search fixture; CI 39966292821"
+                },
+                {
+                  "title": "Select original SVG media paths from Philomena representations",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs SVG selection fixture; CI 39966292821"
                 }
               ]
             },

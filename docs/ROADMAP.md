@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `█████░░░░░ 53%`
+### 🧱 P5 — Shared website families — `█████░░░░░ 54%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -204,11 +204,13 @@
   - [x] Verify post and pool API queries with localhost HTTP fixtures — src/extractor/moebooru.rs synthetic server tests; CI 39960525151
   - [ ] Reproduce full popular-feed metadata, complete pool metadata and upstream auth/format semantics
   - [x] Verify Moebooru popular feed routing and synthetic API — src/extractor/moebooru.rs; CI 39965682429
-- 🦄 **T511** Philomena JSON API images, searches and galleries preview — `████████░░ 75%`
+- 🦄 **T511** Philomena JSON API images, searches and galleries preview — `████████░░ 83%`
   - [x] Match only pinned Philomena host and supported routes — src/extractor/philomena.rs; GitHub Actions 39961510804
   - [x] Parse representations and fallback media with safe output names — src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804
   - [x] Verify synthetic image and gallery search API requests — src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804
-  - [ ] Implement full tags, search filters, auth, SVG rules and upstream metadata
+  - [ ] Implement full tag metadata, search filters, auth, SVG edge cases and upstream formatting
+  - [x] Verify Philomena tag slugs and query decoding — src/extractor/philomena.rs URL parser and local tag search fixture; CI 39966292821
+  - [x] Select original SVG media paths from Philomena representations — src/extractor/philomena.rs SVG selection fixture; CI 39966292821
 - 🗄️ **T512** FoolFuuka archive family thread media preview — `█████████░ 86%`
   - [x] Match nine pinned archive hosts and strict thread URL forms — src/extractor/foolfuuka.rs; CI 39962347749
   - [x] Parse ordered replies and validate attachment URLs/filenames — src/extractor/foolfuuka.rs synthetic archive parser fixtures; CI 39962347749

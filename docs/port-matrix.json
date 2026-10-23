@@ -1173,7 +1173,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Three host family image/search/gallery subset, synthetic HTTP and parser CI 39961510804; upstream parity remains open"
+        "Three-host Philomena images, search, gallery, tag slugs, SVG original subset; local JSON/API tests CI 39966292821; auth/filter/full metadata parity outstanding"
       ]
     },
     {
