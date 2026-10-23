@@ -1,5 +1,6 @@
 use clap::Parser;
 use galerith::{
+    archive::Archive,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
 };
@@ -55,6 +56,10 @@ struct Cli {
     /// HTTP request timeout in seconds
     #[arg(long, default_value_t = 30)]
     http_timeout: u64,
+
+    /// SQLite archive: record successful media and skip recorded items
+    #[arg(long = "download-archive", value_name = "FILE")]
+    download_archive: Option<PathBuf>,
 
     /// Overwrite existing media instead of skipping
     #[arg(long)]
@@ -117,6 +122,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         retries: cli.retries,
         no_skip: cli.no_skip,
     };
+    let archive = if cli.get_urls || cli.dump_json || cli.simulate || cli.no_download {
+        None
+    } else {
+        cli.download_archive.as_ref().map(|path| Archive::open(path)).transpose()?
+    };
     let mut failed = 0usize;
     for url in urls {
         let items = match resolve(&client, &url, cli.max_pages).await {
@@ -128,6 +138,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         };
         for item in items {
+            if let Some(ref archive) = archive {
+                if archive.contains(&item)? {
+                    if !cli.quiet {
+                        println!("archived {}", item.filename);
+                    }
+                    continue;
+                }
+            }
             if cli.get_urls {
                 println!("{}", item.url);
             } else if cli.dump_json {
@@ -138,13 +156,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             } else {
                 match download(&client, &item, &options).await {
-                    Ok(DownloadOutcome::Saved(path)) if !cli.quiet => {
-                        println!("saved {}", path.display())
+                    Ok(DownloadOutcome::Saved(path)) => {
+                        if let Some(ref archive) = archive {
+                            archive.record(&item)?;
+                        }
+                        if !cli.quiet {
+                            println!("saved {}", path.display());
+                        }
                     }
-                    Ok(DownloadOutcome::Skipped(path)) if !cli.quiet => {
-                        println!("skipped {}", path.display())
+                    Ok(DownloadOutcome::Skipped(path)) => {
+                        if !cli.quiet {
+                            println!("skipped {}", path.display());
+                        }
                     }
-                    Ok(_) => {}
                     Err(error) => {
                         eprintln!("galerith: {}: {error}", item.url);
                         failed += 1;
