@@ -11,6 +11,8 @@ use url::Url;
 pub enum Target {
     Post { actor: String, rkey: String },
     Media { actor: String },
+    Posts { actor: String },
+    Replies { actor: String },
 }
 
 fn valid_segment(value: &str) -> bool {
@@ -35,6 +37,12 @@ pub fn match_url(input: &str) -> Option<Target> {
             })
         }
         ["profile", actor, "media"] if valid_segment(actor) => Some(Target::Media {
+            actor: (*actor).to_owned(),
+        }),
+        ["profile", actor, "posts"] if valid_segment(actor) => Some(Target::Posts {
+            actor: (*actor).to_owned(),
+        }),
+        ["profile", actor, "replies"] if valid_segment(actor) => Some(Target::Replies {
             actor: (*actor).to_owned(),
         }),
         _ => None,
@@ -142,7 +150,10 @@ async fn resolve_at_base(
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let actor = match &target {
-        Target::Post { actor, .. } | Target::Media { actor } => actor,
+        Target::Post { actor, .. }
+        | Target::Media { actor }
+        | Target::Posts { actor }
+        | Target::Replies { actor } => actor,
     };
     let did = resolve_actor(client, base, actor).await?;
     match target {
@@ -166,7 +177,13 @@ async fn resolve_at_base(
                 .ok_or("Bluesky thread response missing post")?;
             Ok(parse_media(post, &did))
         }
-        Target::Media { .. } => {
+        Target::Media { .. } | Target::Posts { .. } | Target::Replies { .. } => {
+            let filter = match &target {
+                Target::Media { .. } => "posts_with_media",
+                Target::Posts { .. } => "posts_and_author_threads",
+                Target::Replies { .. } => "posts_with_replies",
+                Target::Post { .. } => unreachable!("single posts are resolved above"),
+            };
             let mut result = Vec::new();
             let mut seen = HashSet::new();
             let mut cursor: Option<String> = None;
@@ -179,7 +196,7 @@ async fn resolve_at_base(
                     let mut query = endpoint.query_pairs_mut();
                     query
                         .append_pair("actor", &did)
-                        .append_pair("filter", "posts_with_media")
+                        .append_pair("filter", filter)
                         .append_pair("limit", "100");
                     if let Some(cursor) = &cursor {
                         query.append_pair("cursor", cursor);
@@ -240,6 +257,18 @@ mod tests {
             match_url("https://www.bsky.app/profile/did:plc:alice/media"),
             Some(Target::Media {
                 actor: "did:plc:alice".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/posts"),
+            Some(Target::Posts {
+                actor: "alice.bsky.social".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/replies"),
+            Some(Target::Replies {
+                actor: "alice.bsky.social".into(),
             })
         );
         assert!(match_url("https://bsky.app/profile/alice.bsky.social").is_none());
@@ -312,6 +341,48 @@ mod tests {
             .unwrap();
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].filename, "3n9_1.jpeg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn posts_and_replies_use_distinct_upstream_author_feed_filters() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (filter, rkey) in [
+                ("posts_and_author_threads", "pp"),
+                ("posts_with_replies", "rr"),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.contains(&format!("filter={filter}")), "{request}");
+                let body = format!(
+                    r#"{{"feed":[{{"post":{{"uri":"at://did:plc:alice/app.bsky.feed.post/{rkey}","author":{{"did":"did:plc:alice"}},"embed":{{"images":[{{"fullsize":"https://cdn.bsky.app/img/feed_fullsize/plain/{rkey}@jpeg"}}]}}}}}}]}}"#
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        for (target, rkey) in [
+            (Target::Posts { actor: "did:plc:alice".into() }, "pp"),
+            (Target::Replies { actor: "did:plc:alice".into() }, "rr"),
+        ] {
+            let media = resolve_at_base(&Client::new(), target, 3, &base)
+                .await
+                .unwrap();
+            assert_eq!(media.len(), 1);
+            assert_eq!(media[0].filename, format!("{rkey}_1.jpeg"));
+        }
         server.await.unwrap();
     }
 
