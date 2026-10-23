@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 54%` across 78 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 54%` across 79 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 68%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 69%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -389,6 +389,12 @@
   - [x] Follow bounded collection pages, keep media order and deduplicate repeated image IDs — src/extractor/wallhaven.rs two-page localhost collection HTTP test with original image validation; CI 40027542231
   - [x] Share controlled page/media/response-size limits and API pacing with public search routes — src/extractor/wallhaven.rs 100-page, 2000-media, 2MiB and 1400ms pacing code covered by integration suite; CI 40027542231
   - [ ] Port public collection enumeration, advanced filters, authenticated/private collections, metadata/archive parity and live upstream conformance
+- 🧭 **T535** Wallhaven collection index and profile dispatch with global request limits — `████████░░ 80%`
+  - [x] Recognize public user profiles and collection indexes while excluding unsupported URL variants — src/extractor/wallhaven.rs URL matcher and src/extractor/mod.rs registry fixture; CI 40031267694
+  - [x] Parse public collection-list JSON safely, reject invalid IDs, and cap the discovered collection count — src/extractor/wallhaven.rs collection_ids validation and oversized listing fixtures; CI 40031267694
+  - [x] Expand distinct public collections into ordered, deduplicated media through read-only API requests — src/extractor/wallhaven.rs localhost two-collection HTTP fixture with cross-collection media deduplication and untrusted image rejection; CI 40031267694
+  - [x] Bound discovery and gallery HTTP requests globally, preserve useful default page behavior, and test multi-page collection indexes — src/extractor/wallhaven.rs ApiBudget pacing and caps, default-one-page and four-request multi-index HTTP regressions; CI 40031267694
+  - [ ] Implement upstream queued-collection message semantics, collection metadata, complete auth and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
