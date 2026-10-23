@@ -256,10 +256,7 @@ fn collection_details(
         // never forward arbitrary keys into child extractor metadata.
         let mut metadata = Metadata::new();
         if let Some(label) = entry.get("label").and_then(Value::as_str) {
-            if !label.is_empty()
-                && label.len() <= 256
-                && !label.chars().any(|ch| ch.is_control())
-            {
+            if !label.is_empty() && label.len() <= 256 && !label.chars().any(|ch| ch.is_control()) {
                 metadata.insert("label".into(), label.into());
             }
         }
