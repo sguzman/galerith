@@ -249,4 +249,114 @@ mod tests {
         assert_eq!(items[0].post_id, Some(91));
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn limited_search_does_not_request_second_page_after_enough_media() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let read = socket.read(&mut request).await.unwrap();
+            let received = String::from_utf8_lossy(&request[..read]);
+            assert!(received.contains("pid=0"), "{received}");
+            let posts: Vec<Value> = (1..=100)
+                .map(|id| json!({"id":id,"file_url":format!("https://cdn.example.org/{id}.jpg")}))
+                .collect();
+            let body = json!({"post":posts}).to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            // The consumer already has its requested media; page two must
+            // not arrive even though the source returned a full API page.
+            assert!(
+                tokio::time::timeout(Duration::from_millis(1250), listener.accept())
+                    .await
+                    .is_err(),
+                "extra API page after satisfying finite media range"
+            );
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let output = resolve_at_base_limited(
+            &Client::new(),
+            Target::Search("sky".into()),
+            10,
+            &base,
+            1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0].post_id, Some(1));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn full_source_page_with_missing_media_keeps_searching_to_media_limit() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut first: Vec<Value> = (1..=100)
+                .map(|id| json!({"id":id,"file_url":null}))
+                .collect();
+            first[0] = json!({"id":1,"file_url":"https://cdn.example.org/1.jpg"});
+            for (page, body) in [
+                json!({"post":first}).to_string(),
+                json!({"post":[{"id":101,"file_url":"https://cdn.example.org/101.jpg"}]})
+                    .to_string(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let read = socket.read(&mut request).await.unwrap();
+                let received = String::from_utf8_lossy(&request[..read]);
+                assert!(received.contains(&format!("pid={page}")), "{received}");
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let output = resolve_at_base_limited(
+            &Client::new(),
+            Target::Search("sky".into()),
+            3,
+            &base,
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            output.iter().map(|item| item.post_id).collect::<Vec<_>>(),
+            vec![Some(1), Some(101)]
+        );
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn gelbooru_post_count_is_independent_of_downloadable_files() {
+        let body = json!({"post":[{"id":1,"file_url":null},{"id":2,"file_url":""}]});
+        assert_eq!(source_post_count(&body).unwrap(), 2);
+        assert_eq!(
+            parse_posts(&body, &Url::parse("https://gelbooru.com/").unwrap())
+                .unwrap()
+                .len(),
+            0
+        );
+        assert!(source_post_count(&json!({})).is_err());
+    }
 }
