@@ -362,7 +362,11 @@ pub fn media_from_messages(
             .map(|(category, _)| *category)
             .ok_or("job URL uses an unrecognized extractor category")?;
         let post_id = match metadata.get("post_id") {
-            Some(value) => Some(value.as_u64().ok_or("job post ID must be an unsigned integer")?),
+            Some(value) => Some(
+                value
+                    .as_u64()
+                    .ok_or("job post ID must be an unsigned integer")?,
+            ),
             None => None,
         };
         media.push(MediaItem {
