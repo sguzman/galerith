@@ -655,4 +655,24 @@ mod tests {
         assert_eq!(files[0].extractor, "wallhaven");
         assert_eq!(files[0].filename, "wallhaven-94x38z.jpg");
     }
+
+    #[test]
+    fn queued_child_origins_must_have_safe_http_schemes_and_no_credentials() {
+        for accepted in [
+            "https://example.org/file.jpg",
+            "http://127.0.0.1:1234/file.jpg",
+        ] {
+            assert!(safe_queue_child_url(accepted), "{accepted}");
+        }
+        for rejected in [
+            "javascript:alert(1)",
+            "file:///tmp/file.jpg",
+            "ftp://example.org/file.jpg",
+            "https://user:secret@example.org/file.jpg",
+            "https://user@example.org/file.jpg",
+            "relative/gallery/2",
+        ] {
+            assert!(!safe_queue_child_url(rejected), "{rejected}");
+        }
+    }
 }
