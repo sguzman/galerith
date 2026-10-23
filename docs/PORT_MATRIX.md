@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 25 · Not ported: 247.**
+**Complete: 0 · Partial: 26 · Not ported: 246.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -234,7 +234,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/turbo.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/twibooru.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/twitter.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/unsplash.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/unsplash.py` | 🟡 Partial | `src/extractor/unsplash.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/uploadir.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/urlgalleries.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/urlshortener.py` | ⚪ Not ported | — |

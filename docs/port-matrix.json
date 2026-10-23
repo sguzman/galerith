@@ -1707,9 +1707,14 @@
     {
       "path": "gallery_dl/extractor/unsplash.py",
       "module": "unsplash",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/unsplash.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Unsplash NAPI single photo, user, likes, collection and search routes; safe images.unsplash.com links, 20-item pagination/dedup and three local HTTP fixtures including user 20+2 pages; CI 40016816046 verified. Complete API/metadata/CDN/version live parity absent"
+      ]
     },
     {
       "path": "gallery_dl/extractor/uploadir.py",

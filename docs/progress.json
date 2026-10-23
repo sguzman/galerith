@@ -1747,6 +1747,43 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T529",
+              "emoji": "📷",
+              "name": "Unsplash public photo, user, likes, collection and search API previews",
+              "checks": [
+                {
+                  "title": "Recognize all five pinned public Unsplash URL families and reject unsupported hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/unsplash.rs URL-shape fixtures, src/extractor/mod.rs dispatcher; CI 40016816046"
+                },
+                {
+                  "title": "Parse official Unsplash raw-image URLs, IDs and JPEG filenames safely",
+                  "passed": true,
+                  "evidence": "src/extractor/unsplash.rs public photo conversion and untrusted host/invalid ID tests; CI 40016816046"
+                },
+                {
+                  "title": "Verify public single photos and photo searches through localhost API tests",
+                  "passed": true,
+                  "evidence": "src/extractor/unsplash.rs two-request local photo/search JSON fixture; CI 40016816046"
+                },
+                {
+                  "title": "Verify user-photo pagination, deduplication, likes and collection API endpoints",
+                  "passed": true,
+                  "evidence": "src/extractor/unsplash.rs 20+2 paginated user fixture, separate public likes/collections HTTP fixtures; CI 40016816046"
+                },
+                {
+                  "title": "Bound response sizes, pagination and media count with malformed-response rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/unsplash.rs incremental 2 MiB JSON guard, per_page 20, 100-page/2000-media bounds and typed payload checks; CI 40016816046"
+                },
+                {
+                  "title": "Port all raw-image variants, complete metadata/dates, formats, archive options and live upstream acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 83
             }
           ]
         }
