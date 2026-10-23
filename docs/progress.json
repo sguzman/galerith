@@ -592,9 +592,14 @@
                 {
                   "title": "Differential URL-match fixtures",
                   "passed": false
+                },
+                {
+                  "title": "Verify CLI extractor listing mirrors the native dispatcher registry",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs PREVIEW_EXTRACTORS and all eleven routing fixtures; src/main.rs list CLI; CI 39997749479"
                 }
               ],
-              "progress": 25
+              "progress": 40
             },
             {
               "id": "T402",
@@ -1246,9 +1251,19 @@
                 {
                   "title": "Reproduce upstream album metadata, directory/archive semantics and live-site parity",
                   "passed": false
+                },
+                {
+                  "title": "Reject Catbox album HTML exceeding the 2 MiB safety bound",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs Content-Length and incremental chunk size guards; synthetic HTTP regression; CI 39997427304"
+                },
+                {
+                  "title": "Preserve public Catbox album title, date text and description in typed library results",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs AlbumDetails/AlbumMetadata and independent synthetic HTML fixtures; CI 39997675184"
                 }
               ],
-              "progress": 80
+              "progress": 86
             }
           ]
         }

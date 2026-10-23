@@ -119,16 +119,17 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 54%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 55%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
+### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
 
-- 🧭 **T401** URL dispatch and category routing — `███░░░░░░░ 25%`
+- 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
   - [ ] Introduce registries and priority rules
   - [ ] Support child extractors and queues
   - [ ] Differential URL-match fixtures
+  - [x] Verify CLI extractor listing mirrors the native dispatcher registry — src/extractor/mod.rs PREVIEW_EXTRACTORS and all eleven routing fixtures; src/main.rs list CLI; CI 39997749479
 - 📨 **T402** Structured extractor message protocol — `███░░░░░░░ 25%`
   - [x] Represent a media item with source and filename — src/lib.rs
   - [ ] Directory metadata and file message variants
@@ -252,12 +253,14 @@
   - [x] Reject mismatched post URIs and repeated feed cursors — src/extractor/bluesky.rs strict AT URI and cursor-cycle tests; CI 39993774326
   - [x] Verify Bluesky feed generators and list feeds through public ATProto APIs — src/extractor/bluesky.rs; src/extractor/mod.rs; distinct getFeed/getListFeed local fixtures; CI 39994607373
   - [x] Verify public Bluesky actor-likes feed with scoped actor — src/extractor/bluesky.rs; src/extractor/mod.rs; getActorLikes localhost JSON fixture; CI 39994921773
-- 📦 **T514** Catbox file and album extractor preview — `████████░░ 80%`
+- 📦 **T514** Catbox file and album extractor preview — `█████████░ 86%`
   - [x] Match only known Catbox file and album hosts and routes — src/extractor/catbox.rs strict URL matching fixtures; src/extractor/mod.rs; CI 39995628800
   - [x] Validate Catbox file URLs, basenames and path traversal — src/extractor/catbox.rs safe-name and encoded traversal fixtures; CI 39995628800
   - [x] Extract and deduplicate ordered file links from synthetic album HTML — src/extractor/catbox.rs independent bounded HTML parser regression; CI 39995628800
   - [x] Verify Catbox album HTTP with localhost HTML fixture — src/extractor/catbox.rs local TCP server and response fixture; CI 39995628800
   - [ ] Reproduce upstream album metadata, directory/archive semantics and live-site parity
+  - [x] Reject Catbox album HTML exceeding the 2 MiB safety bound — src/extractor/catbox.rs Content-Length and incremental chunk size guards; synthetic HTTP regression; CI 39997427304
+  - [x] Preserve public Catbox album title, date text and description in typed library results — src/extractor/catbox.rs AlbumDetails/AlbumMetadata and independent synthetic HTML fixtures; CI 39997675184
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
