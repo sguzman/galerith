@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 51%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 52%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -238,13 +238,14 @@
   - [x] Verify bounded board listing, explicit page selection and thread recursion — src/extractor/foolfuuka.rs; CI 39963113023 (localhost board index, URL parser and full regression suite)
   - [x] Resolve bounded gallery pages and skip missing media in offline fixtures — src/extractor/foolfuuka.rs; CI 39963720920 (gallery URL and local JSON fixtures)
   - [x] Verify bounded archive search routes and two JSON response formats — src/extractor/foolfuuka.rs; synthetic API and response fixtures; CI 39965026874
-- 🦋 **T513** Bluesky public post and media-feed extractor preview — `███████░░░ 67%`
+- 🦋 **T513** Bluesky public post and media-feed extractor preview — `███████░░░ 71%`
   - [x] Recognize public Bluesky post and profile-media URLs without claiming unsupported routes — src/extractor/bluesky.rs; src/extractor/mod.rs strict URL and dispatcher fixtures; CI 39990408813
   - [x] Parse and validate public CDN images, safe filenames and author DID — src/extractor/bluesky.rs synthetic image and foreign-author fixtures; CI 39990408813
   - [x] Resolve a public post via handle lookup and ATProto thread endpoint — src/extractor/bluesky.rs two-request local JSON API test; CI 39990408813
   - [x] Verify bounded cursor-based profile-media traversal and repost suppression — src/extractor/bluesky.rs localhost paginated media-feed fixture; CI 39990408813
   - [ ] Reproduce original PDS blobs, video, quotations, authentication and upstream metadata
   - [ ] Pass reference differential and opt-in live-site acceptance
+  - [x] Route Bluesky posts/replies feeds with upstream filter selection — src/extractor/bluesky.rs posts_and_author_threads and posts_with_replies local HTTP fixtures; CI 39990979641
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -5,7 +5,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | Rust extractor | Recognized inputs | Implemented subset | Major unresolved behavior |
 |---|---|---|---|
 | `directlink` | Direct HTTP(S) URLs ending in selected media extensions | Filename validation and direct streaming | Upstream matching, file policy and full downloader contract |
-| `bluesky` | `bsky.app` and `www.bsky.app` public posts and profile media | ATProto public handle lookup, post-thread images, bounded cursor-based author media feed, CDN image checks and repost suppression | Original PDS blobs, videos, quoted posts, authentication, metadata, additional URL routes and reference parity |
+| `bluesky` | `bsky.app` and `www.bsky.app` public post links and profile posts/replies/media feeds | ATProto public handle lookup, post-thread images, bounded cursor-based posts/replies/media author feeds, CDN image checks and repost suppression | Original PDS blobs, videos, quoted posts, authentication, metadata, additional URL routes and reference parity |
 | `danbooru` | `danbooru.donmai.us` and `safebooru.donmai.us` posts, tags, random posts, pools, favorite groups and legacy routes | JSON post/search with starting-page selection (200-per-page and short-page exit), ordered collections, random, popular, original media assets and single-artist/artist-search extraction | Accounts, full metadata, alternate formats and complete site parity |
 | `e621` | `e621.net`, `e621.cc` and `e621.anthro.fr` frontend aliases, `e926.net`, `e6ai.net` | JSON posts and paginated tag/legacy index search (320-per-page, short-page exit), base-32 posts, popular/favorites, ordered pools, artist searches, MD5 recovery | Auth, full metadata, alternate formats and complete artist workflows |
 | `gelbooru` | `gelbooru.com` individual post and tag search pages | Public JSON post and bounded tag-search request | Pools, favorites, redirects, auth, filename and metadata semantics |
@@ -17,4 +17,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 39990408813](https://github.com/sguzman/galerith/actions/runs/39990408813) (Bluesky local API and dispatch tests, full offline suite and Rust release build).
+**Verified integration:** [CI 39990979641](https://github.com/sguzman/galerith/actions/runs/39990979641) (Bluesky posts, replies, and media-feed routing with full Rust CI and release build).

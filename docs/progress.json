@@ -1179,9 +1179,14 @@
                 {
                   "title": "Pass reference differential and opt-in live-site acceptance",
                   "passed": false
+                },
+                {
+                  "title": "Route Bluesky posts/replies feeds with upstream filter selection",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs posts_and_author_threads and posts_with_replies local HTTP fixtures; CI 39990979641"
                 }
               ],
-              "progress": 67
+              "progress": 71
             }
           ]
         }
