@@ -95,6 +95,18 @@ fn child_context(metadata: &Metadata) -> Metadata {
     context
 }
 
+/// Treat equivalent absolute URLs as one queue cycle, while preserving the
+/// original URL in every emitted event. Query parameters remain significant.
+fn queue_identity(input: &str) -> String {
+    match url::Url::parse(input) {
+        Ok(mut parsed) => {
+            parsed.set_fragment(None);
+            parsed.to_string()
+        }
+        Err(_) => input.to_owned(),
+    }
+}
+
 /// Inspect a bounded, recursive extractor-message job with an explicit stack.
 ///
 /// Directory events establish scope for subsequent URL/Queue events in that
@@ -142,7 +154,7 @@ where
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if frame.depth < depth_limit && seen.len() < child_limit && seen.insert(url.clone())
+                if frame.depth < depth_limit && seen.len() < child_limit && seen.insert(queue_identity(url))
                 {
                     next = Some((url.clone(), child_context(metadata), frame.depth + 1));
                 }
