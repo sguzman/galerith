@@ -49,8 +49,8 @@ pub fn match_url(input: &str) -> Option<Target> {
         "e926.net" => "e926.net",
         "e6ai.net" => "e6ai.net",
         _ => return None,
-    }
-    .to_owned();
+    };
+    let host = host.to_owned();
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
         [""] if requested_host == "e621.cc" => {
