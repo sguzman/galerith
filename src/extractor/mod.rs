@@ -2,6 +2,7 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod bluesky;
 pub mod catbox;
+pub mod comedywildlifephoto;
 pub mod danbooru;
 pub mod e621;
 pub mod foolfuuka;
@@ -31,6 +32,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("4chan", "4chan/4channel threads and bounded boards"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
+    ("comedywildlifephoto", "public competition gallery images"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     (
@@ -85,6 +87,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("bluesky")
     } else if catbox::match_url(input).is_some() {
         Some("catbox")
+    } else if comedywildlifephoto::match_url(input).is_some() {
+        Some("comedywildlifephoto")
     } else if imagebam::match_url(input).is_some() {
         Some("imagebam")
     } else if imgbb::match_url(input).is_some() {
@@ -155,6 +159,9 @@ pub async fn resolve(
     if let Some(target) = catbox::match_url(input) {
         return catbox::resolve(client, target).await;
     }
+    if let Some(target) = comedywildlifephoto::match_url(input) {
+        return comedywildlifephoto::resolve(client, target).await;
+    }
     if let Some(target) = imagebam::match_url(input) {
         return imagebam::resolve(client, target, max_pages).await;
     }
@@ -204,6 +211,10 @@ mod tests {
                 "bluesky",
             ),
             ("https://catbox.moe/c/album123", "catbox"),
+            (
+                "https://www.comedywildlifephoto.com/gallery/2026/finalists.php",
+                "comedywildlifephoto",
+            ),
             ("https://danbooru.donmai.us/posts/123", "danbooru"),
             ("https://e621.net/posts/123", "e621"),
             ("https://archive.4plebs.org/tg/thread/123", "foolfuuka"),
