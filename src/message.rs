@@ -575,4 +575,139 @@ mod tests {
             "https://EXAMPLE.org/album?id=1#first"
         );
     }
+
+    #[tokio::test]
+    async fn job_selectors_skip_child_http_and_filter_files_before_download() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let roots = vec![
+            ExtractorMessage::Url {
+                url: "https://example.org/first.jpg".into(),
+                metadata: Metadata::new(),
+            },
+            queued_url("https://example.org/skip".into(), Metadata::new()),
+            queued_url("https://example.org/keep".into(), Metadata::new()),
+            ExtractorMessage::Url {
+                url: "https://example.org/last.jpg".into(),
+                metadata: Metadata::new(),
+            },
+        ];
+        let selected = JobSelection {
+            files: Some(IndexRange::parse("2").unwrap()),
+            children: Some(IndexRange::parse("2").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(roots, 2, 8, &selected, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                assert_eq!(url, "https://example.org/keep");
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![ExtractorMessage::Url {
+                    url: "https://example.org/from-child.jpg".into(),
+                    metadata: Metadata::new(),
+                }])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(output.len(), 3);
+        let json: Vec<Value> = output
+            .iter()
+            .map(|value| serde_json::to_value(value).unwrap())
+            .collect();
+        assert_eq!(json[0]["url"], "https://example.org/skip");
+        assert_eq!(json[1]["url"], "https://example.org/keep");
+        assert_eq!(json[2]["url"], "https://example.org/from-child.jpg");
+    }
+
+    #[tokio::test]
+    async fn child_range_counts_duplicates_without_spending_selected_request_budget() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let roots = vec![
+            queued_url("https://example.org/a".into(), Metadata::new()),
+            queued_url("https://example.org/a#different".into(), Metadata::new()),
+            queued_url("https://example.org/b".into(), Metadata::new()),
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: Some(IndexRange::parse("2-3").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(roots, 1, 2, &selected, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![ExtractorMessage::Url {
+                    url: format!("{url}/file.jpg"),
+                    metadata: Metadata::new(),
+                }])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_eq!(output.len(), 5);
+        // The first skipped URL does not reserve a slot in the visited set.
+        assert!(matches!(output[0], ExtractorMessage::Queue { .. }));
+        assert!(matches!(output[1], ExtractorMessage::Queue { .. }));
+    }
+
+    #[tokio::test]
+    async fn unselected_media_events_cannot_exceed_global_processed_event_limit() {
+        let events = (0..=MAX_JOB_MESSAGES)
+            .map(|_| ExtractorMessage::Url {
+                url: "https://example.org/item.jpg".into(),
+                metadata: Metadata::new(),
+            })
+            .collect();
+        let selection = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+        };
+        let error = traverse_queue_job_filtered_with(events, 0, 0, &selection, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("message limit"));
+    }
+
+    #[tokio::test]
+    async fn filtering_one_file_keeps_its_directory_context_event() {
+        let media = vec![
+            MediaItem {
+                url: "https://example.org/one.jpg".into(),
+                filename: "one.jpg".into(),
+                extractor: "directlink",
+                post_id: Some(1),
+            },
+            MediaItem {
+                url: "https://example.org/two.jpg".into(),
+                filename: "two.jpg".into(),
+                extractor: "directlink",
+                post_id: Some(2),
+            },
+        ];
+        let selection = JobSelection {
+            files: Some(IndexRange::parse("2").unwrap()),
+            children: None,
+        };
+        let output = traverse_queue_job_filtered_with(
+            from_media(media),
+            0,
+            0,
+            &selection,
+            |_| async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) },
+        )
+        .await
+        .unwrap();
+        assert_eq!(output.len(), 3);
+        assert!(matches!(output[0], ExtractorMessage::Directory { .. }));
+        assert!(matches!(output[1], ExtractorMessage::Directory { .. }));
+        assert!(matches!(output[2], ExtractorMessage::Url { .. }));
+        assert_eq!(
+            serde_json::to_value(&output[2]).unwrap()["url"],
+            "https://example.org/two.jpg"
+        );
+    }
 }
