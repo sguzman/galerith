@@ -90,13 +90,37 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &base).await
 }
 
+/// Apply a conservative cap to *valid* media items for selected file ranges.
+/// The API can return posts without downloadable files; do not use raw API
+/// post counts as the accepted media ordinal. Zero is clamped to one.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let base = Url::parse("https://gelbooru.com/")?;
+    resolve_at_base_limited(client, target, max_pages, &base, max_media).await
+}
+
 async fn resolve_at_base(
     client: &Client,
     target: Target,
     max_pages: u16,
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, target, max_pages, base, usize::MAX).await
+}
+
+async fn resolve_at_base_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut items = Vec::new();
+    let media_limit = max_media.max(1);
     let limit = match target {
         Target::Post(_) => 1_u16,
         Target::Search(_) => max_pages.max(1),
@@ -124,8 +148,11 @@ async fn resolve_at_base(
         let body: Value = response.json().await?;
         let fresh = parse_posts(&body, base)?;
         let done = fresh.is_empty() || matches!(target, Target::Post(_)) || fresh.len() < 100;
-        items.extend(fresh);
-        if done {
+        let remaining = media_limit.saturating_sub(items.len());
+        items.extend(fresh.into_iter().take(remaining));
+        // In particular, never schedule another API page after the requested
+        // finite file ordinal is already available.
+        if done || items.len() >= media_limit {
             break;
         }
         if page + 1 < limit {
