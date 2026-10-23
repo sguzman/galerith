@@ -152,12 +152,13 @@ fn parse_items(
     let wallpapers: Vec<&Value> = if single {
         vec![values]
     } else {
-        values
+        let listed = values
             .as_array()
-            .ok_or("Wallhaven listing is not an array")?
-            .iter()
-            .take(64)
-            .collect()
+            .ok_or("Wallhaven listing is not an array")?;
+        if listed.len() > MAX_MEDIA {
+            return Err("Wallhaven page exceeded the media count limit".into());
+        }
+        listed.iter().collect()
     };
     Ok(wallpapers.into_iter().filter_map(image_from_json).collect())
 }
@@ -616,6 +617,33 @@ mod tests {
             ]
         );
         server.await.unwrap();
+    }
+
+
+    #[test]
+    fn never_silently_truncates_valid_api_image_pages() {
+        let many: Vec<_> = (0..65)
+            .map(|_| {
+                serde_json::json!({
+                    "id":"94x38z",
+                    "path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"
+                })
+            })
+            .collect();
+        assert_eq!(
+            parse_items(&serde_json::json!({"data":many}), false)
+                .unwrap()
+                .len(),
+            65
+        );
+        let oversized = vec![
+            serde_json::json!({"id":"94x38z"});
+            MAX_MEDIA + 1
+        ];
+        assert!(parse_items(&serde_json::json!({"data":oversized}), false)
+            .unwrap_err()
+            .to_string()
+            .contains("media count limit"));
     }
 
     #[test]
