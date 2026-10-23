@@ -102,7 +102,7 @@ pub async fn resolve(client: &Client, target: Target, max_pages: u16)
 async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: &Url)
     -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
 {
-    if let Query::Image(id) = target.query {
+    if let Query::Image(id) = &target.query {
         let endpoint = base.join(&format!("images/{id}"))?;
         let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
         let image = body.get("image").ok_or("Philomena API did not return an image")?;
