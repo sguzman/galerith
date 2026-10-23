@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `████░░░░░░ 44%`
+## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 47%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████░░░░ 56%`
@@ -75,15 +75,15 @@
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
 
-### 🗃️ P3 — Paths, archive and persistence — `███░░░░░░░ 31%`
+### 🗃️ P3 — Paths, archive and persistence — `████░░░░░░ 38%`
 
 - 🗂️ **T301** Safe names and format templates — `███░░░░░░░ 25%`
   - [x] Sanitize a direct file basename — src/lib.rs
   - [ ] Format field interpolation and conditionals
   - [ ] Platform filename rules and normalization
   - [ ] Reference-compatible filesystem tests
-- 🧾 **T302** SQLite archive, cache and duplicate rules — `░░░░░░░░░░ 0%`
-  - [ ] Archive schemas and durable writes
+- 🧾 **T302** SQLite archive, cache and duplicate rules — `███░░░░░░░ 25%`
+  - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906: SQLite unit and CLI integration tests passed
   - [ ] Archive ID semantics across extractors
   - [ ] Cache expiry/locking/recovery
   - [ ] Migration and retry fixtures

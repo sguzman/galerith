@@ -15,11 +15,12 @@ cargo run -- --list-extractors
 cargo run -- --get-urls 'https://example.org/sample.jpg'
 cargo run -- --dump-json 'https://example.org/sample.jpg'
 cargo run -- --simulate 'https://example.org/sample.jpg'
+cargo run -- --download-archive ./gallery.sqlite -d ./media 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://safebooru.donmai.us/posts/123'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
 ```
 
-`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, and existing-file skips. See [HTTP recovery guarantees](docs/DOWNLOADER.md). Missing upstream features include most options, nearly all site-specific extraction, metadata-template parity, cookies/auth, full upstream resume policies, archives, postprocessing, and reference JSON output. Danbooru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
+`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, existing-file skips, and a native SQLite download archive. See [HTTP recovery guarantees](docs/DOWNLOADER.md) and [SQLite archive behavior](docs/ARCHIVE.md). Missing upstream features include most options, nearly all site-specific extraction, metadata-template parity, cookies/auth, full upstream resume and archive compatibility, postprocessing, and reference JSON output. Danbooru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
 
 ## Port tracking
 
@@ -38,7 +39,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39947298737](https://github.com/sguzman/galerith/actions/runs/39947298737) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39948367906](https://github.com/sguzman/galerith/actions/runs/39948367906) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 

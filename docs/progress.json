@@ -375,7 +375,8 @@
               "checks": [
                 {
                   "title": "Archive schemas and durable writes",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906: SQLite unit and CLI integration tests passed"
                 },
                 {
                   "title": "Archive ID semantics across extractors",
@@ -390,7 +391,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 25
             },
             {
               "id": "T303",
