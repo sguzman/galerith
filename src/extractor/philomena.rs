@@ -39,6 +39,18 @@ pub fn match_url(input: &str) -> Option<Target> {
     let (host, category, filter_id) = host_info(url.host_str()?)?;
     let segments: Vec<_> = url.path_segments()?.filter(|x| !x.is_empty()).collect();
     let query = match segments.as_slice() {
+        ["tags", slug] => {
+            let decoded = percent_encoding::percent_decode_str(slug).decode_utf8().ok()?;
+            let mut query = decoded.replace('+', " ");
+            for (from, to) in [
+                ("-colon-", ":"), ("-dash-", "-"), ("-dot-", "."),
+                ("-plus-", "+"), ("-fwslash-", "/"), ("-bwslash-", "\\"),
+            ] {
+                query = query.replace(from, to);
+            }
+            if query.is_empty() || query.len() > 512 { return None; }
+            Query::Search(query)
+        }
         ["search"] => Query::Search(
             url.query_pairs()
                 .find(|(k, _)| k == "q")
@@ -75,7 +87,15 @@ fn parse_image(item: &Value, category: &'static str) -> Option<MediaItem> {
         .and_then(|v| v.get("full"))
         .and_then(Value::as_str)
         .or_else(|| item.get("view_url").and_then(Value::as_str))?;
-    let url = Url::parse(raw).ok()?;
+    let mut url = Url::parse(raw).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    if item.get("format").and_then(Value::as_str) == Some("svg") {
+        let (stem, _) = url.path().rsplit_once('.')?;
+        let svg_path = format!("{stem}.svg");
+        url.set_path(&svg_path);
+    }
     if !matches!(url.scheme(), "http" | "https") {
         return None;
     }
@@ -204,7 +224,16 @@ mod tests {
                 query: Query::Gallery(50)
             })
         );
-        assert!(match_url("https://derpibooru.org/tags/pink").is_none());
+        assert_eq!(
+            match_url("https://derpibooru.org/tags/hello-colon-world-dash-blue"),
+            Some(Target {
+                host: "derpibooru.org",
+                category: "derpibooru",
+                filter_id: "56027",
+                query: Query::Search("hello:world-blue".into()),
+            })
+        );
+        assert!(match_url("https://derpibooru.org/tags/%FF").is_none());
         assert!(match_url("http://derpibooru.org/images/77").is_none());
         assert!(match_url("https://otherderpibooru.org/images/77").is_none());
     }
@@ -215,13 +244,16 @@ mod tests {
             {"id": 5, "representations": {"full": "https://img.example.org/5.jpg"}},
             {"id": 6, "view_url": "https://img.example.org/6.png"},
             {"id": 7, "view_url": "javascript:bad"},
-            {"id": 8, "view_url": null}
+            {"id": 8, "view_url": null},
+            {"id": 9, "format": "svg", "representations": {"full": "https://img.example.org/9.png"}}
         ]});
         let (files, count) = images(&data, "derpibooru").unwrap();
-        assert_eq!(count, 4);
-        assert_eq!(files.len(), 2);
+        assert_eq!(count, 5);
+        assert_eq!(files.len(), 3);
         assert_eq!(files[0].filename, "5.jpg");
         assert_eq!(files[1].filename, "6.png");
+        assert_eq!(files[2].filename, "9.svg");
+        assert_eq!(files[2].url, "https://img.example.org/9.svg");
         assert!(images(&json!({"other": []}), "derpibooru").is_err());
     }
 
@@ -299,4 +331,32 @@ mod tests {
         assert_eq!(results[0].filename, "50.webp");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn tag_slug_resolves_to_search_query_in_local_api() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0_u8; 4096];
+            let read = socket.read(&mut bytes).await.unwrap();
+            let request = String::from_utf8_lossy(&bytes[..read]);
+            assert!(request.starts_with("GET /search/images?"), "{request}");
+            assert!(request.contains("q=hello%3Aworld"), "{request}");
+            assert!(request.contains("filter_id=56027"), "{request}");
+            let body = r#"{"images":[{"id":66,"view_url":"https://img.example.org/66.png"}]}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{address}/")).unwrap();
+        let target = match_url("https://derpibooru.org/tags/hello-colon-world").unwrap();
+        let result = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].filename, "66.png");
+        server.await.unwrap();
+    }
+
 }
