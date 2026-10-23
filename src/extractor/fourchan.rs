@@ -668,6 +668,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn thread_json_rejects_oversized_response_before_body_allocation() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 2048];
+            assert!(socket.read(&mut buf).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_THREAD_JSON_BYTES + 1
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{address}/")).unwrap();
+        let error = resolve_messages_at_base(
+            &Client::new(),
+            Thread {
+                board: "g".into(),
+                id: 123,
+            },
+            &api,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("response limit"));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn synthetic_thread_api_contract_is_correct() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
