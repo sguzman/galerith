@@ -367,6 +367,86 @@ mod tests {
     }
 
     #[test]
+    fn typed_thread_events_preserve_actual_api_post_scopes_including_text() {
+        let data = json!({"posts": [
+            {"no": 120, "tim": 90001, "filename":"first", "ext":".png"},
+            {"no": 121, "com":"text-only, no attachment"},
+            {"no": 122, "tim": 90002, "filename":"second", "ext":".webm"},
+            {"no": 123, "tim": 90003, "filename":"bad", "ext":"../jpg"}
+        ]});
+        let events = thread_messages(&data, "g", 120).unwrap();
+        assert_eq!(events.len(), 6);
+        let values: Vec<Value> = events
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        assert_eq!(values[0]["type"], "directory");
+        assert_eq!(values[0]["metadata"]["source_post_id"], 120);
+        assert_eq!(values[0]["metadata"]["thread_id"], 120);
+        assert_eq!(values[0]["metadata"]["board"], "g");
+        assert_eq!(values[1]["type"], "url");
+        assert_eq!(values[1]["metadata"]["source_post_id"], 120);
+        assert_eq!(values[1]["metadata"]["post_id"], 90001);
+        assert_eq!(values[2]["type"], "directory");
+        assert_eq!(values[2]["metadata"]["source_post_id"], 121);
+        assert_eq!(values[3]["type"], "directory");
+        assert_eq!(values[3]["metadata"]["source_post_id"], 122);
+        assert_eq!(values[4]["metadata"]["filename"], "90002 second.webm");
+        assert_eq!(values[5]["metadata"]["source_post_id"], 123);
+        let legacy = files(&data, "g").unwrap();
+        assert_eq!(legacy.len(), 2);
+        assert_eq!(legacy[0].post_id, Some(90001));
+        assert_eq!(legacy[1].post_id, Some(90002));
+        assert!(thread_messages(&json!({"posts": {}}), "g", 120).is_err());
+    }
+
+    #[tokio::test]
+    async fn typed_thread_api_uses_single_read_for_real_post_boundary_events() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 4096];
+            let count = socket.read(&mut buf).await.unwrap();
+            assert!(
+                String::from_utf8_lossy(&buf[..count])
+                    .starts_with("GET /g/thread/120.json HTTP/1.1")
+            );
+            let body = json!({"posts":[
+                {"no":120,"tim":90001,"filename":"first","ext":".png"},
+                {"no":121,"com":"text only"}
+            ]})
+            .to_string();
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{address}/")).unwrap();
+        let events = resolve_messages_at_base(
+            &Client::new(),
+            Thread {
+                board: "g".into(),
+                id: 120,
+            },
+            &api,
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 3);
+        assert_eq!(
+            serde_json::to_value(&events[2]).unwrap()["metadata"]["source_post_id"],
+            121
+        );
+        server.await.unwrap();
+    }
+
+    #[test]
     fn skips_text_posts_and_unsafe_extensions() {
         let body = json!({"posts": [
             {"no": 100, "tim": 98765, "filename": "hello/world", "ext": ".png"},
