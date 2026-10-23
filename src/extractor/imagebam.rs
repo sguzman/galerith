@@ -16,9 +16,7 @@ pub enum Target {
 }
 
 fn safe_id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.bytes().all(|c| c.is_ascii_alphanumeric())
+    !value.is_empty() && value.len() <= 128 && value.bytes().all(|c| c.is_ascii_alphanumeric())
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -126,10 +124,7 @@ fn gallery_image_paths(html: &str) -> Vec<String> {
     paths
 }
 
-async fn read_html(
-    client: &Client,
-    endpoint: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()
@@ -155,7 +150,9 @@ async fn resolve_at_base(
     match target {
         Target::Image { path } => {
             let html = read_html(client, base.join(&path)?).await?;
-            Ok(vec![parse_image_page(&html).ok_or("ImageBam image missing original media")?])
+            Ok(vec![
+                parse_image_page(&html).ok_or("ImageBam image missing original media")?
+            ])
         }
         Target::Gallery { path } => {
             let html = read_html(client, base.join(&path)?).await?;
@@ -211,7 +208,8 @@ mod tests {
 
     #[test]
     fn image_page_requires_original_media_from_checked_cdn() {
-        let source = r#"<img src="https://images3.imagebam.com/a/b/picture.png" alt="original.png">"#;
+        let source =
+            r#"<img src="https://images3.imagebam.com/a/b/picture.png" alt="original.png">"#;
         let item = parse_image_page(source).unwrap();
         assert_eq!(item.filename, "original.png");
         assert_eq!(item.url, "https://images3.imagebam.com/a/b/picture.png");
