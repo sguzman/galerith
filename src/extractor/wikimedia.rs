@@ -518,15 +518,9 @@ mod tests {
                         {"ns":6,"title":"File:A.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/a/a0/A.jpg"}]},
                         {"ns":6,"title":"File:B.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/b/b0/B.jpg"}]}
                     ]},
-                    "continue":{"continue":"-||",field:"next-page"}
+                    "continue":{"continue":"-||"}
                 });
-                // Construct the continuation field explicitly; computed object keys
-                // are not inferred by serde_json's object literal syntax.
                 let mut first = first;
-                first["continue"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("field");
                 first["continue"][field] = serde_json::json!("next-page");
                 let second = serde_json::json!({
                     "query":{"pages":[
@@ -588,7 +582,7 @@ mod tests {
             Some(("-||".into(), "next".into()))
         );
         assert!(
-            continuation(&serde_json::json!({"continue":{"gcmcontinue":"bad\u0000next"}}), &target)
+            continuation(&serde_json::json!({"continue":{"gcmcontinue":"bad\u{0000}next"}}), &target)
                 .is_err()
         );
         assert!(
