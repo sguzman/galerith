@@ -457,4 +457,151 @@ mod tests {
         assert!(response.unwrap_err().to_string().contains("2 MiB"));
         server.await.unwrap();
     }
+
+    async fn collection_fixture(target: Target, generator: &str, expected_title: &str) {
+        use std::collections::HashMap;
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let generator = generator.to_owned();
+        let expected_title = expected_title.to_owned();
+        let server = tokio::spawn(async move {
+            for index in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                loop {
+                    let mut chunk = [0_u8; 2048];
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0, "GET headers missing");
+                    request.extend_from_slice(&chunk[..n]);
+                    assert!(request.len() <= 8192);
+                    if request.windows(4).any(|x| x == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8(request).unwrap();
+                let path = request.lines().next().unwrap().split_whitespace().nth(1).unwrap();
+                let url = Url::parse(&format!("http://localhost{path}")).unwrap();
+                let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
+                assert_eq!(query.get("generator"), Some(&generator));
+                assert_eq!(
+                    query.get(if generator == "images" { "titles" } else { "gcmtitle" }),
+                    Some(&expected_title)
+                );
+                assert_eq!(query.get("prop").map(String::as_str), Some("imageinfo"));
+                assert_eq!(query.get("iiprop").map(String::as_str), Some("url"));
+                assert_eq!(query.get("iilimit").map(String::as_str), Some("1"));
+                assert_eq!(query.get("maxlag").map(String::as_str), Some("5"));
+                if generator == "categorymembers" {
+                    assert_eq!(query.get("gcmtype").map(String::as_str), Some("file"));
+                    assert_eq!(query.get("gcmlimit").map(String::as_str), Some("50"));
+                } else {
+                    assert_eq!(query.get("gimlimit").map(String::as_str), Some("50"));
+                }
+                let field = if generator == "images" {
+                    "gimcontinue"
+                } else {
+                    "gcmcontinue"
+                };
+                if index == 0 {
+                    assert!(!query.contains_key(field));
+                    assert!(!query.contains_key("continue"));
+                } else {
+                    assert_eq!(query.get(field).map(String::as_str), Some("next-page"));
+                    assert_eq!(query.get("continue").map(String::as_str), Some("-||"));
+                }
+                let first = serde_json::json!({
+                    "query":{"pages":[
+                        {"ns":6,"title":"File:A.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/a/a0/A.jpg"}]},
+                        {"ns":6,"title":"File:B.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/b/b0/B.jpg"}]}
+                    ]},
+                    "continue":{"continue":"-||",field:"next-page"}
+                });
+                // Construct the continuation field explicitly; computed object keys
+                // are not inferred by serde_json's object literal syntax.
+                let mut first = first;
+                first["continue"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("field");
+                first["continue"][field] = serde_json::json!("next-page");
+                let second = serde_json::json!({
+                    "query":{"pages":[
+                        {"ns":6,"title":"File:B.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/b/b0/B.jpg"}]},
+                        {"ns":6,"title":"File:C.jpg","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/c/c0/C.jpg"}]},
+                        {"ns":6,"title":"File:Malicious.jpg","imageinfo":[{"url":"https://untrusted.invalid/bad.jpg"}]}
+                    ]}
+                });
+                let body = if index == 0 { first.to_string() } else { second.to_string() };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let endpoint = Url::parse(&format!("http://{address}/w/api.php")).unwrap();
+        let media = resolve_at_api(&Client::new(), &endpoint, &target, 2)
+            .await
+            .unwrap();
+        server.await.unwrap();
+        assert_eq!(
+            media.iter().map(|item| item.filename.as_str()).collect::<Vec<_>>(),
+            ["A.jpg", "B.jpg", "C.jpg"]
+        );
+    }
+
+    #[tokio::test]
+    async fn article_image_generator_uses_safe_bounded_api_continuation() {
+        collection_fixture(
+            Target::CommonsArticle {
+                title: "Featured pictures".into(),
+            },
+            "images",
+            "Featured pictures",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn category_file_generator_uses_safe_bounded_api_continuation() {
+        collection_fixture(
+            Target::CommonsCategory {
+                title: "Category:Night sky".into(),
+            },
+            "categorymembers",
+            "Category:Night sky",
+        )
+        .await;
+    }
+
+    #[test]
+    fn continuation_rejects_malformed_tokens_and_wrong_fields() {
+        let target = Target::CommonsCategory {
+            title: "Category:Night sky".into(),
+        };
+        assert_eq!(
+            continuation(&serde_json::json!({"continue":{"continue":"-||","gcmcontinue":"next"}}), &target).unwrap(),
+            Some(("-||".into(), "next".into()))
+        );
+        assert!(
+            continuation(&serde_json::json!({"continue":{"gcmcontinue":"bad\u0000next"}}), &target)
+                .is_err()
+        );
+        assert!(
+            continuation(&serde_json::json!({"continue":{"gcmcontinue":"x".repeat(513)}}), &target)
+                .is_err()
+        );
+        assert!(
+            continuation(&serde_json::json!({"continue":"invalid"}), &target).is_err()
+        );
+        assert_eq!(
+            continuation(&serde_json::json!({"continue":{"gimcontinue":"wrong-generator"}}), &target)
+                .unwrap(),
+            None
+        );
+    }
 }
