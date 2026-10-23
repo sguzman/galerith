@@ -12,7 +12,8 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
   │    ├── Gelbooru v0.2 XML API family (five hosts)
   │    └── 4chan / 4channel thread and bounded board media
   ├── read-only typed message inspection (directory, URL, deferred queue)
-  │    └── opt-in, one-level bounded queue expansion (no full job parity)
+  │    └── opt-in, four-level bounded queue traversal with scoped metadata
+  ├── opt-in --follow-queues: typed URL events feed native downloads
   ├── 1-based range selector / bounded filename formatter
   └── HTTP(S) client with Netscape cookie jar and bounded pacing
        └── download (resumes / retries / output lock)
@@ -22,8 +23,8 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 ```
 
 - `src/lib.rs`: shared `MediaItem` and direct media matcher
-- `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter, Wallhaven deferred collection queues and opt-in one-level expansion, but no full gallery-dl recursive queue executor or metadata contract
-- `src/message.rs`: typed directory/URL/queue events and synthetic metadata adapter. [Detailed preview contract](MESSAGE_PROTOCOL.md)
+- `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter, Wallhaven deferred collection queues and bounded multi-level inspection and optional queue-driven downloads, but no full gallery-dl recursive queue, metadata, redirect or job compatibility contract
+- `src/message.rs`: typed directory/URL/queue events, bounded iterative job traversal, metadata scope isolation and event adapters. [Detailed preview contract](MESSAGE_PROTOCOL.md)
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
 - `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
 - `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
@@ -34,7 +35,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 - `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`); the full gallery-dl postprocessor lifecycle remains outstanding
 - `src/bin/galerith-roadmap.rs`: task/acceptance and extractor inventory verification; CI checks both generated Markdown documents
 
-Tests are synthetic and offline: `tests/cli.rs`, `tests/message_cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.
+Tests are synthetic and offline: `tests/cli.rs`, `tests/message_cli.rs`, `tests/message_download_cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.
 
 Never include private conversations, credentials, real user media, logged-in sessions or protected site data in the public repository.
 
