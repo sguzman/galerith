@@ -127,8 +127,8 @@ async fn resolve_at_base(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Gallery { section, name } => {
-            let html = read_html(client, base.join(&format!("gallery/{section}/{name}.php"))?)
-                .await?;
+            let html =
+                read_html(client, base.join(&format!("gallery/{section}/{name}.php"))?).await?;
             Ok(gallery_media(&html))
         }
     }
@@ -180,7 +180,10 @@ mod tests {
         let media = gallery_media(html);
         assert_eq!(media.len(), 2);
         assert_eq!(media[0].filename, "001 first.jpg");
-        assert_eq!(media[0].url, "https://www.comedywildlifephoto.com/media/first.jpg");
+        assert_eq!(
+            media[0].url,
+            "https://www.comedywildlifephoto.com/media/first.jpg"
+        );
         assert_eq!(media[1].filename, "002 second.png");
     }
 
