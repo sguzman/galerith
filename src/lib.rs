@@ -6,6 +6,7 @@ pub mod cookies;
 pub mod download;
 pub mod extractor;
 pub mod filename;
+pub mod message;
 pub mod postprocess;
 pub mod privacy;
 pub mod range;
