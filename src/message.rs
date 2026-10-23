@@ -201,4 +201,22 @@ mod tests {
         .unwrap();
         assert_eq!(expanded, events);
     }
+
+    #[tokio::test]
+    async fn queue_expansion_hard_cap_is_sixteen_even_for_large_caller_limit() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let queued: Vec<_> = (0..20)
+            .map(|index| queued_url(format!("https://example.org/gallery/{index}"), Metadata::new()))
+            .collect();
+        let expanded = expand_queues_with(queued.clone(), usize::MAX, |_| {
+            calls.set(calls.get() + 1);
+            async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 16);
+        assert_eq!(expanded, queued);
+    }
 }
