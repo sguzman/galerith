@@ -1715,6 +1715,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T528",
+              "emoji": "📸",
+              "name": "Adobe Lightroom public shared album and highest-resolution image preview",
+              "checks": [
+                {
+                  "title": "Recognize public Lightroom share IDs and reject unrelated URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/lightroom.rs canonical share ID tests and src/extractor/mod.rs dispatcher; CI 40015686111"
+                },
+                {
+                  "title": "Read public share albumAttributes JSON and bounded image-list pages",
+                  "passed": true,
+                  "evidence": "src/extractor/lightroom.rs album HTML JSON parser, XSSI prelude decoder and two-page localhost API fixture; CI 40015686111"
+                },
+                {
+                  "title": "Select highest supported rendition, preserve order, deduplicate assets and derive numbered filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/lightroom.rs rendition-size selection, original ID and URL fixture, dedup and 4-digit filenames; CI 40015686111"
+                },
+                {
+                  "title": "Reject unapproved media/API hosts and limit resource, page and response sizes",
+                  "passed": true,
+                  "evidence": "src/extractor/lightroom.rs Adobe host checks, URL scoping, 2 MiB read guard, page/media caps and offline tests; CI 40015686111"
+                },
+                {
+                  "title": "Complete metadata, all asset host variants, authenticated shares and live upstream differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

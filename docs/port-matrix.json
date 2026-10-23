@@ -901,9 +901,14 @@
     {
       "path": "gallery_dl/extractor/lightroom.py",
       "module": "lightroom",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/lightroom.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Adobe Lightroom shared albumAttributes and paginated image-list extraction, rendition size selection, asset deduplication, bounded URL origins and HTTP synthetic fixtures; CI 40015686111 verified. Full metadata, authentication, all CDN hosts and live parity missing."
+      ]
     },
     {
       "path": "gallery_dl/extractor/listal.py",

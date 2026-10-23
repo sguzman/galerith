@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 52%` across 71 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 52%` across 72 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -346,6 +346,12 @@
   - [x] Extract safe ordered multi-resolution portfolio wallpapers — src/extractor/desktopography.rs wallpaper-button media path, filename and host tests; CI 40013345220
   - [x] Resolve bounded site → exhibition → portfolio image traversal through localhost HTML — src/extractor/desktopography.rs three-request localhost hierarchy fixture, request/media cap and 2 MiB HTML guard; CI 40013345220
   - [ ] Match complete upstream metadata, archive/filename formatting and all live site routes/behaviors
+- 📸 **T528** Adobe Lightroom public shared album and highest-resolution image preview — `████████░░ 80%`
+  - [x] Recognize public Lightroom share IDs and reject unrelated URLs — src/extractor/lightroom.rs canonical share ID tests and src/extractor/mod.rs dispatcher; CI 40015686111
+  - [x] Read public share albumAttributes JSON and bounded image-list pages — src/extractor/lightroom.rs album HTML JSON parser, XSSI prelude decoder and two-page localhost API fixture; CI 40015686111
+  - [x] Select highest supported rendition, preserve order, deduplicate assets and derive numbered filenames — src/extractor/lightroom.rs rendition-size selection, original ID and URL fixture, dedup and 4-digit filenames; CI 40015686111
+  - [x] Reject unapproved media/API hosts and limit resource, page and response sizes — src/extractor/lightroom.rs Adobe host checks, URL scoping, 2 MiB read guard, page/media caps and offline tests; CI 40015686111
+  - [ ] Complete metadata, all asset host variants, authenticated shares and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
