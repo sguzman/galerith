@@ -1264,6 +1264,38 @@
                 }
               ],
               "progress": 86
+            },
+            {
+              "id": "T515",
+              "emoji": "🖼️",
+              "name": "Imgbox public image and gallery extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize pinned Imgbox image/gallery URL shapes without arbitrary hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbox.rs strict key/hostname fixtures and src/extractor/mod.rs dispatch; CI 39998853147"
+                },
+                {
+                  "title": "Parse Imgbox image pages with checked CDN URLs and filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbox.rs HTML and unsafe-host fixtures; CI 39998853147"
+                },
+                {
+                  "title": "Verify single Imgbox image extraction using local HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbox.rs local image-page TCP fixture; CI 39998586897"
+                },
+                {
+                  "title": "Resolve ordered gallery images with bounded keys and offline multi-page fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbox.rs gallery key order and dedup tests, three-response local HTTP fixture; CI 39998853147"
+                },
+                {
+                  "title": "Reproduce Imgbox full metadata/archive/filename rules and opt-in live conformance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

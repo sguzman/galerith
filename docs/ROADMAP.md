@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 45%` across 58 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 45%` across 59 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 55%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 56%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `██████░░░░ 61%`
+### 🧱 P5 — Shared website families — `██████░░░░ 63%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -261,6 +261,12 @@
   - [ ] Reproduce upstream album metadata, directory/archive semantics and live-site parity
   - [x] Reject Catbox album HTML exceeding the 2 MiB safety bound — src/extractor/catbox.rs Content-Length and incremental chunk size guards; synthetic HTTP regression; CI 39997427304
   - [x] Preserve public Catbox album title, date text and description in typed library results — src/extractor/catbox.rs AlbumDetails/AlbumMetadata and independent synthetic HTML fixtures; CI 39997675184
+- 🖼️ **T515** Imgbox public image and gallery extractor preview — `████████░░ 80%`
+  - [x] Recognize pinned Imgbox image/gallery URL shapes without arbitrary hosts — src/extractor/imgbox.rs strict key/hostname fixtures and src/extractor/mod.rs dispatch; CI 39998853147
+  - [x] Parse Imgbox image pages with checked CDN URLs and filenames — src/extractor/imgbox.rs HTML and unsafe-host fixtures; CI 39998853147
+  - [x] Verify single Imgbox image extraction using local HTTP — src/extractor/imgbox.rs local image-page TCP fixture; CI 39998586897
+  - [x] Resolve ordered gallery images with bounded keys and offline multi-page fixtures — src/extractor/imgbox.rs gallery key order and dedup tests, three-response local HTTP fixture; CI 39998853147
+  - [ ] Reproduce Imgbox full metadata/archive/filename rules and opt-in live conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

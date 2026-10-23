@@ -703,9 +703,14 @@
     {
       "path": "gallery_dl/extractor/imgbox.py",
       "module": "imgbox",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imgbox.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Imgbox single image and gallery HTML extraction with 200-image bounded gallery traversal, safe CDN checks and offline tests; CI 39998853147 green; full metadata, gallery sizing, archive naming and live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/imgpile.py",
