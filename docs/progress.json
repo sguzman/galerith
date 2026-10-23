@@ -844,9 +844,14 @@
                   "title": "Verify bounded Danbooru popular feed JSON endpoints",
                   "passed": true,
                   "evidence": "src/extractor/danbooru.rs popular API fixture; CI 39981891550"
+                },
+                {
+                  "title": "Verify Danbooru single-artist to tag-query expansion",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs two-request localhost artist fixture; CI 39984232755"
                 }
               ],
-              "progress": 86
+              "progress": 88
             },
             {
               "id": "T506",

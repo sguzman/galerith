@@ -327,7 +327,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Post/tag search, metadata-ordered pool/favorite groups, original media assets and popular JSON endpoints; synthetic HTTP CI 39981891550; auth, variants and metadata parity incomplete."
+        "Posts, tags, ordered pools/favorite groups, popular, media assets and single-artist query resolution. Synthetic API and regression CI 39984232755; artist search/auth/metadata parity missing."
       ]
     },
     {
