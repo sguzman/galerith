@@ -14,7 +14,7 @@ use reqwest::Client;
 use std::error::Error;
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if foolfuuka::match_url(input).is_some() {
+    if foolfuuka::match_url(input).is_some() || foolfuuka::match_board_url(input).is_some() {
         Some("foolfuuka")
     } else if philomena::match_url(input).is_some() {
         Some("philomena")
@@ -44,6 +44,9 @@ pub async fn resolve(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Some(target) = foolfuuka::match_url(input) {
         return foolfuuka::resolve(client, target).await;
+    }
+    if let Some(target) = foolfuuka::match_board_url(input) {
+        return foolfuuka::resolve_board(client, target, max_pages).await;
     }
     if let Some(target) = philomena::match_url(input) {
         return philomena::resolve(client, target, max_pages).await;

@@ -1,10 +1,10 @@
 //! FoolFuuka read-only archived-thread JSON extractor preview.
-//! Archive-specific redirects, board enumeration, search, galleries,
-//! and original metadata/directory semantics are not yet supported.
+//! Archive-specific redirects, search, galleries, and original metadata /
+//! directory semantics are not yet supported.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
-use std::error::Error;
+use std::{collections::BTreeSet, error::Error, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +63,115 @@ pub fn match_url(input: &str) -> Option<Target> {
         board: board.into(),
         thread,
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Board {
+    host: &'static str,
+    category: &'static str,
+    board: String,
+    first_page: u16,
+    explicit_page: bool,
+}
+
+pub fn match_board_url(input: &str) -> Option<Board> {
+    let url = Url::parse(input).ok()?;
+    if url.scheme() != "https" {
+        return None;
+    }
+    let (host, category) = archive(url.host_str()?)?;
+    let mut segments = url.path_segments()?.filter(|x| !x.is_empty());
+    let board = segments.next()?;
+    if board.is_empty()
+        || board.len() > 8
+        || !board.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    {
+        return None;
+    }
+    let (first_page, explicit_page) = match segments.next() {
+        None => (1, false),
+        Some("page") => {
+            let page = segments.next()?.parse::<u16>().ok()?;
+            if page == 0 { return None; }
+            (page, true)
+        }
+        Some(page) => {
+            let page = page.parse::<u16>().ok()?;
+            if page == 0 { return None; }
+            (page, true)
+        }
+    };
+    if segments.next().is_some() {
+        return None;
+    }
+    Some(Board {
+        host, category, board: board.into(), first_page, explicit_page,
+    })
+}
+
+fn board_thread_ids(value: &Value) -> Result<Vec<u64>, Box<dyn Error + Send + Sync>> {
+    let threads = value.as_object().ok_or("FoolFuuka index API must return a thread object")?;
+    let mut ids = BTreeSet::new();
+    for raw_id in threads.keys() {
+        if let Ok(id) = raw_id.parse::<u64>() {
+            if id > 0 {
+                ids.insert(id);
+            }
+        }
+    }
+    Ok(ids.into_iter().collect())
+}
+
+pub async fn resolve_board(client: &Client, board: Board, max_pages: u16)
+    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
+{
+    let api = Url::parse(&format!("https://{}/", board.host))?;
+    resolve_board_at_base(client, board, max_pages, &api).await
+}
+
+async fn resolve_board_at_base(client: &Client, board: Board, max_pages: u16, base: &Url)
+    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
+{
+    let count = if board.explicit_page { 1 } else { max_pages.max(1) };
+    let mut files = Vec::new();
+    let mut visited = BTreeSet::new();
+    let mut requested = false;
+    for offset in 0..count {
+        let Some(page) = board.first_page.checked_add(offset) else { break };
+        if requested {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        let mut endpoint = base.join("_/api/chan/index/")?;
+        endpoint.query_pairs_mut()
+            .append_pair("board", &board.board)
+            .append_pair("page", &page.to_string());
+        let response: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        if response.is_null() {
+            break;
+        }
+        let threads = board_thread_ids(&response)?;
+        if threads.is_empty() {
+            break;
+        }
+        for id in threads {
+            if !visited.insert(id) {
+                continue;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            files.extend(resolve_at_base(
+                client,
+                Target {
+                    host: board.host,
+                    category: board.category,
+                    board: board.board.clone(),
+                    thread: id,
+                },
+                base,
+            ).await?);
+        }
+        requested = true;
+    }
+    Ok(files)
 }
 
 fn file_for_post(post: &Value, category: &'static str, base: &Url) -> Option<MediaItem> {
@@ -187,6 +296,71 @@ mod tests {
         assert!(match_url("https://desuarchive.org/g/thread/0").is_none());
         assert!(match_url("http://archive.4plebs.org/tg/thread/1").is_none());
         assert!(match_url("https://notarchive.4plebs.org/tg/thread/1").is_none());
+    }
+
+    #[test]
+    fn recognizes_board_indices_and_explicit_pages() {
+        assert_eq!(
+            match_board_url("https://archived.moe/a/"),
+            Some(Board {
+                host: "archived.moe", category: "archivedmoe",
+                board: "a".into(), first_page: 1, explicit_page: false
+            })
+        );
+        assert_eq!(
+            match_board_url("https://desuarchive.org/g/page/4"),
+            Some(Board {
+                host: "desuarchive.org", category: "desuarchive",
+                board: "g".into(), first_page: 4, explicit_page: true
+            })
+        );
+        assert!(match_board_url("https://archived.moe/a/thread/123").is_none());
+        assert!(match_board_url("https://archived.moe/a/page/0").is_none());
+        assert!(match_board_url("https://archived.moe/a/other/2").is_none());
+    }
+
+    #[test]
+    fn validates_thread_index_keys_and_sorts_ids() {
+        assert_eq!(
+            board_thread_ids(&json!({"9": {}, "2": {}, "bad": {}})).unwrap(),
+            vec![2, 9]
+        );
+        assert!(board_thread_ids(&json!([1, 2, 3])).is_err());
+        assert_eq!(board_thread_ids(&json!({})).unwrap(), Vec::<u64>::new());
+    }
+
+    #[tokio::test]
+    async fn local_board_index_recurses_into_single_thread() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                ("GET /_/api/chan/index/?board=a&page=1 HTTP/1.1", r#"{"123":{"num":123}}"#),
+                ("GET /_/api/chan/thread/?board=a&num=123 HTTP/1.1",
+                    r#"{"123":{"op":{"num":123,"media":{"media_link":"/files/9.png","media":"9.png","media_filename":"art.png","media_orig":"9000.png"}}}}"#)
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 4096];
+                let count = socket.read(&mut bytes).await.unwrap();
+                let request = String::from_utf8_lossy(&bytes[..count]);
+                assert!(request.starts_with(needle), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let board = Board {
+            host: "archived.moe", category: "archivedmoe",
+            board: "a".into(), first_page: 1, explicit_page: false
+        };
+        let items = resolve_board_at_base(&Client::new(), board, 1, &base).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "9000 art.png");
+        server.await.unwrap();
     }
 
     #[test]
