@@ -1117,6 +1117,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn source_post_selection_rejects_explicit_invalid_queue_identities() {
+        use std::cell::Cell;
+
+        let requests = Cell::new(0usize);
+        let queue = |name: &str, identity: Value| {
+            queued_url(
+                format!("https://example.org/thread/{name}"),
+                serde_json::from_value(json!({"source_post_id":identity})).unwrap(),
+            )
+        };
+        let events = vec![
+            queue("wrong", json!(456)),
+            queue("malformed", json!("457")),
+            queue("selected", json!(457)),
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("457").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |_| {
+            requests.set(requests.get() + 1);
+            async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(requests.get(), 1);
+        assert_eq!(output.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&output[0]).unwrap()["url"],
+            "https://example.org/thread/selected"
+        );
+    }
+
+    #[tokio::test]
     async fn source_post_identity_does_not_leak_across_queued_child_frames() {
         let events = vec![
             ExtractorMessage::Directory {
