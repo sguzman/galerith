@@ -344,12 +344,7 @@ fn inspection_selectors_cannot_be_silently_ignored() {
             "1:9:0",
             url,
         ],
-        vec![
-            "--follow-queues",
-            "--message-file-range",
-            "1",
-            url,
-        ],
+        vec!["--follow-queues", "--message-file-range", "1", url],
     ] {
         let result = run(&args);
         assert!(!result.status.success(), "{args:?}");
