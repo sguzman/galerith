@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 50%` across 68 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 51%` across 69 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 64%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 65%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -328,6 +328,12 @@
   - [x] Use numbered gallery image filenames in preview responses — src/extractor/comedywildlifephoto.rs three-digit indexing and filename regression fixtures; CI 40010682321
   - [x] Verify bounded public gallery HTML reads with localhost HTTP — src/extractor/comedywildlifephoto.rs 2 MiB incremental HTML bound and local TCP gallery fixture; CI 40010682321
   - [ ] Reproduce figure dimensions/captions, section/title metadata, archives, all upstream behavior and live differential tests
+- 📸 **T525** PhotoVogue public photographer API gallery preview — `████████░░ 80%`
+  - [x] Match public PhotoVogue photographer IDs on canonical Vogue hosts — src/extractor/photovogue.rs strict numeric photographer routes and src/extractor/mod.rs dispatch; CI 40011442029
+  - [x] Parse validated official-host photo assets with ID and filename metadata — src/extractor/photovogue.rs API object conversion, ID/title filename and unsafe-media regression fixtures; CI 40011442029
+  - [x] Paginate the pinned PhotoVogue public JSON API, preserving order and deduplicating IDs — src/extractor/photovogue.rs two-page, three-image localhost JSON fixture and dedup tests; CI 40011442029
+  - [x] Bound JSON responses, page counts and malformed pagination responses — src/extractor/photovogue.rs 2 MiB buffered API response, max_pages and 50-item page checks; CI 40011442029
+  - [ ] Reproduce all Vogue CDNs, complete metadata/date/archives, filename and live reference behavior
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

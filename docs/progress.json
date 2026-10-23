@@ -1619,6 +1619,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T525",
+              "emoji": "📸",
+              "name": "PhotoVogue public photographer API gallery preview",
+              "checks": [
+                {
+                  "title": "Match public PhotoVogue photographer IDs on canonical Vogue hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/photovogue.rs strict numeric photographer routes and src/extractor/mod.rs dispatch; CI 40011442029"
+                },
+                {
+                  "title": "Parse validated official-host photo assets with ID and filename metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/photovogue.rs API object conversion, ID/title filename and unsafe-media regression fixtures; CI 40011442029"
+                },
+                {
+                  "title": "Paginate the pinned PhotoVogue public JSON API, preserving order and deduplicating IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/photovogue.rs two-page, three-image localhost JSON fixture and dedup tests; CI 40011442029"
+                },
+                {
+                  "title": "Bound JSON responses, page counts and malformed pagination responses",
+                  "passed": true,
+                  "evidence": "src/extractor/photovogue.rs 2 MiB buffered API response, max_pages and 50-item page checks; CI 40011442029"
+                },
+                {
+                  "title": "Reproduce all Vogue CDNs, complete metadata/date/archives, filename and live reference behavior",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

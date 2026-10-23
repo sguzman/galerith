@@ -1228,9 +1228,14 @@
     {
       "path": "gallery_dl/extractor/photovogue.py",
       "module": "photovogue",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/photovogue.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent PhotoVogue public photographer paginated JSON API subset, canonical Vogue media host constraints, ID/title filenames, bounded responses and synthetic two-page HTTP fixtures; CI 40011442029 verified. Full metadata/archive/CDN diversity and live parity absent"
+      ]
     },
     {
       "path": "gallery_dl/extractor/picarto.py",
