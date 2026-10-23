@@ -39,10 +39,7 @@ pub fn match_url(input: &str) -> Option<Target> {
                 && first.bytes().all(|ch| ch.is_ascii_hexdigit())
                 && second.bytes().all(|ch| ch.is_ascii_hexdigit())
                 && valid_key(key)
-                && url
-                    .host_str()?
-                    .strip_prefix("images")
-                    .is_some() =>
+                && url.host_str()?.strip_prefix("images").is_some() =>
         {
             *key
         }
@@ -106,10 +103,7 @@ fn parse_image_page(html: &str, key: &str) -> Option<MediaItem> {
     })
 }
 
-async fn page_html(
-    client: &Client,
-    endpoint: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()
