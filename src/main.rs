@@ -5,7 +5,7 @@ use galerith::{
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::{
-        resolve, resolve_media_job_selected, resolve_messages, resolve_messages_traversing,
+        resolve, resolve_media_job_selected, resolve_messages, resolve_messages_traversing_selected,
         PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
@@ -132,6 +132,14 @@ struct Cli {
     )]
     job_child_range: Option<String>,
 
+    /// Select URL-event ordinals in the read-only recursive message stream
+    #[arg(long = "message-file-range", value_name = "RANGE", requires = "expand_queues")]
+    message_file_range: Option<String>,
+
+    /// Select deferred queue ordinals before read-only child resolution
+    #[arg(long = "message-child-range", value_name = "RANGE", requires = "expand_queues")]
+    message_child_range: Option<String>,
+
     /// Resolve URLs without downloading
     #[arg(long)]
     no_download: bool,
@@ -202,6 +210,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     // typed-job selectors. Never silently ignore them in inspection mode.
     if (cli.job_file_range.is_some() || cli.job_child_range.is_some()) && !cli.follow_queues {
         return Err("--job-file-range and --job-child-range require --follow-queues".into());
+    }
+    if (cli.message_file_range.is_some() || cli.message_child_range.is_some())
+        && !(cli.dump_messages && cli.expand_queues)
+    {
+        return Err("--message-file-range and --message-child-range require --dump-messages --expand-queues".into());
     }
     if cli.list_extractors {
         for (name, description) in PREVIEW_EXTRACTORS {
@@ -317,12 +330,25 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     for url in urls {
         if cli.dump_messages {
             let events = if cli.expand_queues {
-                resolve_messages_traversing(
+                let selection = JobSelection {
+                    files: cli
+                        .message_file_range
+                        .as_deref()
+                        .map(IndexRange::parse)
+                        .transpose()?,
+                    children: cli
+                        .message_child_range
+                        .as_deref()
+                        .map(IndexRange::parse)
+                        .transpose()?,
+                };
+                resolve_messages_traversing_selected(
                     &client,
                     &url,
                     cli.max_pages,
                     cli.max_queue_children.unwrap_or(8),
                     cli.queue_depth.unwrap_or(1),
+                    &selection,
                 )
                 .await
             } else {
