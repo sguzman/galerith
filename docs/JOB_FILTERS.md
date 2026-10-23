@@ -6,6 +6,8 @@ These are **native Galerith preview controls**, not full gallery-dl post/file/ch
 
 Run `galerith --follow-queues --job-file-range 1:6:2 --get-urls URL` to emit the first, third and fifth eligible file URLs. Use `--job-child-range 2-4` to follow only the second through fourth encountered deferred child queues. Use `--job-directory-range 2` to process only the second directory scope. All ranges use the existing one-based, positive, comma/range/slice grammar. The typed job still enforces two queue levels, at most eight expanded children, and the global event limit.
 
+Finite file-only ranges can stop additional Wallhaven API pages when enough unique files have been collected. When a directory selector is active, this optimization is disabled because discarded earlier scopes may contain arbitrarily many files. See [source post scopes and pagination](POST_SCOPES_AND_PAGING.md).
+
 These controls operate **before** the selected file events become native downloader candidates. Child selection operates **before** the associated HTTP requests, so excluded child extractors are not contacted. Directory selection suppresses events and child requests belonging to excluded directory scopes.
 
 ## Read-only inspection
