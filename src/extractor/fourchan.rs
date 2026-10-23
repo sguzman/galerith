@@ -107,6 +107,7 @@ fn board_thread_ids(
 
 const MAX_BOARD_QUEUES: usize = 256;
 const MAX_BOARD_INDEX_BYTES: usize = 2 * 1024 * 1024;
+const MAX_THREAD_JSON_BYTES: usize = 4 * 1024 * 1024;
 
 /// Generate deferred source threads from a read-only public board listing.
 /// Emitting a Queue does not fetch a thread or media file.
@@ -303,13 +304,21 @@ async fn thread_json(
     api: &Url,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{}/thread/{}.json", target.board, target.id))?;
-    Ok(client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?)
+    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_THREAD_JSON_BYTES as u64)
+    {
+        return Err("4chan thread JSON exceeded the response limit".into());
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len().saturating_add(chunk.len()) > MAX_THREAD_JSON_BYTES {
+            return Err("4chan thread JSON exceeded the response limit".into());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 async fn resolve_at_base(
