@@ -26,14 +26,9 @@ async fn opt_in_message_job_reuses_native_atomic_download_pipeline() {
                 break;
             }
         }
-        assert!(
-            String::from_utf8_lossy(&request)
-                .starts_with("GET /asset.png HTTP/1.1")
-        );
+        assert!(String::from_utf8_lossy(&request).starts_with("GET /asset.png HTTP/1.1"));
         stream
-            .write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\n12345678",
-            )
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\n12345678")
             .await
             .unwrap();
     });
