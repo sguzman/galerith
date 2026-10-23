@@ -16,6 +16,8 @@ pub enum Target {
     Avatar { actor: String },
     Banner { actor: String },
     Search { query: String, sort: Option<String> },
+    Feed { actor: String, id: String },
+    List { actor: String, id: String },
 }
 
 fn valid_segment(value: &str) -> bool {
@@ -73,6 +75,18 @@ pub fn match_url(input: &str) -> Option<Target> {
             Some(Target::Search {
                 query: format!("#{hashtag}"),
                 sort,
+            })
+        }
+        ["profile", actor, "feed", id] if valid_segment(actor) && valid_segment(id) => {
+            Some(Target::Feed {
+                actor: (*actor).to_owned(),
+                id: (*id).to_owned(),
+            })
+        }
+        ["profile", actor, "lists", id] if valid_segment(actor) && valid_segment(id) => {
+            Some(Target::List {
+                actor: (*actor).to_owned(),
+                id: (*id).to_owned(),
             })
         }
         ["profile", actor, "post", rkey] if valid_segment(actor) && valid_segment(rkey) => {
@@ -272,6 +286,63 @@ async fn resolve_search(
     Ok(items)
 }
 
+async fn resolve_collection_feed(
+    client: &Client,
+    base: &Url,
+    did: &str,
+    id: &str,
+    collection: &str,
+    endpoint_name: &str,
+    query_name: &str,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let at_uri = format!("at://{did}/{collection}/{id}");
+    let mut output = Vec::new();
+    let mut seen = HashSet::new();
+    let mut cursor: Option<String> = None;
+    for offset in 0..max_pages.max(1) {
+        if offset > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        let mut endpoint = base.join(&format!("xrpc/{endpoint_name}"))?;
+        {
+            let mut params = endpoint.query_pairs_mut();
+            params.append_pair(query_name, &at_uri).append_pair("limit", "100");
+            if let Some(cursor) = &cursor {
+                params.append_pair("cursor", cursor);
+            }
+        }
+        let body: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let feed = body
+            .get("feed")
+            .and_then(Value::as_array)
+            .ok_or("Bluesky collection feed response missing entries")?;
+        if feed.is_empty() {
+            break;
+        }
+        for entry in feed {
+            if let Some(post) = entry.get("post") {
+                for item in parse_public_media(post) {
+                    if seen.insert(item.url.clone()) {
+                        output.push(item);
+                    }
+                }
+            }
+        }
+        cursor = next_cursor(&body, cursor.as_deref());
+        if cursor.is_none() {
+            break;
+        }
+    }
+    Ok(output)
+}
+
 async fn resolve_actor(
     client: &Client,
     base: &Url,
@@ -326,11 +397,39 @@ async fn resolve_at_base(
         | Target::Posts { actor }
         | Target::Replies { actor }
         | Target::Avatar { actor }
-        | Target::Banner { actor } => actor,
+        | Target::Banner { actor }
+        | Target::Feed { actor, .. }
+        | Target::List { actor, .. } => actor,
     };
     let did = resolve_actor(client, base, actor).await?;
     match target {
         Target::Search { .. } => unreachable!("search is resolved separately"),
+        Target::Feed { id, .. } => {
+            resolve_collection_feed(
+                client,
+                base,
+                &did,
+                &id,
+                "app.bsky.feed.generator",
+                "app.bsky.feed.getFeed",
+                "feed",
+                max_pages,
+            )
+            .await
+        }
+        Target::List { id, .. } => {
+            resolve_collection_feed(
+                client,
+                base,
+                &did,
+                &id,
+                "app.bsky.graph.list",
+                "app.bsky.feed.getListFeed",
+                "list",
+                max_pages,
+            )
+            .await
+        }
         Target::Avatar { .. } | Target::Banner { .. } => {
             let kind = if matches!(target, Target::Avatar { .. }) {
                 "avatar"
@@ -376,7 +475,9 @@ async fn resolve_at_base(
                 Target::Post { .. }
                 | Target::Avatar { .. }
                 | Target::Banner { .. }
-                | Target::Search { .. } => {
+                | Target::Search { .. }
+                | Target::Feed { .. }
+                | Target::List { .. } => {
                     unreachable!("single posts and profile images are resolved above")
                 }
             };
@@ -517,6 +618,21 @@ mod tests {
         assert!(match_url("https://bsky.app/search").is_none());
         assert!(match_url("https://bsky.app/search?q=fox&sort=unknown").is_none());
         assert!(match_url("https://bsky.app/hashtag/art/unknown").is_none());
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/feed/abc123"),
+            Some(Target::Feed {
+                actor: "alice.bsky.social".into(),
+                id: "abc123".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/did:plc:alice/lists/a12"),
+            Some(Target::List {
+                actor: "did:plc:alice".into(),
+                id: "a12".into(),
+            })
+        );
+        assert!(match_url("https://bsky.app/profile/a/lists/a%2Fb").is_none());
         assert!(match_url("https://bsky.app/profile/alice.bsky.social/likes").is_none());
         assert!(match_url("https://bsky.evil.app/profile/a/media").is_none());
         assert!(match_url("http://bsky.app/profile/a/media").is_none());
@@ -677,6 +793,67 @@ mod tests {
             .unwrap();
         assert_eq!(tags.len(), 1);
         assert_eq!(tags[0].filename, "cc_1.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn public_feed_generators_and_lists_use_distinct_atproto_endpoints() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (endpoint, key, record_kind, id, rkey) in [
+                ("getFeed", "feed=", "app.bsky.feed.generator", "gen1", "genpost"),
+                ("getListFeed", "list=", "app.bsky.graph.list", "list1", "listpost"),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(
+                    request.starts_with(&format!("GET /xrpc/app.bsky.feed.{endpoint}?")),
+                    "{request}"
+                );
+                assert!(request.contains(key), "{request}");
+                assert!(request.contains(record_kind), "{request}");
+                assert!(request.contains(id), "{request}");
+                assert!(request.contains("limit=100"), "{request}");
+                let body = format!(
+                    r#"{{"feed":[{{"post":{{"uri":"at://did:plc:other/app.bsky.feed.post/{rkey}","author":{{"did":"did:plc:other"}},"embed":{{"images":[{{"fullsize":"https://cdn.bsky.app/img/feed_fullsize/plain/{rkey}@jpeg"}}]}}}}}}]}}"#
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        for (target, expected) in [
+            (
+                Target::Feed {
+                    actor: "did:plc:alice".into(),
+                    id: "gen1".into(),
+                },
+                "genpost_1.jpeg",
+            ),
+            (
+                Target::List {
+                    actor: "did:plc:alice".into(),
+                    id: "list1".into(),
+                },
+                "listpost_1.jpeg",
+            ),
+        ] {
+            let items = resolve_at_base(&Client::new(), target, 1, &base)
+                .await
+                .unwrap();
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].filename, expected);
+        }
         server.await.unwrap();
     }
 
