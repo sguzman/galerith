@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 47%` across 61 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 47%` across 62 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 59%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 60%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 65%`
+### 🧱 P5 — Shared website families — `███████░░░ 66%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -284,6 +284,12 @@
   - [x] Resolve bounded Pixeldrain direct folder children with offline ?stat JSON — src/extractor/pixeldrain.rs duplicate, unavailable and nested-directory filters plus localhost stat HTTP fixture; CI 40002558640
   - [x] Resolve Pixeldrain filesystem single-file stat metadata without recursion — src/extractor/pixeldrain.rs same-path typed file fixture; CI 40002909144
   - [x] Resolve Pixeldrain album ZIP URL from public list metadata — src/extractor/pixeldrain.rs album title/filename fixture, localhost album ZIP metadata API and dispatcher route; CI 40002909144
+- 🖼️ **T518** ImgBB public image and album extractor preview — `████████░░ 80%`
+  - [x] Recognize exact public ImgBB image and album URL shapes — src/extractor/imgbb.rs URL recognition and rejects, src/extractor/mod.rs registry; CI 40003621668
+  - [x] Extract single-image og:image media with strict ImgBB CDN validation — src/extractor/imgbb.rs allowed-media and unsafe-host fixtures; CI 40003621668
+  - [x] Extract ordered, deduplicated first-page ImgBB album data-object images — src/extractor/imgbb.rs bounded album HTML/JSON fixtures; CI 40003621668
+  - [x] Verify public image and album pages with synthetic localhost HTTP — src/extractor/imgbb.rs two-request local TCP HTML fixture and 2 MiB bound; CI 40003621668
+  - [ ] Support authenticated users, album pagination, complete metadata and live reference parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

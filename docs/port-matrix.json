@@ -702,9 +702,14 @@
     {
       "path": "gallery_dl/extractor/imgbb.py",
       "module": "imgbb",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imgbb.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public ImgBB single-image og:image and first album HTML data-object previews with strict ibb.co/i.ibb.co hosts, dedup and bounded local TCP fixtures; CI 40003621668 green; pagination/auth/metadata/live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/imgbox.py",

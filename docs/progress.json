@@ -1385,6 +1385,38 @@
                 }
               ],
               "progress": 89
+            },
+            {
+              "id": "T518",
+              "emoji": "🖼️",
+              "name": "ImgBB public image and album extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize exact public ImgBB image and album URL shapes",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbb.rs URL recognition and rejects, src/extractor/mod.rs registry; CI 40003621668"
+                },
+                {
+                  "title": "Extract single-image og:image media with strict ImgBB CDN validation",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbb.rs allowed-media and unsafe-host fixtures; CI 40003621668"
+                },
+                {
+                  "title": "Extract ordered, deduplicated first-page ImgBB album data-object images",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbb.rs bounded album HTML/JSON fixtures; CI 40003621668"
+                },
+                {
+                  "title": "Verify public image and album pages with synthetic localhost HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/imgbb.rs two-request local TCP HTML fixture and 2 MiB bound; CI 40003621668"
+                },
+                {
+                  "title": "Support authenticated users, album pagination, complete metadata and live reference parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

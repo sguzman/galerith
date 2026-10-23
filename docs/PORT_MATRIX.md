@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 14 · Not ported: 258.**
+**Complete: 0 · Partial: 15 · Not ported: 257.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -100,7 +100,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/imagehosts.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/imagepond.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/imageshack.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/imgbb.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/imgbb.py` | 🟡 Partial | `src/extractor/imgbb.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgbox.py` | 🟡 Partial | `src/extractor/imgbox.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgpile.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/imgth.py` | ⚪ Not ported | — |
