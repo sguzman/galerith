@@ -4,6 +4,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 
 | Feature | Native preview support | Outstanding parity |
 |---|---|---|
+| Lexica | Public prompt-image search over bounded JSON POST/cursor API; validated JPEG IDs and deduplication (CI 40023659175) | Full prompt metadata, upstream archive/filename templates, authentication and live behavior |
 | Basic direct links | HTTP(S) image/video/doc extensions | Complete directlink selection and MIME handling |
 | Danbooru | Single posts and bounded tag searches | Pools, artists, metadata, login, full pagination |
 | e621 family | e621/e926/e6ai posts and tags; MD5 URL fallback | Pools, favorites, popular feeds, artist URLs, authorization |
