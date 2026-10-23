@@ -1028,7 +1028,10 @@ mod tests {
                 }
                 let header = String::from_utf8(request).unwrap();
                 let first = header.lines().next().unwrap();
-                assert!(first.starts_with(&format!("GET {expected} HTTP/1.1")), "{first}");
+                assert!(
+                    first.starts_with(&format!("GET {expected} HTTP/1.1")),
+                    "{first}"
+                );
                 let body = data.to_string();
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -1049,7 +1052,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|x| x.filename.as_str())
+                .collect::<Vec<_>>(),
             ["wallhaven-94x38z.jpg", "wallhaven-a1b2c3.jpg"]
         );
         tokio::time::timeout(Duration::from_secs(15), server)
@@ -1057,5 +1063,4 @@ mod tests {
             .unwrap()
             .unwrap();
     }
-
 }
