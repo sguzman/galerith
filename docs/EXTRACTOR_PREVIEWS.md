@@ -18,6 +18,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | `imgth` | `imgth.com/gallery/ID` and optional title slug | Bounded gallery page traversal, ordered thumbnail-to-original URL transformation and safe gallery-host verification | Complete gallery metadata, archive/filename parity and live-site conformance |
 | `speakerdeck` | `speakerdeck.com/USER/SLUG` public presentations | oEmbed JSON to player HTML and ordered, validated slide-image URLs with bounded extraction | Full metadata, archive/filename formatting, private/authenticated decks and live conformance |
 | `telegraph` | `telegra.ph/SLUG` and `www.telegra.ph/SLUG` | Public article images, bounded HTML responses, figure and bare-image parsing, canonical media validation and embed filtering | Article metadata, figure captions, archive and naming equivalence, live upstream acceptance |
+| `wallpapercave` | `wallpapercave.com/w/wpID` and selected `*-wallpapers` pages | Public download links, direct-download fallback and picture-gallery original images with strict host validation and bounded HTML | All upstream URL forms, metadata/archive formatting and opt-in live parity |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search, pool posts and four popular-feed modes | Popular metadata, auth and complete upstream naming |
 | `philomena` | `derpibooru.org`, `ponybooru.org`, `furbooru.org` | JSON images, bounded search and galleries, tag slugs, SVG originals | Full auth, filters, metadata and SVG edge cases |
 | `pixeldrain` | `pixeldrain.com/u/ID`, `/api/file/ID`, `/l/ID`, `/api/list/ID`, `/api/list/ID/zip`, and public `/d/PATH`/`/api/filesystem/PATH` | Safe public JSON file/list selection, direct folder children and filesystem files through `?stat`, unavailable-media filtering, 2 MiB bounded JSON, ZIP album URL/filename via public metadata | Authentication, nested-folder recursion, ZIP configuration parity, full metadata and opt-in live reference acceptance |
@@ -26,4 +27,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 40008050952](https://github.com/sguzman/galerith/actions/runs/40008050952) (Imgth gallery multi-page HTTP fixtures, full Rust formatting, Clippy, tests and release build).
+**Verified integration:** [CI 40008761943](https://github.com/sguzman/galerith/actions/runs/40008761943) (WallpaperCave download/gallery HTML fixtures, Rust format, Clippy, tests and release build).

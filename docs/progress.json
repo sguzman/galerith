@@ -1555,6 +1555,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T523",
+              "emoji": "🖼️",
+              "name": "WallpaperCave public download and gallery-image preview",
+              "checks": [
+                {
+                  "title": "Recognize supported WallpaperCave wallpaper and category URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/wallpapercave.rs strict /w/wpID and category route fixtures, src/extractor/mod.rs; CI 40008761943"
+                },
+                {
+                  "title": "Prefer ordered public download links and suppress unsafe or duplicate media",
+                  "passed": true,
+                  "evidence": "src/extractor/wallpapercave.rs canonical-host download HTML fixture; CI 40008761943"
+                },
+                {
+                  "title": "Support public single-download and wallpaper-picture fallback",
+                  "passed": true,
+                  "evidence": "src/extractor/wallpapercave.rs tdownload and wallpaper-picture synthetic markup fixtures; CI 40008761943"
+                },
+                {
+                  "title": "Read bounded public wallpaper HTML via local HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/wallpapercave.rs localhost image-link fixture, 2 MiB HTML guard; CI 40008761943"
+                },
+                {
+                  "title": "Match all upstream WallpaperCave URL/media and metadata/archive/live acceptance behaviors",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

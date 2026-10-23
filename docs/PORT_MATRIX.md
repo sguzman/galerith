@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 19 · Not ported: 253.**
+**Complete: 0 · Partial: 20 · Not ported: 252.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -259,7 +259,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/vk.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/vsco.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/wallhaven.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/wallpapercave.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/wallpapercave.py` | 🟡 Partial | `src/extractor/wallpapercave.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/warosu.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/weasyl.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/webmshare.py` | ⚪ Not ported | — |

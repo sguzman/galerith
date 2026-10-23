@@ -1862,9 +1862,14 @@
     {
       "path": "gallery_dl/extractor/wallpapercave.py",
       "module": "wallpapercave",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/wallpapercave.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent WallpaperCave public wallpaper pages/category galleries, original-image download priority, fallback and strict host/media dedup with synthetic local HTML fixtures; CI 40008761943 verified; complete upstream routes/metadata/archive and live parity absent"
+      ]
     },
     {
       "path": "gallery_dl/extractor/warosu.py",

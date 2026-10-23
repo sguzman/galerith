@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 49%` across 66 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 50%` across 67 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 63%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 64%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -316,6 +316,12 @@
   - [x] Deduplicate and preserve gallery originals across public listing pages — src/extractor/imgth.rs two-page multi-request localhost HTML fixture; CI 40008050952
   - [x] Apply page count and HTML response bounds — src/extractor/imgth.rs max_pages, per-page 2 MiB transfer and 2000 image bound; CI 40008050952
   - [ ] Reproduce gallery metadata, title/date/archive and full upstream/live behavior
+- 🖼️ **T523** WallpaperCave public download and gallery-image preview — `████████░░ 80%`
+  - [x] Recognize supported WallpaperCave wallpaper and category URLs — src/extractor/wallpapercave.rs strict /w/wpID and category route fixtures, src/extractor/mod.rs; CI 40008761943
+  - [x] Prefer ordered public download links and suppress unsafe or duplicate media — src/extractor/wallpapercave.rs canonical-host download HTML fixture; CI 40008761943
+  - [x] Support public single-download and wallpaper-picture fallback — src/extractor/wallpapercave.rs tdownload and wallpaper-picture synthetic markup fixtures; CI 40008761943
+  - [x] Read bounded public wallpaper HTML via local HTTP — src/extractor/wallpapercave.rs localhost image-link fixture, 2 MiB HTML guard; CI 40008761943
+  - [ ] Match all upstream WallpaperCave URL/media and metadata/archive/live acceptance behaviors
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
