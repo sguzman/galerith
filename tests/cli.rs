@@ -43,3 +43,12 @@ fn unsupported_urls_fail_explicitly() {
         .unwrap()
         .contains("no implemented extractor"));
 }
+
+#[test]
+fn danbooru_registered_but_not_claimed_complete() {
+    let output = run(&["--list-extractors"]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("danbooru"));
+    assert!(text.contains("partial"));
+}

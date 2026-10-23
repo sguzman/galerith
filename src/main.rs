@@ -1,7 +1,7 @@
 use clap::Parser;
 use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
-    extract_direct_media,
+    extractor::resolve,
 };
 use std::{
     error::Error,
@@ -60,6 +60,10 @@ struct Cli {
     #[arg(long)]
     no_skip: bool,
 
+    /// Maximum Danbooru search pages to fetch (preview default: 1)
+    #[arg(long, default_value_t = 1)]
+    max_pages: u16,
+
     /// Suppress per-file status messages
     #[arg(short = 'q', long)]
     quiet: bool,
@@ -75,7 +79,8 @@ async fn main() {
 
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     if cli.list_extractors {
-        println!("directlink (direct HTTP(S) media URLs only; partial upstream parity)");
+        println!("directlink (direct HTTP(S) media URLs only; partial parity)");
+        println!("danbooru (post URLs and tag searches only; partial parity)");
         return Ok(());
     }
 
@@ -110,34 +115,36 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     };
     let mut failed = 0usize;
     for url in urls {
-        let item = match extract_direct_media(&url) {
-            Ok(item) => item,
+        let items = match resolve(&client, &url, cli.max_pages).await {
+            Ok(items) => items,
             Err(error) => {
                 eprintln!("galerith: {url}: {error}");
                 failed += 1;
                 continue;
             }
         };
-        if cli.get_urls {
-            println!("{}", item.url);
-        } else if cli.dump_json {
-            println!("{}", serde_json::to_string(&item)?);
-        } else if cli.simulate || cli.no_download {
-            if !cli.quiet {
-                println!("[simulate] {}", item.filename);
-            }
-        } else {
-            match download(&client, &item, &options).await {
-                Ok(DownloadOutcome::Saved(path)) if !cli.quiet => {
-                    println!("saved {}", path.display())
+        for item in items {
+            if cli.get_urls {
+                println!("{}", item.url);
+            } else if cli.dump_json {
+                println!("{}", serde_json::to_string(&item)?);
+            } else if cli.simulate || cli.no_download {
+                if !cli.quiet {
+                    println!("[simulate] {}", item.filename);
                 }
-                Ok(DownloadOutcome::Skipped(path)) if !cli.quiet => {
-                    println!("skipped {}", path.display())
-                }
-                Ok(_) => {}
-                Err(error) => {
-                    eprintln!("galerith: {url}: {error}");
-                    failed += 1;
+            } else {
+                match download(&client, &item, &options).await {
+                    Ok(DownloadOutcome::Saved(path)) if !cli.quiet => {
+                        println!("saved {}", path.display())
+                    }
+                    Ok(DownloadOutcome::Skipped(path)) if !cli.quiet => {
+                        println!("skipped {}", path.display())
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        eprintln!("galerith: {}: {error}", item.url);
+                        failed += 1;
+                    }
                 }
             }
         }

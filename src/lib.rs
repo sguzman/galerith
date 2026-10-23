@@ -1,6 +1,7 @@
 //! Initial extractor contracts. A complete port remains the MVP gate.
 //! This module implements only direct media URL recognition, not site galleries.
 pub mod download;
+pub mod extractor;
 
 use serde::Serialize;
 use url::Url;
@@ -10,6 +11,8 @@ pub struct MediaItem {
     pub url: String,
     pub filename: String,
     pub extractor: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +84,7 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
         url: parsed.to_string(),
         filename,
         extractor: "directlink",
+        post_id: None,
     })
 }
 
