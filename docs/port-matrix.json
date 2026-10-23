@@ -1979,9 +1979,14 @@
     {
       "path": "gallery_dl/extractor/wikimedia.py",
       "module": "wikimedia",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/wikimedia.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent Wikimedia Commons public File: page Action API GET preview with contact User-Agent, maxlag, bounded JSON, image host allowlist and offline HTTP tests; CI 40024629371 passed. Article/category generators, other wiki hosts, revisions, metadata, archive parity and live differential testing remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/xasiat.py",
