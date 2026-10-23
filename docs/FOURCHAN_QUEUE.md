@@ -31,7 +31,8 @@ its existing eager board-to-thread media preview.
 For `https://boards.4chan.org/g/thread/123`, the typed route reads the
 thread JSON and emits a `directory` scope for each valid **source post**
 number, including text-only posts; it emits `url` messages only for valid
-attachments. The original post number is `source_post_id`; the existing
+attachments. Thread JSON bodies are also capped at **4 MiB** before
+parsing, including when a response has no declared content length. The original post number is `source_post_id`; the existing
 native `MediaItem.post_id` stays tied to the media file's `tim` value
 for legacy downloader/archive compatibility.
 
