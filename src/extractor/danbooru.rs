@@ -1181,11 +1181,13 @@ mod tests {
             assert!(request.contains("page=1"), "{request}");
             assert!(request.contains("limit=200"), "{request}");
             let posts: Vec<Value> = (1..=200)
-                .map(|id| json!({
-                    "id":id,
-                    "file_url":format!("https://cdn.example.org/{id}.jpg"),
-                    "file_ext":"jpg"
-                }))
+                .map(|id| {
+                    json!({
+                        "id":id,
+                        "file_url":format!("https://cdn.example.org/{id}.jpg"),
+                        "file_ext":"jpg"
+                    })
+                })
                 .collect();
             let body = Value::Array(posts).to_string();
             let reply = format!(
@@ -1201,10 +1203,9 @@ mod tests {
             );
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let files =
-            resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 4, 1)
-                .await
-                .unwrap();
+        let files = resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 4, 1)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].post_id, Some(1));
         server.await.unwrap();
@@ -1248,10 +1249,9 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let files =
-            resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 3, 2)
-                .await
-                .unwrap();
+        let files = resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 3, 2)
+            .await
+            .unwrap();
         assert_eq!(
             files.iter().map(|item| item.post_id).collect::<Vec<_>>(),
             vec![Some(1), Some(201)]
