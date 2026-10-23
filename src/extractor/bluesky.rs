@@ -374,8 +374,18 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         for (target, rkey) in [
-            (Target::Posts { actor: "did:plc:alice".into() }, "pp"),
-            (Target::Replies { actor: "did:plc:alice".into() }, "rr"),
+            (
+                Target::Posts {
+                    actor: "did:plc:alice".into(),
+                },
+                "pp",
+            ),
+            (
+                Target::Replies {
+                    actor: "did:plc:alice".into(),
+                },
+                "rr",
+            ),
         ] {
             let media = resolve_at_base(&Client::new(), target, 3, &base)
                 .await
