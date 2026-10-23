@@ -795,7 +795,7 @@
                 {
                   "title": "Convert URL-only events into validated native media downloads behind opt-in --follow-queues with local end-to-end transfer verification",
                   "passed": true,
-                  "evidence": "src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633; queued child HTTP(S)/credential guard tests CI 40035532138"
+                  "evidence": "src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633; queued child HTTP(S)/credential guard tests CI 40035532138; registered website extractor/hostname allowlist and local-IP rejection CI 40035944411"
                 },
                 {
                   "title": "Prove full gallery-dl download-job parity: recursive filters, redirects, metadata/postprocessing/archive propagation, all extractor classes and live differential testing",
