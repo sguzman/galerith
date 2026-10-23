@@ -5,10 +5,11 @@ use galerith::{
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::{
-        resolve, resolve_media_job, resolve_messages, resolve_messages_traversing,
+        resolve, resolve_media_job_selected, resolve_messages, resolve_messages_traversing,
         PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
+    message::JobSelection,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
     range::IndexRange,
@@ -113,6 +114,23 @@ struct Cli {
     /// Opt into the bounded two-level typed queue job for downloads/URL output
     #[arg(long = "follow-queues", conflicts_with = "dump_messages")]
     follow_queues: bool,
+
+    /// Select 1-based URL-event ordinals before typed-job media downloads
+    #[arg(
+        long = "job-file-range",
+        value_name = "RANGE",
+        requires = "follow_queues",
+        conflicts_with = "file_range"
+    )]
+    job_file_range: Option<String>,
+
+    /// Select 1-based deferred-child ordinals before queued HTTP requests
+    #[arg(
+        long = "job-child-range",
+        value_name = "RANGE",
+        requires = "follow_queues"
+    )]
+    job_child_range: Option<String>,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -278,6 +296,18 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .as_deref()
         .map(IndexRange::parse)
         .transpose()?;
+    let job_selection = JobSelection {
+        files: cli
+            .job_file_range
+            .as_deref()
+            .map(IndexRange::parse)
+            .transpose()?,
+        children: cli
+            .job_child_range
+            .as_deref()
+            .map(IndexRange::parse)
+            .transpose()?,
+    };
     let mut failed = 0usize;
     for url in urls {
         if cli.dump_messages {
@@ -311,7 +341,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             continue;
         }
         let extraction = if cli.follow_queues {
-            resolve_media_job(&client, &url, cli.max_pages).await
+            resolve_media_job_selected(&client, &url, cli.max_pages, &job_selection).await
         } else {
             resolve(&client, &url, cli.max_pages).await
         };
