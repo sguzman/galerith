@@ -257,7 +257,10 @@ mod tests {
     }
     #[tokio::test]
     async fn tag_search_uses_xml_dapi_and_stops_on_short_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -280,7 +283,9 @@ mod tests {
             host: "xbooru.com".into(),
             tags: "blue sky".into(),
         };
-        let files = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        let files = resolve_at_base(&Client::new(), target, 3, &api)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].filename, "18.jpg");
         assert_eq!(files[0].extractor, "xbooru");
