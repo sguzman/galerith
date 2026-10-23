@@ -37,3 +37,5 @@ Every row here represents **partial functionality**, not a fully ported upstream
 `--max-pages` controls current bounded search/board traversal. The implemented previews have synthetic offline fixtures. Lexica's HTTP regression fixtures passed CI 40023659175; passing offline tests is **not** live-site conformance.
 
 **Verified integration:** [CI 40031267694](https://github.com/sguzman/galerith/actions/runs/40031267694) (Wallhaven public collection-index and request-budget fixtures, format, Clippy, tests and release build).....
+
+**4chan typed queue update:** Public 4chan/4channel board URLs now emit bounded thread `queue` events in `--dump-messages`; actual thread URLs yield source-backed post `directory` events including text-only posts. Queue following is opt-in; the normal downloader is unchanged. See [4chan typed queues](FOURCHAN_QUEUE.md). This remains partial upstream parity.
