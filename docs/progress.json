@@ -364,9 +364,14 @@
                 {
                   "title": "Reference-compatible filesystem tests",
                   "passed": false
+                },
+                {
+                  "title": "Verify safe named-field, escaped brace and ID-width format subset",
+                  "passed": true,
+                  "evidence": "src/filename.rs; tests/cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 25
+              "progress": 40
             },
             {
               "id": "T302",
@@ -414,9 +419,14 @@
                 {
                   "title": "Golden sidecar comparison tests",
                   "passed": false
+                },
+                {
+                  "title": "Verify atomic per-media redacted JSON metadata preview",
+                  "passed": true,
+                  "evidence": "src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 25
+              "progress": 40
             },
             {
               "id": "T304",
@@ -530,9 +540,14 @@
                 {
                   "title": "Page boundary tests",
                   "passed": false
+                },
+                {
+                  "title": "Verify one-based single/range/slice selector subset",
+                  "passed": true,
+                  "evidence": "src/range.rs; tests/cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 0
+              "progress": 20
             },
             {
               "id": "T404",
@@ -713,6 +728,33 @@
                 },
                 {
                   "title": "Implement upstream pools, artist, favorite, popular, account and metadata behavior",
+                  "passed": false
+                }
+              ],
+              "progress": 75
+            },
+            {
+              "id": "T507",
+              "emoji": "🌸",
+              "name": "Initial Gelbooru JSON API post and tag-search extraction",
+              "checks": [
+                {
+                  "title": "Recognize post and tag searches with query-order independence",
+                  "passed": true,
+                  "evidence": "src/extractor/gelbooru.rs URL matching and parser tests"
+                },
+                {
+                  "title": "Resolve synthetic Gelbooru JSON post API media records",
+                  "passed": true,
+                  "evidence": "src/extractor/gelbooru.rs local API fixture"
+                },
+                {
+                  "title": "Verify registered extractor and unit suite in Linux CI",
+                  "passed": true,
+                  "evidence": "GitHub Actions 39954702418"
+                },
+                {
+                  "title": "Reproduce full pools, favorites, redirection, pagination and metadata semantics",
                   "passed": false
                 }
               ],
@@ -942,9 +984,14 @@
                 {
                   "title": "Adversarial fixture verification",
                   "passed": false
+                },
+                {
+                  "title": "Mask query credentials and passwords in CLI error output",
+                  "passed": true,
+                  "evidence": "src/privacy.rs; tests/cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 0
+              "progress": 20
             }
           ]
         },
@@ -960,7 +1007,8 @@
               "checks": [
                 {
                   "title": "JSON/YAML/TOML supported",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418 (explicit JSON/YAML/TOML config and precedence)"
                 },
                 {
                   "title": "Precedence/overrides/compat options",
@@ -975,7 +1023,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 25
             },
             {
               "id": "T902",

@@ -1,36 +1,38 @@
-# 🏗️ Architecture and port plan
+# 🏗️ Galerith architecture
 
-The target is full compatibility with pinned gallery-dl, not a new downloader with a similar name.
+Galerith targets complete [gallery-dl](https://github.com/mikf/gallery-dl) behavior. The current executable is a small preview, not the MVP.
 
 ```text
-CLI / config / input files
-            |
-URL matcher + extractor registry
-            |
-Extractor messages (directory, queue, media, deferred URLs)
-            |
-Selection / metadata templates / postprocessing
-            |
-HTTP client + authentication + rate policies
-            |
-Filesystem / SQLite archive / resume + cache
+CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
+  ├── URL dispatch and site-specific extractor subset
+  │    ├── direct media links
+  │    ├── Danbooru posts and tags
+  │    ├── e621/e926/e6ai posts and tags
+  │    └── Gelbooru posts and tags
+  ├── 1-based range selector / bounded filename formatter
+  └── HTTP(S) client with Netscape cookie jar
+       └── download (resumes / retries / output lock)
+            ├── filesystem
+            ├── native SQLite archive
+            └── redacted JSON metadata sidecar
 ```
 
-Currently shipped:
-- `src/main.rs`: first Rust CLI and a strict subset of upstream flags.
-- `src/lib.rs`: direct-media URL recognition, shared metadata and safe leaf filenames.
-- `src/extractor/`: preliminary site URL dispatch, Danbooru reader and e621/e926/e6ai JSON readers for post and limited tag-search URLs (partial parity only).
-- `src/archive.rs`: native SQLite archive storing hashed URL keys or scoped post IDs after successful downloads (not yet upstream-compatible).
-- `src/cookies.rs`: scoped Netscape-format cookie import, shared by API extraction and downloads. See [cookie support](COOKIES.md).
-- `tests/archive_cli.rs`: native CLI archive persistence and extraction-only side-effect checks.
-- `src/download.rs`: streamed downloads, HTTP validator-bound resumes, content-range validation, bounded retries and per-target advisory locking (see [download policy](DOWNLOADER.md)).
-- `src/archive.rs`: conservative SQLite completed-download ledger, independent of upstream gallery-dl archive representation (see [archive policy](ARCHIVE.md)).
-- `tests/cli.rs`: basic offline CLI cases.
-- `tests/download_http.rs`: loopback tests for stream writes, retries and 404 handling.
-- `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`: deterministic interruption, concurrency, overwrite, large-transfer and status-policy tests.
-- `tests/archive_cli.rs`: on-disk archive skip after first successful download, without a second network request.
-- `src/bin/galerith-roadmap.rs`: evidence-backed source-of-truth rendering.
+- `src/lib.rs`: shared `MediaItem` and direct media matcher
+- `src/extractor/`: independently written, limited booru API extractors; no global gallery-dl-equivalent registry or recursive queues yet
+- `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
+- `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
+- `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
+- `src/privacy.rs`: URL and network-error redaction for ordinary diagnostics
+- `src/cookies.rs`: Netscape cookie file importer; not browser account/token import
+- `src/download.rs`: validator-bound HTTP resume, transient retries, output path locks and complete-file renames
+- `src/archive.rs`: SQLite duplicate ledger using Galerith keys; incompatible with full upstream archive semantics
+- `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`); the full gallery-dl postprocessor lifecycle remains outstanding
+- `src/bin/galerith-roadmap.rs`: task/acceptance and extractor inventory verification; CI checks both generated Markdown documents
 
-Not yet implemented: generalized extractor registry, complete website families, parent/child message contract, full upstream resume policies, browser cookie extraction, site-specific authentication, extraction page caching, template engine, full archive parity, postprocessors, advanced flags and full site coverage.
+Tests are synthetic and offline: `tests/cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, and `tests/metadata_cli.rs`.
 
-Keep transport, parsing, per-site authentication and filesystem mutation separate. Modules may share API-family helpers, but every upstream extractor URL behavior is tracked in the port matrix. Do not load or execute Python at runtime. Keep public fixtures synthetic.
+Never include private conversations, credentials, real user media, logged-in sessions or protected site data in the public repository.
+
+## Missing core infrastructure
+
+Extractor message queues and complete metadata dictionaries, authentication/login protocols, supported-site class inventory, full config and formatter dialects, archive interchange, file/post filtering, complete postprocessors (ZIP/CBZ/mtime/exec/rename), downloader integrations, and the rest of the pinned 272-file module inventory.

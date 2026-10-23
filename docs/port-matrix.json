@@ -526,9 +526,14 @@
     {
       "path": "gallery_dl/extractor/gelbooru.py",
       "module": "gelbooru",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/gelbooru.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Post and tag-search API subset, synthetic tests and GitHub Actions 39954702418; full upstream class support pending"
+      ]
     },
     {
       "path": "gallery_dl/extractor/gelbooru_v01.py",

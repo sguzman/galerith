@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███░░░░░░░ 33%` across 43 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 36%` across 44 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 47%`
+## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 51%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████░░░░ 56%`
@@ -75,33 +75,35 @@
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
 
-### 🗃️ P3 — Paths, archive and persistence — `████░░░░░░ 38%`
+### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 45%`
 
-- 🗂️ **T301** Safe names and format templates — `███░░░░░░░ 25%`
+- 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
   - [x] Sanitize a direct file basename — src/lib.rs
   - [ ] Format field interpolation and conditionals
   - [ ] Platform filename rules and normalization
   - [ ] Reference-compatible filesystem tests
+  - [x] Verify safe named-field, escaped brace and ID-width format subset — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418
 - 🧾 **T302** SQLite archive, cache and duplicate rules — `███░░░░░░░ 25%`
   - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)
   - [ ] Archive ID semantics across extractors
   - [ ] Cache expiry/locking/recovery
   - [ ] Migration and retry fixtures
-- 📋 **T303** Metadata sidecars and extension handling — `███░░░░░░░ 25%`
+- 📋 **T303** Metadata sidecars and extension handling — `████░░░░░░ 40%`
   - [x] Metadata model for extractors — src/lib.rs
   - [ ] Sidecar JSON/text/original metadata
   - [ ] Media extensions and MIME matching
   - [ ] Golden sidecar comparison tests
+  - [x] Verify atomic per-media redacted JSON metadata preview — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418
 - 🗄️ **T304** Download history and collision semantics — `████████░░ 75%`
   - [x] Existing files skip by default — src/download.rs
   - [x] Safe overwrites and name conflict policy — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Dedup across URLs/sites
   - [x] Regression tests for parallel tasks — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 
-## 🧩 M2 — Extractor framework and site families — `███░░░░░░░ 28%`
+## 🧩 M2 — Extractor framework and site families — `███░░░░░░░ 34%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███░░░░░░░ 25%`
+### 🧬 P4 — Extractor architecture — `███░░░░░░░ 30%`
 
 - 🧭 **T401** URL dispatch and category routing — `███░░░░░░░ 25%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -113,18 +115,19 @@
   - [ ] Directory metadata and file message variants
   - [ ] Deferred URL resolution and redirects
   - [ ] Reference message fixtures
-- 🔎 **T403** Pagination, filtering and selectors — `░░░░░░░░░░ 0%`
+- 🔎 **T403** Pagination, filtering and selectors — `██░░░░░░░░ 20%`
   - [ ] Iterative pagination and stop conditions
   - [ ] Ranges, filters and predicates
   - [ ] Order selection and deduplication
   - [ ] Page boundary tests
+  - [x] Verify one-based single/range/slice selector subset — src/range.rs; tests/cli.rs; GitHub Actions 39954702418
 - 🧪 **T404** Shared extractor harness — `█████░░░░░ 50%`
   - [x] Deterministic mocked HTTP responses — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Fixture discovery and golden comparisons
   - [x] Per-site contract assertions — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] CI compatibility matrix
 
-### 🧱 P5 — Shared website families — `███░░░░░░░ 29%`
+### 🧱 P5 — Shared website families — `████░░░░░░ 36%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -156,6 +159,11 @@
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
   - [x] Verify post and paginated tag-search API fixtures in Linux CI — GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)
   - [ ] Implement upstream pools, artist, favorite, popular, account and metadata behavior
+- 🌸 **T507** Initial Gelbooru JSON API post and tag-search extraction — `████████░░ 75%`
+  - [x] Recognize post and tag searches with query-order independence — src/extractor/gelbooru.rs URL matching and parser tests
+  - [x] Resolve synthetic Gelbooru JSON post API media records — src/extractor/gelbooru.rs local API fixture
+  - [x] Verify registered extractor and unit suite in Linux CI — GitHub Actions 39954702418
+  - [ ] Reproduce full pools, favorites, redirection, pagination and metadata semantics
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
@@ -190,10 +198,10 @@
   - [ ] Opt-in live site probes with rate policies
   - [ ] No unsupported claimed-complete category
 
-## 🔐 M4 — Authentication, configuration, processing — `░░░░░░░░░░ 4%`
+## 🔐 M4 — Authentication, configuration, processing — `█░░░░░░░░░ 12%`
 **Acceptance gate:** Cookies, login, config dialects, pipeline transformations, and external integrations reach upstream parity.
 
-### 🪪 P8 — Sessions, cookies and auth — `█░░░░░░░░░ 8%`
+### 🪪 P8 — Sessions, cookies and auth — `██░░░░░░░░ 15%`
 
 - 🍪 **T801** Cookie jars and browser imports — `███░░░░░░░ 25%`
   - [x] Netscape cookie files — src/cookies.rs; tests/cookie_cli.rs; GitHub Actions 39950715590 (domain/path/TLS scopes and authenticated HTTP integration)
@@ -205,16 +213,17 @@
   - [ ] Token refresh and secret storage
   - [ ] Site-specific login challenges
   - [ ] Authenticated extractor tests
-- 🛡️ **T803** Safe boundaries and telemetry — `░░░░░░░░░░ 0%`
+- 🛡️ **T803** Safe boundaries and telemetry — `██░░░░░░░░ 20%`
   - [ ] No secrets in logs
   - [ ] Redirect/cookie leak prevention
   - [ ] Credential file permissions
   - [ ] Adversarial fixture verification
+  - [x] Mask query credentials and passwords in CLI error output — src/privacy.rs; tests/cli.rs; GitHub Actions 39954702418
 
-### 🛠️ P9 — Config and post-processing — `░░░░░░░░░░ 0%`
+### 🛠️ P9 — Config and post-processing — `█░░░░░░░░░ 8%`
 
-- ⚙️ **T901** Upstream configuration file semantics — `░░░░░░░░░░ 0%`
-  - [ ] JSON/YAML/TOML supported
+- ⚙️ **T901** Upstream configuration file semantics — `███░░░░░░░ 25%`
+  - [x] JSON/YAML/TOML supported — src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418 (explicit JSON/YAML/TOML config and precedence)
   - [ ] Precedence/overrides/compat options
   - [ ] Extractor/downloader namespace
   - [ ] Differential config fixtures

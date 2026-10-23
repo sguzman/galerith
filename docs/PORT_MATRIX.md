@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 3 · Not ported: 269.**
+**Complete: 0 · Partial: 4 · Not ported: 268.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -80,7 +80,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/furaffinity.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/furry34.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/fuskator.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/gelbooru.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/gelbooru.py` | 🟡 Partial | `src/extractor/gelbooru.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/gelbooru_v01.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/gelbooru_v02.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/generic.py` | ⚪ Not ported | — |
