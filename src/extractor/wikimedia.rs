@@ -273,4 +273,44 @@ mod tests {
         assert_eq!(items[0].filename, "Blue_sky.png");
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn refuses_oversized_api_response_from_content_length() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 1024];
+                let n = socket.read(&mut chunk).await.unwrap();
+                assert!(n > 0, "GET headers missing");
+                request.extend_from_slice(&chunk[..n]);
+                assert!(request.len() <= 8192);
+                if request.windows(4).any(|x| x == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_RESPONSE + 1
+            );
+            socket.write_all(headers.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{address}/w/api.php")).unwrap();
+        let response = resolve_at_api(
+            &Client::new(),
+            &api,
+            &Target::CommonsFile {
+                title: "File:Blue sky.png".into(),
+            },
+        )
+        .await;
+        assert!(response.unwrap_err().to_string().contains("2 MiB"));
+        server.await.unwrap();
+    }
 }
