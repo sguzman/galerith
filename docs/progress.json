@@ -881,9 +881,19 @@
                   "title": "Verify e621 pool metadata ordering with unavailable media",
                   "passed": true,
                   "evidence": "src/extractor/e621.rs local ordered pool fixture; CI 39982529550"
+                },
+                {
+                  "title": "Verify wrapped and array e621 JSON API result lists",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs dual response shape fixtures; CI 39983115079"
+                },
+                {
+                  "title": "Verify native e621 single-artist lookup to bounded tag search",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs synthetic two-request artist fixture; CI 39983600876"
                 }
               ],
-              "progress": 83
+              "progress": 88
             },
             {
               "id": "T507",

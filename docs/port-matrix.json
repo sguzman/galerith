@@ -392,7 +392,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "e621 family post/tag/popular/favorites and metadata-ordered pool JSON subsets, MD5 URL fallback; CI 39982529550; artist/auth/complete metadata remain unported."
+        "e621 posts, tag search, popular/favorites, pool ordering, single-artist lookup and JSON array/wrapper handling, MD5 fallback; CI 39983600876; artist searches, auth and full metadata still open."
       ]
     },
     {
