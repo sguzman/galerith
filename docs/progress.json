@@ -918,7 +918,7 @@
               "id": "T509",
               "emoji": "🧬",
               "name": "Gelbooru v0.2 XML API family preview",
-              "progress": 75,
+              "progress": 80,
               "checks": [
                 {
                   "title": "Recognize supported post and tag URLs for five pinned API hosts",
@@ -938,6 +938,11 @@
                 {
                   "title": "Port complete pools, favorites, auth, fallback URLs, tags and reference metadata",
                   "passed": false
+                },
+                {
+                  "title": "Verify full XML pagination despite unavailable media and unrestricted tags",
+                  "passed": true,
+                  "evidence": "src/extractor/gelbooru_v02.rs local multi-page XML fixture; CI 39967220021"
                 }
               ]
             },

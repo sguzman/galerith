@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 42%` across 56 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 43%` across 56 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `█████░░░░░ 54%`
+### 🧱 P5 — Shared website families — `██████░░░░ 55%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -193,11 +193,12 @@
   - [x] Parse thread JSON attachments with safe file names — src/extractor/fourchan.rs synthetic fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Expand board pages into threads and deduplicate IDs — src/extractor/fourchan.rs local API fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [ ] Reproduce full upstream directory, archive, metadata and edge-case semantics
-- 🧬 **T509** Gelbooru v0.2 XML API family preview — `████████░░ 75%`
+- 🧬 **T509** Gelbooru v0.2 XML API family preview — `████████░░ 80%`
   - [x] Recognize supported post and tag URLs for five pinned API hosts — src/extractor/gelbooru_v02.rs; GitHub Actions 39959270238 passed
   - [x] Parse XML post metadata and reject unsafe media schemes — src/extractor/gelbooru_v02.rs unit fixtures; GitHub Actions 39959270238 passed
   - [x] Verify synthetic HTTP post and bounded tag-search DAPI requests — src/extractor/gelbooru_v02.rs local TCP fixtures; GitHub Actions 39959270238 passed
   - [ ] Port complete pools, favorites, auth, fallback URLs, tags and reference metadata
+  - [x] Verify full XML pagination despite unavailable media and unrestricted tags — src/extractor/gelbooru_v02.rs local multi-page XML fixture; CI 39967220021
 - 🎏 **T510** Moebooru JSON family post/tag/pool extractor preview — `████████░░ 80%`
   - [x] Route four upstream site families and three supported URL shapes — src/extractor/moebooru.rs; CI 39960525151
   - [x] Parse synthetic JSON media and validate metadata-driven filenames — src/extractor/moebooru.rs synthetic JSON unit fixtures; CI 39960525151
