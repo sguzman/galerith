@@ -6,7 +6,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 |---|---|---|---|
 | `directlink` | Direct HTTP(S) URLs ending in selected media extensions | Filename validation and direct streaming | Upstream matching, file policy and full downloader contract |
 | `danbooru` | `danbooru.donmai.us` and `safebooru.donmai.us` posts, tags, pools and favorite groups | JSON post/search, ordered pools/favorite groups, popular, original media assets, single artists | Accounts, metadata, alternate formats and full site variants |
-| `e621` | `e621.net`, `e926.net`, `e6ai.net` posts and tags | JSON posts/tags, popular and favorites feeds, ordered pools, single artists and artist search, MD5 URL recovery | Auth, metadata and complete artist workflows |
+| `e621` | `e621.net`, `e621.cc` alias, `e926.net`, `e6ai.net` posts, tags, and legacy links | JSON posts/tags with starting-page selection, base-32 post links, popular/favorites, ordered pools, artist searches, MD5 URL recovery | Auth, metadata and complete artist workflows |
 | `gelbooru` | `gelbooru.com` individual post and tag search pages | Public JSON post and bounded tag-search request | Pools, favorites, redirects, auth, filename and metadata semantics |
 | `gelbooru_v02` | Five pinned XML/DAPI hostnames and post/tag-search pages | XML post and bounded tag-search requests, full-page pagination despite missing media | Full pool/favorites/auth/metadata and host-specific media handling |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search, pool posts and four popular-feed modes | Popular metadata, auth and complete upstream naming |

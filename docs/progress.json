@@ -901,9 +901,19 @@
                   "title": "Verify bounded e621 artist-search expansion from API results",
                   "passed": true,
                   "evidence": "src/extractor/e621.rs; synthetic artist-list and post-list requests; CI 39985013467"
+                },
+                {
+                  "title": "Verify legacy e621 links and canonical e621.cc routing",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs; src/extractor/mod.rs; canonical route fixtures; CI 39986100890"
+                },
+                {
+                  "title": "Verify requested e621 tag-search starting page",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs local multi-page API fixture and invalid-page tests; CI 39986280202"
                 }
               ],
-              "progress": 89
+              "progress": 91
             },
             {
               "id": "T507",

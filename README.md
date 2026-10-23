@@ -6,7 +6,7 @@
 
 **Color:** `#90D8AA` · `oklch(82.22% 0.0973 155.6)` ([rationale](docs/COLOR.md)).
 
-> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, , Moebooru, Philomena, FoolFuuka archives (threads, bounded boards, galleries and search), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
+> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, Moebooru, Philomena, FoolFuuka archives (threads, bounded boards, galleries and search), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
 
 ## Native CLI preview
 
