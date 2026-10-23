@@ -293,7 +293,7 @@ pub async fn resolve_messages(
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
-/// Push a finite selected-file ceiling into Wallhaven pagination so
+/// Push a finite selected-file ceiling into supported API pagination so
 /// the extractor avoids HTTP pages that cannot contain requested files.
 /// Other site previews retain their existing bounded eager resolution.
 async fn resolve_messages_bounded(
@@ -308,6 +308,11 @@ async fn resolve_messages_bounded(
                 wallhaven::resolve_limited(client, target, max_pages, limit).await?,
             ));
         }
+    }
+    if let (Some(limit), Some(target)) = (file_bound, gelbooru::match_url(input)) {
+        return Ok(from_media(
+            gelbooru::resolve_limited(client, target, max_pages, limit).await?,
+        ));
     }
     resolve_messages(client, input, max_pages).await
 }
