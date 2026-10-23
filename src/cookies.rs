@@ -1,7 +1,13 @@
 //! Netscape-format cookie jar import, without browser database access.
 //! Never log cookie names, values or file contents.
 use reqwest::cookie::Jar;
-use std::{error::Error, fs, path::Path, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    error::Error,
+    fs,
+    path::Path,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use url::Url;
 
 pub fn load_netscape_file(path: &Path) -> Result<Arc<Jar>, Box<dyn Error + Send + Sync>> {
@@ -11,7 +17,10 @@ pub fn load_netscape_file(path: &Path) -> Result<Arc<Jar>, Box<dyn Error + Send 
 
 pub fn parse_netscape(content: &str) -> Arc<Jar> {
     let jar = Arc::new(Jar::default());
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     for raw in content.lines() {
         let line = if let Some(rest) = raw.strip_prefix("#HttpOnly_") {
             rest
@@ -36,8 +45,11 @@ pub fn parse_netscape(content: &str) -> Arc<Jar> {
             ("FALSE", "FALSE") => (false, false),
             _ => continue,
         };
-        if !path.starts_with('/') || name.is_empty() || name.contains([';', '=', '\r', '\n'])
-            || value.contains([';', '\r', '\n']) {
+        if !path.starts_with('/')
+            || name.is_empty()
+            || name.contains([';', '=', '\r', '\n'])
+            || value.contains([';', '\r', '\n'])
+        {
             continue;
         }
         let host = domain.trim_start_matches('.');
@@ -85,14 +97,28 @@ mod tests {
             .example.org\tTRUE\t/gallery\tFALSE\t0\tgallery_session\tsynthetic-secret\n\
             #HttpOnly_example.net\tFALSE\t/\tTRUE\t0\tlogged_in\tsynthetic-auth\n";
         let jar = parse_netscape(content);
-        let allowed = jar.cookies(&Url::parse("https://cdn.example.org/gallery/post").unwrap())
-            .unwrap().to_str().unwrap().to_owned();
+        let allowed = jar
+            .cookies(&Url::parse("https://cdn.example.org/gallery/post").unwrap())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
         assert!(allowed.contains("gallery_session=synthetic-secret"));
-        assert!(jar.cookies(&Url::parse("https://cdn.example.org/elsewhere").unwrap()).is_none());
-        assert!(jar.cookies(&Url::parse("https://notexample.org/gallery/post").unwrap()).is_none());
-        assert!(jar.cookies(&Url::parse("http://example.net/").unwrap()).is_none());
-        let secure = jar.cookies(&Url::parse("https://example.net/").unwrap())
-            .unwrap().to_str().unwrap().to_owned();
+        assert!(jar
+            .cookies(&Url::parse("https://cdn.example.org/elsewhere").unwrap())
+            .is_none());
+        assert!(jar
+            .cookies(&Url::parse("https://notexample.org/gallery/post").unwrap())
+            .is_none());
+        assert!(jar
+            .cookies(&Url::parse("http://example.net/").unwrap())
+            .is_none());
+        let secure = jar
+            .cookies(&Url::parse("https://example.net/").unwrap())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
         assert!(secure.contains("logged_in=synthetic-auth"));
     }
 
@@ -103,8 +129,12 @@ mod tests {
             example.org\tFALSE\t/\tFALSE\t0\tgood\tvalue\n\
             broken-no-tabs\n";
         let jar = parse_netscape(content);
-        let cookies = jar.cookies(&Url::parse("https://example.org/").unwrap())
-            .unwrap().to_str().unwrap().to_owned();
+        let cookies = jar
+            .cookies(&Url::parse("https://example.org/").unwrap())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
         assert_eq!(cookies, "good=value");
     }
 }
