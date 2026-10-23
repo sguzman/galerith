@@ -1491,6 +1491,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T521",
+              "emoji": "🖥️",
+              "name": "Speaker Deck public presentation slides preview",
+              "checks": [
+                {
+                  "title": "Recognize public Speaker Deck presentation URL shapes conservatively",
+                  "passed": true,
+                  "evidence": "src/extractor/speakerdeck.rs URL/player ID fixtures, src/extractor/mod.rs registration; CI 40007193042"
+                },
+                {
+                  "title": "Resolve oEmbed JSON and player HTML through local HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/speakerdeck.rs two-request localhost oEmbed/player fixture; CI 40007193042"
+                },
+                {
+                  "title": "Validate slide hosts, preserve slide order and deduplicate",
+                  "passed": true,
+                  "evidence": "src/extractor/speakerdeck.rs strict CDN and ordered-slide HTML fixtures; CI 40007193042"
+                },
+                {
+                  "title": "Bound metadata and player HTML transfer sizes and slide count",
+                  "passed": true,
+                  "evidence": "src/extractor/speakerdeck.rs 2 MiB buffered response limit and 2000-slide parsing bound; CI 40007193042"
+                },
+                {
+                  "title": "Port complete metadata, filename/archive behavior and live source parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

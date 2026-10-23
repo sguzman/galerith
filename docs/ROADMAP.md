@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 48%` across 64 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 49%` across 65 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -304,6 +304,12 @@
   - [x] Parse bare image markup when article figures are absent — src/extractor/telegraph.rs bare-image fallback tests; CI 40006284862
   - [x] Fetch bounded public article HTML through an offline HTTP fixture — src/extractor/telegraph.rs 2 MiB HTML read guard and localhost article response; CI 40006284862
   - [ ] Port Telegraph article metadata, captions, full archive/filename semantics and live differential acceptance
+- 🖥️ **T521** Speaker Deck public presentation slides preview — `████████░░ 80%`
+  - [x] Recognize public Speaker Deck presentation URL shapes conservatively — src/extractor/speakerdeck.rs URL/player ID fixtures, src/extractor/mod.rs registration; CI 40007193042
+  - [x] Resolve oEmbed JSON and player HTML through local HTTP — src/extractor/speakerdeck.rs two-request localhost oEmbed/player fixture; CI 40007193042
+  - [x] Validate slide hosts, preserve slide order and deduplicate — src/extractor/speakerdeck.rs strict CDN and ordered-slide HTML fixtures; CI 40007193042
+  - [x] Bound metadata and player HTML transfer sizes and slide count — src/extractor/speakerdeck.rs 2 MiB buffered response limit and 2000-slide parsing bound; CI 40007193042
+  - [ ] Port complete metadata, filename/archive behavior and live source parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

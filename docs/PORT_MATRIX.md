@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 17 · Not ported: 255.**
+**Complete: 0 · Partial: 18 · Not ported: 254.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -214,7 +214,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/slideshare.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/smugmug.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/soundgasm.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/speakerdeck.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/speakerdeck.py` | 🟡 Partial | `src/extractor/speakerdeck.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/steamgriddb.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/subscribestar.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/sxypix.py` | ⚪ Not ported | — |

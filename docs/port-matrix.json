@@ -1532,9 +1532,14 @@
     {
       "path": "gallery_dl/extractor/speakerdeck.py",
       "module": "speakerdeck",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/speakerdeck.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Public Speaker Deck oEmbed/player slides subset with strict image host checks, bounded requests and local HTTP fixtures; CI 40007193042 green. Complete upstream metadata, archives, naming and live parity missing."
+      ]
     },
     {
       "path": "gallery_dl/extractor/steamgriddb.py",
