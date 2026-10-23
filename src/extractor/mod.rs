@@ -15,6 +15,7 @@ pub mod imgpile;
 pub mod moebooru;
 pub mod philomena;
 pub mod pixeldrain;
+pub mod speakerdeck;
 pub mod telegraph;
 
 use crate::{extract_direct_media, MediaItem};
@@ -46,6 +47,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pixeldrain",
         "public file, list and nonrecursive filesystem JSON APIs",
     ),
+    ("speakerdeck", "public presentation slide images via oEmbed"),
     (
         "telegraph",
         "public article images and embedded figure filters",
@@ -89,6 +91,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("pixeldrain")
     } else if telegraph::match_url(input).is_some() {
         Some("telegraph")
+    } else if speakerdeck::match_url(input).is_some() {
+        Some("speakerdeck")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -161,6 +165,9 @@ pub async fn resolve(
     if let Some(target) = telegraph::match_url(input) {
         return telegraph::resolve(client, target).await;
     }
+    if let Some(target) = speakerdeck::match_url(input) {
+        return speakerdeck::resolve(client, target).await;
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -195,6 +202,7 @@ mod tests {
             ("https://imgpile.com/u/creator-1", "imgpile"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://telegra.ph/Article-03-04", "telegraph"),
+            ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
