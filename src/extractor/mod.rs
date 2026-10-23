@@ -74,7 +74,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "telegraph",
         "public article images and embedded figure filters",
     ),
-    ("unsplash", "public photos, users, likes, collections and searches"),
+    (
+        "unsplash",
+        "public photos, users, likes, collections and searches",
+    ),
     (
         "wallpapercave",
         "public wallpaper download and gallery links",
