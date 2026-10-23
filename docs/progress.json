@@ -803,6 +803,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T409",
+              "emoji": "🔎",
+              "name": "Typed job-time file, child and directory selection",
+              "checks": [
+                {
+                  "title": "Select 1-based file event ordinals before projection into native downloads with verified CLI behavior",
+                  "passed": true,
+                  "evidence": "src/message.rs global JobSelection.files, src/extractor/mod.rs and tests/message_cli.rs direct link fixtures; CI 40037041019"
+                },
+                {
+                  "title": "Select queued child ordinals before child HTTP resolution while retaining skipped queue control events",
+                  "passed": true,
+                  "evidence": "src/message.rs synthetic child request count, duplicate queue tests and processed-event cap; CI 40037041019"
+                },
+                {
+                  "title": "Expose read-only file/child selectors and reject invalid or silently ignored CLI mode combinations",
+                  "passed": true,
+                  "evidence": "src/main.rs message-file-range/message-child-range and tests/message_cli.rs; CI 40037263139"
+                },
+                {
+                  "title": "Apply directory-scope selection before file and queue actions, preserve ordinal ordering and validate it in CLI tests",
+                  "passed": true,
+                  "evidence": "src/message.rs directory scope suppression + nested queue count fixtures, src/main.rs and tests/message_cli.rs; CI 40037566729"
+                },
+                {
+                  "title": "Implement full upstream file/post/child predicate expression and filtering semantics, early API pagination termination and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
