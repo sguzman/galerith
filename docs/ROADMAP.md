@@ -290,13 +290,14 @@
   - [x] Extract ordered, deduplicated first-page ImgBB album data-object images — src/extractor/imgbb.rs bounded album HTML/JSON fixtures; CI 40003621668
   - [x] Verify public image and album pages with synthetic localhost HTTP — src/extractor/imgbb.rs two-request local TCP HTML fixture and 2 MiB bound; CI 40003621668
   - [ ] Support authenticated users, album pagination, complete metadata and live reference parity
-- 🧷 **T519** Imgpile public post and profile feed preview — `████████░░ 83%`
+- 🧷 **T519** Imgpile public post and profile feed preview — `█████████░ 86%`
   - [x] Match pinned Imgpile post and user URL families conservatively — src/extractor/imgpile.rs strict host and path recognition, src/extractor/mod.rs dispatcher fixtures; CI 40004911827
   - [x] Extract bounded, ordered Imgpile post media and numeric IDs — src/extractor/imgpile.rs multiple post-media fixtures, validated image host and duplicate suppression; CI 40004461846
   - [x] Verify public Imgpile post HTML with local response server — src/extractor/imgpile.rs localhost HTML fixture and 2 MiB transfer guard; CI 40004461846
   - [x] Verify public Imgpile profile feed pagination and per-post expansion — src/extractor/imgpile.rs two JSON pages, two image posts and API cursor guards in four-request local fixture; CI 40004911827
   - [x] Bound profile traversal, reject cross-site paging and duplicate media — src/extractor/imgpile.rs page cap, visited-page and media URL sets, origin/path validation; CI 40004911827
   - [ ] Port full metadata and upstream config/auth formats with live differential acceptance
+  - [x] Verify requested Imgpile user identity and public visibility survive pagination — src/extractor/imgpile.rs scoped_next_page rejects cross-account/private/foreign links, carries username and visibility in local second-page fixture; CI 40005595143
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -732,7 +732,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent public Imgpile post media and bounded profile-feed JSON pagination with ID, asset host and cursor constraints, duplicate suppression and synthetic HTTP fixtures; CI 40004911827 green. Complete metadata/auth/live parity unimplemented"
+        "Independent public Imgpile post media and bounded profile-feed JSON pagination with ID, asset host and cursor constraints, duplicate suppression and synthetic HTTP fixtures; CI 40004911827 green. Complete metadata/auth/live parity unimplemented",
+        "Actor-and-public-visibility scoped user API next-page handling with origin guards and four-request localhost regression; CI 40005595143 green"
       ]
     },
     {

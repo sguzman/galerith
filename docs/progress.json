@@ -1451,9 +1451,14 @@
                 {
                   "title": "Port full metadata and upstream config/auth formats with live differential acceptance",
                   "passed": false
+                },
+                {
+                  "title": "Verify requested Imgpile user identity and public visibility survive pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs scoped_next_page rejects cross-account/private/foreign links, carries username and visibility in local second-page fixture; CI 40005595143"
                 }
               ],
-              "progress": 83
+              "progress": 86
             }
           ]
         }
