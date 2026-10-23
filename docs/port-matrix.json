@@ -392,7 +392,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Posts, tag search, popular/favorites API, MD5 fallback; synthetic fixtures and CI 39968400252. Pool/artist/auth/reference metadata remain outstanding."
+        "e621 family post/tag/popular/favorites and metadata-ordered pool JSON subsets, MD5 URL fallback; CI 39982529550; artist/auth/complete metadata remain unported."
       ]
     },
     {

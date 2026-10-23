@@ -876,9 +876,14 @@
                   "title": "Verify bounded popular and favorites JSON endpoints",
                   "passed": true,
                   "evidence": "src/extractor/e621.rs synthetic HTTP pagination and URL fixtures; GitHub Actions 39968400252"
+                },
+                {
+                  "title": "Verify e621 pool metadata ordering with unavailable media",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs local ordered pool fixture; CI 39982529550"
                 }
               ],
-              "progress": 80
+              "progress": 83
             },
             {
               "id": "T507",

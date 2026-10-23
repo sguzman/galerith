@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 49%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 50%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -181,12 +181,13 @@
   - [x] Verify metadata-ordered pool and favorite-group extraction — src/extractor/danbooru.rs; ordered local JSON API fixtures and GitHub Actions 39981159625
   - [x] Verify Danbooru original media-asset API variant selection — src/extractor/danbooru.rs synthetic media-asset fixture; CI 39981891550
   - [x] Verify bounded Danbooru popular feed JSON endpoints — src/extractor/danbooru.rs popular API fixture; CI 39981891550
-- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 80%`
+- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 83%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
   - [x] Verify post and paginated tag-search API fixtures in Linux CI — GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)
   - [ ] Implement upstream pool ordering, artists, full favorites/popular, account and metadata behavior
   - [x] Verify bounded popular and favorites JSON endpoints — src/extractor/e621.rs synthetic HTTP pagination and URL fixtures; GitHub Actions 39968400252
+  - [x] Verify e621 pool metadata ordering with unavailable media — src/extractor/e621.rs local ordered pool fixture; CI 39982529550
 - 🌸 **T507** Initial Gelbooru JSON API post and tag-search extraction — `████████░░ 75%`
   - [x] Recognize post and tag searches with query-order independence — src/extractor/gelbooru.rs URL matching and parser tests
   - [x] Resolve synthetic Gelbooru JSON post API media records — src/extractor/gelbooru.rs local API fixture
