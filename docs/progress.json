@@ -940,6 +940,33 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T510",
+              "emoji": "🎏",
+              "name": "Moebooru JSON family post/tag/pool extractor preview",
+              "progress": 75,
+              "checks": [
+                {
+                  "title": "Route four upstream site families and three supported URL shapes",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs; CI 39960525151"
+                },
+                {
+                  "title": "Parse synthetic JSON media and validate metadata-driven filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs synthetic JSON unit fixtures; CI 39960525151"
+                },
+                {
+                  "title": "Verify post and pool API queries with localhost HTTP fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs synthetic server tests; CI 39960525151"
+                },
+                {
+                  "title": "Reproduce popular, complete pool metadata and upstream auth/format semantics",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

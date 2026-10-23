@@ -1017,9 +1017,14 @@
     {
       "path": "gallery_dl/extractor/moebooru.py",
       "module": "moebooru",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/moebooru.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Four site family post/tag/pool subset; local HTTP and JSON fixtures; CI 39960525151; all complete-site checks remain open"
+      ]
     },
     {
       "path": "gallery_dl/extractor/motherless.py",
