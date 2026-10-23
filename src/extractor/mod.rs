@@ -31,7 +31,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("gelbooru", "public Gelbooru post and tag APIs"),
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
-    ("imgbox", "public image pages; gallery support pending"),
+    ("imgbox", "public image pages and bounded galleries"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
 ];
@@ -220,6 +220,10 @@ mod tests {
         assert_eq!(
             extractor_name("https://catbox.moe/c/album123"),
             Some("catbox")
+        );
+        assert_eq!(
+            extractor_name("https://imgbox.com/g/abcdefghij"),
+            Some("imgbox")
         );
         assert_eq!(
             extractor_name("https://e621.cc/?tags=blue+sky"),
