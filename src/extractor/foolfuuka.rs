@@ -331,52 +331,86 @@ pub struct Search {
 
 pub fn match_search_url(input: &str) -> Option<Search> {
     let url = Url::parse(input).ok()?;
-    if url.scheme() != "https" { return None; }
+    if url.scheme() != "https" {
+        return None;
+    }
     let (host, category) = archive(url.host_str()?)?;
     let mut segments = url.path_segments()?.filter(|s| !s.is_empty());
     let board = segments.next()?;
-    if board != "_" && (board.is_empty() || board.len() > 8
-        || !board.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())) {
+    if board != "_"
+        && (board.is_empty()
+            || board.len() > 8
+            || !board
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
+    {
         return None;
     }
-    if segments.next()? != "search" { return None; }
+    if segments.next()? != "search" {
+        return None;
+    }
     let fields: Vec<_> = segments.collect();
-    if fields.len() < 2 || fields.len() > 24 || fields.len() % 2 != 0 { return None; }
+    if fields.len() < 2 || fields.len() > 24 || fields.len() % 2 != 0 {
+        return None;
+    }
     let mut parameters = Vec::new();
     let mut first_page = 1;
     for pair in fields.chunks_exact(2) {
         let key = pair[0];
-        if key.is_empty() || key.len() > 32
-            || !key.bytes().all(|b| b.is_ascii_lowercase() || b == b'_') {
+        if key.is_empty()
+            || key.len() > 32
+            || !key.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+        {
             return None;
         }
-        let value = percent_encoding::percent_decode_str(pair[1]).decode_utf8().ok()?.into_owned();
-        if value.len() > 512 { return None; }
+        let value = percent_encoding::percent_decode_str(pair[1])
+            .decode_utf8()
+            .ok()?
+            .into_owned();
+        if value.len() > 512 {
+            return None;
+        }
         if key == "page" {
             first_page = value.parse::<u16>().ok().filter(|page| *page > 0)?;
         } else {
             parameters.push((key.to_owned(), value));
         }
     }
-    if parameters.is_empty() { return None; }
+    if parameters.is_empty() {
+        return None;
+    }
     Some(Search {
-        host, category, board: board.to_owned(), parameters, first_page,
+        host,
+        category,
+        board: board.to_owned(),
+        parameters,
+        first_page,
     })
 }
 
 fn search_posts(value: &Value) -> Result<Option<Vec<&Value>>, Box<dyn Error + Send + Sync>> {
-    if value.is_null() || value.get("error").is_some_and(|err| !err.is_null() && err != false) {
+    if value.is_null()
+        || value
+            .get("error")
+            .is_some_and(|err| !err.is_null() && err != false)
+    {
         return Ok(None);
     }
     let page = if let Some(object) = value.as_object() {
-        object.get("0").ok_or("FoolFuuka search response missing first page")?
+        object
+            .get("0")
+            .ok_or("FoolFuuka search response missing first page")?
     } else if let Some(array) = value.as_array() {
-        let Some(first) = array.first() else { return Ok(None) };
+        let Some(first) = array.first() else {
+            return Ok(None);
+        };
         first
     } else {
         return Err("FoolFuuka search response has unsupported structure".into());
     };
-    let posts = page.get("posts").ok_or("FoolFuuka search response missing posts")?;
+    let posts = page
+        .get("posts")
+        .ok_or("FoolFuuka search response missing posts")?;
     if let Some(posts) = posts.as_array() {
         Ok(Some(posts.iter().collect()))
     } else if let Some(posts) = posts.as_object() {
@@ -386,40 +420,65 @@ fn search_posts(value: &Value) -> Result<Option<Vec<&Value>>, Box<dyn Error + Se
     }
 }
 
-pub async fn resolve_search(client: &Client, search: Search, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve_search(
+    client: &Client,
+    search: Search,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", search.host))?;
     resolve_search_at_base(client, search, max_pages, &base).await
 }
 
-async fn resolve_search_at_base(client: &Client, search: Search, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+async fn resolve_search_at_base(
+    client: &Client,
+    search: Search,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut files = Vec::new();
     let mut seen = HashSet::new();
     for offset in 0..max_pages.max(1) {
-        let Some(page) = search.first_page.checked_add(offset) else { break };
-        if offset > 0 { tokio::time::sleep(Duration::from_secs(1)).await; }
+        let Some(page) = search.first_page.checked_add(offset) else {
+            break;
+        };
+        if offset > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         let mut endpoint = base.join("_/api/chan/search/")?;
         {
             let mut query = endpoint.query_pairs_mut();
-            for (key, value) in &search.parameters { query.append_pair(key, value); }
-            if search.board != "_" { query.append_pair("boards", &search.board); }
+            for (key, value) in &search.parameters {
+                query.append_pair(key, value);
+            }
+            if search.board != "_" {
+                query.append_pair("boards", &search.board);
+            }
             if !search.parameters.iter().any(|(key, _)| key == "filter") {
                 query.append_pair("filter", "text");
             }
             query.append_pair("page", &page.to_string());
         }
-        let data: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-        let Some(posts) = search_posts(&data)? else { break };
+        let data: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let Some(posts) = search_posts(&data)? else {
+            break;
+        };
         let count = posts.len();
         for post in posts {
             if let Some(item) = file_for_post(post, search.category, base) {
-                if seen.insert(item.url.clone()) { files.push(item); }
+                if seen.insert(item.url.clone()) {
+                    files.push(item);
+                }
             }
         }
-        if count <= 3 { break; }
+        if count <= 3 {
+            break;
+        }
     }
     Ok(files)
 }
@@ -705,13 +764,22 @@ mod tests {
         assert_eq!(
             match_search_url("https://archived.moe/g/search/text/blue%20sky/type/image/page/3/"),
             Some(Search {
-                host: "archived.moe", category: "archivedmoe",
+                host: "archived.moe",
+                category: "archivedmoe",
                 board: "g".into(),
-                parameters: vec![("text".into(), "blue sky".into()), ("type".into(), "image".into())],
+                parameters: vec![
+                    ("text".into(), "blue sky".into()),
+                    ("type".into(), "image".into())
+                ],
                 first_page: 3
             })
         );
-        assert_eq!(match_search_url("https://archived.moe/_/search/text/cats").unwrap().board, "_");
+        assert_eq!(
+            match_search_url("https://archived.moe/_/search/text/cats")
+                .unwrap()
+                .board,
+            "_"
+        );
         assert!(match_search_url("https://archived.moe/g/search/text").is_none());
         assert!(match_search_url("https://archived.moe/g/search/page/0").is_none());
         assert!(match_search_url("https://archived.moe/g/search/text/%FF").is_none());
@@ -720,8 +788,20 @@ mod tests {
 
     #[test]
     fn reads_both_archive_search_response_shapes() {
-        assert_eq!(search_posts(&json!({"0":{"posts":[{"num":12}]}})).unwrap().unwrap().len(), 1);
-        assert_eq!(search_posts(&json!([{"posts":{"3":{"num":3}}}])).unwrap().unwrap().len(), 1);
+        assert_eq!(
+            search_posts(&json!({"0":{"posts":[{"num":12}]}}))
+                .unwrap()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            search_posts(&json!([{"posts":{"3":{"num":3}}}]))
+                .unwrap()
+                .unwrap()
+                .len(),
+            1
+        );
         assert!(search_posts(&json!({"error":"denied"})).unwrap().is_none());
         assert!(search_posts(&json!([])).unwrap().is_none());
         assert!(search_posts(&json!({"0":{"bad":[]}})).is_err());
@@ -729,7 +809,10 @@ mod tests {
 
     #[tokio::test]
     async fn synthetic_search_api_requests_scope_filter_and_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -750,10 +833,15 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let search = Search {
-            host: "archived.moe", category: "archivedmoe", board: "g".into(),
-            parameters: vec![("text".into(), "blue sky".into())], first_page: 2
+            host: "archived.moe",
+            category: "archivedmoe",
+            board: "g".into(),
+            parameters: vec![("text".into(), "blue sky".into())],
+            first_page: 2,
         };
-        let items = resolve_search_at_base(&Client::new(), search, 3, &base).await.unwrap();
+        let items = resolve_search_at_base(&Client::new(), search, 3, &base)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "155 blue.png");
         server.await.unwrap();
