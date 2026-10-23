@@ -386,6 +386,91 @@ mod tests {
     }
 
     #[test]
+    fn board_queue_preview_preserves_source_thread_ids_without_fetching_threads() {
+        let data = json!([
+            {"page":1,"threads":[{"no":123},{"no":456},{"no":123},{"no":0}]},
+            {"page":2,"threads":[{"no":456},{"no":789}]}
+        ]);
+        let first = board_queue_messages(&data, "g", 1).unwrap();
+        assert_eq!(first.len(), 2);
+        let all = board_queue_messages(&data, "g", 2).unwrap();
+        assert_eq!(all.len(), 3);
+        let value = serde_json::to_value(&all[2]).unwrap();
+        assert_eq!(value["type"], "queue");
+        assert_eq!(value["url"], "https://boards.4chan.org/g/thread/789");
+        assert_eq!(value["metadata"]["board"], "g");
+        assert_eq!(value["metadata"]["thread_id"], 789);
+        assert!(board_queue_messages(&json!({"posts":[]}), "g", 1).is_err());
+        let oversized = json!([{
+            "page":1,
+            "threads":(1..=400).map(|id| json!({"no":id})).collect::<Vec<_>>()
+        }]);
+        assert_eq!(
+            board_queue_messages(&oversized, "g", 1).unwrap().len(),
+            MAX_BOARD_QUEUES
+        );
+    }
+
+    #[tokio::test]
+    async fn board_queue_fetches_only_the_bounded_index_not_child_threads() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 4096];
+            let count = socket.read(&mut buf).await.unwrap();
+            assert!(
+                String::from_utf8_lossy(&buf[..count])
+                    .starts_with("GET /g/threads.json HTTP/1.1")
+            );
+            let body = r#"[{"page":1,"threads":[{"no":123},{"no":456}]}]"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            // The listening socket closes; a child GET would fail instead
+            // of silently succeeding against this synthetic fixture.
+        });
+        let api = Url::parse(&format!("http://{address}/")).unwrap();
+        let events = queue_board_at_base(&Client::new(), "g", 1, &api)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 2);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn board_queue_rejects_oversize_response_before_reading_body() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 2048];
+            assert!(socket.read(&mut buf).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_BOARD_INDEX_BYTES + 1
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{address}/")).unwrap();
+        let error = queue_board_at_base(&Client::new(), "g", 1, &api)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("response limit"));
+        server.await.unwrap();
+    }
+
+    #[test]
     fn board_page_selection_and_thread_deduplication() {
         let data = json!([
             {"page": 1, "threads": [{"no": 123}, {"no": 456}]},
