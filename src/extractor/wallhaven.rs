@@ -447,6 +447,12 @@ mod tests {
             })
         );
         assert_eq!(
+            match_url("https://wallhaven.cc/user/example-1/"),
+            Some(Target::Uploads {
+                user: "example-1".into()
+            })
+        );
+        assert_eq!(
             match_url("https://wallhaven.cc/user/example-1/favorites/12345"),
             Some(Target::Collection {
                 user: "example-1".into(),
@@ -793,4 +799,137 @@ mod tests {
         );
         server.await.unwrap();
     }
+
+    #[test]
+    fn collection_ids_validate_response_and_ignore_untrusted_identifiers() {
+        let response = serde_json::json!({
+            "data": [
+                {"id":123},
+                {"id":"456"},
+                {"id":"789/../../evil"},
+                {"id":null},
+                {"id":-5},
+                {"id":1.2}
+            ]
+        });
+        assert_eq!(
+            collection_ids(&response).unwrap(),
+            vec!["123".to_owned(), "456".to_owned()]
+        );
+        assert!(collection_ids(&serde_json::json!({"data":{}})).is_err());
+        assert!(collection_ids(&serde_json::json!({"error":"denied"})).is_err());
+        assert!(collection_ids(&serde_json::json!({
+            "data":vec![serde_json::json!({"id":1}); MAX_COLLECTIONS_PER_PAGE + 1]
+        })).is_err());
+    }
+
+    #[tokio::test]
+    async fn public_collection_index_flattens_two_albums_with_global_api_budget() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let urls = [
+                "/api/v1/collections/example-1",
+                "/api/v1/collections/example-1/12345?page=1",
+                "/api/v1/collections/example-1/67890?page=1",
+            ];
+            let bodies = [
+                serde_json::json!({"data":[{"id":12345},{"id":67890},{"id":12345},{"id":"bad/123"}]}),
+                serde_json::json!({"data":[
+                    {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                    {"id":"ze1p56","path":"https://w.wallhaven.cc/full/ze/wallhaven-ze1p56.png"}
+                ],"meta":{"current_page":1,"last_page":1}}),
+                serde_json::json!({"data":[
+                    {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                    {"id":"a1b2c3","path":"https://w.wallhaven.cc/full/a1/wallhaven-a1b2c3.jpg"},
+                    {"id":"unsafe","path":"https://malicious.invalid/bad.jpg"}
+                ],"meta":{"current_page":1,"last_page":1}}),
+            ];
+            for (expected_path, data) in urls.into_iter().zip(bodies) {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut req = Vec::new();
+                loop {
+                    let mut bytes = [0_u8; 2048];
+                    let count = socket.read(&mut bytes).await.unwrap();
+                    assert!(count > 0, "request headers missing");
+                    req.extend_from_slice(&bytes[..count]);
+                    assert!(req.len() < 8192);
+                    if req.windows(4).any(|part| part == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let text = String::from_utf8(req).unwrap();
+                assert!(text.starts_with(&format!("GET {expected_path} HTTP/1.1")));
+                assert!(!text.to_ascii_lowercase().contains("x-api-key:"));
+                let body = data.to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Collections {
+                user: "example-1".into(),
+            },
+            3,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            [
+                "wallhaven-94x38z.jpg",
+                "wallhaven-ze1p56.png",
+                "wallhaven-a1b2c3.jpg"
+            ]
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn collection_index_does_not_multiply_the_page_budget() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            // One allowed request only: the index is read, but no fan-out starts.
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut req = [0_u8; 2048];
+            let n = socket.read(&mut req).await.unwrap();
+            assert!(String::from_utf8_lossy(&req[..n])
+                .starts_with("GET /api/v1/collections/example-1 HTTP/1.1"));
+            let body = r#"{"data":[{"id":12345},{"id":67890}]}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Collections {
+                user: "example-1".into(),
+            },
+            1,
+        )
+        .await
+        .unwrap();
+        assert!(items.is_empty());
+        server.await.unwrap();
+    }
+
 }
