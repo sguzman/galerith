@@ -226,8 +226,7 @@ async fn user_media(
             .and_then(|links| links.get("next"))
             .and_then(Value::as_str)
             .filter(|link| !link.is_empty() && link.len() <= 1024);
-        let Some(next) = next.and_then(|link| scoped_next_page(&page, &first, link, name))
-        else {
+        let Some(next) = next.and_then(|link| scoped_next_page(&page, &first, link, name)) else {
             break;
         };
         page = next;
@@ -388,12 +387,17 @@ mod tests {
             "https://imgpile.com/api/v1/posts?page=2&username=owner&visibility=public"
         );
         assert!(scoped_next_page(&next, &first, "?page=2", "owner").is_none());
-        assert!(scoped_next_page(&first, &first, "https://evil.example.org/api/v1/posts?page=2", "owner").is_none());
+        assert!(scoped_next_page(
+            &first,
+            &first,
+            "https://evil.example.org/api/v1/posts?page=2",
+            "owner"
+        )
+        .is_none());
         assert!(scoped_next_page(&first, &first, "/admin?page=2", "owner").is_none());
         assert!(scoped_next_page(&first, &first, "?page=2&username=other", "owner").is_none());
         assert!(scoped_next_page(&first, &first, "?page=2&visibility=private", "owner").is_none());
     }
-
 
     #[tokio::test]
     async fn public_post_resolves_from_local_html() {
