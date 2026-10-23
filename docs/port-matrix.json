@@ -726,9 +726,14 @@
     {
       "path": "gallery_dl/extractor/imgpile.py",
       "module": "imgpile",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imgpile.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Imgpile post media and bounded profile-feed JSON pagination with ID, asset host and cursor constraints, duplicate suppression and synthetic HTTP fixtures; CI 40004911827 green. Complete metadata/auth/live parity unimplemented"
+      ]
     },
     {
       "path": "gallery_dl/extractor/imgth.py",

@@ -1417,6 +1417,43 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T519",
+              "emoji": "🧷",
+              "name": "Imgpile public post and profile feed preview",
+              "checks": [
+                {
+                  "title": "Match pinned Imgpile post and user URL families conservatively",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs strict host and path recognition, src/extractor/mod.rs dispatcher fixtures; CI 40004911827"
+                },
+                {
+                  "title": "Extract bounded, ordered Imgpile post media and numeric IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs multiple post-media fixtures, validated image host and duplicate suppression; CI 40004461846"
+                },
+                {
+                  "title": "Verify public Imgpile post HTML with local response server",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs localhost HTML fixture and 2 MiB transfer guard; CI 40004461846"
+                },
+                {
+                  "title": "Verify public Imgpile profile feed pagination and per-post expansion",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs two JSON pages, two image posts and API cursor guards in four-request local fixture; CI 40004911827"
+                },
+                {
+                  "title": "Bound profile traversal, reject cross-site paging and duplicate media",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpile.rs page cap, visited-page and media URL sets, origin/path validation; CI 40004911827"
+                },
+                {
+                  "title": "Port full metadata and upstream config/auth formats with live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 83
             }
           ]
         }

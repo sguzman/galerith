@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 47%` across 62 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 48%` across 63 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 60%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 61%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 66%`
+### 🧱 P5 — Shared website families — `███████░░░ 67%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -290,6 +290,13 @@
   - [x] Extract ordered, deduplicated first-page ImgBB album data-object images — src/extractor/imgbb.rs bounded album HTML/JSON fixtures; CI 40003621668
   - [x] Verify public image and album pages with synthetic localhost HTTP — src/extractor/imgbb.rs two-request local TCP HTML fixture and 2 MiB bound; CI 40003621668
   - [ ] Support authenticated users, album pagination, complete metadata and live reference parity
+- 🧷 **T519** Imgpile public post and profile feed preview — `████████░░ 83%`
+  - [x] Match pinned Imgpile post and user URL families conservatively — src/extractor/imgpile.rs strict host and path recognition, src/extractor/mod.rs dispatcher fixtures; CI 40004911827
+  - [x] Extract bounded, ordered Imgpile post media and numeric IDs — src/extractor/imgpile.rs multiple post-media fixtures, validated image host and duplicate suppression; CI 40004461846
+  - [x] Verify public Imgpile post HTML with local response server — src/extractor/imgpile.rs localhost HTML fixture and 2 MiB transfer guard; CI 40004461846
+  - [x] Verify public Imgpile profile feed pagination and per-post expansion — src/extractor/imgpile.rs two JSON pages, two image posts and API cursor guards in four-request local fixture; CI 40004911827
+  - [x] Bound profile traversal, reject cross-site paging and duplicate media — src/extractor/imgpile.rs page cap, visited-page and media URL sets, origin/path validation; CI 40004911827
+  - [ ] Port full metadata and upstream config/auth formats with live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
