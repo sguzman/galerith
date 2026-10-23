@@ -1,6 +1,7 @@
 use clap::Parser;
 use galerith::{
     archive::Archive,
+    cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
 };
@@ -57,6 +58,10 @@ struct Cli {
     #[arg(long, default_value_t = 30)]
     http_timeout: u64,
 
+    /// Netscape cookie jar for authenticated media and API requests
+    #[arg(short = 'C', long = "cookies", value_name = "FILE")]
+    cookies: Option<PathBuf>,
+
     /// SQLite archive: record successful media and skip recorded items
     #[arg(long = "download-archive", value_name = "FILE")]
     download_archive: Option<PathBuf>,
@@ -111,7 +116,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Err("provide at least one URL or --input-file".into());
     }
 
-    let client = reqwest::Client::builder()
+    let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
+    let mut client_builder = reqwest::Client::builder();
+    if let Some(jar) = cookies {
+        client_builder = client_builder.cookie_provider(jar);
+    }
+    let client = client_builder
         .timeout(Duration::from_secs(cli.http_timeout))
         .user_agent(format!(
             "Galerith/{} (+https://github.com/sguzman/galerith)",
