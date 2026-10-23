@@ -115,15 +115,46 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &api).await
 }
 
+/// Bound valid media emission for finite typed-job file selections while
+/// preserving upstream API page completeness semantics.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let host = match &target {
+        Target::Post { host, .. } | Target::Search { host, .. } => host,
+    };
+    let api_host = if host == "rule34.xxx" {
+        "api.rule34.xxx"
+    } else {
+        host.as_str()
+    };
+    let api = Url::parse(&format!("https://{api_host}/"))?;
+    resolve_at_base_limited(client, target, max_pages, &api, max_media).await
+}
+
 async fn resolve_at_base(
     client: &Client,
     target: Target,
     max_pages: u16,
     api: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, target, max_pages, api, usize::MAX).await
+}
+
+async fn resolve_at_base_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    api: &Url,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let host = match &target {
         Target::Post { host, .. } | Target::Search { host, .. } => host.as_str(),
     };
+    let media_limit = max_media.max(1);
     let pages = if matches!(target, Target::Post { .. }) {
         1
     } else {
@@ -154,8 +185,9 @@ async fn resolve_at_base(
         let body = response.text().await?;
         let (fresh, post_count) = read_xml(&body, host)?;
         let done = matches!(target, Target::Post { .. }) || post_count < 100;
-        items.extend(fresh);
-        if done {
+        let remaining = media_limit.saturating_sub(items.len());
+        items.extend(fresh.into_iter().take(remaining));
+        if done || items.len() >= media_limit {
             break;
         }
         if page + 1 < pages {
