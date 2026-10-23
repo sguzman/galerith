@@ -778,6 +778,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn short_tag_and_popular_pages_do_not_trigger_extra_requests() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for route in [
+                "GET /posts.json?tags=fox&limit=200&page=1 HTTP/1.1",
+                "GET /explore/posts/popular.json?limit=200&page=1 HTTP/1.1",
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(route), "{request}");
+                let body = r#"[{"id":78,"file_url":"https://cdn.example.org/78.jpg","file_ext":"jpg"}]"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let tags = resolve_tag_posts(&Client::new(), &base, "fox", 1, 5)
+            .await
+            .unwrap();
+        let popular = resolve_popular(&Client::new(), &base, &[], 5)
+            .await
+            .unwrap();
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].post_id, Some(78));
+        assert_eq!(popular.len(), 1);
+        assert_eq!(popular[0].post_id, Some(78));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn end_to_end_tag_search_stops_at_empty_page() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
