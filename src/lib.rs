@@ -2,6 +2,7 @@
 //! This module implements only direct media URL recognition, not site galleries.
 pub mod archive;
 pub mod cookies;
+pub mod config;
 pub mod download;
 pub mod extractor;
 pub mod filename;

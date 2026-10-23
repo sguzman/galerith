@@ -1,6 +1,7 @@
 use clap::Parser;
 use galerith::{
     archive::Archive,
+    config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
@@ -23,13 +24,33 @@ struct Cli {
     #[arg(value_name = "URL")]
     urls: Vec<String>,
 
+    /// Additional configuration file (JSON by default; YAML/TOML by extension)
+    #[arg(short = 'c', long = "config", value_name = "FILE")]
+    config_files: Vec<PathBuf>,
+
+    /// Explicit JSON configuration files
+    #[arg(long = "config-json", value_name = "FILE")]
+    json_files: Vec<PathBuf>,
+
+    /// Explicit YAML configuration files
+    #[arg(long = "config-yaml", value_name = "FILE")]
+    yaml_files: Vec<PathBuf>,
+
+    /// Explicit TOML configuration files
+    #[arg(long = "config-toml", value_name = "FILE")]
+    toml_files: Vec<PathBuf>,
+
+    /// Configuration override KEY=VALUE (JSON values or plain strings)
+    #[arg(short = 'o', long = "option", value_name = "KEY=VALUE")]
+    options: Vec<String>,
+
     /// Filename format (limited upstream-compatible named-field subset)
     #[arg(short = 'f', long = "filename", value_name = "FORMAT")]
     filename_template: Option<String>,
 
     /// Destination directory
-    #[arg(short = 'd', long, default_value = ".")]
-    destination: PathBuf,
+    #[arg(short = 'd', long)]
+    destination: Option<PathBuf>,
 
     /// URL input file(s); '-' reads standard input
     #[arg(short = 'i', long = "input-file", value_name = "FILE")]
@@ -121,6 +142,23 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Err("provide at least one URL or --input-file".into());
     }
 
+    let mut config = Config::default();
+    for path in &cli.config_files {
+        config.load(path, ConfigFormat::from_path(path))?;
+    }
+    for path in &cli.json_files {
+        config.load(path, ConfigFormat::Json)?;
+    }
+    for path in &cli.yaml_files {
+        config.load(path, ConfigFormat::Yaml)?;
+    }
+    for path in &cli.toml_files {
+        config.load(path, ConfigFormat::Toml)?;
+    }
+    for option in &cli.options {
+        config.option(option)?;
+    }
+
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
     let mut client_builder = reqwest::Client::builder();
     if let Some(jar) = cookies {
@@ -134,7 +172,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         ))
         .build()?;
     let options = DownloadOptions {
-        destination: cli.destination,
+        destination: cli.destination.unwrap_or_else(|| {
+            config.base_directory().map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+        }),
         retries: cli.retries,
         no_skip: cli.no_skip,
     };
@@ -157,8 +197,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         };
         for mut item in items {
-            if let Some(ref template) = cli.filename_template {
-                if !cli.get_urls {
+            if !cli.get_urls {
+                if let Some(template) = cli.filename_template.as_deref()
+                    .or_else(|| config.filename(item.extractor)) {
                     match render_filename(template, &item) {
                         Ok(name) => item.filename = name,
                         Err(error) => {
