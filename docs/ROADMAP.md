@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 53%` across 75 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 53%` across 76 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 67%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 68%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 72%`
+### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -371,6 +371,12 @@
   - [x] Parse Commons imageinfo, validate allowed image-host paths, and create safe filenames — src/extractor/wikimedia.rs imageinfo and forbidden-media URL tests; GitHub Actions 40024629371
   - [x] Bound API response size, reject malformed/error payloads and verify HTTP overflow handling — src/extractor/wikimedia.rs 2 MiB content-length HTTP fixture and malformed/missing imageinfo tests; GitHub Actions 40024629371
   - [ ] Implement all upstream Wikimedia/MediaWiki hosts, category/article generators, revisions, metadata, archive naming and live differential parity
+- 🗂️ **T532** Wikimedia Commons article and category file generators — `████████░░ 80%`
+  - [x] Recognize public Commons articles and Category: pages while excluding unsupported namespaces — src/extractor/wikimedia.rs conservative matcher and src/extractor/mod.rs dispatch fixtures; CI 40026028078
+  - [x] Use correct MediaWiki Action API generator=images/categorymembers parameters — src/extractor/wikimedia.rs localhost GET query assertions for gimlimit, gcmlimit, gcmtitle and gcmtype; CI 40026028078
+  - [x] Follow bounded generator continuations, preserve unique media order and reject untrusted upload hosts — src/extractor/wikimedia.rs article and category two-page local HTTP tests, duplicate filtering and trusted URL checks; CI 40026028078
+  - [x] Reject invalid continuation tokens, bound page/media counts and pace sequential API requests — src/extractor/wikimedia.rs 512-byte token validation, cycle detection, 100-page/2000-media limits and 1s request pacing; CI 40026028078
+  - [ ] Support subcategory recursion, cross-wiki hosts, complete metadata/revisions, archive naming and live upstream differential conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
