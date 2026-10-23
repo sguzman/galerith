@@ -6,6 +6,7 @@ use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
     filename::render as render_filename,
+    privacy::{display_error, display_url},
 };
 use std::{
     error::Error,
@@ -195,7 +196,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let items = match resolve(&client, &url, cli.max_pages).await {
             Ok(items) => items,
             Err(error) => {
-                eprintln!("galerith: {url}: {error}");
+                eprintln!("galerith: {}: {}", display_url(&url), display_error(error.as_ref()));
                 failed += 1;
                 continue;
             }
@@ -249,7 +250,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                     }
                     Err(error) => {
-                        eprintln!("galerith: {}: {error}", item.url);
+                        eprintln!("galerith: {}: {}", display_url(&item.url), display_error(error.as_ref()));
                         failed += 1;
                     }
                 }
