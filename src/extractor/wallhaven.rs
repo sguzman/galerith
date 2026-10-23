@@ -250,10 +250,7 @@ fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sy
     Ok(ids)
 }
 
-fn list_next_page(
-    data: &Value,
-    page: u16,
-) -> Result<bool, Box<dyn Error + Send + Sync>> {
+fn list_next_page(data: &Value, page: u16) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let Some(meta) = data.get("meta") else {
         return Ok(false);
     };
@@ -820,7 +817,8 @@ mod tests {
         assert!(collection_ids(&serde_json::json!({"error":"denied"})).is_err());
         assert!(collection_ids(&serde_json::json!({
             "data":vec![serde_json::json!({"id":1}); MAX_COLLECTIONS_PER_PAGE + 1]
-        })).is_err());
+        }))
+        .is_err());
     }
 
     #[tokio::test]
@@ -885,7 +883,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|x| x.filename.as_str())
+                .collect::<Vec<_>>(),
             [
                 "wallhaven-94x38z.jpg",
                 "wallhaven-ze1p56.png",
@@ -931,5 +932,4 @@ mod tests {
         assert!(items.is_empty());
         server.await.unwrap();
     }
-
 }
