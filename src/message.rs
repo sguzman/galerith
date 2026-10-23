@@ -450,4 +450,37 @@ mod tests {
         .unwrap_err();
         assert!(err.to_string().contains("remaining message limit"));
     }
+
+    #[tokio::test]
+    async fn child_context_never_inherits_parent_media_identity() {
+        let root = vec![
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({
+                    "category":"parent",
+                    "filename":"parent.jpg",
+                    "extractor":"directlink",
+                    "post_id":123,
+                    "collection_id":"keep-me"
+                }))
+                .unwrap(),
+            },
+            queued_url("https://example.org/child".into(), Metadata::new()),
+        ];
+        let events = traverse_queue_job_with(root, 1, 1, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(vec![ExtractorMessage::Url {
+                url: "https://example.org/child.jpg".into(),
+                metadata: Metadata::new(),
+            }])
+        })
+        .await
+        .unwrap();
+        let queued = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(queued["metadata"]["filename"], "parent.jpg");
+        let child = serde_json::to_value(&events[2]).unwrap();
+        assert_eq!(child["metadata"]["category"], "parent");
+        assert_eq!(child["metadata"]["collection_id"], "keep-me");
+        assert!(child["metadata"].get("filename").is_none());
+        assert!(child["metadata"].get("extractor").is_none());
+        assert!(child["metadata"].get("post_id").is_none());
+    }
 }
