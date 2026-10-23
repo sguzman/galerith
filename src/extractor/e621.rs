@@ -9,10 +9,22 @@ use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
-    Post { host: String, id: u64 },
-    Search { host: String, tags: String },
-    Popular { host: String, parameters: Vec<(String, String)> },
-    Favorites { host: String, parameters: Vec<(String, String)> },
+    Post {
+        host: String,
+        id: u64,
+    },
+    Search {
+        host: String,
+        tags: String,
+    },
+    Popular {
+        host: String,
+        parameters: Vec<(String, String)>,
+    },
+    Favorites {
+        host: String,
+        parameters: Vec<(String, String)>,
+    },
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -32,14 +44,22 @@ pub fn match_url(input: &str) -> Option<Target> {
             (id > 0).then_some(Target::Post { host, id })
         }
         ["explore", "posts", "popular"] | ["favorites"] => {
-            let parameters: Vec<(String, String)> = url.query_pairs()
+            let parameters: Vec<(String, String)> = url
+                .query_pairs()
                 .map(|(key, value)| (key.into_owned(), value.into_owned()))
                 .collect();
-            if parameters.len() > 12 || parameters.iter().any(|(key, value)| {
-                key.is_empty() || key.len() > 32 || value.len() > 128
-                    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-                    || (key == "page" && value.parse::<u16>().ok().filter(|page| *page > 0).is_none())
-            }) {
+            if parameters.len() > 12
+                || parameters.iter().any(|(key, value)| {
+                    key.is_empty()
+                        || key.len() > 32
+                        || value.len() > 128
+                        || !key
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                        || (key == "page"
+                            && value.parse::<u16>().ok().filter(|page| *page > 0).is_none())
+                })
+            {
                 return None;
             }
             if parts.as_slice() == ["favorites"] {
@@ -143,12 +163,17 @@ async fn paginate_posts(
     parameters: &[(String, String)],
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let start = parameters.iter().find(|(key, _)| key == "page")
+    let start = parameters
+        .iter()
+        .find(|(key, _)| key == "page")
         .map(|(_, value)| value.parse::<u16>())
-        .transpose()?.unwrap_or(1);
+        .transpose()?
+        .unwrap_or(1);
     let mut media = Vec::new();
     for offset in 0..max_pages.max(1) {
-        let Some(page) = start.checked_add(offset) else { break };
+        let Some(page) = start.checked_add(offset) else {
+            break;
+        };
         let mut endpoint = base.join(api_path)?;
         {
             let mut query = endpoint.query_pairs_mut();
@@ -157,13 +182,25 @@ async fn paginate_posts(
                     query.append_pair(key, value);
                 }
             }
-            query.append_pair("limit", "75")
+            query
+                .append_pair("limit", "75")
                 .append_pair("page", &page.to_string());
         }
-        let data: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-        let empty = data.get("posts").and_then(Value::as_array)
-            .ok_or("unexpected e621 posts list response")?.is_empty();
-        if empty { break; }
+        let data: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let empty = data
+            .get("posts")
+            .and_then(Value::as_array)
+            .ok_or("unexpected e621 posts list response")?
+            .is_empty();
+        if empty {
+            break;
+        }
         media.extend(parse_posts(&data, base)?);
         if offset + 1 < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -193,7 +230,14 @@ async fn resolve_at_base(
             Ok(parse_post(post, base).into_iter().collect())
         }
         Target::Search { tags, .. } => {
-            paginate_posts(client, base, "posts.json", &[("tags".into(), tags)], max_pages).await
+            paginate_posts(
+                client,
+                base,
+                "posts.json",
+                &[("tags".into(), tags)],
+                max_pages,
+            )
+            .await
         }
         Target::Popular { parameters, .. } => {
             paginate_posts(client, base, "popular.json", &parameters, max_pages).await
@@ -356,13 +400,16 @@ mod tests {
     }
     #[tokio::test]
     async fn popular_and_favorites_use_documented_json_endpoints() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (route, parameter, id) in [
                 ("/popular.json?", "scale=week", 91),
-                ("/favorites.json?", "user_id=42", 92)
+                ("/favorites.json?", "user_id=42", 92),
             ] {
                 let (mut connection, _) = listener.accept().await.unwrap();
                 let mut buf = [0_u8; 4096];
@@ -384,17 +431,20 @@ mod tests {
         let api = Url::parse(&format!("http://{addr}/")).unwrap();
         let popular = Target::Popular {
             host: "e621.net".into(),
-            parameters: vec![("scale".into(), "week".into()), ("page".into(), "2".into())]
+            parameters: vec![("scale".into(), "week".into()), ("page".into(), "2".into())],
         };
         let favorites = Target::Favorites {
             host: "e621.net".into(),
-            parameters: vec![("user_id".into(), "42".into()), ("page".into(), "2".into())]
+            parameters: vec![("user_id".into(), "42".into()), ("page".into(), "2".into())],
         };
-        let a = resolve_at_base(&Client::new(), popular, 1, &api).await.unwrap();
-        let b = resolve_at_base(&Client::new(), favorites, 1, &api).await.unwrap();
+        let a = resolve_at_base(&Client::new(), popular, 1, &api)
+            .await
+            .unwrap();
+        let b = resolve_at_base(&Client::new(), favorites, 1, &api)
+            .await
+            .unwrap();
         assert_eq!(a[0].filename, "91.jpg");
         assert_eq!(b[0].filename, "92.jpg");
         server.await.unwrap();
     }
-
 }
