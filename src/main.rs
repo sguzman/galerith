@@ -133,7 +133,11 @@ struct Cli {
     job_child_range: Option<String>,
 
     /// Select directory-scope ordinals before typed-job file/queue events
-    #[arg(long = "job-directory-range", value_name = "RANGE", requires = "follow_queues")]
+    #[arg(
+        long = "job-directory-range",
+        value_name = "RANGE",
+        requires = "follow_queues"
+    )]
     job_directory_range: Option<String>,
 
     /// Select URL-event ordinals in the read-only recursive message stream
@@ -153,7 +157,11 @@ struct Cli {
     message_child_range: Option<String>,
 
     /// Select directory-scope ordinals in read-only message inspection
-    #[arg(long = "message-directory-range", value_name = "RANGE", requires = "expand_queues")]
+    #[arg(
+        long = "message-directory-range",
+        value_name = "RANGE",
+        requires = "expand_queues"
+    )]
     message_directory_range: Option<String>,
 
     /// Resolve URLs without downloading
