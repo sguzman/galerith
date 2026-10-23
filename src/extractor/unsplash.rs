@@ -14,11 +14,22 @@ const MAX_PHOTOS: usize = 2000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
-    Image { id: String },
-    User { username: String },
-    Likes { username: String },
-    Collection { id: String },
-    Search { query: String, orientation: Option<String> },
+    Image {
+        id: String,
+    },
+    User {
+        username: String,
+    },
+    Likes {
+        username: String,
+    },
+    Collection {
+        id: String,
+    },
+    Search {
+        query: String,
+        orientation: Option<String>,
+    },
 }
 
 fn valid_segment(s: &str) -> bool {
@@ -50,7 +61,9 @@ pub fn match_url(input: &str) -> Option<Target> {
             })
         }
         ["collections", id] | ["collections", id, _] if valid_segment(id) => {
-            Some(Target::Collection { id: (*id).to_owned() })
+            Some(Target::Collection {
+                id: (*id).to_owned(),
+            })
         }
         ["s", "photos", slug] if valid_segment(slug) => {
             let orientation = url
@@ -77,7 +90,10 @@ fn photo_item(photo: &Value) -> Option<(String, MediaItem)> {
     let raw = photo.pointer("/urls/raw")?.as_str()?;
     let url = Url::parse(raw).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("images.unsplash.com" | "plus.unsplash.com"))
+        || !matches!(
+            url.host_str(),
+            Some("images.unsplash.com" | "plus.unsplash.com")
+        )
     {
         return None;
     }
@@ -118,7 +134,10 @@ async fn resolve_at_base(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Target::Image { id } = target {
         let photo = read_json(client, base.join(&format!("napi/photos/{id}"))?).await?;
-        return Ok(photo_item(&photo).into_iter().map(|(_, item)| item).collect());
+        return Ok(photo_item(&photo)
+            .into_iter()
+            .map(|(_, item)| item)
+            .collect());
     }
     let (route, params, search) = match target {
         Target::User { username } => (
@@ -220,9 +239,7 @@ mod tests {
         );
         assert_eq!(
             match_url("https://unsplash.com/collections/12345/nature"),
-            Some(Target::Collection {
-                id: "12345".into()
-            })
+            Some(Target::Collection { id: "12345".into() })
         );
         assert_eq!(
             match_url("https://unsplash.com/s/photos/night-sky?orientation=landscape"),
@@ -298,7 +315,9 @@ mod tests {
         let single = resolve_at_base(
             &Client::new(),
             &base,
-            Target::Image { id: "abc123".into() },
+            Target::Image {
+                id: "abc123".into(),
+            },
             1,
         )
         .await
@@ -330,20 +349,29 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            let first: Vec<_> = (0..20).map(|i| {
-                json!({
-                    "id":format!("picture{i}"),
-                    "urls":{"raw":format!("https://images.unsplash.com/photo-{i}")}
+            let first: Vec<_> = (0..20)
+                .map(|i| {
+                    json!({
+                        "id":format!("picture{i}"),
+                        "urls":{"raw":format!("https://images.unsplash.com/photo-{i}")}
+                    })
                 })
-            }).collect();
+                .collect();
             let first = serde_json::to_string(&first).unwrap();
             let second = serde_json::to_string(&vec![
                 json!({"id":"picture0","urls":{"raw":"https://images.unsplash.com/duplicate"}}),
                 json!({"id":"lastone","urls":{"raw":"https://images.unsplash.com/last"}}),
-            ]).unwrap();
+            ])
+            .unwrap();
             for (route, body) in [
-                ("GET /napi/users/alice/photos?order_by=latest&per_page=20&page=1 HTTP/1.1", first),
-                ("GET /napi/users/alice/photos?order_by=latest&per_page=20&page=2 HTTP/1.1", second),
+                (
+                    "GET /napi/users/alice/photos?order_by=latest&per_page=20&page=1 HTTP/1.1",
+                    first,
+                ),
+                (
+                    "GET /napi/users/alice/photos?order_by=latest&per_page=20&page=2 HTTP/1.1",
+                    second,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buf = [0_u8; 4096];
@@ -361,7 +389,9 @@ mod tests {
         let result = resolve_at_base(
             &Client::new(),
             &base,
-            Target::User { username: "alice".into() },
+            Target::User {
+                username: "alice".into(),
+            },
             2,
         )
         .await
