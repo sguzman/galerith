@@ -287,15 +287,26 @@ pub async fn resolve_messages(
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
-/// Queue-produced URLs must never smuggle credentials or unsupported
-/// protocols into a child extractor or subsequent native download.
+/// Queue events delegate to known website extractors, never to arbitrary
+/// direct-file hosts or a local-network endpoint. All current producers
+/// construct first-party public child URLs rather than consuming remote URLs.
 fn safe_queue_child_url(input: &str) -> bool {
-    url::Url::parse(input).is_ok_and(|parsed| {
-        matches!(parsed.scheme(), "http" | "https")
-            && parsed.host_str().is_some()
-            && parsed.username().is_empty()
-            && parsed.password().is_none()
-    })
+    let Ok(parsed) = url::Url::parse(input) else {
+        return false;
+    };
+    let Some(url::Host::Domain(domain)) = parsed.host() else {
+        return false;
+    };
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    matches!(parsed.scheme(), "http" | "https")
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && !domain.is_empty()
+        && domain != "localhost"
+        && !domain.ends_with(".localhost")
+        && !domain.ends_with(".local")
+        && !domain.ends_with(".internal")
+        && extractor_name(input).is_some_and(|category| category != "directlink")
 }
 
 /// Opt-in, bounded queue traversal for message inspection. Parent queue
@@ -310,7 +321,7 @@ pub async fn resolve_messages_traversing(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let events = resolve_messages(client, input, max_pages).await?;
     traverse_queue_job_with(events, depth, max_children as usize, |url| async move {
-        if !safe_queue_child_url(&url) || extractor_name(&url).is_none() {
+        if !safe_queue_child_url(&url) {
             return Err("queued URL has no supported safe native extractor".into());
         }
         tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
@@ -659,8 +670,8 @@ mod tests {
     #[test]
     fn queued_child_origins_must_have_safe_http_schemes_and_no_credentials() {
         for accepted in [
-            "https://example.org/file.jpg",
-            "http://127.0.0.1:1234/file.jpg",
+            "https://wallhaven.cc/w/94x38z",
+            "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
         ] {
             assert!(safe_queue_child_url(accepted), "{accepted}");
         }
@@ -671,6 +682,13 @@ mod tests {
             "https://user:secret@example.org/file.jpg",
             "https://user@example.org/file.jpg",
             "relative/gallery/2",
+            "https://example.org/file.jpg",
+            "http://127.0.0.1:1234/file.jpg",
+            "http://[::1]/private.jpg",
+            "https://localhost/private.jpg",
+            "https://service.local/private.jpg",
+            "https://internal.internal/private.jpg",
+            "https://wallhaven.cc.evil.invalid/w/94x38z",
         ] {
             assert!(!safe_queue_child_url(rejected), "{rejected}");
         }
