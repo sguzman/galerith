@@ -4,7 +4,7 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::{resolve, PREVIEW_EXTRACTORS},
+    extractor::{resolve, resolve_messages, PREVIEW_EXTRACTORS},
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
@@ -70,6 +70,22 @@ struct Cli {
     /// Simulate extraction without downloading
     #[arg(short = 's', long)]
     simulate: bool,
+
+    /// Print typed extraction events as JSON lines (independent preview protocol)
+    #[arg(
+        long = "dump-messages",
+        conflicts_with_all = [
+            "get_urls",
+            "dump_json",
+            "simulate",
+            "no_download",
+            "file_range",
+            "filename_template",
+            "write_metadata",
+            "download_archive"
+        ]
+    )]
+    dump_messages: bool,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -221,7 +237,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         retries: cli.retries,
         no_skip: cli.no_skip,
     };
-    let archive = if cli.get_urls || cli.dump_json || cli.simulate || cli.no_download {
+    let archive = if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
         None
     } else {
         cli.download_archive
@@ -236,6 +252,24 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .transpose()?;
     let mut failed = 0usize;
     for url in urls {
+        if cli.dump_messages {
+            match resolve_messages(&client, &url, cli.max_pages).await {
+                Ok(events) => {
+                    for event in events {
+                        println!("{}", serde_json::to_string(&event)?);
+                    }
+                }
+                Err(error) => {
+                    eprintln!(
+                        "galerith: {}: {}",
+                        display_url(&url),
+                        display_error(error.as_ref())
+                    );
+                    failed += 1;
+                }
+            }
+            continue;
+        }
         let items = match resolve(&client, &url, cli.max_pages).await {
             Ok(items) => items,
             Err(error) => {
