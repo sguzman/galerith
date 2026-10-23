@@ -87,6 +87,10 @@ struct Cli {
     #[arg(long = "write-metadata")]
     write_metadata: bool,
 
+    /// Seconds to wait before each media download (constant-value preview)
+    #[arg(long = "sleep", value_name = "SECONDS")]
+    sleep: Option<f64>,
+
     /// Maximum HTTP retries
     #[arg(short = 'R', long, default_value_t = 4)]
     retries: u32,
@@ -179,6 +183,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     for option in &cli.options {
         config.option(option)?;
     }
+
+    let download_sleep = match cli.sleep {
+        Some(seconds) if seconds.is_finite() && (0.0..=3600.0).contains(&seconds) => {
+            Some(Duration::from_secs_f64(seconds))
+        }
+        Some(_) => return Err("invalid --sleep: expected 0 to 3600 seconds".into()),
+        None => None,
+    };
 
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
     let mut client_builder = reqwest::Client::builder();
@@ -278,6 +290,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     println!("[simulate] {}", item.filename);
                 }
             } else {
+                if let Some(delay) = download_sleep {
+                    tokio::time::sleep(delay).await;
+                }
                 match download(&client, &item, &options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
