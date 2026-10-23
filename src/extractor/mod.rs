@@ -95,6 +95,10 @@ mod tests {
             Some("danbooru")
         );
         assert_eq!(
+            extractor_name("https://danbooru.donmai.us/posts/random?tags=fox"),
+            Some("danbooru")
+        );
+        assert_eq!(
             extractor_name("https://example.org/a.jpg"),
             Some("directlink")
         );
