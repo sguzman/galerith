@@ -69,7 +69,13 @@ fn images(data: &Value, seen: &mut HashSet<String>, limit: usize) -> Vec<MediaIt
 
 fn next_cursor(data: &Value) -> Option<Value> {
     match data.get("nextCursor")? {
-        Value::String(s) if !s.is_empty() && s.len() <= 128 => Some(Value::String(s.clone())),
+        Value::String(s)
+            if !s.trim().is_empty()
+                && s.len() <= 128
+                && !s.chars().any(char::is_control) =>
+        {
+            Some(Value::String(s.clone()))
+        },
         Value::Number(n) if n.as_u64().is_some_and(|n| n > 0) => Some(Value::Number(n.clone())),
         _ => None,
     }
@@ -208,10 +214,13 @@ mod tests {
         assert_eq!(next_cursor(&json!({"nextCursor": 5})), Some(json!(5)));
         assert!(next_cursor(&json!({"nextCursor": 0})).is_none());
         assert!(next_cursor(&json!({"nextCursor": {}})).is_none());
+        assert!(next_cursor(&json!({"nextCursor": "  "})).is_none());
+        assert!(next_cursor(&json!({"nextCursor": "bad\\u0000cursor"})).is_none());
+        assert!(next_cursor(&json!({"nextCursor": "x".repeat(129)})).is_none());
     }
 
     #[tokio::test]
-    async fn search_posts_first_and_second_cursor_page_with_local_http() {
+    async fn search_posts_cursor_pages_and_stops_on_cycle_with_local_http() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
             net::TcpListener,
@@ -219,21 +228,60 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for (body_fragment, body) in [
+            for (expected_cursor, body) in [
                 (
-                    "POST /api/infinite-prompts HTTP/1.1",
+                    json!(0),
                     r#"{"images":[{"id":"image1"},{"id":"image2"}],"prompts":[],"nextCursor":123}"#,
                 ),
                 (
-                    "POST /api/infinite-prompts HTTP/1.1",
-                    r#"{"images":[{"id":"image1"},{"id":"image3"}],"prompts":[],"nextCursor":null}"#,
+                    json!(123),
+                    r#"{"images":[{"id":"image1"},{"id":"image3"}],"prompts":[],"nextCursor":123}"#,
                 ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
-                let mut req = [0_u8; 8192];
-                let n = socket.read(&mut req).await.unwrap();
-                let request = String::from_utf8_lossy(&req[..n]);
-                assert!(request.starts_with(body_fragment), "{request}");
+                let mut request = Vec::new();
+                let header_end = loop {
+                    let mut chunk = [0_u8; 2048];
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0, "request ended before headers");
+                    request.extend_from_slice(&chunk[..n]);
+                    assert!(request.len() <= 16384, "request exceeded test bound");
+                    if let Some(index) = request.windows(4).position(|x| x == b"\\r\\n\\r\\n") {
+                        break index + 4;
+                    }
+                };
+                let header = String::from_utf8_lossy(&request[..header_end]);
+                assert!(
+                    header.starts_with("POST /api/infinite-prompts HTTP/1.1"),
+                    "{header}"
+                );
+                let length: usize = header
+                    .lines()
+                    .find_map(|line| {
+                        let (key, value) = line.split_once(':')?;
+                        key.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())
+                            .flatten()
+                    })
+                    .expect("JSON request must have Content-Length");
+                assert!(length <= 8192, "unexpectedly large JSON request");
+                while request.len() - header_end < length {
+                    let mut chunk = [0_u8; 2048];
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0, "request ended before JSON body");
+                    request.extend_from_slice(&chunk[..n]);
+                }
+                let payload: Value =
+                    serde_json::from_slice(&request[header_end..header_end + length]).unwrap();
+                assert_eq!(payload["cursor"], expected_cursor);
+                assert_eq!(payload["text"], "blue sky");
+                assert_eq!(payload["searchMode"], "images");
+                assert_eq!(payload["source"], "search");
+                assert_eq!(payload["model"], "lexica-aperture-v2");
+                assert!(
+                    header.to_ascii_lowercase().contains("referer: https://lexica.art/?q=blue+sky"),
+                    "{header}"
+                );
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
