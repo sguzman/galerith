@@ -31,7 +31,7 @@ pub mod wikimedia;
 
 use crate::{
     extract_direct_media,
-    message::{from_media, traverse_queue_job_with, ExtractorMessage},
+    message::{from_media, traverse_queue_job_filtered_with, ExtractorMessage, JobSelection},
     MediaItem,
 };
 use reqwest::Client;
@@ -312,15 +312,16 @@ fn safe_queue_child_url(input: &str) -> bool {
 /// Opt-in, bounded queue traversal for message inspection. Parent queue
 /// events are retained; child resolvers inherit metadata scopes, with child
 /// fields taking precedence. This is not a full gallery-dl download job.
-pub async fn resolve_messages_traversing(
+pub async fn resolve_messages_traversing_selected(
     client: &Client,
     input: &str,
     max_pages: u16,
     max_children: u8,
     depth: u8,
+    selection: &JobSelection,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let events = resolve_messages(client, input, max_pages).await?;
-    traverse_queue_job_with(events, depth, max_children as usize, |url| async move {
+    traverse_queue_job_filtered_with(events, depth, max_children as usize, selection, |url| async move {
         if !safe_queue_child_url(&url) {
             return Err("queued URL has no supported safe native extractor".into());
         }
@@ -329,6 +330,25 @@ pub async fn resolve_messages_traversing(
         // extractors may issue more than one API request per page.
         resolve_messages(client, &url, max_pages.min(4)).await
     })
+    .await
+}
+
+/// Unfiltered compatibility entry point used by message inspection.
+pub async fn resolve_messages_traversing(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    max_children: u8,
+    depth: u8,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    resolve_messages_traversing_selected(
+        client,
+        input,
+        max_pages,
+        max_children,
+        depth,
+        &JobSelection::default(),
+    )
     .await
 }
 
@@ -408,7 +428,19 @@ pub async fn resolve_media_job(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let messages = resolve_messages_traversing(client, input, max_pages, 8, 2).await?;
+    resolve_media_job_selected(client, input, max_pages, &JobSelection::default()).await
+}
+
+/// Apply file/child selection *during* the message job, before queue HTTP
+/// requests and before any URL event is projected into the downloader.
+pub async fn resolve_media_job_selected(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    selection: &JobSelection,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let messages =
+        resolve_messages_traversing_selected(client, input, max_pages, 8, 2, selection).await?;
     media_from_messages(messages)
 }
 
