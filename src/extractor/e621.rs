@@ -47,6 +47,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     let requested_host = url.host_str()?;
     let host = match requested_host {
         "e621.net" | "e621.cc" => "e621.net",
+        "e621.anthro.fr" if url.path() == "/" => "e621.net",
         "e926.net" => "e926.net",
         "e6ai.net" => "e6ai.net",
         _ => return None,
@@ -54,16 +55,30 @@ pub fn match_url(input: &str) -> Option<Target> {
     let host = host.to_owned();
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
-        [""] if requested_host == "e621.cc" => {
+        [""] if matches!(requested_host, "e621.cc" | "e621.anthro.fr") => {
+            let query_key = if requested_host == "e621.anthro.fr" {
+                "q"
+            } else {
+                "tags"
+            };
             let tags = url
                 .query_pairs()
-                .find(|(key, _)| key == "tags")
+                .find(|(key, _)| key == query_key)
                 .map(|(_, value)| value.into_owned())?;
             Some(Target::Search {
                 host,
                 tags,
                 page: 1,
             })
+        }
+        ["post", "index", page, encoded_tags] | ["posts", "index", page, encoded_tags] => {
+            let page = page.parse::<u16>().ok().filter(|page| *page > 0)?;
+            let query = format!("tags={encoded_tags}");
+            let tags = url::form_urlencoded::parse(query.as_bytes())
+                .next()?
+                .1
+                .into_owned();
+            Some(Target::Search { host, tags, page })
         }
         ["p", code] => {
             let id = u64::from_str_radix(code, 32).ok()?;
@@ -545,6 +560,32 @@ mod tests {
         );
         assert!(match_url("https://e621.net/posts?tags=fox&page=0").is_none());
         assert!(match_url("https://e621.net/posts?tags=fox&page=bogus").is_none());
+        assert_eq!(
+            match_url("https://e621.anthro.fr/?q=blue+fox"),
+            Some(Target::Search {
+                host: "e621.net".into(),
+                tags: "blue fox".into(),
+                page: 1
+            })
+        );
+        assert!(match_url("https://e621.anthro.fr/posts/123").is_none());
+        assert_eq!(
+            match_url("https://e621.net/post/index/3/blue%20fox"),
+            Some(Target::Search {
+                host: "e621.net".into(),
+                tags: "blue fox".into(),
+                page: 3
+            })
+        );
+        assert_eq!(
+            match_url("https://e621.net/posts/index/2/blue_fox"),
+            Some(Target::Search {
+                host: "e621.net".into(),
+                tags: "blue_fox".into(),
+                page: 2
+            })
+        );
+        assert!(match_url("https://e621.net/post/index/0/blue_fox").is_none());
         assert!(match_url("https://e621.net/p/w").is_none());
         assert!(match_url("https://e621.net/p/0").is_none());
         assert!(match_url("https://e621.cc/?other=irrelevant").is_none());
