@@ -41,12 +41,16 @@ impl Drop for OutputLock {
     }
 }
 
-async fn lock_output(dir: &Path, filename: &str)
-    -> Result<OutputLock, Box<dyn Error + Send + Sync>>
-{
+async fn lock_output(
+    dir: &Path,
+    filename: &str,
+) -> Result<OutputLock, Box<dyn Error + Send + Sync>> {
     let path = dir.join(format!(".{filename}.galerith.lock"));
     let file = std::fs::OpenOptions::new()
-        .read(true).write(true).create(true).truncate(false)
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
         .open(path)?;
     loop {
         match file.try_lock_exclusive() {
