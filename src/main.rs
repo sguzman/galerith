@@ -198,6 +198,11 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
+    // Clap's presence constraints are not a substitute for validating these
+    // typed-job selectors. Never silently ignore them in inspection mode.
+    if (cli.job_file_range.is_some() || cli.job_child_range.is_some()) && !cli.follow_queues {
+        return Err("--job-file-range and --job-child-range require --follow-queues".into());
+    }
     if cli.list_extractors {
         for (name, description) in PREVIEW_EXTRACTORS {
             println!("{name} ({description}; partial parity)");
