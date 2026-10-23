@@ -327,7 +327,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Read-only post and bounded tag search preview, CI 39898967165; not full parity"
+        "Danbooru and Safebooru posts, tag search, metadata-ordered pools/favorite groups, synthetic HTTP tests; CI 39981159625. Full upstream auth, media assets, and formatting remain outstanding."
       ]
     },
     {

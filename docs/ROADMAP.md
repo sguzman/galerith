@@ -173,11 +173,12 @@
   - [ ] Match upstream directlink URL matching
   - [ ] Generic gallery discovery and crawling
   - [ ] Full reference fixtures
-- 🖌️ **T505** First Danbooru API-backed post and tag extractor — `████████░░ 75%`
+- 🖌️ **T505** First Danbooru API-backed post and tag extractor — `████████░░ 80%`
   - [x] Match Danbooru post and tag search URLs — src/extractor/danbooru.rs; src/extractor/mod.rs
   - [x] Parse JSON media records with safe filenames — src/extractor/danbooru.rs
   - [x] Verify synthetic API parser and CLI tests in Linux CI — GitHub Actions 39898967165: test and release build passed
   - [ ] Reproduce complete upstream Danbooru semantics and authentication
+  - [x] Verify metadata-ordered pool and favorite-group extraction — src/extractor/danbooru.rs; ordered local JSON API fixtures and GitHub Actions 39981159625
 - 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 80%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures

@@ -829,9 +829,14 @@
                 {
                   "title": "Reproduce complete upstream Danbooru semantics and authentication",
                   "passed": false
+                },
+                {
+                  "title": "Verify metadata-ordered pool and favorite-group extraction",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs; ordered local JSON API fixtures and GitHub Actions 39981159625"
                 }
               ],
-              "progress": 75
+              "progress": 80
             },
             {
               "id": "T506",
