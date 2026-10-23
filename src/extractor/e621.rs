@@ -275,8 +275,16 @@ async fn resolve_artist(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("artists/{id}.json"))?;
-    let artist: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-    let name = artist.get("name").and_then(Value::as_str)
+    let artist: Value = client
+        .get(endpoint)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let name = artist
+        .get("name")
+        .and_then(Value::as_str)
         .filter(|value| !value.is_empty() && value.len() <= 512)
         .ok_or("e621 artist record missing a usable name")?;
     let tags = [("tags".to_owned(), name.to_owned())];
@@ -377,7 +385,10 @@ mod tests {
         assert!(match_url("https://e621.net/pools/0").is_none());
         assert_eq!(
             match_url("https://e621.net/artists/33"),
-            Some(Target::Artist { host: "e621.net".into(), id: 33 })
+            Some(Target::Artist {
+                host: "e621.net".into(),
+                id: 33
+            })
         );
         assert!(match_url("https://e621.net/artists/0").is_none());
         assert_eq!(match_url("https://not-e621.net/posts/90"), None);
@@ -433,7 +444,10 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (needle, body) in [
-                ("GET /artists/33.json HTTP/1.1", r#"{"id":33,"name":"blue_fox"}"#),
+                (
+                    "GET /artists/33.json HTTP/1.1",
+                    r#"{"id":33,"name":"blue_fox"}"#,
+                ),
                 (
                     "GET /posts.json?tags=blue_fox&limit=75&page=1 HTTP/1.1",
                     r#"{"posts":[{"id":17,"file":{"url":"https://cdn.example/17.png","ext":"png"}}]}"#,
