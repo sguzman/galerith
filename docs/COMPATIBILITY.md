@@ -4,7 +4,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 
 | Feature | Native preview support | Outstanding parity |
 |---|---|---|
-| Wikimedia Commons | Single public `File:` page extraction through official Action API, allowlisted uploads, bounded JSON and identified requests (CI 40024629371) | Other Wikimedia and MediaWiki sites, article/category images, revisions, rich metadata/license attribution, full archive and filename behavior |
+| Wikimedia Commons | Public File: pages and article/category image lists through official Action API, approved upload CDN links, guarded pagination and identified requests (CI 40026028078) | Other Wikimedia and MediaWiki hosts, recursive subcategories, full file revisions, rich metadata/license attribution, upstream archive and filename behavior |
 | Lexica | Public prompt-image search over bounded JSON POST/cursor API; validated JPEG IDs and deduplication (CI 40023659175) | Full prompt metadata, upstream archive/filename templates, authentication and live behavior |
 | Basic direct links | HTTP(S) image/video/doc extensions | Complete directlink selection and MIME handling |
 | Danbooru | Single posts and bounded tag searches | Pools, artists, metadata, login, full pagination |
