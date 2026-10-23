@@ -955,4 +955,105 @@ mod tests {
             "https://example.org/two.jpg"
         );
     }
+
+    #[tokio::test]
+    async fn source_post_range_selects_true_post_scopes_not_file_ids() {
+        let directory = |source_post_id: u64| ExtractorMessage::Directory {
+            metadata: serde_json::from_value(json!({
+                "source_post_id":source_post_id,"category":"4chan"
+            }))
+            .unwrap(),
+        };
+        let file = |name: &str, media_id: u64| ExtractorMessage::Url {
+            url: format!("https://i.4cdn.org/g/{name}.jpg"),
+            metadata: serde_json::from_value(json!({
+                "filename":format!("{name}.jpg"),
+                "post_id":media_id
+            }))
+            .unwrap(),
+        };
+        let events = vec![
+            directory(120),
+            file("alpha", 9999),
+            directory(121),
+            file("beta", 10000),
+            file("gamma", 10001),
+            directory(122),
+            file("delta", 10002),
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("121").unwrap()),
+        };
+        let result = traverse_queue_job_filtered_with(events, 0, 0, &selected, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        let values: Vec<Value> = result
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        assert_eq!(values.len(), 3);
+        assert_eq!(values[0]["metadata"]["source_post_id"], 121);
+        assert_eq!(values[1]["metadata"]["source_post_id"], 121);
+        assert_eq!(values[1]["metadata"]["post_id"], 10000);
+        assert_eq!(values[2]["metadata"]["source_post_id"], 121);
+        assert_eq!(values[2]["metadata"]["post_id"], 10001);
+    }
+
+    #[tokio::test]
+    async fn source_post_range_rejects_unknown_ids_without_following_child_queues() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let events = vec![
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({
+                    "source_post_id": "not-a-number"
+                }))
+                .unwrap(),
+            },
+            queued_url("https://example.org/unselected".into(), Metadata::new()),
+            ExtractorMessage::Url {
+                url: "https://example.org/unselected.jpg".into(),
+                metadata: Metadata::new(),
+            },
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("1-").unwrap()),
+        };
+        let results = traverse_queue_job_filtered_with(events, 2, 8, &selected, |_| {
+            calls.set(calls.get() + 1);
+            async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 0);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn source_post_selector_disables_unsafe_finite_file_pushdown() {
+        let selected = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("121").unwrap()),
+        };
+        assert_eq!(selected.early_file_ceiling(), None);
+        assert!(selected_source_post(
+            &serde_json::from_value(json!({"source_post_id":121})).unwrap(),
+            &selected.source_posts,
+        ));
+        assert!(!selected_source_post(
+            &serde_json::from_value(json!({"post_id":121})).unwrap(),
+            &selected.source_posts,
+        ));
+    }
 }
