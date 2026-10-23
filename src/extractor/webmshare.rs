@@ -22,10 +22,7 @@ fn valid_host(host: &str) -> bool {
 }
 
 fn valid_id(id: &str) -> bool {
-    (3..=128).contains(&id.len())
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    (3..=128).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -111,7 +108,8 @@ async fn resolve_at_base(
     match target {
         Target::Video { id } => {
             let html = read_html(client, base.join(&id)?).await?;
-            let item = video_item(&html, &id).ok_or("Webmshare page missing safe OG video media")?;
+            let item =
+                video_item(&html, &id).ok_or("Webmshare page missing safe OG video media")?;
             Ok(vec![item])
         }
     }
