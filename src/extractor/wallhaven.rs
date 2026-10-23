@@ -586,7 +586,10 @@ mod tests {
                 let query: std::collections::HashMap<_, _> =
                     url.query_pairs().into_owned().collect();
                 assert_eq!(query.len(), 1);
-                assert_eq!(query.get("page").map(String::as_str), Some(if page == 1 { "1" } else { "2" }));
+                assert_eq!(
+                    query.get("page").map(String::as_str),
+                    Some(if page == 1 { "1" } else { "2" })
+                );
                 assert!(!request.to_ascii_lowercase().contains("x-api-key:"));
                 let body = if page == 1 {
                     serde_json::json!({
@@ -623,7 +626,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|x| x.filename.as_str())
+                .collect::<Vec<_>>(),
             ["wallhaven-94x38z.jpg", "wallhaven-ze1p56.png"]
         );
         server.await.unwrap();
