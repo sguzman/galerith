@@ -1944,6 +1944,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T535",
+              "emoji": "🧭",
+              "name": "Wallhaven collection index and profile dispatch with global request limits",
+              "checks": [
+                {
+                  "title": "Recognize public user profiles and collection indexes while excluding unsupported URL variants",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs URL matcher and src/extractor/mod.rs registry fixture; CI 40031267694"
+                },
+                {
+                  "title": "Parse public collection-list JSON safely, reject invalid IDs, and cap the discovered collection count",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs collection_ids validation and oversized listing fixtures; CI 40031267694"
+                },
+                {
+                  "title": "Expand distinct public collections into ordered, deduplicated media through read-only API requests",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs localhost two-collection HTTP fixture with cross-collection media deduplication and untrusted image rejection; CI 40031267694"
+                },
+                {
+                  "title": "Bound discovery and gallery HTTP requests globally, preserve useful default page behavior, and test multi-page collection indexes",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs ApiBudget pacing and caps, default-one-page and four-request multi-index HTTP regressions; CI 40031267694"
+                },
+                {
+                  "title": "Implement upstream queued-collection message semantics, collection metadata, complete auth and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
