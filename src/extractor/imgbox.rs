@@ -3,18 +3,24 @@
 //! and live upstream parity are not yet supported.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
-use std::error::Error;
+use std::{collections::HashSet, error::Error};
 use url::Url;
 
 const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_GALLERY_IMAGES: usize = 200;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Image { key: String },
+    Gallery { key: String },
 }
 
 fn valid_key(key: &str) -> bool {
     key.len() == 8 && key.bytes().all(|ch| ch.is_ascii_alphanumeric())
+}
+
+fn valid_gallery_key(key: &str) -> bool {
+    key.len() == 10 && key.bytes().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 fn valid_imgbox_host(host: &str) -> bool {
@@ -31,6 +37,15 @@ pub fn match_url(input: &str) -> Option<Target> {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
+    if matches!(host, "imgbox.com" | "www.imgbox.com") {
+        if let ["g", gallery] = parts.as_slice() {
+            if valid_gallery_key(gallery) {
+                return Some(Target::Gallery {
+                    key: (*gallery).to_owned(),
+                });
+            }
+        }
+    }
     let key = match parts.as_slice() {
         [key] if valid_key(key) => *key,
         [first, second, key]
@@ -103,6 +118,26 @@ fn parse_image_page(html: &str, key: &str) -> Option<MediaItem> {
     })
 }
 
+fn gallery_keys(html: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+    let mut seen = HashSet::new();
+    for fragment in html.split("<a href=\"/").skip(1).take(2000) {
+        let Some((key, remainder)) = fragment.split_once('"') else {
+            continue;
+        };
+        if !valid_key(key) || !remainder.starts_with("><img alt=\"") {
+            continue;
+        }
+        if seen.insert(key.to_owned()) {
+            keys.push(key.to_owned());
+        }
+        if keys.len() >= MAX_GALLERY_IMAGES {
+            break;
+        }
+    }
+    keys
+}
+
 async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
@@ -131,6 +166,22 @@ async fn resolve_at_base(
     Ok(vec![item])
 }
 
+async fn resolve_gallery_at_base(
+    client: &Client,
+    base: &Url,
+    key: &str,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let page = page_html(client, base.join(&format!("g/{key}"))?).await?;
+    if page.contains("The specified gallery could not be found.") {
+        return Err("Imgbox gallery does not exist".into());
+    }
+    let mut items = Vec::new();
+    for image_key in gallery_keys(&page) {
+        items.extend(resolve_at_base(client, base, &image_key).await?);
+    }
+    Ok(items)
+}
+
 pub async fn resolve(
     client: &Client,
     target: Target,
@@ -138,6 +189,7 @@ pub async fn resolve(
     let base = Url::parse("https://imgbox.com/")?;
     match target {
         Target::Image { key } => resolve_at_base(client, &base, &key).await,
+        Target::Gallery { key } => resolve_gallery_at_base(client, &base, &key).await,
     }
 }
 
@@ -159,7 +211,13 @@ mod tests {
                 key: "a1B2c3D4".into(),
             })
         );
-        assert!(match_url("https://imgbox.com/g/abcdefghij").is_none());
+        assert_eq!(
+            match_url("https://imgbox.com/g/abcdefghij"),
+            Some(Target::Gallery {
+                key: "abcdefghij".into(),
+            })
+        );
+        assert!(match_url("https://imgbox.com/g/short").is_none());
         assert!(match_url("https://imgbox.com/short").is_none());
         assert!(match_url("https://evilimgbox.com/a1B2c3D4").is_none());
         assert!(match_url("https://imagesbad.imgbox.com/ab/cd/a1B2c3D4").is_none());
@@ -176,6 +234,63 @@ mod tests {
         let forged = r#"<meta property="og:image" content="https://evil.example.com/a.jpg">"#;
         assert!(parse_image_page(forged, "a1B2c3D4").is_none());
         assert!(parse_image_page("<h1>Unavailable</h1>", "a1B2c3D4").is_none());
+    }
+
+    #[test]
+    fn gallery_keys_follow_page_order_and_ignore_invalid_or_duplicate_routes() {
+        let page = concat!(
+            "<a href=\"/a1B2c3D4\"><img alt=\"first\">",
+            "<a href=\"/Z9y8X7w6\"><img alt=\"second\">",
+            "<a href=\"/a1B2c3D4\"><img alt=\"duplicate\">",
+            "<a href=\"/short\"><img alt=\"invalid\">",
+            "<a href=\"/third123\">not an image",
+        );
+        assert_eq!(gallery_keys(page), ["a1B2c3D4", "Z9y8X7w6"]);
+    }
+
+    #[tokio::test]
+    async fn gallery_follows_public_image_pages_in_listing_order() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (route, body) in [
+                (
+                    "GET /g/abcdefghij HTTP/1.1",
+                    "<a href=\"/a1B2c3D4\"><img alt=\"first\"><a href=\"/Z9y8X7w6\"><img alt=\"second\">",
+                ),
+                (
+                    "GET /a1B2c3D4 HTTP/1.1",
+                    r#"<meta property="og:image" content="https://images2.imgbox.com/a/b/one.jpg"><div class="image-container" title="one.jpg"></div>"#,
+                ),
+                (
+                    "GET /Z9y8X7w6 HTTP/1.1",
+                    r#"<meta property="og:image" content="https://images2.imgbox.com/a/b/two.png"><div class="image-container" title="two.png"></div>"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(route), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let images = resolve_gallery_at_base(&Client::new(), &base, "abcdefghij")
+            .await
+            .unwrap();
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].filename, "one.jpg");
+        assert_eq!(images[1].filename, "two.png");
+        server.await.unwrap();
     }
 
     #[tokio::test]
