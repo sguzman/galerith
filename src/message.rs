@@ -53,12 +53,52 @@ pub fn queued_url(url: String, metadata: Metadata) -> ExtractorMessage {
     ExtractorMessage::Queue { url, metadata }
 }
 
-/// Expand at most 16 distinct direct queue children, preserving the queue
-/// events themselves and inserting resolved child messages after each parent.
-/// This does *not* recursively expand grandchildren. The caller owns API
-/// pacing and must supply a safe resolver.
-pub async fn expand_queues_with<F, Fut>(
+/// Shared hard limits for the read-only job-message traverser. These limits
+/// do not make the job pipeline equivalent to gallery-dl's downloader.
+pub const MAX_QUEUE_DEPTH: u8 = 4;
+pub const MAX_QUEUE_CHILDREN: usize = 16;
+pub const MAX_JOB_MESSAGES: usize = 8192;
+
+struct JobFrame {
+    events: std::vec::IntoIter<ExtractorMessage>,
+    inherited: Metadata,
+    directory: Metadata,
+    depth: u8,
+}
+
+impl JobFrame {
+    fn new(events: Vec<ExtractorMessage>, inherited: Metadata, depth: u8) -> Self {
+        Self {
+            events: events.into_iter(),
+            inherited,
+            directory: Metadata::new(),
+            depth,
+        }
+    }
+}
+
+/// Copy scope values only when a message did not provide its own field.
+/// Extractor-produced child fields always take precedence over parent fields.
+fn inherit_missing(metadata: &mut Metadata, parent: &Metadata) {
+    for (key, value) in parent {
+        metadata
+            .entry(key.clone())
+            .or_insert_with(|| value.clone());
+    }
+}
+
+/// Inspect a bounded, recursive extractor-message job with an explicit stack.
+///
+/// Directory events establish scope for subsequent URL/Queue events in that
+/// frame. Queue metadata seeds the child frame. Child-defined fields override
+/// parent fields. Queues are still emitted when skipped by a limit/cycle. The
+/// resolver is responsible for validating URLs and for network rate policies.
+///
+/// Only the *first* encounter of a queue URL is followed. Globally, at most
+/// MAX_QUEUE_CHILDREN children and MAX_JOB_MESSAGES events are permitted.
+pub async fn traverse_queue_job_with<F, Fut>(
     events: Vec<ExtractorMessage>,
+    max_depth: u8,
     max_children: usize,
     mut resolve_child: F,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
@@ -66,24 +106,67 @@ where
     F: FnMut(String) -> Fut,
     Fut: Future<Output = Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>>,
 {
-    let limit = max_children.min(16);
-    let mut result = Vec::new();
-    let mut visited = HashSet::new();
-    for event in events {
-        let to_expand = match &event {
-            ExtractorMessage::Queue { url, .. }
-                if visited.len() < limit && visited.insert(url.clone()) =>
-            {
-                Some(url.clone())
-            }
-            _ => None,
+    let depth_limit = max_depth.min(MAX_QUEUE_DEPTH);
+    let child_limit = max_children.min(MAX_QUEUE_CHILDREN);
+    let mut frames = vec![JobFrame::new(events, Metadata::new(), 0)];
+    let mut seen = HashSet::new();
+    let mut output = Vec::new();
+
+    while let Some(frame) = frames.last_mut() {
+        let Some(mut message) = frame.events.next() else {
+            frames.pop();
+            continue;
         };
-        result.push(event);
-        if let Some(child) = to_expand {
-            result.extend(resolve_child(child).await?);
+        if output.len() >= MAX_JOB_MESSAGES {
+            return Err("extractor job exceeded its message limit".into());
+        }
+
+        let mut next = None;
+        match &mut message {
+            ExtractorMessage::Directory { metadata } => {
+                inherit_missing(metadata, &frame.inherited);
+                frame.directory = metadata.clone();
+            }
+            ExtractorMessage::Url { metadata, .. } => {
+                inherit_missing(metadata, &frame.directory);
+                inherit_missing(metadata, &frame.inherited);
+            }
+            ExtractorMessage::Queue { url, metadata } => {
+                inherit_missing(metadata, &frame.directory);
+                inherit_missing(metadata, &frame.inherited);
+                if frame.depth < depth_limit
+                    && seen.len() < child_limit
+                    && seen.insert(url.clone())
+                {
+                    next = Some((url.clone(), metadata.clone(), frame.depth + 1));
+                }
+            }
+        }
+        output.push(message);
+
+        if let Some((url, inherited, child_depth)) = next {
+            let child_events = resolve_child(url).await?;
+            if child_events.len() > MAX_JOB_MESSAGES.saturating_sub(output.len()) {
+                return Err("extractor child exceeded the remaining message limit".into());
+            }
+            frames.push(JobFrame::new(child_events, inherited, child_depth));
         }
     }
-    Ok(result)
+    Ok(output)
+}
+
+/// Compatibility wrapper for the original single-level queue inspector.
+/// Leaves queue events in the stream and never follows grandchildren.
+pub async fn expand_queues_with<F, Fut>(
+    events: Vec<ExtractorMessage>,
+    max_children: usize,
+    resolve_child: F,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>>,
+{
+    traverse_queue_job_with(events, 1, max_children, resolve_child).await
 }
 
 #[cfg(test)]
