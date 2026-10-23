@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 12 · Not ported: 260.**
+**Complete: 0 · Partial: 13 · Not ported: 259.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -94,7 +94,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/hiperdex.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/hotleak.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/idolcomplex.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/imagebam.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/imagebam.py` | 🟡 Partial | `src/extractor/imagebam.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagechest.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/imagefap.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/imagehosts.py` | ⚪ Not ported | — |

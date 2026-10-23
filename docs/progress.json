@@ -1296,6 +1296,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T516",
+              "emoji": "🖇️",
+              "name": "ImageBam public image and gallery extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize public ImageBam gallery and image URL variants",
+                  "passed": true,
+                  "evidence": "src/extractor/imagebam.rs strict image/gallery ID and hostname fixtures; src/extractor/mod.rs; CI 39999653275"
+                },
+                {
+                  "title": "Parse safe original ImageBam CDN media and filenames from HTML",
+                  "passed": true,
+                  "evidence": "src/extractor/imagebam.rs strict CDN/unsafe-scheme fixtures; CI 39999653275"
+                },
+                {
+                  "title": "Preserve image keys and pinned first-gallery-page media ordering",
+                  "passed": true,
+                  "evidence": "src/extractor/imagebam.rs duplicate-image and reversed-order fixtures; CI 39999653275"
+                },
+                {
+                  "title": "Resolve gallery and individual image pages through bounded offline HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/imagebam.rs three-request gallery localhost HTML fixture, 2MiB page guard; CI 39999653275"
+                },
+                {
+                  "title": "Reproduce full gallery pagination, metadata, archive/filename templates and live conformance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

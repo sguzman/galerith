@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 45%` across 59 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 46%` across 60 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 56%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 57%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `██████░░░░ 63%`
+### 🧱 P5 — Shared website families — `██████░░░░ 64%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -267,6 +267,12 @@
   - [x] Verify single Imgbox image extraction using local HTTP — src/extractor/imgbox.rs local image-page TCP fixture; CI 39998586897
   - [x] Resolve ordered gallery images with bounded keys and offline multi-page fixtures — src/extractor/imgbox.rs gallery key order and dedup tests, three-response local HTTP fixture; CI 39998853147
   - [ ] Reproduce Imgbox full metadata/archive/filename rules and opt-in live conformance
+- 🖇️ **T516** ImageBam public image and gallery extractor preview — `████████░░ 80%`
+  - [x] Recognize public ImageBam gallery and image URL variants — src/extractor/imagebam.rs strict image/gallery ID and hostname fixtures; src/extractor/mod.rs; CI 39999653275
+  - [x] Parse safe original ImageBam CDN media and filenames from HTML — src/extractor/imagebam.rs strict CDN/unsafe-scheme fixtures; CI 39999653275
+  - [x] Preserve image keys and pinned first-gallery-page media ordering — src/extractor/imagebam.rs duplicate-image and reversed-order fixtures; CI 39999653275
+  - [x] Resolve gallery and individual image pages through bounded offline HTTP — src/extractor/imagebam.rs three-request gallery localhost HTML fixture, 2MiB page guard; CI 39999653275
+  - [ ] Reproduce full gallery pagination, metadata, archive/filename templates and live conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

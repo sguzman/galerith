@@ -11,6 +11,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | `e621` | `e621.net`, `e621.cc` and `e621.anthro.fr` frontend aliases, `e926.net`, `e6ai.net` | JSON posts and paginated tag/legacy index search (320-per-page, short-page exit), base-32 posts, popular/favorites, ordered pools, artist searches, MD5 recovery | Auth, full metadata, alternate formats and complete artist workflows |
 | `gelbooru` | `gelbooru.com` individual post and tag search pages | Public JSON post and bounded tag-search request | Pools, favorites, redirects, auth, filename and metadata semantics |
 | `gelbooru_v02` | Five pinned XML/DAPI hostnames and post/tag-search pages | XML post and bounded tag-search requests, full-page pagination despite missing media | Full pool/favorites/auth/metadata and host-specific media handling |
+| `imagebam` | `imagebam.com`/`www.imagebam.com` image/view and gallery/view URL shapes | Public image-page originals, 2 MiB HTML bounds, first gallery page image traversal, strict CDN checks, deduplication and reference-ordered results | Full gallery pagination, metadata, archive/filename templates, redirects and live reference conformance |
 | `imgbox` | `imgbox.com`, `www.imgbox.com`, `i.imgbox.com`, and canonical `imagesN.imgbox.com` image IDs, plus `/g/ID` galleries | Original image links parsed from public HTML with CDN checks, bounded page reads, deduplicated gallery image keys and local three-request extraction fixtures | Full metadata, archives, filenames, pagination/concurrency behavior and live acceptance |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search, pool posts and four popular-feed modes | Popular metadata, auth and complete upstream naming |
 | `philomena` | `derpibooru.org`, `ponybooru.org`, `furbooru.org` | JSON images, bounded search and galleries, tag slugs, SVG originals | Full auth, filters, metadata and SVG edge cases |
@@ -19,4 +20,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 39998853147](https://github.com/sguzman/galerith/actions/runs/39998853147) (Imgbox single images, bounded galleries and complete Rust checks including release build).
+**Verified integration:** [CI 39999653275](https://github.com/sguzman/galerith/actions/runs/39999653275) (ImageBam image/gallery fixtures, full Rust formatting, Clippy, tests, roadmap checks and release build).

@@ -654,9 +654,14 @@
     {
       "path": "gallery_dl/extractor/imagebam.py",
       "module": "imagebam",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imagebam.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent ImageBam public single images and first-page gallery previews, conservative URLs, 2MiB HTML transfer bounds, reverse gallery ordering, strict original CDN and local fixtures; CI 39999653275 passed; full pagination/metadata/archive/live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/imagechest.py",
