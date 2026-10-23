@@ -30,13 +30,9 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
-        ["album", id] if valid_id(id) => Some(Target::Album {
-            id: (*id).into(),
-        }),
+        ["album", id] if valid_id(id) => Some(Target::Album { id: (*id).into() }),
         [id] if valid_id(id) && !matches!(*id, "login" | "signup" | "album" | "about") => {
-            Some(Target::Image {
-                id: (*id).into(),
-            })
+            Some(Target::Image { id: (*id).into() })
         }
         _ => None,
     }
@@ -44,9 +40,7 @@ pub fn match_url(input: &str) -> Option<Target> {
 
 fn public_image(raw: &str, preferred_name: Option<&str>) -> Option<MediaItem> {
     let url = Url::parse(raw).ok()?;
-    if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("i.ibb.co" | "image.ibb.co"))
-    {
+    if url.scheme() != "https" || !matches!(url.host_str(), Some("i.ibb.co" | "image.ibb.co")) {
         return None;
     }
     let extension = url.path().rsplit_once('.')?.1;
