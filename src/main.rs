@@ -4,7 +4,10 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::{resolve, resolve_media_job, resolve_messages, resolve_messages_traversing, PREVIEW_EXTRACTORS},
+    extractor::{
+        resolve, resolve_media_job, resolve_messages, resolve_messages_traversing,
+        PREVIEW_EXTRACTORS,
+    },
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
