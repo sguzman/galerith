@@ -14,6 +14,7 @@ const MAX_ALBUM_FILES: usize = 2000;
 pub enum Target {
     File { id: String },
     Album { id: String, selected: Option<usize> },
+    AlbumZip { id: String },
     Folder { path: String },
 }
 
@@ -63,9 +64,12 @@ fn folder_item(child: &Value, parent: &str) -> Option<MediaItem> {
     let relative = safe_folder_path(path)?;
     // Only direct children of the requested folder are included, without
     // silently traversing recursive directories or other filesystem roots.
-    let suffix = relative.strip_prefix(parent)?.strip_prefix('/')?;
-    if suffix.is_empty() || suffix.contains('/') {
-        return None;
+    let remainder = relative.strip_prefix(parent)?;
+    if !remainder.is_empty() {
+        let suffix = remainder.strip_prefix('/')?;
+        if suffix.is_empty() || suffix.contains('/') {
+            return None;
+        }
     }
     if child.get("availability").is_some_and(unavailable) {
         return None;
@@ -94,6 +98,9 @@ pub fn match_url(input: &str) -> Option<Target> {
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
         ["u", id] | ["api", "file", id] if valid_id(id) => Some(Target::File { id: (*id).into() }),
+        ["api", "list", id, "zip"] if valid_id(id) => {
+            Some(Target::AlbumZip { id: (*id).into() })
+        }
         ["d", rest @ ..] | ["api", "filesystem", rest @ ..] if !rest.is_empty() => {
             let path = safe_folder_path(&rest.join("/"))?;
             Some(Target::Folder { path })
@@ -178,6 +185,24 @@ fn album_media(
     Ok(result)
 }
 
+fn album_zip_item(album: &Value, id: &str) -> Result<MediaItem, Box<dyn Error + Send + Sync>> {
+    let title = album
+        .get("title")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty() && name.len() <= 220)
+        .unwrap_or(id);
+    let stem = safe_filename(title);
+    if matches!(stem.as_str(), "" | "." | "..") {
+        return Err("Pixeldrain ZIP album title cannot be used as a filename".into());
+    }
+    Ok(MediaItem {
+        url: format!("https://pixeldrain.com/api/list/{id}/zip"),
+        filename: format!("{stem}.zip"),
+        extractor: "pixeldrain",
+        post_id: None,
+    })
+}
+
 fn filesystem_media(
     value: &Value,
     parent: &str,
@@ -244,6 +269,10 @@ async fn resolve_at_base(
             let album = read_json(client, base.join(&format!("api/list/{id}"))?).await?;
             album_media(&album, selected)
         }
+        Target::AlbumZip { id } => {
+            let album = read_json(client, base.join(&format!("api/list/{id}"))?).await?;
+            Ok(vec![album_zip_item(&album, &id)?])
+        }
         Target::Folder { path } => {
             let response =
                 read_json(client, base.join(&format!("api/filesystem/{path}?stat"))?).await?;
@@ -291,6 +320,13 @@ mod tests {
         assert!(match_url("http://pixeldrain.com/u/abc").is_none());
         assert!(match_url("https://pixeldrain.com/u/bad%2Fid").is_none());
         assert!(match_url("https://pixeldrain.com/l/abc#item=bad").is_none());
+        assert_eq!(
+            match_url("https://pixeldrain.com/api/list/abc_99/zip"),
+            Some(Target::AlbumZip {
+                id: "abc_99".into()
+            })
+        );
+        assert!(match_url("https://pixeldrain.com/api/list/bad%2Fid/zip").is_none());
         assert!(match_url("https://pixeldrain.com/l/abc#item=2000").is_none());
     }
 
@@ -321,6 +357,13 @@ mod tests {
             "https://pixeldrain.com/api/filesystem/root123/photos/photo.jpg?attach"
         );
         assert!(folder_item(&child, "root123/different").is_none());
+        let root_file = json!({
+            "type": "file", "name": "direct.jpg", "path": "/root123/photos"
+        });
+        assert_eq!(
+            folder_item(&root_file, "root123/photos").unwrap().filename,
+            "direct.jpg"
+        );
         assert!(folder_item(
             &json!({"type":"dir","name":"nested","path":"/root123/photos/nested"}),
             "root123/photos"
@@ -374,6 +417,62 @@ mod tests {
             "three.webp"
         );
         assert!(album_media(&album, Some(1)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn zip_preview_uses_album_title_and_no_implicit_authentication() {
+        let result = album_zip_item(
+            &json!({"id":"sample","title":"Summer photos"}),
+            "sample",
+        )
+        .unwrap();
+        assert_eq!(result.filename, "Summer photos.zip");
+        assert_eq!(result.url, "https://pixeldrain.com/api/list/sample/zip");
+        assert_eq!(
+            album_zip_item(&json!({"title":"../unsafe"}), "abc")
+                .unwrap()
+                .filename,
+            safe_filename("../unsafe").to_string() + ".zip"
+        );
+    }
+
+    #[tokio::test]
+    async fn zip_preview_fetches_public_list_metadata_before_download_url() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let size = socket.read(&mut request).await.unwrap();
+            assert!(
+                String::from_utf8_lossy(&request[..size])
+                    .starts_with("GET /api/list/album1 HTTP/1.1")
+            );
+            let body = r#"{"id":"album1","title":"An album","file_count":3}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let media = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::AlbumZip {
+                id: "album1".into(),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].filename, "An album.zip");
+        assert_eq!(media[0].url, "https://pixeldrain.com/api/list/album1/zip");
+        server.await.unwrap();
     }
 
     #[tokio::test]
