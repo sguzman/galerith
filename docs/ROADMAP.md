@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 54%` across 79 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 55%` across 80 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,10 +119,10 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 69%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 70%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
+### 🧬 P4 — Extractor architecture — `█████░░░░░ 48%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -130,9 +130,9 @@
   - [ ] Support child extractors and queues
   - [ ] Differential URL-match fixtures
   - [x] Verify CLI extractor listing mirrors the native dispatcher registry — src/extractor/mod.rs PREVIEW_EXTRACTORS and all eleven routing fixtures; src/main.rs list CLI; CI 39997749479
-- 📨 **T402** Structured extractor message protocol — `███░░░░░░░ 25%`
+- 📨 **T402** Structured extractor message protocol — `█████░░░░░ 50%`
   - [x] Represent a media item with source and filename — src/lib.rs
-  - [ ] Directory metadata and file message variants
+  - [x] Directory metadata and file message variants — src/message.rs typed Directory/Url and metadata; tests/message_cli.rs and CI 40032410873 passed
   - [ ] Deferred URL resolution and redirects
   - [ ] Reference message fixtures
 - 🔎 **T403** Pagination, filtering and selectors — `██░░░░░░░░ 20%`
@@ -151,6 +151,12 @@
   - [x] CLI index filtering and error regression tests — src/main.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
+- 🪜 **T406** Read-only extractor message inspection and deferred Wallhaven queues — `████████░░ 80%`
+  - [x] Implement independent serialized directory, URL and child queue event types — src/message.rs typed event schema and unit fixtures; CI 40032410873
+  - [x] Expose read-only --dump-messages JSONL output without changing regular downloads or --dump-json — src/main.rs and tests/message_cli.rs CLI modes and regression fixtures; CI 40032410873
+  - [x] Emit deferred collection queue events from Wallhaven public collection lists, without fetching child galleries — src/extractor/wallhaven.rs queue_collections_at_base fixtures, src/extractor/mod.rs dispatch; CI 40032410873
+  - [x] Validate queue ID/dedup/page bounds, event serialization, legacy output and redacted diagnostics in offline tests — src/message.rs, src/extractor/wallhaven.rs and tests/message_cli.rs; CI 40032410873
+  - [ ] Port complete upstream queue execution, recursive extraction, redirects, metadata scope propagation and reference differential tests
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
