@@ -154,7 +154,9 @@ where
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if frame.depth < depth_limit && seen.len() < child_limit && seen.insert(queue_identity(url))
+                if frame.depth < depth_limit
+                    && seen.len() < child_limit
+                    && seen.insert(queue_identity(url))
                 {
                     next = Some((url.clone(), child_context(metadata), frame.depth + 1));
                 }
@@ -501,7 +503,10 @@ mod tests {
         use std::cell::Cell;
         let calls = Cell::new(0usize);
         let inputs = vec![
-            queued_url("https://EXAMPLE.org/album?id=1#first".into(), Metadata::new()),
+            queued_url(
+                "https://EXAMPLE.org/album?id=1#first".into(),
+                Metadata::new(),
+            ),
             queued_url("https://example.org/album?id=1".into(), Metadata::new()),
             queued_url("https://example.org/album?id=2".into(), Metadata::new()),
         ];
