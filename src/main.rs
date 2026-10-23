@@ -5,8 +5,8 @@ use galerith::{
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::{
-        resolve, resolve_media_job_selected, resolve_messages, resolve_messages_traversing_selected,
-        PREVIEW_EXTRACTORS,
+        resolve, resolve_media_job_selected, resolve_messages,
+        resolve_messages_traversing_selected, PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
     message::JobSelection,
@@ -133,11 +133,19 @@ struct Cli {
     job_child_range: Option<String>,
 
     /// Select URL-event ordinals in the read-only recursive message stream
-    #[arg(long = "message-file-range", value_name = "RANGE", requires = "expand_queues")]
+    #[arg(
+        long = "message-file-range",
+        value_name = "RANGE",
+        requires = "expand_queues"
+    )]
     message_file_range: Option<String>,
 
     /// Select deferred queue ordinals before read-only child resolution
-    #[arg(long = "message-child-range", value_name = "RANGE", requires = "expand_queues")]
+    #[arg(
+        long = "message-child-range",
+        value_name = "RANGE",
+        requires = "expand_queues"
+    )]
     message_child_range: Option<String>,
 
     /// Resolve URLs without downloading
