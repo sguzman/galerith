@@ -99,6 +99,10 @@ mod tests {
             Some("danbooru")
         );
         assert_eq!(
+            extractor_name("https://danbooru.donmai.us/artists?search%5Bname%5D=blue"),
+            Some("danbooru")
+        );
+        assert_eq!(
             extractor_name("https://example.org/a.jpg"),
             Some("directlink")
         );
