@@ -4,6 +4,7 @@ use galerith::{
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
+    filename::render as render_filename,
 };
 use std::{
     error::Error,
@@ -21,6 +22,10 @@ struct Cli {
     /// Media URLs to process
     #[arg(value_name = "URL")]
     urls: Vec<String>,
+
+    /// Filename format (limited upstream-compatible named-field subset)
+    #[arg(short = 'f', long = "filename", value_name = "FORMAT")]
+    filename_template: Option<String>,
 
     /// Destination directory
     #[arg(short = 'd', long, default_value = ".")]
@@ -151,7 +156,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 continue;
             }
         };
-        for item in items {
+        for mut item in items {
+            if let Some(ref template) = cli.filename_template {
+                if !cli.get_urls {
+                    match render_filename(template, &item) {
+                        Ok(name) => item.filename = name,
+                        Err(error) => {
+                            eprintln!("galerith: invalid filename template: {error}");
+                            failed += 1;
+                            continue;
+                        }
+                    }
+                }
+            }
             if let Some(ref archive) = archive {
                 if archive.contains(&item)? {
                     if !cli.quiet {

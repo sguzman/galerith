@@ -4,6 +4,7 @@ pub mod archive;
 pub mod cookies;
 pub mod download;
 pub mod extractor;
+pub mod filename;
 
 use serde::Serialize;
 use url::Url;
