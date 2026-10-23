@@ -264,10 +264,7 @@ mod tests {
             extractor_name("https://www.imagebam.com/gallery/album7"),
             Some("imagebam")
         );
-        assert_eq!(
-            extractor_name("https://ibb.co/someImage12"),
-            Some("imgbb")
-        );
+        assert_eq!(extractor_name("https://ibb.co/someImage12"), Some("imgbb"));
         assert_eq!(
             extractor_name("https://e621.cc/?tags=blue+sky"),
             Some("e621")
