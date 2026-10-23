@@ -220,4 +220,38 @@ mod tests {
         assert_eq!(items[0].filename, "77.jpg");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn local_tag_search_fetches_two_pages_and_stops_at_empty_page() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for page in 1..=2 {
+                let (mut connection, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let count = connection.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..count]);
+                assert!(request.starts_with("GET /posts.json?"), "{request}");
+                assert!(request.contains("tags=blue+sky"), "{request}");
+                assert!(request.contains(&format!("page={page}")), "{request}");
+                let body = if page == 1 {
+                    r#"{"posts":[{"id":5,"file":{"url":"/media/5.png","ext":"png"}},{"id":6,"file":{"url":null,"ext":"jpg"}}]}"#
+                } else {
+                    r#"{"posts":[]}"#
+                };
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()
+                );
+                connection.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target::Search { host: "e621.net".into(), tags: "blue sky".into() };
+        let items = resolve_at_base(&Client::new(), target, 5, &base).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "5.png");
+        assert_eq!(items[0].post_id, Some(5));
+        server.await.unwrap();
+    }
+
 }
