@@ -320,6 +320,72 @@ pub async fn resolve_messages_expanding(
     resolve_messages_traversing(client, input, max_pages, max_children, 1).await
 }
 
+/// Convert typed URL events into the existing native file download
+/// contract. Deferred Queue events and Directory scope markers must NEVER
+/// become downloads. This adapter intentionally discards metadata that
+/// MediaItem cannot yet represent and is not full gallery-dl job parity.
+pub fn media_from_messages(
+    events: Vec<ExtractorMessage>,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut media = Vec::new();
+    for event in events {
+        let ExtractorMessage::Url { url, metadata } = event else {
+            continue;
+        };
+        let parsed = url::Url::parse(&url)?;
+        if !matches!(parsed.scheme(), "http" | "https")
+            || parsed.host_str().is_none()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+        {
+            return Err("job URL contains an unsupported origin or credentials".into());
+        }
+        let filename = metadata
+            .get("filename")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("job URL missing a filename")?;
+        if filename.is_empty()
+            || filename == "."
+            || filename == ".."
+            || filename.len() > 255
+            || crate::safe_filename(filename) != filename
+        {
+            return Err("job URL contains an unsafe filename".into());
+        }
+        let name = metadata
+            .get("extractor")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("job URL missing extractor provenance")?;
+        let extractor = PREVIEW_EXTRACTORS
+            .iter()
+            .find(|(category, _)| *category == name)
+            .map(|(category, _)| *category)
+            .ok_or("job URL uses an unrecognized extractor category")?;
+        let post_id = match metadata.get("post_id") {
+            Some(value) => Some(value.as_u64().ok_or("job post ID must be an unsigned integer")?),
+            None => None,
+        };
+        media.push(MediaItem {
+            url,
+            filename: filename.to_owned(),
+            extractor,
+            post_id,
+        });
+    }
+    Ok(media)
+}
+
+/// Opt-in bounded message-driven file resolution. The normal CLI still uses
+/// the existing independent flattened-item resolver unless selected.
+pub async fn resolve_media_job(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let messages = resolve_messages_traversing(client, input, max_pages, 8, 2).await?;
+    media_from_messages(messages)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
