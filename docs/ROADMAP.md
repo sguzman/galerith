@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 54%` across 77 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 54%` across 78 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -383,6 +383,12 @@
   - [x] Page public searches with ordered ID deduplication and safe pagination metadata — src/extractor/wallhaven.rs two-page localhost search fixture, bad-host filtering, page limits and API metadata assertions; CI 40026953430
   - [x] Verify user-upload query, resource bounds and API-compliant paced requests without embedded API keys — src/extractor/wallhaven.rs @username local HTTP test, 2 MiB response guard fixture, 100-page/2000-media caps, 1400ms request pacing; CI 40026953430
   - [ ] Match all upstream filters, user collections, account auth, rich metadata, naming/archive rules and live differential parity
+- 🗄️ **T534** Wallhaven public user-collection paginated gallery preview — `████████░░ 80%`
+  - [x] Recognize only public favorites collection IDs with valid usernames and no URL credentials — src/extractor/wallhaven.rs collection route matcher and src/extractor/mod.rs registry fixtures; CI 40027542231
+  - [x] Retrieve read-only public /v1/collections/{username}/{id} JSON without API keys — src/extractor/wallhaven.rs localhost endpoint/query/header fixture and safe path inputs; CI 40027542231
+  - [x] Follow bounded collection pages, keep media order and deduplicate repeated image IDs — src/extractor/wallhaven.rs two-page localhost collection HTTP test with original image validation; CI 40027542231
+  - [x] Share controlled page/media/response-size limits and API pacing with public search routes — src/extractor/wallhaven.rs 100-page, 2000-media, 2MiB and 1400ms pacing code covered by integration suite; CI 40027542231
+  - [ ] Port public collection enumeration, advanced filters, authenticated/private collections, metadata/archive parity and live upstream conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
