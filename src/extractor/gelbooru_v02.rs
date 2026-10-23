@@ -53,7 +53,10 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
 }
 
-fn read_xml(data: &str, host: &str) -> Result<(Vec<MediaItem>, usize), Box<dyn Error + Send + Sync>> {
+fn read_xml(
+    data: &str,
+    host: &str,
+) -> Result<(Vec<MediaItem>, usize), Box<dyn Error + Send + Sync>> {
     let document = roxmltree::Document::parse(data)?;
     let root = document.root_element();
     if !root.has_tag_name("posts") {
@@ -296,13 +299,18 @@ mod tests {
     }
     #[tokio::test]
     async fn full_xml_page_with_missing_media_still_requests_next_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let full = format!(
                 "<posts>{}</posts>",
-                (0..100).map(|id| format!("<post id=\"{id}\" file_url=\"\"/>")).collect::<String>()
+                (0..100)
+                    .map(|id| format!("<post id=\"{id}\" file_url=\"\"/>"))
+                    .collect::<String>()
             );
             for (page, body) in [(0, full.as_str()), (1, "<posts></posts>")] {
                 let (mut socket, _) = listener.accept().await.unwrap();
@@ -319,10 +327,13 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let target = Target::Search { host: "safebooru.org".into(), tags: "all".into() };
-        let files = resolve_at_base(&Client::new(), target, 2, &base).await.unwrap();
+        let target = Target::Search {
+            host: "safebooru.org".into(),
+            tags: "all".into(),
+        };
+        let files = resolve_at_base(&Client::new(), target, 2, &base)
+            .await
+            .unwrap();
         assert!(files.is_empty());
         server.await.unwrap();
-    }
-
-}
+    }}
