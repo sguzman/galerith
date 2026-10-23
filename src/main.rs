@@ -4,7 +4,7 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::{resolve, resolve_messages, resolve_messages_traversing, PREVIEW_EXTRACTORS},
+    extractor::{resolve, resolve_media_job, resolve_messages, resolve_messages_traversing, PREVIEW_EXTRACTORS},
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
@@ -106,6 +106,10 @@ struct Cli {
         value_parser = clap::value_parser!(u8).range(1..=4)
     )]
     queue_depth: Option<u8>,
+
+    /// Opt into the bounded two-level typed queue job for downloads/URL output
+    #[arg(long = "follow-queues", conflicts_with = "dump_messages")]
+    follow_queues: bool,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -303,7 +307,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             continue;
         }
-        let items = match resolve(&client, &url, cli.max_pages).await {
+        let extraction = if cli.follow_queues {
+            resolve_media_job(&client, &url, cli.max_pages).await
+        } else {
+            resolve(&client, &url, cli.max_pages).await
+        };
+        let items = match extraction {
             Ok(items) => items,
             Err(error) => {
                 eprintln!(
