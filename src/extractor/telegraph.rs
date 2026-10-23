@@ -20,9 +20,7 @@ pub fn match_url(input: &str) -> Option<Target> {
         return None;
     }
     let url = Url::parse(input).ok()?;
-    if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("telegra.ph" | "www.telegra.ph"))
-    {
+    if url.scheme() != "https" || !matches!(url.host_str(), Some("telegra.ph" | "www.telegra.ph")) {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
@@ -91,7 +89,10 @@ fn article_images(html: &str, base: &Url) -> Vec<MediaItem> {
         .filter_map(|part| part.split_once("</figure>").map(|(figure, _)| figure))
         .collect();
     let sources: Vec<_> = if !figures.is_empty() {
-        figures.iter().filter_map(|figure| first_src(figure)).collect()
+        figures
+            .iter()
+            .filter_map(|figure| first_src(figure))
+            .collect()
     } else {
         html.split("<img")
             .skip(1)
@@ -225,7 +226,10 @@ mod tests {
             let mut buffer = [0_u8; 4096];
             let n = socket.read(&mut buffer).await.unwrap();
             let request = String::from_utf8_lossy(&buffer[..n]);
-            assert!(request.starts_with("GET /Article-03-04 HTTP/1.1"), "{request}");
+            assert!(
+                request.starts_with("GET /Article-03-04 HTTP/1.1"),
+                "{request}"
+            );
             let body = "<figure><img src=\"/file/sample.jpg\"></figure>";
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
