@@ -131,9 +131,14 @@ mod tests {
             ("https://catbox.moe/c/album123", "catbox"),
             ("https://danbooru.donmai.us/posts/123", "danbooru"),
             ("https://e621.net/posts/123", "e621"),
+            ("https://archive.4plebs.org/tg/thread/123", "foolfuuka"),
             (
                 "https://gelbooru.com/index.php?page=post&s=view&id=123",
                 "gelbooru",
+            ),
+            (
+                "https://safebooru.org/index.php?tags=blue+sky&s=list&page=post",
+                "gelbooru_v02",
             ),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
@@ -147,7 +152,7 @@ mod tests {
             assert_eq!(extractor_name(url), Some(expected));
             assert!(names.contains(expected), "undocumented preview: {expected}");
         }
-        assert_eq!(PREVIEW_EXTRACTORS.len(), 11);
+        assert_eq!(PREVIEW_EXTRACTORS.len(), fixtures.len());
     }
 
     #[test]
