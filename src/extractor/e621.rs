@@ -1,6 +1,5 @@
-//! Independent e621-style JSON extractor (initial post and tag-search subset).
-//! E621's upstream extractor includes artists, metadata and auth
-//! variants that are NOT supported by this preview.
+//! Independent e621-style JSON extractor with partial post, pool, feed and artist support.
+//! Full metadata, authentication and upstream semantics are not yet ported.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
@@ -44,14 +43,28 @@ pub fn match_url(input: &str) -> Option<Target> {
     if url.scheme() != "https" {
         return None;
     }
-    let host = url.host_str()?;
-    if !matches!(host, "e621.net" | "e926.net" | "e6ai.net") {
-        return None;
+    let requested_host = url.host_str()?;
+    let host = match requested_host {
+        "e621.net" | "e621.cc" => "e621.net",
+        "e926.net" => "e926.net",
+        "e6ai.net" => "e6ai.net",
+        _ => return None,
     }
-    let host = host.to_owned();
+    .to_owned();
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
-        ["posts", id] => {
+        [""] if requested_host == "e621.cc" => {
+            let tags = url
+                .query_pairs()
+                .find(|(key, _)| key == "tags")
+                .map(|(_, value)| value.into_owned())?;
+            Some(Target::Search { host, tags })
+        }
+        ["p", code] => {
+            let id = u64::from_str_radix(code, 32).ok()?;
+            (id > 0).then_some(Target::Post { host, id })
+        }
+        ["posts", id] | ["post", "show", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id > 0).then_some(Target::Post { host, id })
         }
@@ -483,6 +496,37 @@ mod tests {
             })
         );
         assert!(match_url("https://e621.net/artists/0").is_none());
+        assert_eq!(
+            match_url("https://e621.cc/posts/19"),
+            Some(Target::Post {
+                host: "e621.net".into(),
+                id: 19
+            })
+        );
+        assert_eq!(
+            match_url("https://e621.net/post/show/19"),
+            Some(Target::Post {
+                host: "e621.net".into(),
+                id: 19
+            })
+        );
+        assert_eq!(
+            match_url("https://e621.net/p/d"),
+            Some(Target::Post {
+                host: "e621.net".into(),
+                id: 13
+            })
+        );
+        assert_eq!(
+            match_url("https://e621.cc/?tags=blue+sky"),
+            Some(Target::Search {
+                host: "e621.net".into(),
+                tags: "blue sky".into()
+            })
+        );
+        assert!(match_url("https://e621.net/p/w").is_none());
+        assert!(match_url("https://e621.net/p/0").is_none());
+        assert!(match_url("https://e621.cc/?other=irrelevant").is_none());
         assert_eq!(
             match_url("https://e621.net/artists?search%5Bname%5D=blue&page=2"),
             Some(Target::ArtistSearch {
