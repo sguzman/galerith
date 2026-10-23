@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 52%` across 74 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 53%` across 74 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 65%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 67%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 69%`
+### 🧱 P5 — Shared website families — `███████░░░ 72%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -359,11 +359,11 @@
   - [x] Verify user-photo pagination, deduplication, likes and collection API endpoints — src/extractor/unsplash.rs 20+2 paginated user fixture, separate public likes/collections HTTP fixtures; CI 40016816046
   - [x] Bound response sizes, pagination and media count with malformed-response rejection — src/extractor/unsplash.rs incremental 2 MiB JSON guard, per_page 20, 100-page/2000-media bounds and typed payload checks; CI 40016816046
   - [ ] Port all raw-image variants, complete metadata/dates, formats, archive options and live upstream acceptance
-- 🎨 **T530** Lexica public prompt search POST/cursor extractor preview — `░░░░░░░░░░ 0%`
-  - [ ] Recognize public Lexica search URLs and route only supported patterns
-  - [ ] Issue public POST search requests with accurate payloads and bounded cursor pagination
-  - [ ] Filter invalid image IDs, deduplicate, and preserve ordered JPEG URLs
-  - [ ] Verify 2 MiB response limits, malformed payload rejection and cursor-cycle termination
+- 🎨 **T530** Lexica public prompt search POST/cursor extractor preview — `████████░░ 80%`
+  - [x] Recognize public Lexica search URLs and route only supported patterns — src/extractor/lexica.rs public URL matcher, src/extractor/mod.rs dispatcher and offline URL fixtures; GitHub Actions 40023659175 passed
+  - [x] Issue public POST search requests with accurate payloads and bounded cursor pagination — src/extractor/lexica.rs bounded POST cursor resolver, asserted JSON/Referer HTTP payloads and cycle fixture; GitHub Actions 40023659175 passed
+  - [x] Filter invalid image IDs, deduplicate, and preserve ordered JPEG URLs — src/extractor/lexica.rs safe ID/JPEG filename validation, duplicate suppression and ordered pagination fixtures; GitHub Actions 40023659175 passed
+  - [x] Verify 2 MiB response limits, malformed payload rejection and cursor-cycle termination — src/extractor/lexica.rs 2 MiB response and media caps, malformed JSON schema rejection and complete HTTP fixture reads; GitHub Actions 40023659175 passed
   - [ ] Complete prompt metadata, naming/archive rules and live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
