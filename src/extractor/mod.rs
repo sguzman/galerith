@@ -287,6 +287,9 @@ pub async fn resolve_messages(
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve_messages(client, target).await;
     }
+    if let Some(board) = fourchan::match_board_url(input) {
+        return fourchan::resolve_board_messages(client, &board, max_pages).await;
+    }
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
