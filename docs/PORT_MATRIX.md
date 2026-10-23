@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 9 · Not ported: 263.**
+**Complete: 0 · Partial: 10 · Not ported: 262.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -36,7 +36,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/bellazon.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/bilibili.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/blogger.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/bluesky.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/bluesky.py` | 🟡 Partial | `src/extractor/bluesky.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/booru.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/boosty.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/booth.py` | ⚪ Not ported | — |

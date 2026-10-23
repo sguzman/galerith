@@ -209,9 +209,14 @@
     {
       "path": "gallery_dl/extractor/bluesky.py",
       "module": "bluesky",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/bluesky.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Public Bluesky post and bounded profile-media image extraction through native ATProto JSON APIs; synthetic localhost and dispatcher tests; CI 39990408813 passed; PDS blobs/videos/auth/metadata and complete upstream routing not yet ported"
+      ]
     },
     {
       "path": "gallery_dl/extractor/booru.py",

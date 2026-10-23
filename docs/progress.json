@@ -1146,6 +1146,42 @@
                   "evidence": "src/extractor/foolfuuka.rs; synthetic API and response fixtures; CI 39965026874"
                 }
               ]
+            },
+            {
+              "id": "T513",
+              "emoji": "🦋",
+              "name": "Bluesky public post and media-feed extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize public Bluesky post and profile-media URLs without claiming unsupported routes",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs; src/extractor/mod.rs strict URL and dispatcher fixtures; CI 39990408813"
+                },
+                {
+                  "title": "Parse and validate public CDN images, safe filenames and author DID",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs synthetic image and foreign-author fixtures; CI 39990408813"
+                },
+                {
+                  "title": "Resolve a public post via handle lookup and ATProto thread endpoint",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs two-request local JSON API test; CI 39990408813"
+                },
+                {
+                  "title": "Verify bounded cursor-based profile-media traversal and repost suppression",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs localhost paginated media-feed fixture; CI 39990408813"
+                },
+                {
+                  "title": "Reproduce original PDS blobs, video, quotations, authentication and upstream metadata",
+                  "passed": false
+                },
+                {
+                  "title": "Pass reference differential and opt-in live-site acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 67
             }
           ]
         }
