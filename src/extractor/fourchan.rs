@@ -412,6 +412,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn filtered_board_queues_feed_true_thread_scopes_and_media_projection() {
+        use crate::{
+            extractor::media_from_messages,
+            message::{traverse_queue_job_filtered_with, JobSelection},
+            range::IndexRange,
+        };
+
+        let queues = board_queue_messages(
+            &json!([{"page":1,"threads":[{"no":123},{"no":456}]}]),
+            "g",
+            1,
+        )
+        .unwrap();
+        let selected = JobSelection {
+            files: None,
+            children: Some(IndexRange::parse("2").unwrap()),
+            directories: None,
+        };
+        let events = traverse_queue_job_filtered_with(queues, 1, 8, &selected, |url| async move {
+            assert_eq!(url, "https://boards.4chan.org/g/thread/456");
+            thread_messages(
+                &json!({"posts":[
+                    {"no":456,"tim":90001,"filename":"picture","ext":".jpg"},
+                    {"no":457,"com":"text only"}
+                ]}),
+                "g",
+                456,
+            )
+        })
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 5);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["type"],
+            "queue"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[2]).unwrap()["metadata"]["source_post_id"],
+            456
+        );
+        let files = media_from_messages(events).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "90001 picture.jpg");
+        assert_eq!(files[0].post_id, Some(90001));
+    }
+
+    #[tokio::test]
     async fn board_queue_fetches_only_the_bounded_index_not_child_threads() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
