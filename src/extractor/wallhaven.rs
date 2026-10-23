@@ -226,7 +226,9 @@ fn valid_collection_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 12 && id.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+fn collection_details(
+    data: &Value,
+) -> Result<Vec<(String, Metadata)>, Box<dyn Error + Send + Sync>> {
     if data.get("error").is_some() {
         return Err("Wallhaven collections API returned an error".into());
     }
@@ -237,7 +239,7 @@ fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sy
     if entries.len() > MAX_COLLECTIONS_PER_PAGE {
         return Err("Wallhaven collections page exceeded the record limit".into());
     }
-    let mut ids = Vec::new();
+    let mut result = Vec::new();
     for entry in entries {
         let Some(id) = entry.get("id") else {
             continue;
@@ -247,11 +249,36 @@ fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sy
             Value::Number(value) => value.to_string(),
             _ => continue,
         };
-        if valid_collection_id(&value) {
-            ids.push(value);
+        if !valid_collection_id(&value) {
+            continue;
         }
+        // Preserve only bounded public scalar fields from upstream records;
+        // never forward arbitrary keys into child extractor metadata.
+        let mut metadata = Metadata::new();
+        if let Some(label) = entry.get("label").and_then(Value::as_str) {
+            if !label.is_empty()
+                && label.len() <= 256
+                && !label.chars().any(|ch| ch.is_control())
+            {
+                metadata.insert("label".into(), label.into());
+            }
+        }
+        if let Some(count) = entry.get("count").and_then(Value::as_u64) {
+            metadata.insert("count".into(), count.into());
+        }
+        if let Some(public) = entry.get("public").and_then(Value::as_bool) {
+            metadata.insert("public".into(), public.into());
+        }
+        result.push((value, metadata));
     }
-    Ok(ids)
+    Ok(result)
+}
+
+fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+    Ok(collection_details(data)?
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect())
 }
 
 fn list_next_page(data: &Value, page: u16) -> Result<bool, Box<dyn Error + Send + Sync>> {
@@ -333,13 +360,13 @@ async fn append_regular(
     Ok(())
 }
 
-async fn discover_collection_ids(
+async fn discover_collection_details(
     client: &Client,
     base: &Url,
     user: &str,
     budget: &mut ApiBudget,
     reserve_media_page: bool,
-) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+) -> Result<Vec<(String, Metadata)>, Box<dyn Error + Send + Sync>> {
     let mut ids = Vec::new();
     let mut seen_collections = HashSet::new();
     for page in 1..=MAX_PAGES {
@@ -352,9 +379,9 @@ async fn discover_collection_ids(
         let Some(data) = budget.get(client, endpoint).await? else {
             break;
         };
-        for id in collection_ids(&data)? {
+        for (id, metadata) in collection_details(&data)? {
             if seen_collections.insert(id.clone()) {
-                ids.push(id);
+                ids.push((id, metadata));
                 if ids.len() >= MAX_COLLECTIONS {
                     break;
                 }
@@ -381,10 +408,10 @@ async fn append_user_collections(
     seen_media: &mut HashSet<String>,
     max_items: usize,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let ids = discover_collection_ids(client, base, user, budget, true).await?;
+    let ids = discover_collection_details(client, base, user, budget, true).await?;
     // The downloader still flattens collections. The message-inspection
     // route below preserves their deferred queue boundaries instead.
-    for collection_id in ids {
+    for (collection_id, _) in ids {
         if budget.remaining == 0 || items.len() >= max_items {
             break;
         }
@@ -418,11 +445,11 @@ async fn queue_collections_at_base(
         return Err("invalid Wallhaven username".into());
     }
     let mut budget = ApiBudget::new(max_pages);
-    let ids = discover_collection_ids(client, base, user, &mut budget, false).await?;
-    Ok(ids
+    let details = discover_collection_details(client, base, user, &mut budget, false).await?;
+    Ok(details
         .into_iter()
-        .map(|id| {
-            let mut metadata = Metadata::new();
+        .map(|(id, collection_metadata)| {
+            let mut metadata = collection_metadata;
             metadata.insert("category".into(), "wallhaven".into());
             metadata.insert("subcategory".into(), "collection".into());
             metadata.insert("username".into(), user.into());
@@ -1323,7 +1350,7 @@ mod tests {
             for (expected, body) in [
                 (
                     "/api/v1/collections/example-1",
-                    r#"{"data":[{"id":12345},{"id":"67890"},{"id":12345}],"meta":{"current_page":1,"last_page":2}}"#,
+                    r#"{"data":[{"id":12345,"label":"Public picks","count":42,"public":true,"private_token":"do-not-copy"},{"id":"67890","label":"Other","count":0,"public":false},{"id":12345,"label":"duplicate"}],"meta":{"current_page":1,"last_page":2}}"#,
                 ),
                 (
                     "/api/v1/collections/example-1?page=2",
@@ -1372,6 +1399,15 @@ mod tests {
             assert_eq!(value["metadata"]["username"], "example-1");
             assert_eq!(value["metadata"]["collection_id"], id);
         }
+        let first = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(first["metadata"]["label"], "Public picks");
+        assert_eq!(first["metadata"]["count"], 42);
+        assert_eq!(first["metadata"]["public"], true);
+        assert!(first["metadata"].get("private_token").is_none());
+        let second = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(second["metadata"]["label"], "Other");
+        assert_eq!(second["metadata"]["count"], 0);
+        assert_eq!(second["metadata"]["public"], false);
         server.await.unwrap();
     }
 
