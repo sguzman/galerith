@@ -880,7 +880,8 @@
               "checks": [
                 {
                   "title": "Netscape cookie files",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/cookies.rs; tests/cookie_cli.rs; GitHub Actions 39950715590 (domain/path/TLS scopes and authenticated HTTP integration)"
                 },
                 {
                   "title": "Browser store imports",
@@ -895,7 +896,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 25
             },
             {
               "id": "T802",

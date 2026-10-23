@@ -17,6 +17,7 @@ cargo run -- --dump-json 'https://example.org/sample.jpg'
 cargo run -- --simulate 'https://example.org/sample.jpg'
 cargo run -- --download-archive ./gallery.sqlite -d ./media 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://safebooru.donmai.us/posts/123'
+cargo run -- -C ./cookies.txt 'https://example.org/private.jpg'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
 ```
 
@@ -24,7 +25,7 @@ cargo run -- -d ./media 'https://example.org/sample.jpg'
 
 ## Port tracking
 
-**Overall MVP:** `███░░░░░░░ 32%` (43 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `███░░░░░░░ 33%` (43 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
@@ -39,7 +40,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39949514147](https://github.com/sguzman/galerith/actions/runs/39949514147) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39950715590](https://github.com/sguzman/galerith/actions/runs/39950715590) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 

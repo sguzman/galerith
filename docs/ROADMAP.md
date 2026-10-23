@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███░░░░░░░ 32%` across 43 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███░░░░░░░ 33%` across 43 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -190,13 +190,13 @@
   - [ ] Opt-in live site probes with rate policies
   - [ ] No unsupported claimed-complete category
 
-## 🔐 M4 — Authentication, configuration, processing — `░░░░░░░░░░ 0%`
+## 🔐 M4 — Authentication, configuration, processing — `░░░░░░░░░░ 4%`
 **Acceptance gate:** Cookies, login, config dialects, pipeline transformations, and external integrations reach upstream parity.
 
-### 🪪 P8 — Sessions, cookies and auth — `░░░░░░░░░░ 0%`
+### 🪪 P8 — Sessions, cookies and auth — `█░░░░░░░░░ 8%`
 
-- 🍪 **T801** Cookie jars and browser imports — `░░░░░░░░░░ 0%`
-  - [ ] Netscape cookie files
+- 🍪 **T801** Cookie jars and browser imports — `███░░░░░░░ 25%`
+  - [x] Netscape cookie files — src/cookies.rs; tests/cookie_cli.rs; GitHub Actions 39950715590 (domain/path/TLS scopes and authenticated HTTP integration)
   - [ ] Browser store imports
   - [ ] Domain/path/security semantics
   - [ ] Fixture comparisons

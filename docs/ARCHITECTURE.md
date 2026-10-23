@@ -21,6 +21,7 @@ Currently shipped:
 - `src/lib.rs`: direct-media URL recognition, shared metadata and safe leaf filenames.
 - `src/extractor/`: preliminary site URL dispatch, Danbooru reader and e621/e926/e6ai JSON readers for post and limited tag-search URLs (partial parity only).
 - `src/archive.rs`: native SQLite archive storing hashed URL keys or scoped post IDs after successful downloads (not yet upstream-compatible).
+- `src/cookies.rs`: scoped Netscape-format cookie import, shared by API extraction and downloads. See [cookie support](COOKIES.md).
 - `tests/archive_cli.rs`: native CLI archive persistence and extraction-only side-effect checks.
 - `src/download.rs`: streamed downloads, HTTP validator-bound resumes, content-range validation, bounded retries and per-target advisory locking (see [download policy](DOWNLOADER.md)).
 - `src/archive.rs`: conservative SQLite completed-download ledger, independent of upstream gallery-dl archive representation (see [archive policy](ARCHIVE.md)).
@@ -30,6 +31,6 @@ Currently shipped:
 - `tests/archive_cli.rs`: on-disk archive skip after first successful download, without a second network request.
 - `src/bin/galerith-roadmap.rs`: evidence-backed source-of-truth rendering.
 
-Not yet implemented: generalized extractor registry, complete website families, parent/child message contract, full upstream resume policies, credential/cookie import, authenticated APIs, extraction page caching, template engine, full archive parity, postprocessors, advanced flags and full site coverage.
+Not yet implemented: generalized extractor registry, complete website families, parent/child message contract, full upstream resume policies, browser cookie extraction, site-specific authentication, extraction page caching, template engine, full archive parity, postprocessors, advanced flags and full site coverage.
 
 Keep transport, parsing, per-site authentication and filesystem mutation separate. Modules may share API-family helpers, but every upstream extractor URL behavior is tracked in the port matrix. Do not load or execute Python at runtime. Keep public fixtures synthetic.
