@@ -69,10 +69,7 @@ pub fn match_url(input: &str) -> Option<Target> {
             {
                 return None;
             }
-            let sort = match parts.get(2) {
-                Some(order) => Some((*order).to_owned()),
-                None => None,
-            };
+            let sort = parts.get(2).map(|order| (*order).to_owned());
             Some(Target::Search {
                 query: format!("#{hashtag}"),
                 sort,
