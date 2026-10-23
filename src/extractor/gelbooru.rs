@@ -58,7 +58,7 @@ fn parse_media(value: &Value, base: &Url) -> Option<MediaItem> {
         return None;
     }
     Some(MediaItem {
-        url: url.into(),
+        url: url.to_string(),
         filename: safe_filename(&format!("{id}.{extension}")),
         extractor: "gelbooru",
         post_id: Some(id),
