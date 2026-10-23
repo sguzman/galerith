@@ -1,6 +1,7 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod bluesky;
+pub mod catbox;
 pub mod danbooru;
 pub mod e621;
 pub mod foolfuuka;
@@ -33,6 +34,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
         Some("bluesky")
+    } else if catbox::match_url(input).is_some() {
+        Some("catbox")
     } else if e621::match_url(input).is_some() {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
@@ -81,6 +84,9 @@ pub async fn resolve(
     }
     if let Some(target) = bluesky::match_url(input) {
         return bluesky::resolve(client, target, max_pages).await;
+    }
+    if let Some(target) = catbox::match_url(input) {
+        return catbox::resolve(client, target).await;
     }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
@@ -143,6 +149,14 @@ mod tests {
         assert_eq!(
             extractor_name("https://example.org/a.jpg"),
             Some("directlink")
+        );
+        assert_eq!(
+            extractor_name("https://files.catbox.moe/abc123.jpg"),
+            Some("catbox")
+        );
+        assert_eq!(
+            extractor_name("https://catbox.moe/c/album123"),
+            Some("catbox")
         );
         assert_eq!(
             extractor_name("https://e621.cc/?tags=blue+sky"),
