@@ -296,7 +296,7 @@ mod tests {
             Target::Search {
                 query: "blue sky".into(),
             },
-            2,
+            3,
         )
         .await
         .unwrap();
