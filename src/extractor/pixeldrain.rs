@@ -31,16 +31,19 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
-        ["u", id] | ["api", "file", id] if valid_id(id) => {
-            Some(Target::File { id: (*id).into() })
-        }
+        ["u", id] | ["api", "file", id] if valid_id(id) => Some(Target::File { id: (*id).into() }),
         ["l", id] | ["api", "list", id] if valid_id(id) => {
             let selected = match url.fragment() {
                 Some(raw) => {
                     let number = raw.strip_prefix("item=")?.parse::<usize>().ok()?;
                     (number < MAX_ALBUM_FILES).then_some(number)?
                 }
-                None => return Some(Target::Album { id: (*id).into(), selected: None }),
+                None => {
+                    return Some(Target::Album {
+                        id: (*id).into(),
+                        selected: None,
+                    })
+                }
             };
             Some(Target::Album {
                 id: (*id).into(),
@@ -56,14 +59,16 @@ fn item_from_file(value: &Value) -> Option<MediaItem> {
     if !valid_id(id) {
         return None;
     }
-    let unavailable = value.get("availability").is_some_and(|status| match status {
-        Value::Null => false,
-        Value::Bool(value) => *value,
-        Value::Number(value) => value.as_i64() != Some(0),
-        Value::String(value) => !value.is_empty(),
-        Value::Array(value) => !value.is_empty(),
-        Value::Object(value) => !value.is_empty(),
-    });
+    let unavailable = value
+        .get("availability")
+        .is_some_and(|status| match status {
+            Value::Null => false,
+            Value::Bool(value) => *value,
+            Value::Number(value) => value.as_i64() != Some(0),
+            Value::String(value) => !value.is_empty(),
+            Value::Array(value) => !value.is_empty(),
+            Value::Object(value) => !value.is_empty(),
+        });
     if unavailable {
         return None;
     }
@@ -83,7 +88,10 @@ fn item_from_file(value: &Value) -> Option<MediaItem> {
     })
 }
 
-fn album_media(album: &Value, selected: Option<usize>) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+fn album_media(
+    album: &Value,
+    selected: Option<usize>,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let files = album
         .get("files")
         .and_then(Value::as_array)
@@ -92,7 +100,8 @@ fn album_media(album: &Value, selected: Option<usize>) -> Result<Vec<MediaItem>,
         return Err("Pixeldrain album exceeds supported file bound".into());
     }
     let result = if let Some(index) = selected {
-        files.get(index)
+        files
+            .get(index)
             .and_then(item_from_file)
             .into_iter()
             .collect()
@@ -154,15 +163,23 @@ mod tests {
     fn recognizes_public_urls_and_selected_album_items_only() {
         assert_eq!(
             match_url("https://pixeldrain.com/u/File12"),
-            Some(Target::File { id: "File12".into() })
+            Some(Target::File {
+                id: "File12".into()
+            })
         );
         assert_eq!(
             match_url("https://pixeldrain.com/api/list/abc_99#item=1"),
-            Some(Target::Album { id: "abc_99".into(), selected: Some(1) })
+            Some(Target::Album {
+                id: "abc_99".into(),
+                selected: Some(1)
+            })
         );
         assert_eq!(
             match_url("https://pixeldrain.com/l/abc_99"),
-            Some(Target::Album { id: "abc_99".into(), selected: None })
+            Some(Target::Album {
+                id: "abc_99".into(),
+                selected: None
+            })
         );
         assert!(match_url("https://evil.pixeldrain.com/u/abc").is_none());
         assert!(match_url("http://pixeldrain.com/u/abc").is_none());
@@ -177,7 +194,9 @@ mod tests {
         let item = item_from_file(&value).unwrap();
         assert_eq!(item.filename, "photo one.jpg");
         assert_eq!(item.url, "https://pixeldrain.com/api/file/File12?download");
-        assert!(item_from_file(&json!({"id":"File12","name":"bad","availability":"deleted"})).is_none());
+        assert!(
+            item_from_file(&json!({"id":"File12","name":"bad","availability":"deleted"})).is_none()
+        );
         assert!(item_from_file(&json!({"id":"bad/id","name":"x.jpg"})).is_none());
         let album = json!({"files":[
             {"id":"a","name":"one.jpg","availability":null},
@@ -185,7 +204,10 @@ mod tests {
             {"id":"c","name":"three.webp"}
         ]});
         assert_eq!(album_media(&album, None).unwrap().len(), 2);
-        assert_eq!(album_media(&album, Some(2)).unwrap()[0].filename, "three.webp");
+        assert_eq!(
+            album_media(&album, Some(2)).unwrap()[0].filename,
+            "three.webp"
+        );
         assert!(album_media(&album, Some(1)).unwrap().is_empty());
     }
 
@@ -221,15 +243,24 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let file = resolve_at_base(&Client::new(), &base, Target::File { id: "abc123".into() })
-            .await
-            .unwrap();
+        let file = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::File {
+                id: "abc123".into(),
+            },
+        )
+        .await
+        .unwrap();
         assert_eq!(file.len(), 1);
         assert_eq!(file[0].filename, "standalone.jpg");
         let album = resolve_at_base(
             &Client::new(),
             &base,
-            Target::Album { id: "list123".into(), selected: None },
+            Target::Album {
+                id: "list123".into(),
+                selected: None,
+            },
         )
         .await
         .unwrap();
