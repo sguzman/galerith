@@ -16,6 +16,10 @@ pub enum Target {
         host: String,
         id: u64,
     },
+    Random {
+        host: String,
+        tags: String,
+    },
     Search {
         host: String,
         tags: String,
@@ -74,6 +78,14 @@ pub fn match_url(input: &str) -> Option<Target> {
     let parts: Vec<&str> = url.path_segments()?.collect();
     let host = host.to_owned();
     match parts.as_slice() {
+        ["posts", "random"] | ["posts", "random.json"] => {
+            let tags = url
+                .query_pairs()
+                .find(|(key, _)| key == "tags")
+                .map(|(_, value)| value.into_owned())
+                .unwrap_or_default();
+            Some(Target::Random { host, tags })
+        }
         ["posts", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id != 0).then_some(Target::Post { host, id })
@@ -174,6 +186,7 @@ pub async fn resolve(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let host = match &target {
         Target::Post { host, .. }
+        | Target::Random { host, .. }
         | Target::Search { host, .. }
         | Target::Collection { host, .. }
         | Target::MediaAsset { host, .. }
@@ -425,6 +438,20 @@ async fn resolve_at_base(
         Target::Collection { id, kind, .. } => {
             resolve_collection(client, base, id, kind, max_pages).await
         }
+        Target::Random { tags, .. } => {
+            let mut endpoint = base.join("posts/random.json")?;
+            if !tags.is_empty() {
+                endpoint.query_pairs_mut().append_pair("tags", &tags);
+            }
+            let body: Value = client
+                .get(endpoint)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            post_items(&body, base)
+        }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
             let response = client.get(endpoint).send().await?.error_for_status()?;
@@ -469,6 +496,20 @@ mod tests {
         );
         assert!(match_url("https://danbooru.donmai.us/posts?tags=fox&page=0").is_none());
         assert!(match_url("https://danbooru.donmai.us/posts?tags=fox&page=bogus").is_none());
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/posts/random?tags=blue+fox"),
+            Some(Target::Random {
+                host: "danbooru.donmai.us".into(),
+                tags: "blue fox".into()
+            })
+        );
+        assert_eq!(
+            match_url("https://safebooru.donmai.us/posts/random.json"),
+            Some(Target::Random {
+                host: "safebooru.donmai.us".into(),
+                tags: String::new()
+            })
+        );
         assert_eq!(match_url("https://evil.example/posts/42"), None);
         assert_eq!(match_url("http://danbooru.donmai.us/posts/42"), None);
     }
@@ -774,6 +815,52 @@ mod tests {
             .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].filename, "56.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn random_post_uses_native_json_api_with_optional_tags() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (route, body) in [
+                (
+                    "GET /posts/random.json?tags=blue+fox HTTP/1.1",
+                    r#"{"id":71,"file_url":"https://cdn.example.org/71.jpg","file_ext":"jpg"}"#,
+                ),
+                (
+                    "GET /posts/random.json HTTP/1.1",
+                    r#"[{"id":72,"file_url":"https://cdn.example.org/72.png","file_ext":"png"}]"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(route), "{request}");
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        for (tags, expected_id) in [("blue fox", 71), ("", 72)] {
+            let target = Target::Random {
+                host: "danbooru.donmai.us".into(),
+                tags: tags.into(),
+            };
+            let items = resolve_at_base(&Client::new(), target, 1, &base)
+                .await
+                .unwrap();
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].post_id, Some(expected_id));
+        }
         server.await.unwrap();
     }
 
