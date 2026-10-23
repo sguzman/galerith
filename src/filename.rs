@@ -41,11 +41,15 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     }
     // Small compatible subset: numeric padding, including Python's :>03 form.
     if !matches!(name, "id" | "post_id") {
-        return Err(FormatError(format!("unsupported formatting for field '{name}'")));
+        return Err(FormatError(format!(
+            "unsupported formatting for field '{name}'"
+        )));
     }
     let width = spec.strip_prefix('>').unwrap_or(spec);
     if width.is_empty() || width.len() > 3 || !width.bytes().all(|x| x.is_ascii_digit()) {
-        return Err(FormatError("unsupported numeric formatting specification".into()));
+        return Err(FormatError(
+            "unsupported numeric formatting specification".into(),
+        ));
     }
     let parsed = width
         .parse::<usize>()
@@ -127,10 +131,19 @@ mod tests {
     #[test]
     fn template_basics_and_padding() {
         let item = sample();
-        assert_eq!(render("{category}_{id:>05}.{extension}", &item).unwrap(), "danbooru_00042.webp");
-        assert_eq!(render("{stem}_{{proof}}.{extension}", &item).unwrap(), "original_{proof}.webp");
+        assert_eq!(
+            render("{category}_{id:>05}.{extension}", &item).unwrap(),
+            "danbooru_00042.webp"
+        );
+        assert_eq!(
+            render("{stem}_{{proof}}.{extension}", &item).unwrap(),
+            "original_{proof}.webp"
+        );
         assert_eq!(render("{filename}", &item).unwrap(), "original.webp");
-        assert_eq!(render("第{id:03}集.{extension}", &item).unwrap(), "第042集.webp");
+        assert_eq!(
+            render("第{id:03}集.{extension}", &item).unwrap(),
+            "第042集.webp"
+        );
     }
 
     #[test]
@@ -138,7 +151,10 @@ mod tests {
         let mut item = sample();
         item.post_id = None;
         assert!(render("{id}.jpg", &item).unwrap_err().0.contains("missing"));
-        assert!(render("{url}", &item).unwrap_err().0.contains("unsupported"));
+        assert!(render("{url}", &item)
+            .unwrap_err()
+            .0
+            .contains("unsupported"));
         assert!(render("{filename:02}", &item).is_err());
         assert!(render("{id", &item).is_err());
         assert!(render("{id:{extension}}", &item).is_err());

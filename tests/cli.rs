@@ -61,7 +61,11 @@ fn filename_template_updates_json_without_network() {
         "--dump-json",
         "https://example.org/image.webp",
     ]);
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(item["filename"], "directlink_image.webp");
 }
