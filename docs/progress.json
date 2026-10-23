@@ -1848,6 +1848,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T532",
+              "emoji": "🗂️",
+              "name": "Wikimedia Commons article and category file generators",
+              "checks": [
+                {
+                  "title": "Recognize public Commons articles and Category: pages while excluding unsupported namespaces",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs conservative matcher and src/extractor/mod.rs dispatch fixtures; CI 40026028078"
+                },
+                {
+                  "title": "Use correct MediaWiki Action API generator=images/categorymembers parameters",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs localhost GET query assertions for gimlimit, gcmlimit, gcmtitle and gcmtype; CI 40026028078"
+                },
+                {
+                  "title": "Follow bounded generator continuations, preserve unique media order and reject untrusted upload hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs article and category two-page local HTTP tests, duplicate filtering and trusted URL checks; CI 40026028078"
+                },
+                {
+                  "title": "Reject invalid continuation tokens, bound page/media counts and pace sequential API requests",
+                  "passed": true,
+                  "evidence": "src/extractor/wikimedia.rs 512-byte token validation, cycle detection, 100-page/2000-media limits and 1s request pacing; CI 40026028078"
+                },
+                {
+                  "title": "Support subcategory recursion, cross-wiki hosts, complete metadata/revisions, archive naming and live upstream differential conformance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
