@@ -2,7 +2,10 @@
 //! Wallhaven's public API allows unauthenticated SFW image/search routes.
 //! No default/shared API key, account access, private collections, or live
 //! parity with upstream gallery-dl is claimed.
-use crate::MediaItem;
+use crate::{
+    message::{queued_url, ExtractorMessage, Metadata},
+    MediaItem,
+};
 use reqwest::Client;
 use serde_json::Value;
 use std::{collections::HashSet, error::Error, time::Duration};
@@ -326,14 +329,13 @@ async fn append_regular(
     Ok(())
 }
 
-async fn append_user_collections(
+async fn discover_collection_ids(
     client: &Client,
     base: &Url,
     user: &str,
     budget: &mut ApiBudget,
-    items: &mut Vec<MediaItem>,
-    seen_media: &mut HashSet<String>,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+    reserve_media_page: bool,
+) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
     let mut ids = Vec::new();
     let mut seen_collections = HashSet::new();
     for page in 1..=MAX_PAGES {
@@ -354,13 +356,29 @@ async fn append_user_collections(
                 }
             }
         }
-        // Reserve at least one media-page request for the first collection.
-        if ids.len() >= MAX_COLLECTIONS || budget.remaining <= 1 || !list_next_page(&data, page)? {
+        // Flattened downloads reserve a request for media; a queue-only
+        // inspection can use its whole budget on collection discovery.
+        if ids.len() >= MAX_COLLECTIONS
+            || (reserve_media_page && budget.remaining <= 1)
+            || !list_next_page(&data, page)?
+        {
             break;
         }
     }
-    // This is an intentionally flattened preview. Upstream queues separate
-    // collection extractors, preserving their per-collection metadata.
+    Ok(ids)
+}
+
+async fn append_user_collections(
+    client: &Client,
+    base: &Url,
+    user: &str,
+    budget: &mut ApiBudget,
+    items: &mut Vec<MediaItem>,
+    seen_media: &mut HashSet<String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let ids = discover_collection_ids(client, base, user, budget, true).await?;
+    // The downloader still flattens collections. The message-inspection
+    // route below preserves their deferred queue boundaries instead.
     for collection_id in ids {
         if budget.remaining == 0 || items.len() >= MAX_MEDIA {
             break;
@@ -379,6 +397,44 @@ async fn append_user_collections(
         .await?;
     }
     Ok(())
+}
+
+/// Emit deferred child extractors for public collection indexes, without
+/// fetching their files. This intentionally does not invent collection titles
+/// or metadata absent from the source records.
+async fn queue_collections_at_base(
+    client: &Client,
+    base: &Url,
+    user: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if !valid_user(user) {
+        return Err("invalid Wallhaven username".into());
+    }
+    let mut budget = ApiBudget::new(max_pages);
+    let ids = discover_collection_ids(client, base, user, &mut budget, false).await?;
+    Ok(ids
+        .into_iter()
+        .map(|id| {
+            let mut metadata = Metadata::new();
+            metadata.insert("category".into(), "wallhaven".into());
+            metadata.insert("subcategory".into(), "collection".into());
+            metadata.insert("username".into(), user.into());
+            metadata.insert("collection_id".into(), id.clone().into());
+            queued_url(
+                format!("https://wallhaven.cc/user/{user}/favorites/{id}"),
+                metadata,
+            )
+        })
+        .collect())
+}
+
+pub async fn queued_collections(
+    client: &Client,
+    user: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    queue_collections_at_base(client, &Url::parse(API_ROOT)?, user, max_pages).await
 }
 
 async fn resolve_at_base(
