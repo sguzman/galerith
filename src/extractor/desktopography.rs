@@ -22,7 +22,8 @@ pub enum Target {
 fn valid_slug(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
-        && s.bytes().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'-' | b'_'))
+        && s.bytes()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'-' | b'_'))
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -312,7 +313,10 @@ mod tests {
         let images = portfolio_media(html);
         assert_eq!(images.len(), 2);
         assert_eq!(images[0].filename, "full.jpg");
-        assert_eq!(images[0].url, "https://desktopography.net/wallpapers/first.jpg");
+        assert_eq!(
+            images[0].url,
+            "https://desktopography.net/wallpapers/first.jpg"
+        );
         assert_eq!(images[1].filename, "wide.webp");
     }
 
