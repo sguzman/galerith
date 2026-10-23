@@ -56,12 +56,16 @@ pub fn match_url(input: &str) -> Option<Target> {
             (id > 0).then_some(Target::Post { host, id })
         }
         ["artists"] => {
-            let parameters: Vec<(String, String)> = url.query_pairs()
+            let parameters: Vec<(String, String)> = url
+                .query_pairs()
                 .map(|(key, value)| (key.into_owned(), value.into_owned()))
                 .collect();
-            if parameters.is_empty() || parameters.len() > 16
+            if parameters.is_empty()
+                || parameters.len() > 16
                 || parameters.iter().any(|(key, value)| {
-                    key.is_empty() || key.len() > 64 || value.len() > 512
+                    key.is_empty()
+                        || key.len() > 64
+                        || value.len() > 512
                         || !key.bytes().all(|b| {
                             b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'[' | b']')
                         })
@@ -319,12 +323,18 @@ async fn resolve_artist_search(
     parameters: &[(String, String)],
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let start = parameters.iter().find(|(key, _)| key == "page")
-        .map(|(_, value)| value.parse::<u16>()).transpose()?.unwrap_or(1);
+    let start = parameters
+        .iter()
+        .find(|(key, _)| key == "page")
+        .map(|(_, value)| value.parse::<u16>())
+        .transpose()?
+        .unwrap_or(1);
     let mut output = Vec::new();
     let mut first_artist = true;
     for offset in 0..max_pages.max(1) {
-        let Some(page) = start.checked_add(offset) else { break };
+        let Some(page) = start.checked_add(offset) else {
+            break;
+        };
         if offset > 0 {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -338,12 +348,24 @@ async fn resolve_artist_search(
             }
             query.append_pair("page", &page.to_string());
         }
-        let data: Value = client.get(url).send().await?.error_for_status()?.json().await?;
-        let artists = data.as_array().ok_or("e621 artist search must return an array")?;
+        let data: Value = client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let artists = data
+            .as_array()
+            .ok_or("e621 artist search must return an array")?;
         for artist in artists.iter().take(20) {
-            let Some(name) = artist.get("name").and_then(Value::as_str)
+            let Some(name) = artist
+                .get("name")
+                .and_then(Value::as_str)
                 .filter(|value| !value.is_empty() && value.len() <= 512)
-            else { continue };
+            else {
+                continue;
+            };
             if !first_artist {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -465,7 +487,10 @@ mod tests {
             match_url("https://e621.net/artists?search%5Bname%5D=blue&page=2"),
             Some(Target::ArtistSearch {
                 host: "e621.net".into(),
-                parameters: vec![("search[name]".into(), "blue".into()), ("page".into(), "2".into())],
+                parameters: vec![
+                    ("search[name]".into(), "blue".into()),
+                    ("page".into(), "2".into())
+                ],
             })
         );
         assert!(match_url("https://e621.net/artists?page=0").is_none());
@@ -553,7 +578,10 @@ mod tests {
 
     #[tokio::test]
     async fn artist_search_uses_query_results_to_resolve_post_media() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -580,8 +608,13 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let query = [("search[name]".into(), "blue".into()), ("page".into(), "2".into())];
-        let items = resolve_artist_search(&Client::new(), &base, &query, 1).await.unwrap();
+        let query = [
+            ("search[name]".into(), "blue".into()),
+            ("page".into(), "2".into()),
+        ];
+        let items = resolve_artist_search(&Client::new(), &base, &query, 1)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "88.jpg");
         server.await.unwrap();
