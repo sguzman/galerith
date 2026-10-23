@@ -46,7 +46,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pixeldrain",
         "public file, list and nonrecursive filesystem JSON APIs",
     ),
-    ("telegraph", "public article images and embedded figure filters"),
+    (
+        "telegraph",
+        "public article images and embedded figure filters",
+    ),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
