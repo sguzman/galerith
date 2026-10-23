@@ -6,12 +6,15 @@ use crate::MediaItem;
 use reqwest::Client;
 use serde_json::Value;
 use std::{collections::HashSet, error::Error, time::Duration};
+use tokio::time::Instant;
 use url::Url;
 
 const API_ROOT: &str = "https://wallhaven.cc/api/";
 const MAX_RESPONSE: usize = 2 * 1024 * 1024;
 const MAX_MEDIA: usize = 2000;
 const MAX_PAGES: u16 = 100;
+const MAX_COLLECTIONS: usize = 32;
+const MAX_COLLECTIONS_PER_PAGE: usize = 128;
 // The official public API documents a 45 request/minute limit.
 const PAGE_PACING: Duration = Duration::from_millis(1400);
 
@@ -69,11 +72,7 @@ pub fn match_url(input: &str) -> Option<Target> {
             })
         }
         ["user", user, "favorites", collection_id]
-            if valid_user(user)
-                && !collection_id.is_empty()
-                && collection_id.len() <= 12
-                && collection_id.bytes().all(|b| b.is_ascii_digit())
-                && url.query().is_none() =>
+            if valid_user(user) && valid_collection_id(collection_id) && url.query().is_none() =>
         {
             Some(Target::Collection {
                 user: (*user).into(),
@@ -186,23 +185,101 @@ async fn fetch_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + 
     Ok(serde_json::from_slice(&bytes)?)
 }
 
-async fn resolve_at_base(
+/// Every API request across a user-collection fan-out shares the same finite
+/// budget and pacing timer. Counting individual HTTP requests is important:
+/// max_pages must never accidentally become max_pages * collection_count.
+struct ApiBudget {
+    remaining: u16,
+    last_request: Option<Instant>,
+}
+
+impl ApiBudget {
+    fn new(max_pages: u16) -> Self {
+        Self {
+            remaining: max_pages.clamp(1, MAX_PAGES),
+            last_request: None,
+        }
+    }
+
+    async fn get(
+        &mut self,
+        client: &Client,
+        endpoint: Url,
+    ) -> Result<Option<Value>, Box<dyn Error + Send + Sync>> {
+        if self.remaining == 0 {
+            return Ok(None);
+        }
+        if let Some(last) = self.last_request {
+            tokio::time::sleep_until(last + PAGE_PACING).await;
+        }
+        self.remaining -= 1;
+        self.last_request = Some(Instant::now());
+        Ok(Some(fetch_json(client, endpoint).await?))
+    }
+}
+
+fn valid_collection_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 12 && id.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
+    if data.get("error").is_some() {
+        return Err("Wallhaven collections API returned an error".into());
+    }
+    let entries = data
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or("Wallhaven collections response is not an array")?;
+    if entries.len() > MAX_COLLECTIONS_PER_PAGE {
+        return Err("Wallhaven collections page exceeded the record limit".into());
+    }
+    let mut ids = Vec::new();
+    for entry in entries {
+        let Some(id) = entry.get("id") else {
+            continue;
+        };
+        let value = match id {
+            Value::String(value) => value.clone(),
+            Value::Number(value) => value.to_string(),
+            _ => continue,
+        };
+        if valid_collection_id(&value) {
+            ids.push(value);
+        }
+    }
+    Ok(ids)
+}
+
+fn list_next_page(
+    data: &Value,
+    page: u16,
+) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    let Some(meta) = data.get("meta") else {
+        return Ok(false);
+    };
+    let current = meta
+        .get("current_page")
+        .and_then(Value::as_u64)
+        .ok_or("Wallhaven page index missing")?;
+    let last = meta
+        .get("last_page")
+        .and_then(Value::as_u64)
+        .ok_or("Wallhaven last page missing")?;
+    if current == 0 || current != page as u64 || last < current {
+        return Err("Wallhaven pagination metadata was inconsistent".into());
+    }
+    Ok(current < last)
+}
+
+async fn append_regular(
     client: &Client,
     base: &Url,
     target: &Target,
-    max_pages: u16,
-) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let mut items = Vec::new();
-    let mut seen = HashSet::new();
-    let limit = if matches!(target, Target::Image { .. }) {
-        1
-    } else {
-        max_pages.clamp(1, MAX_PAGES)
-    };
-    for page in 1..=limit {
-        if page > 1 {
-            tokio::time::sleep(PAGE_PACING).await;
-        }
+    budget: &mut ApiBudget,
+    items: &mut Vec<MediaItem>,
+    seen: &mut HashSet<String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    for page in 1..=MAX_PAGES {
         let mut endpoint = match target {
             Target::Image { id } => base.join(&format!("v1/w/{id}"))?,
             Target::Search { .. } | Target::Uploads { .. } => base.join("v1/search")?,
@@ -210,7 +287,7 @@ async fn resolve_at_base(
                 user,
                 collection_id,
             } => base.join(&format!("v1/collections/{user}/{collection_id}"))?,
-            Target::Collections { user } => base.join(&format!("v1/collections/{user}"))?,
+            Target::Collections { .. } => return Err("collection index needs expansion".into()),
         };
         match target {
             Target::Image { .. } => {}
@@ -226,41 +303,100 @@ async fn resolve_at_base(
                     .append_pair("q", &format!("@{user}"))
                     .append_pair("page", &page.to_string());
             }
-            Target::Collection { .. } | Target::Collections { .. } => {
+            Target::Collection { .. } => {
                 endpoint
                     .query_pairs_mut()
                     .append_pair("page", &page.to_string());
             }
+            Target::Collections { .. } => unreachable!(),
         }
-        let data = fetch_json(client, endpoint).await?;
-        let one = matches!(target, Target::Image { .. });
-        for (id, item) in parse_items(&data, one)? {
+        let Some(data) = budget.get(client, endpoint).await? else {
+            break;
+        };
+        for (id, item) in parse_items(&data, matches!(target, Target::Image { .. }))? {
             if seen.insert(id) {
                 items.push(item);
                 if items.len() >= MAX_MEDIA {
-                    return Ok(items);
+                    return Ok(());
                 }
             }
         }
-        if one {
+        if matches!(target, Target::Image { .. }) || !list_next_page(&data, page)? {
             break;
         }
-        let meta = data
-            .get("meta")
-            .ok_or("Wallhaven listing lacks pagination metadata")?;
-        let current = meta
-            .get("current_page")
-            .and_then(Value::as_u64)
-            .ok_or("Wallhaven page index missing")?;
-        let last = meta
-            .get("last_page")
-            .and_then(Value::as_u64)
-            .ok_or("Wallhaven last page missing")?;
-        if current == 0 || current != page as u64 || last < current {
-            return Err("Wallhaven pagination metadata was inconsistent".into());
+    }
+    Ok(())
+}
+
+async fn append_user_collections(
+    client: &Client,
+    base: &Url,
+    user: &str,
+    budget: &mut ApiBudget,
+    items: &mut Vec<MediaItem>,
+    seen_media: &mut HashSet<String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut ids = Vec::new();
+    let mut seen_collections = HashSet::new();
+    for page in 1..=MAX_PAGES {
+        let mut endpoint = base.join(&format!("v1/collections/{user}"))?;
+        if page > 1 {
+            endpoint
+                .query_pairs_mut()
+                .append_pair("page", &page.to_string());
         }
-        if current >= last {
+        let Some(data) = budget.get(client, endpoint).await? else {
             break;
+        };
+        for id in collection_ids(&data)? {
+            if seen_collections.insert(id.clone()) {
+                ids.push(id);
+                if ids.len() >= MAX_COLLECTIONS {
+                    break;
+                }
+            }
+        }
+        if ids.len() >= MAX_COLLECTIONS || !list_next_page(&data, page)? {
+            break;
+        }
+    }
+    // This is an intentionally flattened preview. Upstream queues separate
+    // collection extractors, preserving their per-collection metadata.
+    for collection_id in ids {
+        if budget.remaining == 0 || items.len() >= MAX_MEDIA {
+            break;
+        }
+        append_regular(
+            client,
+            base,
+            &Target::Collection {
+                user: user.to_owned(),
+                collection_id,
+            },
+            budget,
+            items,
+            seen_media,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+async fn resolve_at_base(
+    client: &Client,
+    base: &Url,
+    target: &Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut items = Vec::new();
+    let mut seen = HashSet::new();
+    let mut budget = ApiBudget::new(max_pages);
+    match target {
+        Target::Collections { user } => {
+            append_user_collections(client, base, user, &mut budget, &mut items, &mut seen).await?;
+        }
+        _ => {
+            append_regular(client, base, target, &mut budget, &mut items, &mut seen).await?;
         }
     }
     Ok(items)
