@@ -23,18 +23,25 @@ fn netscape_cookie_flows_to_media_request_without_logging_secret() {
         loop {
             match listener.accept() {
                 Ok((mut socket, _)) => {
-                    socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(3)))
+                        .unwrap();
                     let mut bytes = [0_u8; 4096];
                     let count = socket.read(&mut bytes).unwrap();
                     let request = String::from_utf8_lossy(&bytes[..count]);
-                    assert!(request.to_ascii_lowercase().contains("cookie: session=synthetic-cookie"));
+                    assert!(request
+                        .to_ascii_lowercase()
+                        .contains("cookie: session=synthetic-cookie"));
                     socket.write_all(
                         b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS"
                     ).unwrap();
                     break;
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                    assert!(start.elapsed() < Duration::from_secs(5), "no HTTP request received");
+                    assert!(
+                        start.elapsed() < Duration::from_secs(5),
+                        "no HTTP request received"
+                    );
                     thread::sleep(Duration::from_millis(10));
                 }
                 Err(err) => panic!("unexpected listener failure: {err}"),
@@ -48,14 +55,24 @@ fn netscape_cookie_flows_to_media_request_without_logging_secret() {
     fs::write(
         &cookie_path,
         "127.0.0.1\tFALSE\t/\tFALSE\t0\tsession\tsynthetic-cookie\n",
-    ).unwrap();
+    )
+    .unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--cookies", cookie_path.to_str().unwrap(), "-d", dir.to_str().unwrap()])
+        .args([
+            "--cookies",
+            cookie_path.to_str().unwrap(),
+            "-d",
+            dir.to_str().unwrap(),
+        ])
         .arg(format!("http://{addr}/media.jpg"))
         .output()
         .unwrap();
     server.join().unwrap();
-    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert_eq!(fs::read(dir.join("media.jpg")).unwrap(), b"PASS");
     assert!(!String::from_utf8_lossy(&result.stdout).contains("synthetic-cookie"));
     assert!(!String::from_utf8_lossy(&result.stderr).contains("synthetic-cookie"));
