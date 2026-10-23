@@ -21,6 +21,7 @@ pub mod pixeldrain;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod wallpapercave;
+pub mod webmshare;
 
 use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
@@ -66,6 +67,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "wallpapercave",
         "public wallpaper download and gallery links",
     ),
+    ("webmshare", "public video pages and OG media"),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
@@ -115,6 +117,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("speakerdeck")
     } else if wallpapercave::match_url(input).is_some() {
         Some("wallpapercave")
+    } else if webmshare::match_url(input).is_some() {
+        Some("webmshare")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -202,6 +206,9 @@ pub async fn resolve(
     if let Some(target) = wallpapercave::match_url(input) {
         return wallpapercave::resolve(client, target).await;
     }
+    if let Some(target) = webmshare::match_url(input) {
+        return webmshare::resolve(client, target).await;
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -243,6 +250,7 @@ mod tests {
             ("https://telegra.ph/Article-03-04", "telegraph"),
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
+            ("https://webmshare.com/play/ABc_123", "webmshare"),
             (
                 "https://www.vogue.com/photovogue/photographers/12345",
                 "photovogue",
