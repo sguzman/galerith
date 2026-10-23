@@ -7,6 +7,7 @@ use galerith::{
     extractor::resolve,
     filename::render as render_filename,
     privacy::{display_error, display_url},
+    range::IndexRange,
 };
 use std::{
     error::Error,
@@ -76,6 +77,10 @@ struct Cli {
     /// Print currently implemented extractor names
     #[arg(long)]
     list_extractors: bool,
+
+    /// Select 1-based media indices, e.g. 5, 8-20, 1:24:3
+    #[arg(long = "range", value_name = "RANGE")]
+    file_range: Option<String>,
 
     /// Maximum HTTP retries
     #[arg(short = 'R', long, default_value_t = 4)]
@@ -191,6 +196,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(|path| Archive::open(path))
             .transpose()?
     };
+    let selected = cli.file_range.as_deref().map(IndexRange::parse).transpose()?;
     let mut failed = 0usize;
     for url in urls {
         let items = match resolve(&client, &url, cli.max_pages).await {
@@ -205,7 +211,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 continue;
             }
         };
-        for mut item in items {
+        for (index, mut item) in items.into_iter().enumerate() {
+            if selected.as_ref().is_some_and(|range| !range.contains(index + 1)) {
+                continue;
+            }
             if !cli.get_urls {
                 if let Some(template) = cli
                     .filename_template

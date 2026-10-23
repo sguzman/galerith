@@ -7,6 +7,7 @@ pub mod download;
 pub mod extractor;
 pub mod filename;
 pub mod privacy;
+pub mod range;
 
 use serde::Serialize;
 use url::Url;
