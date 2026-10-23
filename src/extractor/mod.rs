@@ -9,6 +9,7 @@ pub mod fourchan;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod imagebam;
+pub mod imgbb;
 pub mod imgbox;
 pub mod moebooru;
 pub mod philomena;
@@ -33,7 +34,8 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("gelbooru", "public Gelbooru post and tag APIs"),
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
-    ("imagebam", "public image pages and first-page galleries"),
+    ("imagebam", "public image pages and bounded galleries"),
+    ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
@@ -66,6 +68,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("catbox")
     } else if imagebam::match_url(input).is_some() {
         Some("imagebam")
+    } else if imgbb::match_url(input).is_some() {
+        Some("imgbb")
     } else if imgbox::match_url(input).is_some() {
         Some("imgbox")
     } else if e621::match_url(input).is_some() {
@@ -125,6 +129,9 @@ pub async fn resolve(
     if let Some(target) = imagebam::match_url(input) {
         return imagebam::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = imgbb::match_url(input) {
+        return imgbb::resolve(client, target).await;
+    }
     if let Some(target) = imgbox::match_url(input) {
         return imgbox::resolve(client, target).await;
     }
@@ -165,6 +172,7 @@ mod tests {
                 "gelbooru_v02",
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
+            ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
@@ -255,6 +263,10 @@ mod tests {
         assert_eq!(
             extractor_name("https://www.imagebam.com/gallery/album7"),
             Some("imagebam")
+        );
+        assert_eq!(
+            extractor_name("https://ibb.co/someImage12"),
+            Some("imgbb")
         );
         assert_eq!(
             extractor_name("https://e621.cc/?tags=blue+sky"),
