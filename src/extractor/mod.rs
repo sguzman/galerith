@@ -42,7 +42,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("imgpile", "public post media and multiple-image pages"),
-    ("imgth", "public gallery originals and bounded page traversal"),
+    (
+        "imgth",
+        "public gallery originals and bounded page traversal",
+    ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
     (
