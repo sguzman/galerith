@@ -1119,4 +1119,103 @@ mod tests {
             .unwrap()
             .unwrap();
     }
+
+    #[tokio::test]
+    async fn collection_index_emits_deferred_queues_without_downloading() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (expected, body) in [
+                (
+                    "/api/v1/collections/example-1",
+                    r#"{"data":[{"id":12345},{"id":"67890"},{"id":12345}],"meta":{"current_page":1,"last_page":2}}"#,
+                ),
+                (
+                    "/api/v1/collections/example-1?page=2",
+                    r#"{"data":[{"id":"45678"},{"id":"../../evil"}],"meta":{"current_page":2,"last_page":2}}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut chunk = [0_u8; 2048];
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0, "request headers missing");
+                    bytes.extend_from_slice(&chunk[..n]);
+                    assert!(bytes.len() <= 8192);
+                    if bytes.windows(4).any(|part| part == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8(bytes).unwrap();
+                assert!(
+                    request.starts_with(&format!("GET {expected} HTTP/1.1")),
+                    "{request}"
+                );
+                assert!(!request.to_ascii_lowercase().contains("x-api-key:"));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let events = queue_collections_at_base(&Client::new(), &base, "example-1", 2)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 3);
+        for (index, id) in ["12345", "67890", "45678"].into_iter().enumerate() {
+            let value = serde_json::to_value(&events[index]).unwrap();
+            assert_eq!(value["type"], "queue");
+            assert_eq!(
+                value["url"],
+                format!("https://wallhaven.cc/user/example-1/favorites/{id}")
+            );
+            assert_eq!(value["metadata"]["category"], "wallhaven");
+            assert_eq!(value["metadata"]["subcategory"], "collection");
+            assert_eq!(value["metadata"]["username"], "example-1");
+            assert_eq!(value["metadata"]["collection_id"], id);
+        }
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn collection_queue_budget_does_not_request_children() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut req = [0_u8; 2048];
+            let n = socket.read(&mut req).await.unwrap();
+            assert!(String::from_utf8_lossy(&req[..n])
+                .starts_with("GET /api/v1/collections/example-1 HTTP/1.1"));
+            let body = r#"{"data":[{"id":12345},{"id":67890}],"meta":{"current_page":1,"last_page":3}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let events = queue_collections_at_base(&Client::new(), &base, "example-1", 1)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[0], ExtractorMessage::Queue { .. }));
+        server.await.unwrap();
+        assert!(
+            queue_collections_at_base(&Client::new(), &base, "bad/name", 1)
+                .await
+                .is_err()
+        );
+    }
 }
