@@ -495,7 +495,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Nine-host archived-thread extraction preview with local HTTP/JSON fixtures, CI 39962347749; reference parity incomplete"
+        "FoolFuuka pinned host thread and bounded board APIs, synthetic fixtures; CI 39963113023; search, galleries, redirects and metadata not complete"
       ]
     },
     {

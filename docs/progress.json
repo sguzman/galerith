@@ -999,7 +999,7 @@
               "id": "T512",
               "emoji": "🗄️",
               "name": "FoolFuuka archive family thread media preview",
-              "progress": 75,
+              "progress": 80,
               "checks": [
                 {
                   "title": "Match nine pinned archive hosts and strict thread URL forms",
@@ -1019,6 +1019,11 @@
                 {
                   "title": "Complete archive-specific redirects, searches, board/gallery routes and metadata",
                   "passed": false
+                },
+                {
+                  "title": "Verify bounded board listing, explicit page selection and thread recursion",
+                  "passed": true,
+                  "evidence": "src/extractor/foolfuuka.rs; CI 39963113023 (localhost board index, URL parser and full regression suite)"
                 }
               ]
             }

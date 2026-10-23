@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `█████░░░░░ 52%`
+### 🧱 P5 — Shared website families — `█████░░░░░ 53%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -208,11 +208,12 @@
   - [x] Parse representations and fallback media with safe output names — src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804
   - [x] Verify synthetic image and gallery search API requests — src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804
   - [ ] Implement full tags, search filters, auth, SVG rules and upstream metadata
-- 🗄️ **T512** FoolFuuka archive family thread media preview — `████████░░ 75%`
+- 🗄️ **T512** FoolFuuka archive family thread media preview — `████████░░ 80%`
   - [x] Match nine pinned archive hosts and strict thread URL forms — src/extractor/foolfuuka.rs; CI 39962347749
   - [x] Parse ordered replies and validate attachment URLs/filenames — src/extractor/foolfuuka.rs synthetic archive parser fixtures; CI 39962347749
   - [x] Exercise thread JSON API using localhost HTTP fixture — src/extractor/foolfuuka.rs local API test; CI 39962347749
   - [ ] Complete archive-specific redirects, searches, board/gallery routes and metadata
+  - [x] Verify bounded board listing, explicit page selection and thread recursion — src/extractor/foolfuuka.rs; CI 39963113023 (localhost board index, URL parser and full regression suite)
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
