@@ -444,10 +444,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(events.len(), 5);
-        assert_eq!(
-            serde_json::to_value(&events[0]).unwrap()["type"],
-            "queue"
-        );
+        assert_eq!(serde_json::to_value(&events[0]).unwrap()["type"], "queue");
         assert_eq!(
             serde_json::to_value(&events[2]).unwrap()["metadata"]["source_post_id"],
             456
