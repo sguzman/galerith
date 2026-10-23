@@ -9,9 +9,19 @@ use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
-    Post { host: String, id: u64 },
-    Search { host: String, tags: String },
-    Collection { host: String, id: u64, kind: CollectionKind },
+    Post {
+        host: String,
+        id: u64,
+    },
+    Search {
+        host: String,
+        tags: String,
+    },
+    Collection {
+        host: String,
+        id: u64,
+        kind: CollectionKind,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,7 +125,9 @@ pub async fn resolve(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let host = match &target {
-        Target::Post { host, .. } | Target::Search { host, .. } | Target::Collection { host, .. } => host,
+        Target::Post { host, .. }
+        | Target::Search { host, .. }
+        | Target::Collection { host, .. } => host,
     };
     let base = Url::parse(&format!("https://{host}/"))?;
     resolve_at_base(client, target, max_pages, &base).await
@@ -129,7 +141,13 @@ async fn resolve_collection(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/{id}.json", kind.api_path()))?;
-    let metadata: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let metadata: Value = client
+        .get(endpoint)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
     let ordered_ids = metadata
         .get("post_ids")
         .and_then(Value::as_array)
@@ -150,8 +168,16 @@ async fn resolve_collection(
             .append_pair("tags", &format!("{}:{id}", kind.ordered_tag()))
             .append_pair("limit", "50")
             .append_pair("page", &page.to_string());
-        let response: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-        let posts = response.as_array().ok_or("invalid Danbooru collection posts")?;
+        let response: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let posts = response
+            .as_array()
+            .ok_or("invalid Danbooru collection posts")?;
         for media in post_items(&response, base)? {
             if let Some(id) = media.post_id {
                 available.entry(id).or_insert(media);
@@ -164,7 +190,10 @@ async fn resolve_collection(
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
-    Ok(order.into_iter().filter_map(|id| available.get(&id).cloned()).collect())
+    Ok(order
+        .into_iter()
+        .filter_map(|id| available.get(&id).cloned())
+        .collect())
 }
 
 /// Private injection seam for deterministic synthetic server tests. Public
@@ -271,10 +300,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (needle, body) in [
-                (
-                    "GET /pools/42.json HTTP/1.1",
-                    r#"{"post_ids":[8,7,9]}"#,
-                ),
+                ("GET /pools/42.json HTTP/1.1", r#"{"post_ids":[8,7,9]}"#),
                 (
                     "GET /posts.json?tags=ordpool%3A42&limit=50&page=1 HTTP/1.1",
                     r#"[{"id":7,"file_ext":"jpg","file_url":"https://img.example/7.jpg"},{"id":8,"file_ext":"png","file_url":"https://img.example/8.png"},{"id":9,"file_ext":"jpg","file_url":null}]"#,
@@ -293,10 +319,13 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let items = resolve_collection(
-            &Client::new(), &base, 42, CollectionKind::Pool, 4
-        ).await.unwrap();
-        assert_eq!(items.iter().map(|it| it.post_id).collect::<Vec<_>>(), vec![Some(8), Some(7)]);
+        let items = resolve_collection(&Client::new(), &base, 42, CollectionKind::Pool, 4)
+            .await
+            .unwrap();
+        assert_eq!(
+            items.iter().map(|it| it.post_id).collect::<Vec<_>>(),
+            vec![Some(8), Some(7)]
+        );
         assert_eq!(items[0].filename, "8.png");
         server.await.unwrap();
     }
@@ -311,7 +340,10 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (needle, body) in [
-                ("GET /favorite_groups/71.json HTTP/1.1", r#"{"post_ids":[55,54]}"#),
+                (
+                    "GET /favorite_groups/71.json HTTP/1.1",
+                    r#"{"post_ids":[55,54]}"#,
+                ),
                 (
                     "GET /posts.json?tags=ordfavgroup%3A71&limit=50&page=1 HTTP/1.1",
                     r#"[{"id":54,"file_ext":"webm","file_url":"https://img.example/54.webm"},{"id":55,"file_ext":"jpg","file_url":"https://img.example/55.jpg"}]"#,
@@ -330,10 +362,13 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let items = resolve_collection(
-            &Client::new(), &base, 71, CollectionKind::FavoriteGroup, 1
-        ).await.unwrap();
-        assert_eq!(items.iter().map(|it| it.post_id).collect::<Vec<_>>(), vec![Some(55), Some(54)]);
+        let items = resolve_collection(&Client::new(), &base, 71, CollectionKind::FavoriteGroup, 1)
+            .await
+            .unwrap();
+        assert_eq!(
+            items.iter().map(|it| it.post_id).collect::<Vec<_>>(),
+            vec![Some(55), Some(54)]
+        );
         server.await.unwrap();
     }
 
