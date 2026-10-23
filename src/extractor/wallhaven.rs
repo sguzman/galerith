@@ -279,7 +279,11 @@ async fn append_regular(
     budget: &mut ApiBudget,
     items: &mut Vec<MediaItem>,
     seen: &mut HashSet<String>,
+    max_items: usize,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    if items.len() >= max_items {
+        return Ok(());
+    }
     for page in 1..=MAX_PAGES {
         let mut endpoint = match target {
             Target::Image { id } => base.join(&format!("v1/w/{id}"))?,
@@ -317,7 +321,7 @@ async fn append_regular(
         for (id, item) in parse_items(&data, matches!(target, Target::Image { .. }))? {
             if seen.insert(id) {
                 items.push(item);
-                if items.len() >= MAX_MEDIA {
+                if items.len() >= max_items {
                     return Ok(());
                 }
             }
@@ -375,12 +379,13 @@ async fn append_user_collections(
     budget: &mut ApiBudget,
     items: &mut Vec<MediaItem>,
     seen_media: &mut HashSet<String>,
+    max_items: usize,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let ids = discover_collection_ids(client, base, user, budget, true).await?;
     // The downloader still flattens collections. The message-inspection
     // route below preserves their deferred queue boundaries instead.
     for collection_id in ids {
-        if budget.remaining == 0 || items.len() >= MAX_MEDIA {
+        if budget.remaining == 0 || items.len() >= max_items {
             break;
         }
         append_regular(
@@ -393,6 +398,7 @@ async fn append_user_collections(
             budget,
             items,
             seen_media,
+            max_items,
         )
         .await?;
     }
@@ -437,12 +443,14 @@ pub async fn queued_collections(
     queue_collections_at_base(client, &Url::parse(API_ROOT)?, user, max_pages).await
 }
 
-async fn resolve_at_base(
+async fn resolve_at_base_limited(
     client: &Client,
     base: &Url,
     target: &Target,
     max_pages: u16,
+    maximum_items: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let limit = maximum_items.clamp(1, MAX_MEDIA);
     let mut items = Vec::new();
     let mut seen = HashSet::new();
     let mut budget = ApiBudget::new(max_pages);
@@ -453,13 +461,35 @@ async fn resolve_at_base(
     }
     match target {
         Target::Collections { user } => {
-            append_user_collections(client, base, user, &mut budget, &mut items, &mut seen).await?;
+            append_user_collections(client, base, user, &mut budget, &mut items, &mut seen, limit)
+                .await?;
         }
         _ => {
-            append_regular(client, base, target, &mut budget, &mut items, &mut seen).await?;
+            append_regular(client, base, target, &mut budget, &mut items, &mut seen, limit)
+                .await?;
         }
     }
     Ok(items)
+}
+
+/// Bounded native media extraction, stopping API pagination as soon as
+/// the needed number of valid unique wallpapers has been collected.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    maximum_items: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, &Url::parse(API_ROOT)?, &target, max_pages, maximum_items).await
+}
+
+async fn resolve_at_base(
+    client: &Client,
+    base: &Url,
+    target: &Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, base, target, max_pages, MAX_MEDIA).await
 }
 
 pub async fn resolve(
@@ -467,7 +497,7 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base(client, &Url::parse(API_ROOT)?, &target, max_pages).await
+    resolve_at_base_limited(client, &Url::parse(API_ROOT)?, &target, max_pages, MAX_MEDIA).await
 }
 
 #[cfg(test)]
