@@ -243,7 +243,8 @@
                 },
                 {
                   "title": "Add local HTTP fixture tests",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/download_http.rs; GitHub Actions 39898967165 passed"
                 },
                 {
                   "title": "Verify interrupted/large downloads",
@@ -254,7 +255,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             },
             {
               "id": "T202",
@@ -653,6 +654,33 @@
                 }
               ],
               "progress": 25
+            },
+            {
+              "id": "T505",
+              "emoji": "🖌️",
+              "name": "First Danbooru API-backed post and tag extractor",
+              "checks": [
+                {
+                  "title": "Match Danbooru post and tag search URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs; src/extractor/mod.rs"
+                },
+                {
+                  "title": "Parse JSON media records with safe filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs"
+                },
+                {
+                  "title": "Verify synthetic API parser and CLI tests in Linux CI",
+                  "passed": true,
+                  "evidence": "GitHub Actions 39898967165: test and release build passed"
+                },
+                {
+                  "title": "Reproduce complete upstream Danbooru semantics and authentication",
+                  "passed": false
+                }
+              ],
+              "progress": 75
             }
           ]
         }
@@ -1007,7 +1035,8 @@
               "checks": [
                 {
                   "title": "Local fixture server",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/download_http.rs; GitHub Actions 39898967165 passed"
                 },
                 {
                   "title": "Retry/resume/fault injection",
@@ -1022,7 +1051,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 25
             },
             {
               "id": "T1003",

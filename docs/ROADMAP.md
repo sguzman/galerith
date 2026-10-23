@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██░░░░░░░░ 23%` across 41 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███░░░░░░░ 25%` across 42 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,14 +49,14 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██░░░░░░░░ 22%`
+## 🌐 M1 — HTTP, storage and download parity — `███░░░░░░░ 25%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `███░░░░░░░ 25%`
+### 📡 P2 — HTTP transfer engine — `███░░░░░░░ 31%`
 
-- ⬇️ **T201** Stream media downloads — `███░░░░░░░ 25%`
+- ⬇️ **T201** Stream media downloads — `█████░░░░░ 50%`
   - [x] Implement chunked async HTTP writing — src/download.rs
-  - [ ] Add local HTTP fixture tests
+  - [x] Add local HTTP fixture tests — tests/download_http.rs; GitHub Actions 39898967165 passed
   - [ ] Verify interrupted/large downloads
   - [ ] Match upstream downloader behavior
 - 🔄 **T202** Retry, backoff and rate control — `███░░░░░░░ 25%`
@@ -98,7 +98,7 @@
   - [ ] Dedup across URLs/sites
   - [ ] Regression tests for parallel tasks
 
-## 🧩 M2 — Extractor framework and site families — `█░░░░░░░░░ 9%`
+## 🧩 M2 — Extractor framework and site families — `██░░░░░░░░ 17%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `█░░░░░░░░░ 13%`
@@ -124,7 +124,7 @@
   - [ ] Per-site contract assertions
   - [ ] CI compatibility matrix
 
-### 🧱 P5 — Shared website families — `█░░░░░░░░░ 6%`
+### 🧱 P5 — Shared website families — `██░░░░░░░░ 20%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -146,6 +146,11 @@
   - [ ] Match upstream directlink URL matching
   - [ ] Generic gallery discovery and crawling
   - [ ] Full reference fixtures
+- 🖌️ **T505** First Danbooru API-backed post and tag extractor — `████████░░ 75%`
+  - [x] Match Danbooru post and tag search URLs — src/extractor/danbooru.rs; src/extractor/mod.rs
+  - [x] Parse JSON media records with safe filenames — src/extractor/danbooru.rs
+  - [x] Verify synthetic API parser and CLI tests in Linux CI — GitHub Actions 39898967165: test and release build passed
+  - [ ] Reproduce complete upstream Danbooru semantics and authentication
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
@@ -219,18 +224,18 @@
   - [ ] Format selection/variant metadata
   - [ ] End-to-end integration fixtures
 
-## 🚀 M5 — Conformance, release and MVP inauguration — `██░░░░░░░░ 18%`
+## 🚀 M5 — Conformance, release and MVP inauguration — `██░░░░░░░░ 22%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.
 
-### 🧪 P10 — Differential quality assurance — `██░░░░░░░░ 17%`
+### 🧪 P10 — Differential quality assurance — `███░░░░░░░ 25%`
 
 - 🔍 **T1001** Pin and run comparison oracle — `███░░░░░░░ 25%`
   - [x] Document upstream baseline — docs/SOURCE_BASELINE.md
   - [ ] Automated golden CLI corpus
   - [ ] Deterministic extractor comparisons
   - [ ] Signed reproducible reports
-- 🧫 **T1002** Stress, errors and recovery — `░░░░░░░░░░ 0%`
-  - [ ] Local fixture server
+- 🧫 **T1002** Stress, errors and recovery — `███░░░░░░░ 25%`
+  - [x] Local fixture server — tests/download_http.rs; GitHub Actions 39898967165 passed
   - [ ] Retry/resume/fault injection
   - [ ] Large galleries and concurrent ordering
   - [ ] Performance parity limits

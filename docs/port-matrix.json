@@ -316,9 +316,14 @@
     {
       "path": "gallery_dl/extractor/danbooru.py",
       "module": "danbooru",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/danbooru.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Read-only post and bounded tag search preview, CI 39898967165; not full parity"
+      ]
     },
     {
       "path": "gallery_dl/extractor/dandadan.py",
