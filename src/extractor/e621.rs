@@ -30,7 +30,8 @@ pub fn match_url(input: &str) -> Option<Target> {
             (id > 0).then_some(Target::Post { host, id })
         }
         ["posts"] | ["posts.json"] => {
-            let tags = url.query_pairs()
+            let tags = url
+                .query_pairs()
                 .find(|(key, _)| key == "tags")
                 .map(|(_, value)| value.into_owned())
                 .unwrap_or_default();
@@ -52,7 +53,11 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     if !matches!(url.scheme(), "https" | "http") {
         return None;
     }
-    let extractor = if base.host_str() == Some("e6ai.net") { "e6ai" } else { "e621" };
+    let extractor = if base.host_str() == Some("e6ai.net") {
+        "e6ai"
+    } else {
+        "e621"
+    };
     Some(MediaItem {
         url: url.into(),
         filename: safe_filename(&format!("{id}.{ext}")),
@@ -62,15 +67,21 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
 }
 
 fn parse_posts(data: &Value, base: &Url) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let posts = data.get("posts")
+    let posts = data
+        .get("posts")
         .and_then(Value::as_array)
         .ok_or("unexpected e621 posts list response")?;
-    Ok(posts.iter().filter_map(|post| parse_post(post, base)).collect())
+    Ok(posts
+        .iter()
+        .filter_map(|post| parse_post(post, base))
+        .collect())
 }
 
-pub async fn resolve(client: &Client, target: Target, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let host = match &target {
         Target::Post { host, .. } | Target::Search { host, .. } => host,
     };
@@ -79,13 +90,22 @@ pub async fn resolve(client: &Client, target: Target, max_pages: u16)
 }
 
 /// Testing seam: the public router accepts only known upstream hostnames.
-async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+async fn resolve_at_base(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
-            let data: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+            let data: Value = client
+                .get(endpoint)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
             let post = data.get("post").ok_or("missing e621 post object")?;
             Ok(parse_post(post, base).into_iter().collect())
         }
@@ -93,12 +113,20 @@ async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: 
             let mut media = Vec::new();
             for page in 1..=max_pages.max(1) {
                 let mut endpoint = base.join("posts.json")?;
-                endpoint.query_pairs_mut()
+                endpoint
+                    .query_pairs_mut()
                     .append_pair("tags", &tags)
                     .append_pair("limit", "75")
                     .append_pair("page", &page.to_string());
-                let data: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-                let empty = data.get("posts")
+                let data: Value = client
+                    .get(endpoint)
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .json()
+                    .await?;
+                let empty = data
+                    .get("posts")
                     .and_then(Value::as_array)
                     .ok_or("unexpected e621 posts list response")?
                     .is_empty();
@@ -124,11 +152,17 @@ mod tests {
     fn matches_known_host_and_explicit_supported_paths() {
         assert_eq!(
             match_url("https://e621.net/posts/90"),
-            Some(Target::Post { host: "e621.net".into(), id: 90 }),
+            Some(Target::Post {
+                host: "e621.net".into(),
+                id: 90
+            }),
         );
         assert_eq!(
             match_url("https://e926.net/posts?tags=blue+sky"),
-            Some(Target::Search { host: "e926.net".into(), tags: "blue sky".into() }),
+            Some(Target::Search {
+                host: "e926.net".into(),
+                tags: "blue sky".into()
+            }),
         );
         assert_eq!(match_url("https://e621.net/pools/123"), None);
         assert_eq!(match_url("https://not-e621.net/posts/90"), None);
@@ -156,21 +190,32 @@ mod tests {
 
     #[tokio::test]
     async fn resolves_single_post_using_local_fixture() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut connection, _) = listener.accept().await.unwrap();
             let mut buf = [0u8; 2048];
             let count = connection.read(&mut buf).await.unwrap();
-            assert!(String::from_utf8_lossy(&buf[..count]).starts_with("GET /posts/77.json HTTP/1.1"));
-            let body = r#"{"post":{"id":77,"file":{"url":"https://cdn.example.org/77.jpg","ext":"jpg"}}}"#;
+            assert!(
+                String::from_utf8_lossy(&buf[..count]).starts_with("GET /posts/77.json HTTP/1.1")
+            );
+            let body =
+                r#"{"post":{"id":77,"file":{"url":"https://cdn.example.org/77.jpg","ext":"jpg"}}}"#;
             let reply = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{body}", body.len());
             connection.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let target = Target::Post { host: "e621.net".into(), id: 77 };
-        let items = resolve_at_base(&Client::new(), target, 1, &base).await.unwrap();
+        let target = Target::Post {
+            host: "e621.net".into(),
+            id: 77,
+        };
+        let items = resolve_at_base(&Client::new(), target, 1, &base)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "77.jpg");
         server.await.unwrap();
