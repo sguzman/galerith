@@ -4,7 +4,7 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::{resolve, resolve_messages, PREVIEW_EXTRACTORS},
+    extractor::{resolve, resolve_messages, resolve_messages_expanding, PREVIEW_EXTRACTORS},
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
@@ -86,6 +86,18 @@ struct Cli {
         ]
     )]
     dump_messages: bool,
+
+    /// Follow up to 16 distinct queued children by one level (read-only)
+    #[arg(long = "expand-queues", requires = "dump_messages")]
+    expand_queues: bool,
+
+    /// Maximum distinct child queues expanded (defaults to 8)
+    #[arg(
+        long = "max-queue-children",
+        requires = "expand_queues",
+        value_parser = clap::value_parser!(u8).range(1..=16)
+    )]
+    max_queue_children: Option<u8>,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -254,7 +266,18 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut failed = 0usize;
     for url in urls {
         if cli.dump_messages {
-            match resolve_messages(&client, &url, cli.max_pages).await {
+            let events = if cli.expand_queues {
+                resolve_messages_expanding(
+                    &client,
+                    &url,
+                    cli.max_pages,
+                    cli.max_queue_children.unwrap_or(8),
+                )
+                .await
+            } else {
+                resolve_messages(&client, &url, cli.max_pages).await
+            };
+            match events {
                 Ok(events) => {
                     for event in events {
                         println!("{}", serde_json::to_string(&event)?);
