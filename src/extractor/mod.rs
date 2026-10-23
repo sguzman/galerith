@@ -319,6 +319,11 @@ mod tests {
                 "https://wallhaven.cc/user/example-1/favorites/12345",
                 "wallhaven",
             ),
+            (
+                "https://wallhaven.cc/user/example-1/favorites",
+                "wallhaven",
+            ),
+            ("https://wallhaven.cc/user/example-1", "wallhaven"),
             ("https://webmshare.com/play/ABc_123", "webmshare"),
             (
                 "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
