@@ -804,11 +804,12 @@ mod tests {
             children: None,
             directories: Some(IndexRange::parse("2").unwrap()),
         };
-        let events = traverse_queue_job_filtered_with(from_media(items), 0, 0, &filter, |_| async {
-            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
-        })
-        .await
-        .unwrap();
+        let events =
+            traverse_queue_job_filtered_with(from_media(items), 0, 0, &filter, |_| async {
+                Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+            })
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(
             serde_json::to_value(&events[1]).unwrap()["url"],
