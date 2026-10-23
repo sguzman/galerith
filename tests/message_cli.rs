@@ -74,3 +74,52 @@ fn message_mode_uses_redacted_error_diagnostics() {
     assert!(!combined.contains("private-synthetic-token"));
     assert!(combined.contains("no implemented extractor"));
 }
+
+#[test]
+fn expanding_queues_is_opt_in_and_preserves_direct_media_output() {
+    let original = run(&["--dump-messages", "https://example.org/photo.png"]);
+    let expanded = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--max-queue-children",
+        "2",
+        "https://example.org/photo.png",
+    ]);
+    assert!(original.status.success());
+    assert!(
+        expanded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&expanded.stderr)
+    );
+    assert_eq!(original.stdout, expanded.stdout);
+}
+
+#[test]
+fn queue_controls_reject_missing_message_mode_and_unsafe_limits() {
+    for args in [
+        vec!["--expand-queues", "https://example.org/photo.png"],
+        vec![
+            "--dump-messages",
+            "--max-queue-children",
+            "2",
+            "https://example.org/photo.png",
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--max-queue-children",
+            "17",
+            "https://example.org/photo.png",
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--max-queue-children",
+            "0",
+            "https://example.org/photo.png",
+        ],
+    ] {
+        let response = run(&args);
+        assert!(!response.status.success(), "{args:?} should be rejected");
+    }
+}
