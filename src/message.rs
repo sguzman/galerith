@@ -307,4 +307,140 @@ mod tests {
         assert_eq!(calls.get(), 16);
         assert_eq!(expanded, queued);
     }
+
+    #[tokio::test]
+    async fn iterative_job_tracks_directory_scope_and_child_metadata_precedence() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0);
+        let root = vec![
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({
+                    "category":"parent","origin":"root"
+                }))
+                .unwrap(),
+            },
+            queued_url(
+                "https://example.org/a".into(),
+                serde_json::from_value(json!({
+                    "collection_id":"a","category":"wallhaven"
+                }))
+                .unwrap(),
+            ),
+            ExtractorMessage::Url {
+                url: "https://example.org/root.jpg".into(),
+                metadata: Metadata::new(),
+            },
+        ];
+        let events = traverse_queue_job_with(root, 2, 3, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                let items = if url.ends_with("/a") {
+                    vec![
+                        ExtractorMessage::Directory {
+                            metadata: serde_json::from_value(json!({
+                                "category":"child","album":"album A"
+                            }))
+                            .unwrap(),
+                        },
+                        ExtractorMessage::Url {
+                            url: "https://example.org/a.jpg".into(),
+                            metadata: Metadata::new(),
+                        },
+                        queued_url("https://example.org/b".into(), Metadata::new()),
+                    ]
+                } else {
+                    vec![
+                        ExtractorMessage::Url {
+                            url: "https://example.org/b.jpg".into(),
+                            metadata: serde_json::from_value(json!({
+                                "category":"grandchild","filename":"b.jpg"
+                            }))
+                            .unwrap(),
+                        },
+                        // The cycle remains visible but is not traversed.
+                        queued_url("https://example.org/a".into(), Metadata::new()),
+                    ]
+                };
+                Ok::<_, Box<dyn Error + Send + Sync>>(items)
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_eq!(events.len(), 8);
+        let as_json: Vec<Value> = events
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        assert_eq!(as_json[1]["type"], "queue");
+        assert_eq!(as_json[1]["metadata"]["origin"], "root");
+        assert_eq!(as_json[2]["metadata"]["category"], "child");
+        assert_eq!(as_json[2]["metadata"]["collection_id"], "a");
+        assert_eq!(as_json[3]["metadata"]["album"], "album A");
+        assert_eq!(as_json[3]["metadata"]["origin"], "root");
+        assert_eq!(as_json[4]["url"], "https://example.org/b");
+        assert_eq!(as_json[5]["metadata"]["category"], "grandchild");
+        assert_eq!(as_json[5]["metadata"]["collection_id"], "a");
+        assert_eq!(as_json[6]["url"], "https://example.org/a");
+        assert_eq!(as_json[7]["url"], "https://example.org/root.jpg");
+        // Parent scope must not be replaced by a child's active directory.
+        assert_eq!(as_json[7]["metadata"]["category"], "parent");
+        assert_eq!(as_json[7]["metadata"]["origin"], "root");
+        assert!(as_json[7]["metadata"].get("album").is_none());
+    }
+
+    #[tokio::test]
+    async fn queue_depth_zero_and_one_never_fetch_grandchildren() {
+        use std::cell::Cell;
+
+        for depth in [0, 1, 2] {
+            let calls = Cell::new(0);
+            let root = vec![queued_url("https://example.org/a".into(), Metadata::new())];
+            let events = traverse_queue_job_with(root, depth, 16, |url| {
+                calls.set(calls.get() + 1);
+                async move {
+                    Ok::<_, Box<dyn Error + Send + Sync>>(vec![
+                        queued_url(format!("{url}/child"), Metadata::new()),
+                    ])
+                }
+            })
+            .await
+            .unwrap();
+            assert_eq!(calls.get(), usize::from(depth));
+            assert_eq!(events.len(), usize::from(depth) + 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn event_limit_rejects_oversized_root_before_adding_more() {
+        let events = (0..=MAX_JOB_MESSAGES)
+            .map(|_| ExtractorMessage::Directory {
+                metadata: Metadata::new(),
+            })
+            .collect();
+        let err = traverse_queue_job_with(events, 0, 0, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("message limit"));
+    }
+
+    #[tokio::test]
+    async fn excessive_child_batch_is_rejected_before_it_is_inserted() {
+        let root = vec![queued_url("https://example.org/a".into(), Metadata::new())];
+        let err = traverse_queue_job_with(root, 1, 1, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(
+                (0..MAX_JOB_MESSAGES)
+                    .map(|_| ExtractorMessage::Directory {
+                        metadata: Metadata::new(),
+                    })
+                    .collect(),
+            )
+        })
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("remaining message limit"));
+    }
 }
