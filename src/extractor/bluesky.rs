@@ -426,15 +426,7 @@ async fn resolve_at_base(
             .await
         }
         Target::List { id, .. } => {
-            resolve_collection_feed(
-                client,
-                base,
-                &did,
-                &id,
-                CollectionFeed::List,
-                max_pages,
-            )
-            .await
+            resolve_collection_feed(client, base, &did, &id, CollectionFeed::List, max_pages).await
         }
         Target::Avatar { .. } | Target::Banner { .. } => {
             let kind = if matches!(target, Target::Avatar { .. }) {
