@@ -438,6 +438,7 @@ mod tests {
             files: None,
             children: Some(IndexRange::parse("2").unwrap()),
             directories: None,
+            source_posts: None,
         };
         let events = traverse_queue_job_filtered_with(queues, 1, 8, &selected, |url| async move {
             assert_eq!(url, "https://boards.4chan.org/g/thread/456");
