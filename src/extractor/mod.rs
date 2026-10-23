@@ -167,6 +167,7 @@ mod tests {
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
+            ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
             ("https://pixeldrain.com/u/File12", "pixeldrain"),
