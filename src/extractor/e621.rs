@@ -44,13 +44,29 @@ pub fn match_url(input: &str) -> Option<Target> {
 fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     let id = post.get("id")?.as_u64()?;
     let file = post.get("file")?;
-    let raw = file.get("url")?.as_str()?;
     let ext = file.get("ext")?.as_str()?;
     if ext.is_empty() || ext.len() > 16 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
         return None;
     }
-    let url = Url::parse(raw).or_else(|_| base.join(raw)).ok()?;
-    if !matches!(url.scheme(), "https" | "http") {
+    let md5 = file.get("md5").and_then(Value::as_str).filter(|value| {
+        value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    });
+    let media_url = match file.get("url").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        Some(raw) => Url::parse(raw).or_else(|_| base.join(raw)).ok()?,
+        None => {
+            let md5 = md5?;
+            let host = base.host_str()?;
+            if !matches!(host, "e621.net" | "e926.net" | "e6ai.net") {
+                return None;
+            }
+            let path = format!(
+                "https://static1.{host}/data/{}/{}/{}.{}",
+                &md5[..2], &md5[2..4], md5, ext
+            );
+            Url::parse(&path).ok()?
+        }
+    };
+    if !matches!(media_url.scheme(), "https" | "http") {
         return None;
     }
     let extractor = if base.host_str() == Some("e6ai.net") {
@@ -58,9 +74,10 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     } else {
         "e621"
     };
+    let stem = md5.map(str::to_owned).unwrap_or_else(|| id.to_string());
     Some(MediaItem {
-        url: url.into(),
-        filename: safe_filename(&format!("{id}.{ext}")),
+        url: media_url.into(),
+        filename: safe_filename(&format!("{stem}.{ext}")),
         extractor,
         post_id: Some(id),
     })
@@ -185,6 +202,17 @@ mod tests {
         assert_eq!(items[0].filename, "1.png");
         assert_eq!(items[1].url, "https://e621.net/data/4.webp");
         assert_eq!(items[1].post_id, Some(4));
+        let fallback = json!({
+            "posts": [{"id": 19, "file": {
+                "url": null,
+                "md5": "0123456789abcdef0123456789abcdef",
+                "ext": "jpg"
+            }}]
+        });
+        let recovered = parse_posts(&fallback, &base).unwrap();
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].url, "https://static1.e621.net/data/01/23/0123456789abcdef0123456789abcdef.jpg");
+        assert_eq!(recovered[0].filename, "0123456789abcdef0123456789abcdef.jpg");
         assert!(parse_posts(&json!({"posts":{}}), &base).is_err());
     }
 
