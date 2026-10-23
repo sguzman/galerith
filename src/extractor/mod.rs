@@ -2,8 +2,8 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod danbooru;
 pub mod e621;
-pub mod gelbooru;
 pub mod fourchan;
+pub mod gelbooru;
 
 use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
