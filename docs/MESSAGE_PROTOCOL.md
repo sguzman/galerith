@@ -32,6 +32,15 @@ collection IDs. They retain `username`, `collection_id`, `category` and
 `subcategory`. No child galleries are downloaded or traversed in this mode.
 The normal downloader still uses the bounded flattened-media pipeline.
 
+Optional `--expand-queues` follows only the **first level** of deferred
+children in this read-only inspection mode. It preserves each parent `queue`
+message and inserts the selected child's directory/URL messages immediately
+after it. Child URLs are deduplicated, the default child cap is 8, the hard
+cap is 16 (via `--max-queue-children N`), and each child request begins
+after a conservative 1400ms delay. Unexpanded queues remain visible as
+deferred events. Grandchildren are not traversed. This is not gallery-dl's
+full recursive job engine.
+
 The flag is intentionally distinct from upstream command aliases. It
 conflicts with other preview output modes, media ranges, filename overrides,
 archive writing and metadata writing. It creates no local files.
