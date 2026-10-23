@@ -5,6 +5,8 @@ use reqwest::Client;
 use std::{collections::HashSet, error::Error};
 use url::Url;
 
+const MAX_ALBUM_HTML_BYTES: usize = 2 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     File { url: String, filename: String },
@@ -91,13 +93,21 @@ async fn resolve_album_at_base(
     id: &str,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("c/{id}"))?;
-    let page = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
+    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_ALBUM_HTML_BYTES as u64)
+    {
+        return Err("Catbox album HTML exceeds the configured safety bound".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if body.len().saturating_add(chunk.len()) > MAX_ALBUM_HTML_BYTES {
+            return Err("Catbox album HTML exceeds the configured safety bound".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let page = String::from_utf8(body)?;
     Ok(parse_album_html(&page))
 }
 
@@ -162,6 +172,34 @@ mod tests {
         assert_eq!(media.len(), 2);
         assert_eq!(media[0].filename, "one.jpg");
         assert_eq!(media[1].filename, "two.png");
+    }
+
+    #[tokio::test]
+    async fn album_rejects_declared_oversized_http_html() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 2048];
+            let n = socket.read(&mut request).await.unwrap();
+            assert!(
+                String::from_utf8_lossy(&request[..n]).starts_with("GET /c/oversized HTTP/1.1")
+            );
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_ALBUM_HTML_BYTES + 1
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = resolve_album_at_base(&Client::new(), &base, "oversized").await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("safety bound"));
+        server.await.unwrap();
     }
 
     #[tokio::test]
