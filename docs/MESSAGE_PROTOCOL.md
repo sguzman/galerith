@@ -51,8 +51,12 @@ parent media identity cannot contaminate child files.
 **Opt-in file jobs:** `galerith --follow-queues 'URL'` resolves queued children
 to depth two, with at most eight distinct children, then passes **only** typed
 `url` events to the normal downloader/archive/sidecar pipeline. Directory
-and queue messages cannot be misinterpreted as downloadable files. Queued child URLs are also checked for HTTP(S), an absolute host and
-absence of URL credentials **before child extractor dispatch**. Candidate
+and queue messages cannot be misinterpreted as downloadable files. Queued child URLs are also checked for HTTP(S), a recognized native
+**website extractor** (never the arbitrary direct-file fallback), a public
+domain-style hostname rather than an IP address or local hostname, and no
+URL credentials **before child extractor dispatch**. Only approved site URL
+matchers can be followed. This reduces the attack surface; it is not a
+promise of complete DNS-rebinding protection or upstream security parity. Candidate
 file URLs must be HTTP(S), must not contain URL credentials, and require a
 single safe filename and recognized extractor provenance. An offline CLI
 fixture verifies actual HTTP transfer and atomic file creation. This is
