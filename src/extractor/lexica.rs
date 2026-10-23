@@ -69,12 +69,8 @@ fn images(data: &Value, seen: &mut HashSet<String>, limit: usize) -> Vec<MediaIt
 
 fn next_cursor(data: &Value) -> Option<Value> {
     match data.get("nextCursor")? {
-        Value::String(s) if !s.is_empty() && s.len() <= 128 => {
-            Some(Value::String(s.clone()))
-        }
-        Value::Number(n) if n.as_u64().is_some_and(|n| n > 0) => {
-            Some(Value::Number(n.clone()))
-        }
+        Value::String(s) if !s.is_empty() && s.len() <= 128 => Some(Value::String(s.clone())),
+        Value::Number(n) if n.as_u64().is_some_and(|n| n > 0) => Some(Value::Number(n.clone())),
         _ => None,
     }
 }
