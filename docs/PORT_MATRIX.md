@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 13 · Not ported: 259.**
+**Complete: 0 · Partial: 14 · Not ported: 258.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -177,7 +177,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/piczel.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pillowfort.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pinterest.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/pixeldrain.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/pixeldrain.py` | 🟡 Partial | `src/extractor/pixeldrain.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/pixiv.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pixnet.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/plurk.py` | ⚪ Not ported | — |

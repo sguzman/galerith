@@ -1256,9 +1256,14 @@
     {
       "path": "gallery_dl/extractor/pixeldrain.py",
       "module": "pixeldrain",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/pixeldrain.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Pixeldrain files and lists with validated file/album IDs, album item indices, availability handling, bounded JSON, safe filename values and local API fixtures; CI 40001147044 green; auth, ZIP/folders, metadata and live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/pixiv.py",

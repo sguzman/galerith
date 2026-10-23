@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 46%` across 60 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 47%` across 61 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 57%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 59%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `██████░░░░ 64%`
+### 🧱 P5 — Shared website families — `███████░░░ 65%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -274,6 +274,12 @@
   - [x] Resolve gallery and individual image pages through bounded offline HTTP — src/extractor/imagebam.rs three-request gallery localhost HTML fixture, 2MiB page guard; CI 39999653275
   - [ ] Reproduce full gallery pagination, metadata, archive/filename templates and live conformance
   - [x] Verify bounded ImageBam next-page gallery traversal with same-origin, repeated-page and cross-page ordering guards — src/extractor/imagebam.rs same-gallery cursor and two-listing/four-request TCP fixtures, src/extractor/mod.rs max_pages routing; CI 40000286877
+- 🗃️ **T517** Pixeldrain public file and album JSON extractor preview — `████████░░ 80%`
+  - [x] Recognize Pixeldrain public file/album and selected-item URLs conservatively — src/extractor/pixeldrain.rs URL ID/fragment tests, src/extractor/mod.rs dispatch; CI 40001147044
+  - [x] Parse safe public file metadata and skip unavailable media — src/extractor/pixeldrain.rs filename and JSON availability validation tests; CI 40001147044
+  - [x] Extract bounded album file lists and selected index consistently — src/extractor/pixeldrain.rs synthetic albums and selected-index fixtures; CI 40001147044
+  - [x] Verify file info and album JSON endpoint traversal through local HTTP — src/extractor/pixeldrain.rs two-endpoint localhost JSON fixture, 2 MiB response guard; CI 40001147044
+  - [ ] Port authenticated APIs, ZIP exports, folder recursion, metadata and live upstream parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

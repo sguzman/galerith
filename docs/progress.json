@@ -1333,6 +1333,38 @@
                 }
               ],
               "progress": 83
+            },
+            {
+              "id": "T517",
+              "emoji": "🗃️",
+              "name": "Pixeldrain public file and album JSON extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize Pixeldrain public file/album and selected-item URLs conservatively",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs URL ID/fragment tests, src/extractor/mod.rs dispatch; CI 40001147044"
+                },
+                {
+                  "title": "Parse safe public file metadata and skip unavailable media",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs filename and JSON availability validation tests; CI 40001147044"
+                },
+                {
+                  "title": "Extract bounded album file lists and selected index consistently",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs synthetic albums and selected-index fixtures; CI 40001147044"
+                },
+                {
+                  "title": "Verify file info and album JSON endpoint traversal through local HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs two-endpoint localhost JSON fixture, 2 MiB response guard; CI 40001147044"
+                },
+                {
+                  "title": "Port authenticated APIs, ZIP exports, folder recursion, metadata and live upstream parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
