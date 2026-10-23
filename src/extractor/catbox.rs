@@ -186,9 +186,7 @@ mod tests {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut request = [0_u8; 2048];
             let n = socket.read(&mut request).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&request[..n]).starts_with("GET /c/oversized HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&request[..n]).starts_with("GET /c/oversized HTTP/1.1"));
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 MAX_ALBUM_HTML_BYTES + 1
