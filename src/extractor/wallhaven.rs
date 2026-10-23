@@ -1123,6 +1123,29 @@ mod tests {
         .is_err());
     }
 
+    #[test]
+    fn collection_metadata_rejects_invalid_labels_and_untrusted_fields() {
+        let overlong = "x".repeat(257);
+        let response = serde_json::json!({
+            "data": [
+                {"id":1,"label":overlong,"count":"100","public":"true","secret":"private"},
+                {"id":2,"label":"line\nfeed","count":-1,"public":1},
+                {"id":3,"label":"Valid","count":8,"public":true}
+            ]
+        });
+        let details = collection_details(&response).unwrap();
+        assert_eq!(details.len(), 3);
+        assert!(details[0].1.is_empty());
+        assert!(details[1].1.is_empty());
+        assert_eq!(details[2].1["label"], "Valid");
+        assert_eq!(details[2].1["count"], 8);
+        assert_eq!(details[2].1["public"], true);
+        assert_eq!(
+            collection_ids(&response).unwrap(),
+            vec!["1".to_owned(), "2".to_owned(), "3".to_owned()]
+        );
+    }
+
     #[tokio::test]
     async fn public_collection_index_flattens_two_albums_with_global_api_budget() {
         use tokio::{
