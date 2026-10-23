@@ -141,7 +141,8 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
 fn posts_list(data: &Value) -> Result<&[Value], Box<dyn Error + Send + Sync>> {
     let posts = match data {
         Value::Array(posts) => posts,
-        Value::Object(_) => data.get("posts")
+        Value::Object(_) => data
+            .get("posts")
             .and_then(Value::as_array)
             .ok_or("unexpected e621 posts list response")?,
         _ => return Err("unexpected e621 posts list response".into()),
@@ -150,7 +151,8 @@ fn posts_list(data: &Value) -> Result<&[Value], Box<dyn Error + Send + Sync>> {
 }
 
 fn parse_posts(data: &Value, base: &Url) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    Ok(posts_list(data)?.iter()
+    Ok(posts_list(data)?
+        .iter()
         .filter_map(|post| parse_post(post, base))
         .collect())
 }
