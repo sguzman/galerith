@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 58%` across 89 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 58%` across 91 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,10 +119,10 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 72%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 67%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 68%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -206,8 +206,14 @@
   - [x] Filter source-post scopes before file ordinals and isolate identities across queued extractors — src/message.rs source_post_filter_precedes_file_ordinal_selector and child-context tests; CI 40041494175
   - [x] Discover post scopes through bounded ID-unknown board queues while rejecting explicit invalid IDs — src/message.rs board queue and invalid-identity regressions; CI 40041594048
   - [ ] Match all upstream post predicates, queued post-scoping rules and live differential parity
+- ⏩ **T415** Finite validated-media page stop for e621-family public tag searches — `████████░░ 80%`
+  - [x] Pass finite typed-job file ceilings into e621/e926/e6ai public tag searches without changing unrelated routes — src/extractor/mod.rs resolve_messages_bounded, src/extractor/e621.rs resolve_limited; CI 40042426957
+  - [x] Stop further e621 tag-search page requests after enough validated media on a full source page — src/extractor/e621.rs bounded_tag_search_stops_before_next_page_after_valid_media_ceiling; CI 40042426957
+  - [x] Count source posts separately from downloadable media so a full page with missing files still continues — src/extractor/e621.rs bounded_tag_search_ignores_missing_media_before_stopping_page_requests; CI 40042426957
+  - [x] Preserve existing unfiltered e621 pagination and avoid finite pushdown on unsupported pool, artist and feed routes — src/extractor/e621.rs paginate_posts wrapper, resolve_limited Search gate; existing tests and CI 40042426957
+  - [ ] Match complete upstream post/file/child selector and streaming early-stop semantics with live differential parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 73%`
+### 🧱 P5 — Shared website families — `███████░░░ 74%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -456,6 +462,12 @@
   - [x] Route typed board URLs to the native queue engine and verify selective child-thread expansion into real post scopes and media — src/extractor/mod.rs, src/extractor/fourchan.rs filtered_board_queues_feed_true_thread_scopes_and_media_projection; CI 40039969843
   - [x] Bound individual thread JSON bodies to 4 MiB, reject oversized responses, and preserve legacy attachment identity — src/extractor/fourchan.rs thread_json streaming guard/oversized HTTP fixture, source_post_id and tim separation; CI 40040148553
   - [ ] Verify complete upstream 4chan/4channel board and thread queue, post filters, filenames, metadata, login variants and live differential parity
+- 🏞️ **T537** Wallhaven public collection scalar metadata on deferred queues — `████████░░ 80%`
+  - [x] Preserve validated public collection labels, counts and visibility flags in typed collection queue events — src/extractor/wallhaven.rs collection_details, queue_collections_at_base loopback fixture; CI 40042133689
+  - [x] Reject unsafe/oversized labels, mismatched scalar types and arbitrary untrusted upstream collection keys — src/extractor/wallhaven.rs collection_metadata_rejects_invalid_labels_and_untrusted_fields; CI 40042133689
+  - [x] Keep unique collection ID order and first-record metadata while honoring existing page, request and queue caps — src/extractor/wallhaven.rs deduplicated multi-page queue fixture; CI 40042133689
+  - [x] Preserve existing default flattened collection media extraction and test projection — src/extractor/wallhaven.rs append_user_collections, collection_ids and flattened gallery fixtures; CI 40042133689
+  - [ ] Reproduce all pinned upstream collection metadata, inherited queue job semantics and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

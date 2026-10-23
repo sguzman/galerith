@@ -1000,6 +1000,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T415",
+              "emoji": "⏩",
+              "name": "Finite validated-media page stop for e621-family public tag searches",
+              "checks": [
+                {
+                  "title": "Pass finite typed-job file ceilings into e621/e926/e6ai public tag searches without changing unrelated routes",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs resolve_messages_bounded, src/extractor/e621.rs resolve_limited; CI 40042426957"
+                },
+                {
+                  "title": "Stop further e621 tag-search page requests after enough validated media on a full source page",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs bounded_tag_search_stops_before_next_page_after_valid_media_ceiling; CI 40042426957"
+                },
+                {
+                  "title": "Count source posts separately from downloadable media so a full page with missing files still continues",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs bounded_tag_search_ignores_missing_media_before_stopping_page_requests; CI 40042426957"
+                },
+                {
+                  "title": "Preserve existing unfiltered e621 pagination and avoid finite pushdown on unsupported pool, artist and feed routes",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs paginate_posts wrapper, resolve_limited Search gate; existing tests and CI 40042426957"
+                },
+                {
+                  "title": "Match complete upstream post/file/child selector and streaming early-stop semantics with live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
@@ -2298,6 +2330,38 @@
                 },
                 {
                   "title": "Verify complete upstream 4chan/4channel board and thread queue, post filters, filenames, metadata, login variants and live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T537",
+              "emoji": "🏞️",
+              "name": "Wallhaven public collection scalar metadata on deferred queues",
+              "checks": [
+                {
+                  "title": "Preserve validated public collection labels, counts and visibility flags in typed collection queue events",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs collection_details, queue_collections_at_base loopback fixture; CI 40042133689"
+                },
+                {
+                  "title": "Reject unsafe/oversized labels, mismatched scalar types and arbitrary untrusted upstream collection keys",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs collection_metadata_rejects_invalid_labels_and_untrusted_fields; CI 40042133689"
+                },
+                {
+                  "title": "Keep unique collection ID order and first-record metadata while honoring existing page, request and queue caps",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs deduplicated multi-page queue fixture; CI 40042133689"
+                },
+                {
+                  "title": "Preserve existing default flattened collection media extraction and test projection",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs append_user_collections, collection_ids and flattened gallery fixtures; CI 40042133689"
+                },
+                {
+                  "title": "Reproduce all pinned upstream collection metadata, inherited queue job semantics and live differential acceptance",
                   "passed": false
                 }
               ],
