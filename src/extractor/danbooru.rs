@@ -1,16 +1,39 @@
-//! Preliminary Danbooru read-only post and tag query support.
+//! Partial Danbooru read-only post, tag, pool and favorite-group extraction.
 //! API reference: https://safebooru.donmai.us/wiki_pages/api%3Aposts
 //! Module status is PARTIAL until gallery-dl parity is verified.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
-use std::error::Error;
+use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post { host: String, id: u64 },
     Search { host: String, tags: String },
+    Collection { host: String, id: u64, kind: CollectionKind },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollectionKind {
+    Pool,
+    FavoriteGroup,
+}
+
+impl CollectionKind {
+    fn api_path(self) -> &'static str {
+        match self {
+            Self::Pool => "pools",
+            Self::FavoriteGroup => "favorite_groups",
+        }
+    }
+
+    fn ordered_tag(self) -> &'static str {
+        match self {
+            Self::Pool => "ordpool",
+            Self::FavoriteGroup => "ordfavgroup",
+        }
+    }
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -28,6 +51,15 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["posts", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id != 0).then_some(Target::Post { host, id })
+        }
+        ["pools", id] | ["favorite_groups", id] => {
+            let kind = if parts[0] == "pools" {
+                CollectionKind::Pool
+            } else {
+                CollectionKind::FavoriteGroup
+            };
+            let id = id.parse::<u64>().ok()?;
+            (id > 0).then_some(Target::Collection { host, id, kind })
         }
         ["posts"] | ["posts.json"] => {
             let tags = url
@@ -83,10 +115,56 @@ pub async fn resolve(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let host = match &target {
-        Target::Post { host, .. } | Target::Search { host, .. } => host,
+        Target::Post { host, .. } | Target::Search { host, .. } | Target::Collection { host, .. } => host,
     };
     let base = Url::parse(&format!("https://{host}/"))?;
     resolve_at_base(client, target, max_pages, &base).await
+}
+
+async fn resolve_collection(
+    client: &Client,
+    base: &Url,
+    id: u64,
+    kind: CollectionKind,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let endpoint = base.join(&format!("{}/{id}.json", kind.api_path()))?;
+    let metadata: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let ordered_ids = metadata
+        .get("post_ids")
+        .and_then(Value::as_array)
+        .ok_or("Danbooru collection response missing post_ids")?;
+    let mut order = Vec::with_capacity(ordered_ids.len());
+    for id in ordered_ids {
+        order.push(id.as_u64().ok_or("invalid collection post id")?);
+    }
+    if order.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut available: HashMap<u64, MediaItem> = HashMap::new();
+    for page in 1..=max_pages.max(1) {
+        let mut endpoint = base.join("posts.json")?;
+        endpoint
+            .query_pairs_mut()
+            .append_pair("tags", &format!("{}:{id}", kind.ordered_tag()))
+            .append_pair("limit", "50")
+            .append_pair("page", &page.to_string());
+        let response: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        let posts = response.as_array().ok_or("invalid Danbooru collection posts")?;
+        for media in post_items(&response, base)? {
+            if let Some(id) = media.post_id {
+                available.entry(id).or_insert(media);
+            }
+        }
+        if posts.len() < 50 {
+            break;
+        }
+        if page < max_pages {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+    Ok(order.into_iter().filter_map(|id| available.get(&id).cloned()).collect())
 }
 
 /// Private injection seam for deterministic synthetic server tests. Public
@@ -98,6 +176,9 @@ async fn resolve_at_base(
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
+        Target::Collection { id, kind, .. } => {
+            resolve_collection(client, base, id, kind, max_pages).await
+        }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
             let response = client.get(endpoint).send().await?.error_for_status()?;
@@ -155,6 +236,105 @@ mod tests {
         );
         assert_eq!(match_url("https://evil.example/posts/42"), None);
         assert_eq!(match_url("http://danbooru.donmai.us/posts/42"), None);
+    }
+
+    #[test]
+    fn recognizes_collection_routes_and_rejects_unknown_hosts() {
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/pools/42"),
+            Some(Target::Collection {
+                host: "danbooru.donmai.us".into(),
+                id: 42,
+                kind: CollectionKind::Pool,
+            })
+        );
+        assert_eq!(
+            match_url("https://safebooru.donmai.us/favorite_groups/71"),
+            Some(Target::Collection {
+                host: "safebooru.donmai.us".into(),
+                id: 71,
+                kind: CollectionKind::FavoriteGroup,
+            })
+        );
+        assert!(match_url("https://danbooru.donmai.us/pools/0").is_none());
+        assert!(match_url("https://danbooru.donmai.us/pools/42/edit").is_none());
+        assert!(match_url("https://evil.donmai.us/pools/42").is_none());
+    }
+
+    #[tokio::test]
+    async fn pool_uses_collection_post_ids_not_api_reply_order() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                (
+                    "GET /pools/42.json HTTP/1.1",
+                    r#"{"post_ids":[8,7,9]}"#,
+                ),
+                (
+                    "GET /posts.json?tags=ordpool%3A42&limit=50&page=1 HTTP/1.1",
+                    r#"[{"id":7,"file_ext":"jpg","file_url":"https://img.example/7.jpg"},{"id":8,"file_ext":"png","file_url":"https://img.example/8.png"},{"id":9,"file_ext":"jpg","file_url":null}]"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).await.unwrap();
+                let req = String::from_utf8_lossy(&buf[..n]);
+                assert!(req.starts_with(needle), "{req}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let items = resolve_collection(
+            &Client::new(), &base, 42, CollectionKind::Pool, 4
+        ).await.unwrap();
+        assert_eq!(items.iter().map(|it| it.post_id).collect::<Vec<_>>(), vec![Some(8), Some(7)]);
+        assert_eq!(items[0].filename, "8.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn favorite_group_preserves_order_and_skips_missing_items() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                ("GET /favorite_groups/71.json HTTP/1.1", r#"{"post_ids":[55,54]}"#),
+                (
+                    "GET /posts.json?tags=ordfavgroup%3A71&limit=50&page=1 HTTP/1.1",
+                    r#"[{"id":54,"file_ext":"webm","file_url":"https://img.example/54.webm"},{"id":55,"file_ext":"jpg","file_url":"https://img.example/55.jpg"}]"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).await.unwrap();
+                let req = String::from_utf8_lossy(&buf[..n]);
+                assert!(req.starts_with(needle), "{req}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let items = resolve_collection(
+            &Client::new(), &base, 71, CollectionKind::FavoriteGroup, 1
+        ).await.unwrap();
+        assert_eq!(items.iter().map(|it| it.post_id).collect::<Vec<_>>(), vec![Some(55), Some(54)]);
+        server.await.unwrap();
     }
 
     #[test]
