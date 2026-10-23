@@ -1,5 +1,6 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
+pub mod bluesky;
 pub mod danbooru;
 pub mod e621;
 pub mod foolfuuka;
@@ -30,6 +31,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("4chan")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
+    } else if bluesky::match_url(input).is_some() {
+        Some("bluesky")
     } else if e621::match_url(input).is_some() {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
@@ -76,6 +79,9 @@ pub async fn resolve(
     if let Some(target) = gelbooru::match_url(input) {
         return gelbooru::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = bluesky::match_url(input) {
+        return bluesky::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
     }
@@ -93,6 +99,10 @@ mod tests {
         assert_eq!(
             extractor_name("https://danbooru.donmai.us/posts/123"),
             Some("danbooru")
+        );
+        assert_eq!(
+            extractor_name("https://bsky.app/profile/alice.bsky.social/post/3n9"),
+            Some("bluesky")
         );
         assert_eq!(
             extractor_name("https://danbooru.donmai.us/posts/random?tags=fox"),
