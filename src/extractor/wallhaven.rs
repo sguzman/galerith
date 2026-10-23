@@ -1198,7 +1198,8 @@ mod tests {
             let n = socket.read(&mut req).await.unwrap();
             assert!(String::from_utf8_lossy(&req[..n])
                 .starts_with("GET /api/v1/collections/example-1 HTTP/1.1"));
-            let body = r#"{"data":[{"id":12345},{"id":67890}],"meta":{"current_page":1,"last_page":3}}"#;
+            let body =
+                r#"{"data":[{"id":12345},{"id":67890}],"meta":{"current_page":1,"last_page":3}}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
