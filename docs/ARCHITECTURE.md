@@ -26,7 +26,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 
 - `src/lib.rs`: shared `MediaItem` and direct media matcher
 - `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter, Wallhaven deferred collection queues and bounded multi-level inspection and optional queue-driven downloads, but no full gallery-dl recursive queue, metadata, redirect or job compatibility contract
-- `src/message.rs`: typed directory/URL/queue events, bounded iterative job traversal, metadata scope isolation and file/child/directory selection; [job filters](JOB_FILTERS.md) and [post scopes/paging](POST_SCOPES_AND_PAGING.md). [Detailed preview contract](MESSAGE_PROTOCOL.md)
+- `src/message.rs`: typed directory/URL/queue events, bounded iterative job traversal, metadata scope isolation and file/child/directory selection; [job filters](JOB_FILTERS.md) and [post scopes/paging](POST_SCOPES_AND_PAGING.md) and [4chan queue](FOURCHAN_QUEUE.md). [Detailed preview contract](MESSAGE_PROTOCOL.md)
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
 - `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
 - `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
