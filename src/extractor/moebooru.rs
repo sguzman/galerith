@@ -25,9 +25,7 @@ fn site(host: &str) -> Option<(&'static str, &'static str)> {
     match host {
         "yande.re" => Some(("yande.re", "yandere")),
         "konachan.com" | "konachan.net" => Some(("konachan.com", "konachan")),
-        "sakugabooru.com" | "www.sakugabooru.com" => {
-            Some(("www.sakugabooru.com", "sakugabooru"))
-        }
+        "sakugabooru.com" | "www.sakugabooru.com" => Some(("www.sakugabooru.com", "sakugabooru")),
         "lolibooru.moe" => Some(("lolibooru.moe", "lolibooru")),
         _ => None,
     }
@@ -43,33 +41,49 @@ pub fn match_url(input: &str) -> Option<Target> {
     let query = match (path.next()?, path.next(), path.next(), path.next()) {
         ("post", Some("show"), Some(id), None) => {
             let id = id.parse::<u64>().ok()?;
-            if id == 0 { return None; }
+            if id == 0 {
+                return None;
+            }
             Query::Post(id)
         }
         ("pool", Some("show"), Some(id), None) => {
             let id = id.parse::<u64>().ok()?;
-            if id == 0 { return None; }
+            if id == 0 {
+                return None;
+            }
             Query::Pool(id)
         }
         ("post", None, None, None) => {
-            let tags = url.query_pairs()
+            let tags = url
+                .query_pairs()
                 .find(|(k, _)| k == "tags")
                 .map(|(_, v)| v.into_owned())?;
             Query::Tags(tags)
         }
         _ => return None,
     };
-    Some(Target { host, category, query })
+    Some(Target {
+        host,
+        category,
+        query,
+    })
 }
 
-fn parse_items(value: &Value, category: &'static str)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
-    let posts = value.as_array().ok_or("Moebooru JSON API must return an array")?;
+fn parse_items(
+    value: &Value,
+    category: &'static str,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let posts = value
+        .as_array()
+        .ok_or("Moebooru JSON API must return an array")?;
     let mut items = Vec::new();
     for post in posts {
-        let Some(id) = post.get("id").and_then(Value::as_u64) else { continue };
-        let Some(raw) = post.get("file_url").and_then(Value::as_str) else { continue };
+        let Some(id) = post.get("id").and_then(Value::as_u64) else {
+            continue;
+        };
+        let Some(raw) = post.get("file_url").and_then(Value::as_str) else {
+            continue;
+        };
         let Ok(url) = Url::parse(raw) else { continue };
         if !matches!(url.scheme(), "http" | "https") {
             continue;
@@ -80,9 +94,10 @@ fn parse_items(value: &Value, category: &'static str)
         if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|c| c.is_ascii_alphanumeric()) {
             continue;
         }
-        let md5 = post.get("md5").and_then(Value::as_str).filter(|s| {
-            s.len() == 32 && s.bytes().all(|byte| byte.is_ascii_hexdigit())
-        });
+        let md5 = post
+            .get("md5")
+            .and_then(Value::as_str)
+            .filter(|s| s.len() == 32 && s.bytes().all(|byte| byte.is_ascii_hexdigit()));
         let filename = match md5 {
             Some(md5) => format!("{category}_{id}_{md5}.{ext}"),
             None => format!("{category}_{id}.{ext}"),
@@ -97,16 +112,21 @@ fn parse_items(value: &Value, category: &'static str)
     Ok(items)
 }
 
-pub async fn resolve(client: &Client, target: Target, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", target.host))?;
     resolve_at_base(client, target, max_pages, &base).await
 }
 
-async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+async fn resolve_at_base(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let tags = match &target.query {
         Query::Post(id) => format!("id:{id}"),
         Query::Tags(tags) => tags.clone(),
@@ -120,13 +140,18 @@ async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: 
     let mut output = Vec::new();
     for page in 1..=pages {
         let mut endpoint = base.join("post.json")?;
-        endpoint.query_pairs_mut()
+        endpoint
+            .query_pairs_mut()
             .append_pair("tags", &tags)
             .append_pair("limit", "100")
             .append_pair("page", &page.to_string());
         let response = client.get(endpoint).send().await?.error_for_status()?;
         let body: Value = response.json().await?;
-        let short_page = body.as_array().ok_or("Moebooru API returned non-array JSON")?.len() < 100;
+        let short_page = body
+            .as_array()
+            .ok_or("Moebooru API returned non-array JSON")?
+            .len()
+            < 100;
         output.extend(parse_items(&body, target.category)?);
         if short_page || matches!(target.query, Query::Post(_)) {
             break;
@@ -147,15 +172,27 @@ mod tests {
     fn matches_only_known_hosts_and_supported_routes() {
         assert_eq!(
             match_url("https://konachan.net/post/show/123"),
-            Some(Target { host: "konachan.com", category: "konachan", query: Query::Post(123) })
+            Some(Target {
+                host: "konachan.com",
+                category: "konachan",
+                query: Query::Post(123)
+            })
         );
         assert_eq!(
             match_url("https://yande.re/post?tags=sky+blue"),
-            Some(Target { host: "yande.re", category: "yandere", query: Query::Tags("sky blue".into()) })
+            Some(Target {
+                host: "yande.re",
+                category: "yandere",
+                query: Query::Tags("sky blue".into())
+            })
         );
         assert_eq!(
             match_url("https://www.sakugabooru.com/pool/show/25"),
-            Some(Target { host: "www.sakugabooru.com", category: "sakugabooru", query: Query::Pool(25) })
+            Some(Target {
+                host: "www.sakugabooru.com",
+                category: "sakugabooru",
+                query: Query::Pool(25)
+            })
         );
         assert!(match_url("https://lolibooru.moe/post/show/0").is_none());
         assert!(match_url("https://yande.re/post/popular_by_day").is_none());
@@ -174,14 +211,20 @@ mod tests {
         ]);
         let files = parse_items(&posts, "konachan").unwrap();
         assert_eq!(files.len(), 2);
-        assert_eq!(files[0].filename, "konachan_9_0123456789abcdef0123456789abcdef.jpg");
+        assert_eq!(
+            files[0].filename,
+            "konachan_9_0123456789abcdef0123456789abcdef.jpg"
+        );
         assert_eq!(files[1].filename, "konachan_10.webm");
         assert!(parse_items(&json!({"posts": []}), "konachan").is_err());
     }
 
     #[tokio::test]
     async fn local_post_api_uses_expected_id_filter() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -200,15 +243,24 @@ mod tests {
             socket.write_all(answer.as_bytes()).await.unwrap();
         });
         let api = Url::parse(&format!("http://{addr}/")).unwrap();
-        let target = Target { host: "yande.re", category: "yandere", query: Query::Post(44) };
-        let files = resolve_at_base(&Client::new(), target, 1, &api).await.unwrap();
+        let target = Target {
+            host: "yande.re",
+            category: "yandere",
+            query: Query::Post(44),
+        };
+        let files = resolve_at_base(&Client::new(), target, 1, &api)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].filename, "yandere_44.webp");
         server.await.unwrap();
     }
     #[tokio::test]
     async fn pool_query_resolves_bounded_page_and_skips_missing_media() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -232,10 +284,11 @@ mod tests {
             category: "konachan",
             query: Query::Pool(25),
         };
-        let files = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        let files = resolve_at_base(&Client::new(), target, 3, &api)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].filename, "konachan_44.png");
         server.await.unwrap();
     }
-
 }
