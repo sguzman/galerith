@@ -35,7 +35,9 @@ The normal downloader still uses the bounded flattened-media pipeline by default
 Optional `--expand-queues --queue-depth N` follows **one to four levels**
 of deferred children in this read-only inspection mode (default depth 1).
 It preserves parent `queue` events and inserts child events in depth-first
-order. Child URLs are deduplicated across the job, the default child cap is
+order. Child URLs are deduplicated across the job using normalized URL identities
+(hostname case and fragment aliases do not bypass cycle detection; query
+parameters remain significant), the default child cap is
 8, the hard cap is 16 (`--max-queue-children N`), the global event cap is
 8192, and every child starts after a conservative 1400ms delay. Child
 extractor pages are bounded separately to at most four. Unexpanded queues
@@ -49,7 +51,8 @@ parent media identity cannot contaminate child files.
 **Opt-in file jobs:** `galerith --follow-queues 'URL'` resolves queued children
 to depth two, with at most eight distinct children, then passes **only** typed
 `url` events to the normal downloader/archive/sidecar pipeline. Directory
-and queue messages cannot be misinterpreted as downloadable files. Candidate
+and queue messages cannot be misinterpreted as downloadable files. Queued child URLs are also checked for HTTP(S), an absolute host and
+absence of URL credentials **before child extractor dispatch**. Candidate
 file URLs must be HTTP(S), must not contain URL credentials, and require a
 single safe filename and recognized extractor provenance. An offline CLI
 fixture verifies actual HTTP transfer and atomic file creation. This is
