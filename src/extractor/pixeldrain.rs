@@ -98,9 +98,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
         ["u", id] | ["api", "file", id] if valid_id(id) => Some(Target::File { id: (*id).into() }),
-        ["api", "list", id, "zip"] if valid_id(id) => {
-            Some(Target::AlbumZip { id: (*id).into() })
-        }
+        ["api", "list", id, "zip"] if valid_id(id) => Some(Target::AlbumZip { id: (*id).into() }),
         ["d", rest @ ..] | ["api", "filesystem", rest @ ..] if !rest.is_empty() => {
             let path = safe_folder_path(&rest.join("/"))?;
             Some(Target::Folder { path })
@@ -421,11 +419,8 @@ mod tests {
 
     #[test]
     fn zip_preview_uses_album_title_and_no_implicit_authentication() {
-        let result = album_zip_item(
-            &json!({"id":"sample","title":"Summer photos"}),
-            "sample",
-        )
-        .unwrap();
+        let result =
+            album_zip_item(&json!({"id":"sample","title":"Summer photos"}), "sample").unwrap();
         assert_eq!(result.filename, "Summer photos.zip");
         assert_eq!(result.url, "https://pixeldrain.com/api/list/sample/zip");
         assert_eq!(
@@ -448,10 +443,8 @@ mod tests {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut request = [0_u8; 4096];
             let size = socket.read(&mut request).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&request[..size])
-                    .starts_with("GET /api/list/album1 HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&request[..size])
+                .starts_with("GET /api/list/album1 HTTP/1.1"));
             let body = r#"{"id":"album1","title":"An album","file_count":3}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
