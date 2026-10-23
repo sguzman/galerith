@@ -89,8 +89,9 @@ fn slide_media(html: &str) -> Vec<MediaItem> {
         if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
             continue;
         }
+        let filename = safe_filename(name);
         if seen.insert(url.to_string()) {
-            urls.push((url, safe_filename(name)));
+            urls.push((url, filename));
         }
     }
     let padding = urls.len().max(1).to_string().len().max(2);
