@@ -369,10 +369,12 @@ mod tests {
 
     #[test]
     fn retry_after_accepts_delta_seconds_and_http_dates() {
-        let now = std::time::SystemTime::UNIX_EPOCH
-            + Duration::from_secs(1_445_412_480 - 15);
+        let now = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_445_412_480 - 15);
         assert_eq!(parse_retry_after("5", now), Some(Duration::from_secs(5)));
-        assert_eq!(parse_retry_after("9999", now), Some(Duration::from_secs(60)));
+        assert_eq!(
+            parse_retry_after("9999", now),
+            Some(Duration::from_secs(60))
+        );
         assert_eq!(
             parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT", now),
             Some(Duration::from_secs(15))
