@@ -1,6 +1,6 @@
 # Galerith 🖼️🦀
 
-**A complete Rust-native port of [gallery-dl](https://github.com/mikf/gallery-dl).**
+**A Rust-native port in progress targeting complete [gallery-dl](https://github.com/mikf/gallery-dl) compatibility.**
 
 ![Galerith archival-jade project color](assets/galerith-color.svg)
 
@@ -15,6 +15,7 @@ cargo run -- --list-extractors
 cargo run -- --get-urls 'https://example.org/sample.jpg'
 cargo run -- --dump-json 'https://example.org/sample.jpg'
 cargo run -- --simulate 'https://example.org/sample.jpg'
+cargo run -- --get-urls 'https://safebooru.donmai.us/posts/123'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
 ```
 
@@ -37,7 +38,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39898967165](https://github.com/sguzman/galerith/actions/runs/39898967165) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39899209978](https://github.com/sguzman/galerith/actions/runs/39899209978) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 
