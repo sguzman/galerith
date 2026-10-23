@@ -4,6 +4,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 
 | Feature | Native preview support | Outstanding parity |
 |---|---|---|
+| Wallhaven | Public wallpaper detail, q-only search and uploads through documented v1 API, with bounded JSON and approved full-image hosts (CI 40026953430) | Full advanced search parameters, collections, API-key authentication, rich metadata and upstream archive naming |
 | Wikimedia Commons | Public File: pages and article/category image lists through official Action API, approved upload CDN links, guarded pagination and identified requests (CI 40026028078) | Other Wikimedia and MediaWiki hosts, recursive subcategories, full file revisions, rich metadata/license attribution, upstream archive and filename behavior |
 | Lexica | Public prompt-image search over bounded JSON POST/cursor API; validated JPEG IDs and deduplication (CI 40023659175) | Full prompt metadata, upstream archive/filename templates, authentication and live behavior |
 | Basic direct links | HTTP(S) image/video/doc extensions | Complete directlink selection and MIME handling |
