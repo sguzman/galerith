@@ -7,6 +7,7 @@ use galerith::{
     extractor::resolve,
     filename::render as render_filename,
     privacy::{display_error, display_url},
+    postprocess::write_metadata,
     range::IndexRange,
 };
 use std::{
@@ -81,6 +82,10 @@ struct Cli {
     /// Select 1-based media indices, e.g. 5, 8-20, 1:24:3
     #[arg(long = "range", value_name = "RANGE")]
     file_range: Option<String>,
+
+    /// Write a JSON sidecar for each saved or existing media file
+    #[arg(long = "write-metadata")]
+    write_metadata: bool,
 
     /// Maximum HTTP retries
     #[arg(short = 'R', long, default_value_t = 4)]
@@ -257,6 +262,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             } else {
                 match download(&client, &item, &options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
+                        if cli.write_metadata {
+                            write_metadata(&path, &item).await?;
+                        }
                         if let Some(ref archive) = archive {
                             archive.record(&item)?;
                         }
@@ -265,6 +273,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                     }
                     Ok(DownloadOutcome::Skipped(path)) => {
+                        if cli.write_metadata {
+                            write_metadata(&path, &item).await?;
+                        }
                         if !cli.quiet {
                             println!("skipped {}", path.display());
                         }
