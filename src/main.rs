@@ -4,7 +4,7 @@ use galerith::{
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
-    extractor::{resolve, resolve_messages, resolve_messages_expanding, PREVIEW_EXTRACTORS},
+    extractor::{resolve, resolve_messages, resolve_messages_traversing, PREVIEW_EXTRACTORS},
     filename::render as render_filename,
     postprocess::write_metadata,
     privacy::{display_error, display_url},
@@ -98,6 +98,14 @@ struct Cli {
         value_parser = clap::value_parser!(u8).range(1..=16)
     )]
     max_queue_children: Option<u8>,
+
+    /// Follow up to four queue levels (defaults to one in inspection mode)
+    #[arg(
+        long = "queue-depth",
+        requires = "expand_queues",
+        value_parser = clap::value_parser!(u8).range(1..=4)
+    )]
+    queue_depth: Option<u8>,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -267,11 +275,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     for url in urls {
         if cli.dump_messages {
             let events = if cli.expand_queues {
-                resolve_messages_expanding(
+                resolve_messages_traversing(
                     &client,
                     &url,
                     cli.max_pages,
                     cli.max_queue_children.unwrap_or(8),
+                    cli.queue_depth.unwrap_or(1),
                 )
                 .await
             } else {
