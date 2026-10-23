@@ -3,11 +3,7 @@ use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
     extract_direct_media,
 };
-use std::{
-    fs,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -110,7 +106,9 @@ async fn leaves_no_target_on_404() {
         .timeout(Duration::from_secs(5))
         .build()
         .unwrap();
-    assert!(download(&client, &item, &options(dir.clone())).await.is_err());
+    assert!(download(&client, &item, &options(dir.clone()))
+        .await
+        .is_err());
     assert!(!dir.join("missing.jpg").exists());
     assert!(!dir.join("missing.jpg.part").exists());
     server.await.unwrap();
