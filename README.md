@@ -25,6 +25,7 @@ cargo run -- -C ./cookies.txt 'https://example.org/private.jpg'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
 cargo run -- -f '{category}_{filename}' --range '1:5:2' --simulate 'https://example.org/sample.jpg'
 cargo run -- -c ./config.toml --write-metadata 'https://example.org/sample.jpg'
+cargo run -- -a 'MyAgent/1.0' --proxy 'http://127.0.0.1:8080' 'https://example.org/sample.jpg'
 ```
 
 `galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, existing-file skips, and a native SQLite download archive. See [HTTP recovery guarantees](docs/DOWNLOADER.md), [SQLite archive behavior](docs/ARCHIVE.md), and [format/config/metadata boundaries](docs/COMPATIBILITY.md). Missing upstream features include many options, nearly all site-specific extraction, advanced filename templates and metadata vocabularies, browser cookie importing and site-specific auth, complete resume/archive parity, most postprocessors, and reference JSON message parity. Basic JSON/YAML/TOML configuration, Netscape cookie files, index ranges, filename fields and redacted JSON metadata sidecars are partial previews. Supported preliminary booru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
@@ -46,7 +47,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39954702418](https://github.com/sguzman/galerith/actions/runs/39954702418) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39956648701](https://github.com/sguzman/galerith/actions/runs/39956648701) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 
