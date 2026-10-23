@@ -283,15 +283,10 @@ mod tests {
             );
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let output = resolve_at_base_limited(
-            &Client::new(),
-            Target::Search("sky".into()),
-            10,
-            &base,
-            1,
-        )
-        .await
-        .unwrap();
+        let output =
+            resolve_at_base_limited(&Client::new(), Target::Search("sky".into()), 10, &base, 1)
+                .await
+                .unwrap();
         assert_eq!(output.len(), 1);
         assert_eq!(output[0].post_id, Some(1));
         server.await.unwrap();
@@ -331,15 +326,10 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let output = resolve_at_base_limited(
-            &Client::new(),
-            Target::Search("sky".into()),
-            3,
-            &base,
-            2,
-        )
-        .await
-        .unwrap();
+        let output =
+            resolve_at_base_limited(&Client::new(), Target::Search("sky".into()), 3, &base, 2)
+                .await
+                .unwrap();
         assert_eq!(
             output.iter().map(|item| item.post_id).collect::<Vec<_>>(),
             vec![Some(1), Some(101)]
