@@ -31,7 +31,7 @@ pub mod wikimedia;
 
 use crate::{
     extract_direct_media,
-    message::{expand_queues_with, from_media, ExtractorMessage},
+    message::{from_media, traverse_queue_job_with, ExtractorMessage},
     MediaItem,
 };
 use reqwest::Client;
@@ -287,22 +287,37 @@ pub async fn resolve_messages(
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
-/// Opt-in, one-level expansion for message inspection. The parent queue
-/// messages remain in the stream; child extractors are resolved read-only.
-/// A conservative inter-child delay prevents rapid back-to-back API calls.
-/// Complete recursive job traversal and cross-site rate scheduling are pending.
+/// Opt-in, bounded queue traversal for message inspection. Parent queue
+/// events are retained; child resolvers inherit metadata scopes, with child
+/// fields taking precedence. This is not a full gallery-dl download job.
+pub async fn resolve_messages_traversing(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    max_children: u8,
+    depth: u8,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let events = resolve_messages(client, input, max_pages).await?;
+    traverse_queue_job_with(events, depth, max_children as usize, |url| async move {
+        if extractor_name(&url).is_none() {
+            return Err("queued URL has no supported native extractor".into());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
+        // Bound every queued child's page count independently; per-site
+        // extractors may issue more than one API request per page.
+        resolve_messages(client, &url, max_pages.min(4)).await
+    })
+    .await
+}
+
+/// Backward-compatible one-level queue preview (no recursive grandchildren).
 pub async fn resolve_messages_expanding(
     client: &Client,
     input: &str,
     max_pages: u16,
     max_children: u8,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let events = resolve_messages(client, input, max_pages).await?;
-    expand_queues_with(events, max_children as usize, |url| async move {
-        tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
-        resolve_messages(client, &url, max_pages).await
-    })
-    .await
+    resolve_messages_traversing(client, input, max_pages, max_children, 1).await
 }
 
 #[cfg(test)]
