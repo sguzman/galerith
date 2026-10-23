@@ -57,7 +57,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "imgth",
         "public gallery originals and bounded page traversal",
     ),
-    ("lightroom", "public Lightroom shared albums and image renditions"),
+    (
+        "lightroom",
+        "public Lightroom shared albums and image renditions",
+    ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
     ("photovogue", "public photographer photo API feeds"),
