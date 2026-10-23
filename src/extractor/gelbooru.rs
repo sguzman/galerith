@@ -65,6 +65,17 @@ fn parse_media(value: &Value, base: &Url) -> Option<MediaItem> {
     })
 }
 
+/// API pagination counts source posts, including posts with no usable file.
+fn source_post_count(value: &Value) -> Result<usize, Box<dyn Error + Send + Sync>> {
+    match value.get("post") {
+        Some(Value::Array(posts)) => Ok(posts.len()),
+        Some(Value::Object(_)) => Ok(1),
+        Some(Value::Null) => Ok(0),
+        Some(_) => Err("unsupported Gelbooru API post representation".into()),
+        None => Err("missing post key in Gelbooru API response".into()),
+    }
+}
+
 fn parse_posts(value: &Value, base: &Url) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let Some(data) = value.get("post") else {
         return Err("missing post key in Gelbooru API response".into());
@@ -146,8 +157,9 @@ async fn resolve_at_base_limited(
         }
         let response = client.get(url).send().await?.error_for_status()?;
         let body: Value = response.json().await?;
+        let source_count = source_post_count(&body)?;
         let fresh = parse_posts(&body, base)?;
-        let done = fresh.is_empty() || matches!(target, Target::Post(_)) || fresh.len() < 100;
+        let done = matches!(target, Target::Post(_)) || source_count < 100;
         let remaining = media_limit.saturating_sub(items.len());
         items.extend(fresh.into_iter().take(remaining));
         // In particular, never schedule another API page after the requested
