@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 41%` across 54 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 41%` across 55 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `████░░░░░░ 43%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 45%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `█████░░░░░ 48%`
+### 🧱 P5 — Shared website families — `█████░░░░░ 50%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -203,6 +203,11 @@
   - [x] Parse synthetic JSON media and validate metadata-driven filenames — src/extractor/moebooru.rs synthetic JSON unit fixtures; CI 39960525151
   - [x] Verify post and pool API queries with localhost HTTP fixtures — src/extractor/moebooru.rs synthetic server tests; CI 39960525151
   - [ ] Reproduce popular, complete pool metadata and upstream auth/format semantics
+- 🦄 **T511** Philomena JSON API images, searches and galleries preview — `████████░░ 75%`
+  - [x] Match only pinned Philomena host and supported routes — src/extractor/philomena.rs; GitHub Actions 39961510804
+  - [x] Parse representations and fallback media with safe output names — src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804
+  - [x] Verify synthetic image and gallery search API requests — src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804
+  - [ ] Implement full tags, search filters, auth, SVG rules and upstream metadata
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

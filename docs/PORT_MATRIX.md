@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 7 · Not ported: 265.**
+**Complete: 0 · Partial: 8 · Not ported: 264.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -168,7 +168,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/paheal.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/patreon.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pexels.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/philomena.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/philomena.py` | 🟡 Partial | `src/extractor/philomena.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/pholder.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/photovogue.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/picarto.py` | ⚪ Not ported | — |

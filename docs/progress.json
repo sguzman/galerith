@@ -967,6 +967,33 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T511",
+              "emoji": "🦄",
+              "name": "Philomena JSON API images, searches and galleries preview",
+              "progress": 75,
+              "checks": [
+                {
+                  "title": "Match only pinned Philomena host and supported routes",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs; GitHub Actions 39961510804"
+                },
+                {
+                  "title": "Parse representations and fallback media with safe output names",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804"
+                },
+                {
+                  "title": "Verify synthetic image and gallery search API requests",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804"
+                },
+                {
+                  "title": "Implement full tags, search filters, auth, SVG rules and upstream metadata",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

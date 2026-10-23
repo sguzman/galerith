@@ -10,8 +10,9 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | `gelbooru` | `gelbooru.com` individual post and tag search pages | Public JSON post and bounded tag-search request | Pools, favorites, redirects, auth, filename and metadata semantics |
 | `gelbooru_v02` | Five pinned XML/DAPI hostnames and post/tag-search pages | XML post and bounded tag-search requests | Full pool/favorites/auth/metadata and host-specific media handling |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search and pool posts | Popular feeds, metadata, auth and complete upstream naming |
+| `philomena` | `derpibooru.org`, `ponybooru.org`, `furbooru.org` | JSON images, bounded search and galleries | Full auth, filters, tags, metadata and SVG handling |
 | `4chan` | `boards.4chan.org` and `boards.4channel.org` threads and board listings | Thread attachments, board page-to-thread recursion and duplicate thread ID suppression | Upstream directory templates, metadata, edge-case formats and full archival semantics |
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 39960525151](https://github.com/sguzman/galerith/actions/runs/39960525151) (Moebooru and entire current offline suite).
+**Verified integration:** [CI 39961510804](https://github.com/sguzman/galerith/actions/runs/39961510804) (Philomena and all existing offline regression tests).

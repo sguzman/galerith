@@ -1162,9 +1162,14 @@
     {
       "path": "gallery_dl/extractor/philomena.py",
       "module": "philomena",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/philomena.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Three host family image/search/gallery subset, synthetic HTTP and parser CI 39961510804; upstream parity remains open"
+      ]
     },
     {
       "path": "gallery_dl/extractor/pholder.py",
