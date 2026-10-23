@@ -471,8 +471,7 @@ mod tests {
             let mut buf = [0_u8; 4096];
             let count = socket.read(&mut buf).await.unwrap();
             assert!(
-                String::from_utf8_lossy(&buf[..count])
-                    .starts_with("GET /g/threads.json HTTP/1.1")
+                String::from_utf8_lossy(&buf[..count]).starts_with("GET /g/threads.json HTTP/1.1")
             );
             let body = r#"[{"page":1,"threads":[{"no":123},{"no":456}]}]"#;
             let response = format!(
