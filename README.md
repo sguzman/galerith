@@ -6,7 +6,7 @@
 
 **Color:** `#90D8AA` · `oklch(82.22% 0.0973 155.6)` ([rationale](docs/COLOR.md)).
 
-> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Bluesky public posts/replies/media/search/feeds, Catbox, Imgbox, ImgBB, Imgpile, Imgth, ImageBam, Pixeldrain, Telegraph, Speaker Deck, WallpaperCave, Comedy Wildlife Photography, PhotoVogue, Webmshare, Desktopography, Lightroom, Unsplash, Lexica (CI pending), Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, Moebooru, Philomena, FoolFuuka archives (threads, bounded boards, galleries and search), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
+> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Bluesky public posts/replies/media/search/feeds, Catbox, Imgbox, ImgBB, Imgpile, Imgth, ImageBam, Pixeldrain, Telegraph, Speaker Deck, WallpaperCave, Comedy Wildlife Photography, PhotoVogue, Webmshare, Desktopography, Lightroom, Unsplash, Lexica, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, Moebooru, Philomena, FoolFuuka archives (threads, bounded boards, galleries and search), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
 
 ## Native CLI preview
 
@@ -34,11 +34,11 @@ cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 
 ## Port tracking
 
-**Overall MVP:** `█████░░░░░ 52%` (74 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `█████░░░░░ 53%` (74 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
-The extractor matrix tracks 272 pinned upstream Python files; this inventory is **not** a site count. No file is marked fully ported without acceptance evidence. Lexica has an implementation preview pending CI, with no new acceptance checks credited.
+The extractor matrix tracks 272 pinned upstream Python files; this inventory is **not** a site count. No file is marked fully ported without acceptance evidence. Lexica's public POST/cursor preview has four CI-backed accepted checks; complete upstream parity remains open.
 
 ## Development
 
@@ -49,7 +49,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 40016816046](https://github.com/sguzman/galerith/actions/runs/40016816046) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 40023659175](https://github.com/sguzman/galerith/actions/runs/40023659175) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo. Push CI publishes a `galerith/rust-ci` commit status for machine-readable verification.
 
 ## License
 
