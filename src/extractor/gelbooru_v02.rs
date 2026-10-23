@@ -30,7 +30,8 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let host = url.host_str()?;
     category(host)?;
-    let params: HashMap<_, _> = url.query_pairs()
+    let params: HashMap<_, _> = url
+        .query_pairs()
         .map(|(name, value)| (name.into_owned(), value.into_owned()))
         .collect();
     if params.get("page")?.as_str() != "post" {
@@ -39,7 +40,10 @@ pub fn match_url(input: &str) -> Option<Target> {
     match params.get("s")?.as_str() {
         "view" => {
             let id = params.get("id")?.parse::<u64>().ok()?;
-            (id > 0).then_some(Target::Post { host: host.into(), id })
+            (id > 0).then_some(Target::Post {
+                host: host.into(),
+                id,
+            })
         }
         "list" => Some(Target::Search {
             host: host.into(),
@@ -125,7 +129,8 @@ async fn resolve_at_base(
         let mut endpoint = api.join("index.php")?;
         {
             let mut query = endpoint.query_pairs_mut();
-            query.append_pair("page", "dapi")
+            query
+                .append_pair("page", "dapi")
                 .append_pair("s", "post")
                 .append_pair("q", "index");
             match &target {
@@ -133,7 +138,8 @@ async fn resolve_at_base(
                     query.append_pair("id", &id.to_string());
                 }
                 Target::Search { tags, .. } => {
-                    query.append_pair("tags", tags)
+                    query
+                        .append_pair("tags", tags)
                         .append_pair("limit", "100")
                         .append_pair("pid", &page.to_string());
                 }
@@ -161,20 +167,39 @@ mod tests {
     #[test]
     fn recognizes_five_pinned_xml_api_hosts_only() {
         for host in [
-            "rule34.xxx", "safebooru.org", "tbib.org", "hypnohub.net", "xbooru.com",
+            "rule34.xxx",
+            "safebooru.org",
+            "tbib.org",
+            "hypnohub.net",
+            "xbooru.com",
         ] {
             assert_eq!(
                 match_url(&format!("https://{host}/index.php?id=11&s=view&page=post")),
-                Some(Target::Post { host: host.into(), id: 11 }),
+                Some(Target::Post {
+                    host: host.into(),
+                    id: 11
+                }),
             );
         }
         assert_eq!(
             match_url("https://safebooru.org/index.php?tags=blue+sky&s=list&page=post"),
-            Some(Target::Search { host: "safebooru.org".into(), tags: "blue sky".into() }),
+            Some(Target::Search {
+                host: "safebooru.org".into(),
+                tags: "blue sky".into()
+            }),
         );
-        assert_eq!(match_url("https://safebooru.donmai.us/index.php?page=post&s=view&id=1"), None);
-        assert_eq!(match_url("http://tbib.org/index.php?page=post&s=view&id=1"), None);
-        assert_eq!(match_url("https://rule34.xxx/index.php?page=pool&s=show&id=1"), None);
+        assert_eq!(
+            match_url("https://safebooru.donmai.us/index.php?page=post&s=view&id=1"),
+            None
+        );
+        assert_eq!(
+            match_url("http://tbib.org/index.php?page=post&s=view&id=1"),
+            None
+        );
+        assert_eq!(
+            match_url("https://rule34.xxx/index.php?page=pool&s=show&id=1"),
+            None
+        );
     }
 
     #[test]
@@ -196,7 +221,10 @@ mod tests {
 
     #[tokio::test]
     async fn post_query_uses_xml_dapi_endpoint_on_synthetic_server() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let server_socket = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = server_socket.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -216,8 +244,13 @@ mod tests {
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let api = Url::parse(&format!("http://{address}/")).unwrap();
-        let target = Target::Post { host: "tbib.org".into(), id: 44 };
-        let output = resolve_at_base(&Client::new(), target, 1, &api).await.unwrap();
+        let target = Target::Post {
+            host: "tbib.org".into(),
+            id: 44,
+        };
+        let output = resolve_at_base(&Client::new(), target, 1, &api)
+            .await
+            .unwrap();
         assert_eq!(output.len(), 1);
         assert_eq!(output[0].filename, "44.png");
         server.await.unwrap();
