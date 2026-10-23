@@ -53,14 +53,16 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
 }
 
-fn read_xml(data: &str, host: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+fn read_xml(data: &str, host: &str) -> Result<(Vec<MediaItem>, usize), Box<dyn Error + Send + Sync>> {
     let document = roxmltree::Document::parse(data)?;
     let root = document.root_element();
     if !root.has_tag_name("posts") {
         return Err("unrecognized Gelbooru v0.2 XML response".into());
     }
     let mut items = Vec::new();
+    let mut post_count = 0;
     for post in root.children().filter(|node| node.has_tag_name("post")) {
+        post_count += 1;
         let Some(id) = post.attribute("id").and_then(|raw| raw.parse::<u64>().ok()) else {
             continue;
         };
@@ -90,7 +92,7 @@ fn read_xml(data: &str, host: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Se
             post_id: Some(id),
         });
     }
-    Ok(items)
+    Ok((items, post_count))
 }
 
 pub async fn resolve(
@@ -139,7 +141,7 @@ async fn resolve_at_base(
                 }
                 Target::Search { tags, .. } => {
                     query
-                        .append_pair("tags", tags)
+                        .append_pair("tags", if tags == "all" { "" } else { tags })
                         .append_pair("limit", "100")
                         .append_pair("pid", &page.to_string());
                 }
@@ -147,8 +149,8 @@ async fn resolve_at_base(
         }
         let response = client.get(endpoint).send().await?.error_for_status()?;
         let body = response.text().await?;
-        let fresh = read_xml(&body, host)?;
-        let done = matches!(target, Target::Post { .. }) || fresh.len() < 100;
+        let (fresh, post_count) = read_xml(&body, host)?;
+        let done = matches!(target, Target::Post { .. }) || post_count < 100;
         items.extend(fresh);
         if done {
             break;
@@ -210,7 +212,8 @@ mod tests {
           <post id="14" file_url="" />
           <post id="15" file_url="https://cdn.example.test/video.webm" />
         </posts>"#;
-        let files = read_xml(xml, "safebooru.org").unwrap();
+        let (files, post_count) = read_xml(xml, "safebooru.org").unwrap();
+        assert_eq!(post_count, 4);
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].filename, "12.jpg");
         assert_eq!(files[1].filename, "15.webm");
@@ -291,4 +294,35 @@ mod tests {
         assert_eq!(files[0].extractor, "xbooru");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn full_xml_page_with_missing_media_still_requests_next_page() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let full = format!(
+                "<posts>{}</posts>",
+                (0..100).map(|id| format!("<post id=\"{id}\" file_url=\"\"/>")).collect::<String>()
+            );
+            for (page, body) in [(0, full.as_str()), (1, "<posts></posts>")] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 4096];
+                let n = socket.read(&mut bytes).await.unwrap();
+                let request = String::from_utf8_lossy(&bytes[..n]);
+                assert!(request.contains(&format!("pid={page}")), "{request}");
+                assert!(request.contains("tags="), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target::Search { host: "safebooru.org".into(), tags: "all".into() };
+        let files = resolve_at_base(&Client::new(), target, 2, &base).await.unwrap();
+        assert!(files.is_empty());
+        server.await.unwrap();
+    }
+
 }
