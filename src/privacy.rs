@@ -33,7 +33,7 @@ pub fn display_error(error: &(dyn Error + 'static)) -> &'static str {
     if let Some(error) = error.downcast_ref::<crate::ExtractError>() {
         return match error {
             crate::ExtractError::InvalidUrl => "invalid URL",
-            crate::ExtractError::UnsupportedUrl => "no extractor matches this URL",
+            crate::ExtractError::UnsupportedUrl => "no implemented extractor matches this URL",
         };
     }
     if error.is::<std::io::Error>() {
