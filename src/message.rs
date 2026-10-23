@@ -214,6 +214,11 @@ where
                         .children
                         .as_ref()
                         .is_none_or(|range| range.contains(child_ordinal))
+                    // Once all possible file ordinals have been consumed,
+                    // later child extraction cannot contribute selected URLs.
+                    && !selection
+                        .early_file_ceiling()
+                        .is_some_and(|ceiling| file_ordinal >= ceiling)
                     && frame.depth < depth_limit
                     && seen.len() < child_limit
                     && seen.insert(queue_identity(url))
