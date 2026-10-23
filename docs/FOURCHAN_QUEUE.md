@@ -42,6 +42,8 @@ a generic gallery-dl post predicate.
 
 ## Verification and remaining gaps
 
+CI runs [40039969843](https://github.com/sguzman/galerith/actions/runs/40039969843) and [40040148553](https://github.com/sguzman/galerith/actions/runs/40040148553) passed formatting, Clippy, tests and release build.
+
 Offline regressions check deduplicated board queues, first N board pages,
 the 256-thread ceiling, the 2 MiB response limit, absence of child requests
 during root index discovery, and selective queue-to-thread-to-media
