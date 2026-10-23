@@ -336,4 +336,5 @@ mod tests {
             .unwrap();
         assert!(files.is_empty());
         server.await.unwrap();
-    }}
+    }
+}
