@@ -144,6 +144,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         println!("gelbooru (post and tag-search URLs only; partial parity)");
         println!("gelbooru_v02 (rule34/safebooru/tbib/hypnohub/xbooru XML post/tag subset)");
         println!("4chan (threads and bounded board listings only; partial parity)");
+        println!("moebooru (four site families, post, tags and pools; partial parity)");
         return Ok(());
     }
 
