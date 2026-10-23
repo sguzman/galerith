@@ -638,10 +638,7 @@ mod tests {
         .unwrap();
         assert_eq!(calls.get(), 1);
         assert_eq!(output.len(), 4);
-        assert_eq!(
-            serde_json::to_value(&output[1]).unwrap()["type"],
-            "url"
-        );
+        assert_eq!(serde_json::to_value(&output[1]).unwrap()["type"], "url");
         assert!(matches!(output[2], ExtractorMessage::Queue { .. }));
         assert!(matches!(output[3], ExtractorMessage::Queue { .. }));
     }
