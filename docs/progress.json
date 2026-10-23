@@ -901,6 +901,38 @@
               "progress": 80
             },
             {
+              "id": "T412",
+              "emoji": "⏭️",
+              "name": "Early child queue stopping after finite selected media",
+              "checks": [
+                {
+                  "title": "Skip later deferred child extraction requests once a finite selected-file upper bound has been consumed",
+                  "passed": true,
+                  "evidence": "src/message.rs file_ordinal ceiling in iterative queue job and selected-child request-count test; CI 40039969843"
+                },
+                {
+                  "title": "Keep deferred Queue messages visible after skipping their HTTP-backed child expansion",
+                  "passed": true,
+                  "evidence": "src/message.rs deterministic event-order fixture with unexpanded queue events; CI 40039969843"
+                },
+                {
+                  "title": "Disable child and page shortcut when directory-scope filtering can exclude earlier media",
+                  "passed": true,
+                  "evidence": "src/message.rs directory_selection_disables_unsafe_early_page_limit and nested child fixture; CI 40039969843"
+                },
+                {
+                  "title": "Preserve opt-in queue caps and legacy default file extraction while selective child requests are bounded",
+                  "passed": true,
+                  "evidence": "src/message.rs global depth/child/event limits, regression suite and --follow-queues opt-in CLI; CI 40039969843"
+                },
+                {
+                  "title": "Match full upstream child-range, post-filter, streaming cancellation and queue/job stop semantics with differential tests",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
               "id": "T413",
               "emoji": "⏩",
               "name": "Cross-family finite file selection and API page minimization",
@@ -2197,6 +2229,38 @@
                 },
                 {
                   "title": "Implement upstream queued-collection message semantics, collection metadata, complete auth and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T536",
+              "emoji": "🧵",
+              "name": "4chan bounded public board-to-thread deferred queue and scoped thread messages",
+              "checks": [
+                {
+                  "title": "Translate selected unique 4chan public board index thread IDs into deferred Queue events without eagerly fetching threads",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs board_queue_messages/queue_board_at_base and synthetic dedup/page fixtures; CI 40039969843"
+                },
+                {
+                  "title": "Cap board queue output to 256 threads and streaming board index JSON to 2 MiB",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs MAX_BOARD_QUEUES/MAX_BOARD_INDEX_BYTES and oversized header fixture; CI 40039969843"
+                },
+                {
+                  "title": "Route typed board URLs to the native queue engine and verify selective child-thread expansion into real post scopes and media",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs, src/extractor/fourchan.rs filtered_board_queues_feed_true_thread_scopes_and_media_projection; CI 40039969843"
+                },
+                {
+                  "title": "Bound individual thread JSON bodies to 4 MiB, reject oversized responses, and preserve legacy attachment identity",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs thread_json streaming guard/oversized HTTP fixture, source_post_id and tim separation; CI 40040148553"
+                },
+                {
+                  "title": "Verify complete upstream 4chan/4channel board and thread queue, post filters, filenames, metadata, login variants and live differential parity",
                   "passed": false
                 }
               ],
