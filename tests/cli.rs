@@ -97,3 +97,18 @@ fn error_output_never_prints_signed_query_parameters() {
     assert!(!combined.contains("private-token-in-query"));
     assert!(combined.contains("https://example.org/gallery/42"));
 }
+
+#[test]
+fn range_selection_is_one_based_and_rejects_zero() {
+    let url = "https://example.org/media.jpg";
+    let first = run(&["--range", "1", "--get-urls", url]);
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), url);
+
+    let second = run(&["--range", "2", "--get-urls", url]);
+    assert!(second.status.success());
+    assert!(second.stdout.is_empty());
+
+    let malformed = run(&["--range", "1:5:0", "--get-urls", url]);
+    assert!(!malformed.status.success());
+}
