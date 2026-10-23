@@ -8,6 +8,7 @@ pub mod foolfuuka;
 pub mod fourchan;
 pub mod gelbooru;
 pub mod gelbooru_v02;
+pub mod imgbox;
 pub mod moebooru;
 pub mod philomena;
 
@@ -30,6 +31,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("gelbooru", "public Gelbooru post and tag APIs"),
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
+    ("imgbox", "public image pages; gallery support pending"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
 ];
@@ -55,6 +57,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("bluesky")
     } else if catbox::match_url(input).is_some() {
         Some("catbox")
+    } else if imgbox::match_url(input).is_some() {
+        Some("imgbox")
     } else if e621::match_url(input).is_some() {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
@@ -107,6 +111,9 @@ pub async fn resolve(
     if let Some(target) = catbox::match_url(input) {
         return catbox::resolve(client, target).await;
     }
+    if let Some(target) = imgbox::match_url(input) {
+        return imgbox::resolve(client, target).await;
+    }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
     }
@@ -140,6 +147,7 @@ mod tests {
                 "https://safebooru.org/index.php?tags=blue+sky&s=list&page=post",
                 "gelbooru_v02",
             ),
+            ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
         ];
