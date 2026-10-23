@@ -20,6 +20,12 @@ pub enum Target {
     List { actor: String, id: String },
 }
 
+#[derive(Clone, Copy)]
+enum CollectionFeed {
+    Generator,
+    List,
+}
+
 fn valid_segment(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 256
@@ -291,11 +297,13 @@ async fn resolve_collection_feed(
     base: &Url,
     did: &str,
     id: &str,
-    collection: &str,
-    endpoint_name: &str,
-    query_name: &str,
+    kind: CollectionFeed,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let (collection, endpoint_name, query_name) = match kind {
+        CollectionFeed::Generator => ("app.bsky.feed.generator", "app.bsky.feed.getFeed", "feed"),
+        CollectionFeed::List => ("app.bsky.graph.list", "app.bsky.feed.getListFeed", "list"),
+    };
     let at_uri = format!("at://{did}/{collection}/{id}");
     let mut output = Vec::new();
     let mut seen = HashSet::new();
@@ -412,9 +420,7 @@ async fn resolve_at_base(
                 base,
                 &did,
                 &id,
-                "app.bsky.feed.generator",
-                "app.bsky.feed.getFeed",
-                "feed",
+                CollectionFeed::Generator,
                 max_pages,
             )
             .await
@@ -425,9 +431,7 @@ async fn resolve_at_base(
                 base,
                 &did,
                 &id,
-                "app.bsky.graph.list",
-                "app.bsky.feed.getListFeed",
-                "list",
+                CollectionFeed::List,
                 max_pages,
             )
             .await
