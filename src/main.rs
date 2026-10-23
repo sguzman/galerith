@@ -146,7 +146,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         println!("4chan (threads and bounded board listings only; partial parity)");
         println!("moebooru (four site families, post, tags and pools; partial parity)");
         println!("philomena (three site families, images/search/galleries; partial parity)");
-        println!("foolfuuka (nine archive families, thread and bounded board media; partial parity)");
+        println!(
+            "foolfuuka (nine archive families, thread and bounded board media; partial parity)"
+        );
         return Ok(());
     }
 

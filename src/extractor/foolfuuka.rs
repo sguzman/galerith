@@ -84,7 +84,9 @@ pub fn match_board_url(input: &str) -> Option<Board> {
     let board = segments.next()?;
     if board.is_empty()
         || board.len() > 8
-        || !board.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        || !board
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
     {
         return None;
     }
@@ -92,12 +94,16 @@ pub fn match_board_url(input: &str) -> Option<Board> {
         None => (1, false),
         Some("page") => {
             let page = segments.next()?.parse::<u16>().ok()?;
-            if page == 0 { return None; }
+            if page == 0 {
+                return None;
+            }
             (page, true)
         }
         Some(page) => {
             let page = page.parse::<u16>().ok()?;
-            if page == 0 { return None; }
+            if page == 0 {
+                return None;
+            }
             (page, true)
         }
     };
@@ -105,12 +111,18 @@ pub fn match_board_url(input: &str) -> Option<Board> {
         return None;
     }
     Some(Board {
-        host, category, board: board.into(), first_page, explicit_page,
+        host,
+        category,
+        board: board.into(),
+        first_page,
+        explicit_page,
     })
 }
 
 fn board_thread_ids(value: &Value) -> Result<Vec<u64>, Box<dyn Error + Send + Sync>> {
-    let threads = value.as_object().ok_or("FoolFuuka index API must return a thread object")?;
+    let threads = value
+        .as_object()
+        .ok_or("FoolFuuka index API must return a thread object")?;
     let mut ids = BTreeSet::new();
     for raw_id in threads.keys() {
         if let Ok(id) = raw_id.parse::<u64>() {
@@ -122,30 +134,48 @@ fn board_thread_ids(value: &Value) -> Result<Vec<u64>, Box<dyn Error + Send + Sy
     Ok(ids.into_iter().collect())
 }
 
-pub async fn resolve_board(client: &Client, board: Board, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve_board(
+    client: &Client,
+    board: Board,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let api = Url::parse(&format!("https://{}/", board.host))?;
     resolve_board_at_base(client, board, max_pages, &api).await
 }
 
-async fn resolve_board_at_base(client: &Client, board: Board, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
-    let count = if board.explicit_page { 1 } else { max_pages.max(1) };
+async fn resolve_board_at_base(
+    client: &Client,
+    board: Board,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let count = if board.explicit_page {
+        1
+    } else {
+        max_pages.max(1)
+    };
     let mut files = Vec::new();
     let mut visited = BTreeSet::new();
     let mut requested = false;
     for offset in 0..count {
-        let Some(page) = board.first_page.checked_add(offset) else { break };
+        let Some(page) = board.first_page.checked_add(offset) else {
+            break;
+        };
         if requested {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         let mut endpoint = base.join("_/api/chan/index/")?;
-        endpoint.query_pairs_mut()
+        endpoint
+            .query_pairs_mut()
             .append_pair("board", &board.board)
             .append_pair("page", &page.to_string());
-        let response: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        let response: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
         if response.is_null() {
             break;
         }
@@ -158,16 +188,19 @@ async fn resolve_board_at_base(client: &Client, board: Board, max_pages: u16, ba
                 continue;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
-            files.extend(resolve_at_base(
-                client,
-                Target {
-                    host: board.host,
-                    category: board.category,
-                    board: board.board.clone(),
-                    thread: id,
-                },
-                base,
-            ).await?);
+            files.extend(
+                resolve_at_base(
+                    client,
+                    Target {
+                        host: board.host,
+                        category: board.category,
+                        board: board.board.clone(),
+                        thread: id,
+                    },
+                    base,
+                )
+                .await?,
+            );
         }
         requested = true;
     }
@@ -303,15 +336,21 @@ mod tests {
         assert_eq!(
             match_board_url("https://archived.moe/a/"),
             Some(Board {
-                host: "archived.moe", category: "archivedmoe",
-                board: "a".into(), first_page: 1, explicit_page: false
+                host: "archived.moe",
+                category: "archivedmoe",
+                board: "a".into(),
+                first_page: 1,
+                explicit_page: false
             })
         );
         assert_eq!(
             match_board_url("https://desuarchive.org/g/page/4"),
             Some(Board {
-                host: "desuarchive.org", category: "desuarchive",
-                board: "g".into(), first_page: 4, explicit_page: true
+                host: "desuarchive.org",
+                category: "desuarchive",
+                board: "g".into(),
+                first_page: 4,
+                explicit_page: true
             })
         );
         assert!(match_board_url("https://archived.moe/a/thread/123").is_none());
@@ -331,14 +370,22 @@ mod tests {
 
     #[tokio::test]
     async fn local_board_index_recurses_into_single_thread() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (needle, body) in [
-                ("GET /_/api/chan/index/?board=a&page=1 HTTP/1.1", r#"{"123":{"num":123}}"#),
-                ("GET /_/api/chan/thread/?board=a&num=123 HTTP/1.1",
-                    r#"{"123":{"op":{"num":123,"media":{"media_link":"/files/9.png","media":"9.png","media_filename":"art.png","media_orig":"9000.png"}}}}"#)
+                (
+                    "GET /_/api/chan/index/?board=a&page=1 HTTP/1.1",
+                    r#"{"123":{"num":123}}"#,
+                ),
+                (
+                    "GET /_/api/chan/thread/?board=a&num=123 HTTP/1.1",
+                    r#"{"123":{"op":{"num":123,"media":{"media_link":"/files/9.png","media":"9.png","media_filename":"art.png","media_orig":"9000.png"}}}}"#,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut bytes = [0_u8; 4096];
@@ -354,10 +401,15 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let board = Board {
-            host: "archived.moe", category: "archivedmoe",
-            board: "a".into(), first_page: 1, explicit_page: false
+            host: "archived.moe",
+            category: "archivedmoe",
+            board: "a".into(),
+            first_page: 1,
+            explicit_page: false,
         };
-        let items = resolve_board_at_base(&Client::new(), board, 1, &base).await.unwrap();
+        let items = resolve_board_at_base(&Client::new(), board, 1, &base)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "9000 art.png");
         server.await.unwrap();
