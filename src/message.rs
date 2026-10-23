@@ -612,6 +612,77 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn finite_selected_file_count_stops_later_child_requests() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let events = (1..=3)
+            .map(|id| queued_url(format!("https://example.org/thread/{id}"), Metadata::new()))
+            .collect();
+        let selected = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: None,
+        };
+        let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![ExtractorMessage::Url {
+                    url: format!("{url}/file.jpg"),
+                    metadata: Metadata::new(),
+                }])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(output.len(), 4);
+        assert_eq!(
+            serde_json::to_value(&output[1]).unwrap()["type"],
+            "url"
+        );
+        assert!(matches!(output[2], ExtractorMessage::Queue { .. }));
+        assert!(matches!(output[3], ExtractorMessage::Queue { .. }));
+    }
+
+    #[tokio::test]
+    async fn directory_filtered_jobs_do_not_prematurely_stop_child_requests() {
+        use std::cell::Cell;
+
+        let calls = Cell::new(0usize);
+        let events = (1..=2)
+            .map(|id| queued_url(format!("https://example.org/thread/{id}"), Metadata::new()))
+            .collect();
+        let selected = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: Some(IndexRange::parse("2").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![
+                    ExtractorMessage::Directory {
+                        metadata: Metadata::new(),
+                    },
+                    ExtractorMessage::Url {
+                        url: format!("{url}/file.jpg"),
+                        metadata: Metadata::new(),
+                    },
+                ])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_eq!(output.len(), 4);
+        assert_eq!(
+            serde_json::to_value(&output[3]).unwrap()["url"],
+            "https://example.org/thread/2/file.jpg"
+        );
+    }
+
     #[test]
     fn directory_selection_disables_unsafe_early_page_limit() {
         let files = Some(IndexRange::parse("1:5:2").unwrap());
