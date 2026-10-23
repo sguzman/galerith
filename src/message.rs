@@ -4,7 +4,7 @@
 //! preserves the distinction between directory scope, a downloadable URL,
 //! and a nested extractor queue without claiming full gallery-dl parity.
 //! The preview adapter below intentionally emits only metadata already known.
-use crate::MediaItem;
+use crate::{range::IndexRange, MediaItem};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::{collections::HashSet, error::Error, future::Future};
@@ -58,6 +58,15 @@ pub fn queued_url(url: String, metadata: Metadata) -> ExtractorMessage {
 pub const MAX_QUEUE_DEPTH: u8 = 4;
 pub const MAX_QUEUE_CHILDREN: usize = 16;
 pub const MAX_JOB_MESSAGES: usize = 8192;
+
+/// Zero-based internal filtering is forbidden: both sequences use the
+/// existing positive, one-based inclusive/slice selector syntax.
+/// Ordinals are global to a single root extraction, not reset by a child.
+#[derive(Debug, Clone, Default)]
+pub struct JobSelection {
+    pub files: Option<IndexRange>,
+    pub children: Option<IndexRange>,
+}
 
 struct JobFrame {
     events: std::vec::IntoIter<ExtractorMessage>,
@@ -116,10 +125,15 @@ fn queue_identity(input: &str) -> String {
 ///
 /// Only the *first* encounter of a queue URL is followed. Globally, at most
 /// MAX_QUEUE_CHILDREN children and MAX_JOB_MESSAGES events are permitted.
-pub async fn traverse_queue_job_with<F, Fut>(
+/// Traverse with optional file/child selectors. A child selector is
+/// evaluated before HTTP resolution; a skipped queue is still emitted as
+/// a control message. A file selector drops unselected URL events before
+/// they can become downloader candidates. Neither selector invents posts.
+pub async fn traverse_queue_job_filtered_with<F, Fut>(
     events: Vec<ExtractorMessage>,
     max_depth: u8,
     max_children: usize,
+    selection: &JobSelection,
     mut resolve_child: F,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
 where
@@ -131,17 +145,22 @@ where
     let mut frames = vec![JobFrame::new(events, Metadata::new(), 0)];
     let mut seen = HashSet::new();
     let mut output = Vec::new();
+    let mut scanned = 0usize;
+    let mut file_ordinal = 0usize;
+    let mut child_ordinal = 0usize;
 
     while let Some(frame) = frames.last_mut() {
         let Some(mut message) = frame.events.next() else {
             frames.pop();
             continue;
         };
-        if output.len() >= MAX_JOB_MESSAGES {
+        scanned += 1;
+        if scanned > MAX_JOB_MESSAGES {
             return Err("extractor job exceeded its message limit".into());
         }
 
         let mut next = None;
+        let mut emit = true;
         match &mut message {
             ExtractorMessage::Directory { metadata } => {
                 inherit_missing(metadata, &frame.inherited);
@@ -150,11 +169,21 @@ where
             ExtractorMessage::Url { metadata, .. } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
+                file_ordinal += 1;
+                emit = selection
+                    .files
+                    .as_ref()
+                    .is_none_or(|range| range.contains(file_ordinal));
             }
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if frame.depth < depth_limit
+                child_ordinal += 1;
+                if selection
+                    .children
+                    .as_ref()
+                    .is_none_or(|range| range.contains(child_ordinal))
+                    && frame.depth < depth_limit
                     && seen.len() < child_limit
                     && seen.insert(queue_identity(url))
                 {
@@ -162,7 +191,9 @@ where
                 }
             }
         }
-        output.push(message);
+        if emit {
+            output.push(message);
+        }
 
         if let Some((url, inherited, child_depth)) = next {
             let child_events = resolve_child(url).await?;
@@ -173,6 +204,27 @@ where
         }
     }
     Ok(output)
+}
+
+/// Unfiltered compatibility entry point for the established job API.
+pub async fn traverse_queue_job_with<F, Fut>(
+    events: Vec<ExtractorMessage>,
+    max_depth: u8,
+    max_children: usize,
+    resolve_child: F,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>>,
+{
+    traverse_queue_job_filtered_with(
+        events,
+        max_depth,
+        max_children,
+        &JobSelection::default(),
+        resolve_child,
+    )
+    .await
 }
 
 /// Compatibility wrapper for the original single-level queue inspector.
