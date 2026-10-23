@@ -98,10 +98,11 @@
                 },
                 {
                   "title": "CI validates rendered files",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed"
                 }
               ],
-              "progress": 67
+              "progress": 100
             }
           ]
         },
@@ -127,14 +128,15 @@
                 },
                 {
                   "title": "Verify clean Linux CI",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed"
                 },
                 {
                   "title": "Reach complete upstream argument parity",
                   "passed": false
                 }
               ],
-              "progress": 50
+              "progress": 75
             },
             {
               "id": "T102",
@@ -200,7 +202,8 @@
                 },
                 {
                   "title": "Compile Linux release in CI",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed"
                 },
                 {
                   "title": "Package distribution and checksums",
@@ -211,7 +214,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             }
           ]
         }
@@ -1060,7 +1063,8 @@
               "checks": [
                 {
                   "title": "Linux CI test jobs",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed"
                 },
                 {
                   "title": "Native EndeavourOS install and runtime smoke",
@@ -1071,7 +1075,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 33
             },
             {
               "id": "T1102",
@@ -1080,7 +1084,8 @@
               "checks": [
                 {
                   "title": "Release-mode build",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed"
                 },
                 {
                   "title": "Versioned Linux artifact/checksums",
@@ -1095,7 +1100,7 @@
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 25
             },
             {
               "id": "T1103",

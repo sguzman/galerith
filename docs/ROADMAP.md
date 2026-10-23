@@ -2,12 +2,12 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██░░░░░░░░ 20%` across 41 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██░░░░░░░░ 23%` across 41 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
-## 🧱 M0 — Identity, provenance, project controls — `██████░░░░ 55%`
+## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
 
-### 🧭 P0 — Source reference and identity — `███████░░░ 67%`
+### 🧭 P0 — Source reference and identity — `████████░░ 75%`
 
 - 📌 **T001** Pin upstream commit and module inventory — `███████░░░ 67%`
   - [x] Record upstream commit — docs/SOURCE_BASELINE.md
@@ -21,17 +21,17 @@
   - [x] Preserve repository's initial MIT file — LICENSE
   - [x] Document GPL-2.0 upstream and independent implementation policy — docs/PROVENANCE.md
   - [ ] Review each imported/translated source before distribution
-- 📊 **T004** Establish verifiable milestone/task progress — `███████░░░ 67%`
+- 📊 **T004** Establish verifiable milestone/task progress — `██████████ 100%`
   - [x] Commit machine ledger — docs/progress.json
   - [x] Ship Rust renderer and generated roadmap — src/bin/galerith-roadmap.rs; docs/ROADMAP.md
-  - [ ] CI validates rendered files
+  - [x] CI validates rendered files — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
 
-### 🦀 P1 — CLI foundation and quality gates — `████░░░░░░ 44%`
+### 🦀 P1 — CLI foundation and quality gates — `██████░░░░ 56%`
 
-- ⌨️ **T101** Native Rust binary and command parsing — `█████░░░░░ 50%`
+- ⌨️ **T101** Native Rust binary and command parsing — `████████░░ 75%`
   - [x] Commit native CLI — src/main.rs; Cargo.toml
   - [x] Write offline CLI tests — tests/cli.rs
-  - [ ] Verify clean Linux CI
+  - [x] Verify clean Linux CI — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Reach complete upstream argument parity
 - 📥 **T102** URL inputs and input-file semantics — `█████░░░░░ 50%`
   - [x] Accept arguments and URL files — src/main.rs
@@ -43,9 +43,9 @@
   - [x] Test flags without networking — tests/cli.rs
   - [ ] Reproduce upstream JSON message protocol
   - [ ] Implement all print/list/diagnostics modes
-- 📦 **T104** Release-safe packaging and documentation — `███░░░░░░░ 25%`
+- 📦 **T104** Release-safe packaging and documentation — `█████░░░░░ 50%`
   - [x] Document preview limitations — README.md
-  - [ ] Compile Linux release in CI
+  - [x] Compile Linux release in CI — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
@@ -219,7 +219,7 @@
   - [ ] Format selection/variant metadata
   - [ ] End-to-end integration fixtures
 
-## 🚀 M5 — Conformance, release and MVP inauguration — `█░░░░░░░░░ 8%`
+## 🚀 M5 — Conformance, release and MVP inauguration — `██░░░░░░░░ 18%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.
 
 ### 🧪 P10 — Differential quality assurance — `██░░░░░░░░ 17%`
@@ -240,14 +240,14 @@
   - [ ] All catalog rows complete
   - [ ] No known failed acceptance gates
 
-### 🏁 P11 — Release graduation — `░░░░░░░░░░ 0%`
+### 🏁 P11 — Release graduation — `██░░░░░░░░ 19%`
 
-- 🐧 **T1101** EndeavourOS and portable Linux acceptance — `░░░░░░░░░░ 0%`
-  - [ ] Linux CI test jobs
+- 🐧 **T1101** EndeavourOS and portable Linux acceptance — `███░░░░░░░ 33%`
+  - [x] Linux CI test jobs — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Native EndeavourOS install and runtime smoke
   - [ ] Long-run archive validation
-- 📦 **T1102** Build and distribute native binaries — `░░░░░░░░░░ 0%`
-  - [ ] Release-mode build
+- 📦 **T1102** Build and distribute native binaries — `███░░░░░░░ 25%`
+  - [x] Release-mode build — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Versioned Linux artifact/checksums
   - [ ] Document repeatable installation
   - [ ] Supply-chain/license review

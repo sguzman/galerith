@@ -22,7 +22,7 @@ cargo run -- -d ./media 'https://example.org/sample.jpg'
 
 ## Port tracking
 
-**Overall MVP:** `██░░░░░░░░ 20%` (41 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `██░░░░░░░░ 23%` (41 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
@@ -37,7 +37,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-Linux CI is the build authority until tests pass; do not interpret a committed scaffold as successful validation. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39897837049](https://github.com/sguzman/galerith/actions/runs/39897837049) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 
