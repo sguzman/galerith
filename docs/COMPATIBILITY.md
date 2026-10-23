@@ -4,10 +4,10 @@ These features are **implemented subsets**; the full port is still the first MVP
 
 | Feature | Native preview support | Outstanding parity |
 |---|---|---|
-| Wallhaven | Public wallpapers, q-only search, user uploads and collection-index flattening with bounded/capped API requests, verified offline (CI 40031267694) | Complete queue-message semantics, advanced search, authentication, collection metadata, filenames/archive and live site equivalence |
+| Wallhaven | Public wallpapers, q-only search, user uploads and collection-index flattening with bounded/capped API requests and finite typed-file early-stop when safe (CI 40039081132) | Complete queue-message semantics, advanced search, authentication, collection metadata, filenames/archive and live site equivalence |
 | Wikimedia Commons | Public File: pages and article/category image lists through official Action API, approved upload CDN links, guarded pagination and identified requests (CI 40026028078) | Other Wikimedia and MediaWiki hosts, recursive subcategories, full file revisions, rich metadata/license attribution, upstream archive and filename behavior |
 | Lexica | Public prompt-image search over bounded JSON POST/cursor API; validated JPEG IDs and deduplication (CI 40023659175) | Full prompt metadata, upstream archive/filename templates, authentication and live behavior |
-| Typed messages | JSON-lines directory/URL/queue inspection; 1–4-level traversal, 16-child/8192-event limits, scoped metadata, opt-in `--follow-queues` and typed file/child/directory selectors (CI 40037566729) | Full gallery-dl job semantics, early-stop pagination, redirects, post predicates and expression filters, metadata/archive parity and live conformance |
+| Typed messages | JSON-lines directory/URL/queue inspection; native 4chan API post scopes including text-only posts; 1–4-level traversal, 16-child/8192-event limits, scoped metadata and selected typed downloads (CI 40039010520) | Complete post/queue jobs, expression filtering, source metadata, archive, redirects and live differential conformance |
 | Basic direct links | HTTP(S) image/video/doc extensions | Complete directlink selection and MIME handling |
 | Danbooru | Single posts and bounded tag searches | Pools, artists, metadata, login, full pagination |
 | e621 family | e621/e926/e6ai posts and tags; MD5 URL fallback | Pools, favorites, popular feeds, artist URLs, authorization |
