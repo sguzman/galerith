@@ -113,6 +113,14 @@ mod tests {
             Some("bluesky")
         );
         assert_eq!(
+            extractor_name("https://bsky.app/search?q=blue+fox"),
+            Some("bluesky")
+        );
+        assert_eq!(
+            extractor_name("https://bsky.app/hashtag/art/latest"),
+            Some("bluesky")
+        );
+        assert_eq!(
             extractor_name("https://danbooru.donmai.us/posts/random?tags=fox"),
             Some("danbooru")
         );
