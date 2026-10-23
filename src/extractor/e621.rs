@@ -48,10 +48,15 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     if ext.is_empty() || ext.len() > 16 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
         return None;
     }
-    let md5 = file.get("md5").and_then(Value::as_str).filter(|value| {
-        value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-    });
-    let media_url = match file.get("url").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+    let md5 = file
+        .get("md5")
+        .and_then(Value::as_str)
+        .filter(|value| value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    let media_url = match file
+        .get("url")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
         Some(raw) => Url::parse(raw).or_else(|_| base.join(raw)).ok()?,
         None => {
             let md5 = md5?;
@@ -61,7 +66,10 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
             }
             let path = format!(
                 "https://static1.{host}/data/{}/{}/{}.{}",
-                &md5[..2], &md5[2..4], md5, ext
+                &md5[..2],
+                &md5[2..4],
+                md5,
+                ext
             );
             Url::parse(&path).ok()?
         }
@@ -211,8 +219,14 @@ mod tests {
         });
         let recovered = parse_posts(&fallback, &base).unwrap();
         assert_eq!(recovered.len(), 1);
-        assert_eq!(recovered[0].url, "https://static1.e621.net/data/01/23/0123456789abcdef0123456789abcdef.jpg");
-        assert_eq!(recovered[0].filename, "0123456789abcdef0123456789abcdef.jpg");
+        assert_eq!(
+            recovered[0].url,
+            "https://static1.e621.net/data/01/23/0123456789abcdef0123456789abcdef.jpg"
+        );
+        assert_eq!(
+            recovered[0].filename,
+            "0123456789abcdef0123456789abcdef.jpg"
+        );
         assert!(parse_posts(&json!({"posts":{}}), &base).is_err());
     }
 
