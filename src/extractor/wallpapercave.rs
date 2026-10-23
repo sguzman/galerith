@@ -20,7 +20,10 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("wallpapercave.com" | "www.wallpapercave.com"))
+        || !matches!(
+            url.host_str(),
+            Some("wallpapercave.com" | "www.wallpapercave.com")
+        )
     {
         return None;
     }
@@ -40,9 +43,7 @@ pub fn match_url(input: &str) -> Option<Target> {
             if slug.len() >= 12
                 && slug.len() <= 150
                 && slug.ends_with("-wallpapers")
-                && slug
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-') =>
+                && slug.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') =>
         {
             Some(Target::Wallpaper {
                 path: (*slug).to_owned(),
@@ -57,7 +58,10 @@ fn media_from_path(raw: &str) -> Option<MediaItem> {
         .or_else(|_| Url::parse("https://wallpapercave.com/").and_then(|base| base.join(raw)))
         .ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("wallpapercave.com" | "www.wallpapercave.com"))
+        || !matches!(
+            url.host_str(),
+            Some("wallpapercave.com" | "www.wallpapercave.com")
+        )
     {
         return None;
     }
@@ -216,7 +220,9 @@ mod tests {
         assert_eq!(media.len(), 2);
         assert_eq!(media[0].filename, "one.webp");
         assert_eq!(media[1].filename, "two.jpg");
-        assert!(wallpapers("<a class=\"download\" href=\"https://evil.example/p.jpg\"></a>").is_empty());
+        assert!(
+            wallpapers("<a class=\"download\" href=\"https://evil.example/p.jpg\"></a>").is_empty()
+        );
     }
 
     #[tokio::test]
