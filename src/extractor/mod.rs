@@ -15,6 +15,22 @@ use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
 use std::error::Error;
 
+/// Only previews with a dispatcher implementation appear here. This is not
+/// the complete gallery-dl site list and does not imply full extractor parity.
+pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
+    ("directlink", "direct HTTP(S) media URL subset"),
+    ("4chan", "4chan/4channel threads and bounded boards"),
+    ("bluesky", "public ATProto posts, profile media and feeds"),
+    ("catbox", "public Catbox files and albums"),
+    ("danbooru", "public Danbooru post, tag and collection APIs"),
+    ("e621", "e621/e926/e6ai public post and collection APIs"),
+    ("foolfuuka", "archive threads, boards, galleries and searches"),
+    ("gelbooru", "public Gelbooru post and tag APIs"),
+    ("gelbooru_v02", "XML/DAPI post and tag host family"),
+    ("moebooru", "post, tag, pool and popular JSON routes"),
+    ("philomena", "images, tags, searches and galleries"),
+];
+
 pub fn extractor_name(input: &str) -> Option<&'static str> {
     if foolfuuka::match_url(input).is_some()
         || foolfuuka::match_board_url(input).is_some()
@@ -100,6 +116,31 @@ pub async fn resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn preview_registry_matches_routed_extractors() {
+        let fixtures = [
+            ("https://example.org/file.jpg", "directlink"),
+            ("https://boards.4chan.org/g/thread/123", "4chan"),
+            ("https://bsky.app/profile/alice.bsky.social/post/3n9", "bluesky"),
+            ("https://catbox.moe/c/album123", "catbox"),
+            ("https://danbooru.donmai.us/posts/123", "danbooru"),
+            ("https://e621.net/posts/123", "e621"),
+            ("https://gelbooru.com/index.php?page=post&s=view&id=123", "gelbooru"),
+            ("https://yande.re/post/show/123", "moebooru"),
+            ("https://derpibooru.org/images/123", "philomena"),
+        ];
+        let mut names = std::collections::HashSet::new();
+        for &(name, description) in PREVIEW_EXTRACTORS {
+            assert!(!name.is_empty() && !description.is_empty());
+            assert!(names.insert(name), "duplicate preview name: {name}");
+        }
+        for (url, expected) in fixtures {
+            assert_eq!(extractor_name(url), Some(expected));
+            assert!(names.contains(expected), "undocumented preview: {expected}");
+        }
+        assert_eq!(PREVIEW_EXTRACTORS.len(), 11);
+    }
+
     #[test]
     fn dispatch_does_not_claim_unsupported_sites() {
         assert_eq!(
