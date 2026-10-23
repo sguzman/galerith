@@ -67,6 +67,8 @@ pub struct JobSelection {
     pub files: Option<IndexRange>,
     pub children: Option<IndexRange>,
     pub directories: Option<IndexRange>,
+    /// Filter actual source post IDs, not synthetic media identities.
+    pub source_posts: Option<IndexRange>,
 }
 
 impl JobSelection {
@@ -107,6 +109,18 @@ fn inherit_missing(metadata: &mut Metadata, parent: &Metadata) {
     for (key, value) in parent {
         metadata.entry(key.clone()).or_insert_with(|| value.clone());
     }
+}
+
+/// Match an actual numeric source-post identifier when a source extractor
+/// supplied one. Missing or invalid IDs never match an explicit selection.
+fn selected_source_post(metadata: &Metadata, selected: &Option<IndexRange>) -> bool {
+    selected.as_ref().is_none_or(|range| {
+        metadata
+            .get("source_post_id")
+            .and_then(Value::as_u64)
+            .and_then(|id| usize::try_from(id).ok())
+            .is_some_and(|id| range.contains(id))
+    })
 }
 
 /// Per-file identity fields must not leak into unrelated child extractors.
@@ -186,6 +200,8 @@ where
                     .directories
                     .as_ref()
                     .is_none_or(|range| range.contains(directory_ordinal));
+                frame.directory_included &=
+                    selected_source_post(metadata, &selection.source_posts);
                 emit = frame.directory_included;
             }
             ExtractorMessage::Url { metadata, .. } => {
@@ -193,10 +209,11 @@ where
                 inherit_missing(metadata, &frame.inherited);
                 if frame.directory_included {
                     file_ordinal += 1;
-                    emit = selection
-                        .files
-                        .as_ref()
-                        .is_none_or(|range| range.contains(file_ordinal));
+                    emit = selected_source_post(metadata, &selection.source_posts)
+                        && selection
+                            .files
+                            .as_ref()
+                            .is_none_or(|range| range.contains(file_ordinal));
                 } else {
                     emit = false;
                 }
@@ -204,12 +221,15 @@ where
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if !frame.directory_included {
+                if !frame.directory_included
+                    || !selected_source_post(metadata, &selection.source_posts)
+                {
                     emit = false;
                 } else {
                     child_ordinal += 1;
                 }
                 if frame.directory_included
+                    && selected_source_post(metadata, &selection.source_posts)
                     && selection
                         .children
                         .as_ref()
@@ -624,6 +644,7 @@ mod tests {
             files: Some(IndexRange::parse("1").unwrap()),
             children: None,
             directories: None,
+            source_posts: None,
         };
         let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -655,6 +676,7 @@ mod tests {
             files: Some(IndexRange::parse("1").unwrap()),
             children: None,
             directories: Some(IndexRange::parse("2").unwrap()),
+            source_posts: None,
         };
         let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -687,6 +709,7 @@ mod tests {
             files: files.clone(),
             children: None,
             directories: None,
+            source_posts: None,
         };
         assert_eq!(unrestricted.early_file_ceiling(), Some(4));
         let scoped = JobSelection {
@@ -699,6 +722,7 @@ mod tests {
             files: Some(IndexRange::parse("1-").unwrap()),
             children: None,
             directories: None,
+            source_posts: None,
         };
         assert_eq!(unlimited.early_file_ceiling(), None);
     }
@@ -724,6 +748,7 @@ mod tests {
             files: Some(IndexRange::parse("2").unwrap()),
             children: Some(IndexRange::parse("2").unwrap()),
             directories: None,
+            source_posts: None,
         };
         let output = traverse_queue_job_filtered_with(roots, 2, 8, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -762,6 +787,7 @@ mod tests {
             files: None,
             children: Some(IndexRange::parse("2-3").unwrap()),
             directories: None,
+            source_posts: None,
         };
         let output = traverse_queue_job_filtered_with(roots, 1, 2, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -793,6 +819,7 @@ mod tests {
             files: Some(IndexRange::parse("1").unwrap()),
             children: None,
             directories: None,
+            source_posts: None,
         };
         let error = traverse_queue_job_filtered_with(events, 0, 0, &selection, |_| async {
             Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
@@ -822,6 +849,7 @@ mod tests {
             files: Some(IndexRange::parse("2").unwrap()),
             children: None,
             directories: None,
+            source_posts: None,
         };
         let output =
             traverse_queue_job_filtered_with(from_media(media), 0, 0, &selection, |_| async {
@@ -865,6 +893,7 @@ mod tests {
             files: None,
             children: None,
             directories: Some(IndexRange::parse("2").unwrap()),
+            source_posts: None,
         };
         let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -911,6 +940,7 @@ mod tests {
             files: Some(IndexRange::parse("1").unwrap()),
             children: None,
             directories: Some(IndexRange::parse("2").unwrap()),
+            source_posts: None,
         };
         let events =
             traverse_queue_job_filtered_with(from_media(items), 0, 0, &filter, |_| async {
