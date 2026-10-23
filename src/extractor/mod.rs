@@ -251,7 +251,7 @@ pub async fn resolve(
         return webmshare::resolve(client, target).await;
     }
     if let Some(target) = wikimedia::match_url(input) {
-        return wikimedia::resolve(client, target).await;
+        return wikimedia::resolve(client, target, max_pages).await;
     }
     if let Some(target) = unsplash::match_url(input) {
         return unsplash::resolve(client, target, max_pages).await;
@@ -306,6 +306,14 @@ mod tests {
             ("https://webmshare.com/play/ABc_123", "webmshare"),
             (
                 "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
+                "wikimedia",
+            ),
+            (
+                "https://commons.wikimedia.org/wiki/Category:Night_sky",
+                "wikimedia",
+            ),
+            (
+                "https://commons.wikimedia.org/wiki/Featured_pictures",
                 "wikimedia",
             ),
             ("https://unsplash.com/photos/abc-123", "unsplash"),
