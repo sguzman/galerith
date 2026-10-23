@@ -140,6 +140,10 @@ struct Cli {
     )]
     job_directory_range: Option<String>,
 
+    /// Select actual source post IDs in typed download jobs, not media IDs
+    #[arg(long = "job-source-post-range", value_name = "RANGE", requires = "follow_queues")]
+    job_source_post_range: Option<String>,
+
     /// Select URL-event ordinals in the read-only recursive message stream
     #[arg(
         long = "message-file-range",
@@ -163,6 +167,10 @@ struct Cli {
         requires = "expand_queues"
     )]
     message_directory_range: Option<String>,
+
+    /// Select source post IDs in read-only typed message inspection
+    #[arg(long = "message-source-post-range", value_name = "RANGE", requires = "expand_queues")]
+    message_source_post_range: Option<String>,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -234,14 +242,16 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     // typed-job selectors. Never silently ignore them in inspection mode.
     if (cli.job_file_range.is_some()
         || cli.job_child_range.is_some()
-        || cli.job_directory_range.is_some())
+        || cli.job_directory_range.is_some()
+        || cli.job_source_post_range.is_some())
         && !cli.follow_queues
     {
         return Err("--job-file-range and --job-child-range require --follow-queues".into());
     }
     if (cli.message_file_range.is_some()
         || cli.message_child_range.is_some()
-        || cli.message_directory_range.is_some())
+        || cli.message_directory_range.is_some()
+        || cli.message_source_post_range.is_some())
         && !(cli.dump_messages && cli.expand_queues)
     {
         return Err("--message-file-range and --message-child-range require --dump-messages --expand-queues".into());
@@ -360,6 +370,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .as_deref()
             .map(IndexRange::parse)
             .transpose()?,
+        source_posts: cli
+            .job_source_post_range
+            .as_deref()
+            .map(IndexRange::parse)
+            .transpose()?,
     };
     let mut failed = 0usize;
     for url in urls {
@@ -378,6 +393,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         .transpose()?,
                     directories: cli
                         .message_directory_range
+                        .as_deref()
+                        .map(IndexRange::parse)
+                        .transpose()?,
+                    source_posts: cli
+                        .message_source_post_range
                         .as_deref()
                         .map(IndexRange::parse)
                         .transpose()?,
