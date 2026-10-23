@@ -222,7 +222,10 @@ mod tests {
     }
     #[tokio::test]
     async fn local_tag_search_fetches_two_pages_and_stops_at_empty_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -246,12 +249,16 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let target = Target::Search { host: "e621.net".into(), tags: "blue sky".into() };
-        let items = resolve_at_base(&Client::new(), target, 5, &base).await.unwrap();
+        let target = Target::Search {
+            host: "e621.net".into(),
+            tags: "blue sky".into(),
+        };
+        let items = resolve_at_base(&Client::new(), target, 5, &base)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "5.png");
         assert_eq!(items[0].post_id, Some(5));
         server.await.unwrap();
     }
-
 }
