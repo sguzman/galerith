@@ -50,9 +50,14 @@
     {
       "path": "gallery_dl/extractor/4chan.py",
       "module": "4chan",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fourchan.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "4chan/4channel thread and board URL subsets with synthetic JSON and HTTP tests; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401; not complete"
+      ]
     },
     {
       "path": "gallery_dl/extractor/4chanarchives.py",

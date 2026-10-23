@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 38%` across 49 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 39%` across 51 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -52,7 +52,7 @@
 ## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 52%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `██████░░░░ 56%`
+### 📡 P2 — HTTP transfer engine — `██████░░░░ 55%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -74,6 +74,11 @@
   - [ ] Proxy, TLS, IPv4/IPv6 and user-agent
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
+- 🌐 **T205** User-agent and proxy transport preview — `█████░░░░░ 50%`
+  - [x] Accept upstream -a/--user-agent and --proxy flags — src/main.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
+  - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
+  - [ ] Implement full proxy authentication, TLS and address-family selection
+  - [ ] Compare upstream HTTP configuration behavior
 
 ### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 50%`
 
@@ -109,7 +114,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `████░░░░░░ 35%`
+## 🧩 M2 — Extractor framework and site families — `████░░░░░░ 38%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -141,7 +146,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `████░░░░░░ 36%`
+### 🧱 P5 — Shared website families — `████░░░░░░ 41%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -178,6 +183,11 @@
   - [x] Resolve synthetic Gelbooru JSON post API media records — src/extractor/gelbooru.rs local API fixture
   - [x] Verify registered extractor and unit suite in Linux CI — GitHub Actions 39954702418
   - [ ] Reproduce full pools, favorites, redirection, pagination and metadata semantics
+- 🧵 **T508** 4chan thread and bounded board extractor preview — `████████░░ 75%`
+  - [x] Recognize public 4chan and 4channel thread/board URLs — src/extractor/fourchan.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
+  - [x] Parse thread JSON attachments with safe file names — src/extractor/fourchan.rs synthetic fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
+  - [x] Expand board pages into threads and deduplicate IDs — src/extractor/fourchan.rs local API fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
+  - [ ] Reproduce full upstream directory, archive, metadata and edge-case semantics
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

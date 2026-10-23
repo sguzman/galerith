@@ -335,6 +335,32 @@
                 }
               ],
               "progress": 25
+            },
+            {
+              "id": "T205",
+              "emoji": "🌐",
+              "name": "User-agent and proxy transport preview",
+              "progress": 50,
+              "checks": [
+                {
+                  "title": "Accept upstream -a/--user-agent and --proxy flags",
+                  "passed": true,
+                  "evidence": "src/main.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401"
+                },
+                {
+                  "title": "Verify proxy request routing and custom User-Agent offline",
+                  "passed": true,
+                  "evidence": "tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401"
+                },
+                {
+                  "title": "Implement full proxy authentication, TLS and address-family selection",
+                  "passed": false
+                },
+                {
+                  "title": "Compare upstream HTTP configuration behavior",
+                  "passed": false
+                }
+              ]
             }
           ]
         },
@@ -833,6 +859,33 @@
                 }
               ],
               "progress": 75
+            },
+            {
+              "id": "T508",
+              "emoji": "🧵",
+              "name": "4chan thread and bounded board extractor preview",
+              "progress": 75,
+              "checks": [
+                {
+                  "title": "Recognize public 4chan and 4channel thread/board URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401"
+                },
+                {
+                  "title": "Parse thread JSON attachments with safe file names",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs synthetic fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401"
+                },
+                {
+                  "title": "Expand board pages into threads and deduplicate IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs local API fixtures; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401"
+                },
+                {
+                  "title": "Reproduce full upstream directory, archive, metadata and edge-case semantics",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
