@@ -15,7 +15,7 @@ Use `galerith --dump-messages --expand-queues --message-file-range 2 --message-c
 ## Exact scope and limitations
 
 - **Directory** here means a typed `Directory` message. Some current preview adapters emit one directory per media item; this is not a reliable upstream post boundary.
-- Directory indices count actual emitted directory messages globally for each root input, including visited child frames. Excluding a directory drops all subsequent URL and queue messages in that frame until the next directory; it does not fetch skipped queue children.
+- Directory indices count encountered directory messages globally for each root input, including visited child frames. Excluding a directory drops all subsequent URL and queue messages in that frame until the next directory; it does not fetch skipped queue children.
 - File indices count eligible URL messages globally in depth-first order, after directory selection. Child indices count eligible queue messages globally, also after directory selection, **before** duplicate/cycle suppression. Excluded file messages cannot trigger a native download.
 - These selectors do not enforce early HTTP pagination termination for already-resolving parent APIs. They do not implement gallery-dl expression predicates, complete post-range semantics, streaming job execution, redirect policies, or metadata-formatting parity.
 - `--range` remains the legacy post-resolution media-index selector. It is not interchangeable with `--job-file-range`, and mixing the two is rejected.
