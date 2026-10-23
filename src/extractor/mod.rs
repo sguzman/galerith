@@ -102,10 +102,7 @@ mod tests {
             extractor_name("https://e621.cc/?tags=blue+sky"),
             Some("e621")
         );
-        assert_eq!(
-            extractor_name("https://e621.net/p/d"),
-            Some("e621")
-        );
+        assert_eq!(extractor_name("https://e621.net/p/d"), Some("e621"));
         assert_eq!(extractor_name("https://pixiv.net/en/artworks/123"), None);
     }
 }
