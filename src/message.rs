@@ -81,9 +81,7 @@ impl JobFrame {
 /// Extractor-produced child fields always take precedence over parent fields.
 fn inherit_missing(metadata: &mut Metadata, parent: &Metadata) {
     for (key, value) in parent {
-        metadata
-            .entry(key.clone())
-            .or_insert_with(|| value.clone());
+        metadata.entry(key.clone()).or_insert_with(|| value.clone());
     }
 }
 
@@ -134,9 +132,7 @@ where
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if frame.depth < depth_limit
-                    && seen.len() < child_limit
-                    && seen.insert(url.clone())
+                if frame.depth < depth_limit && seen.len() < child_limit && seen.insert(url.clone())
                 {
                     next = Some((url.clone(), metadata.clone(), frame.depth + 1));
                 }
@@ -400,9 +396,10 @@ mod tests {
             let events = traverse_queue_job_with(root, depth, 16, |url| {
                 calls.set(calls.get() + 1);
                 async move {
-                    Ok::<_, Box<dyn Error + Send + Sync>>(vec![
-                        queued_url(format!("{url}/child"), Metadata::new()),
-                    ])
+                    Ok::<_, Box<dyn Error + Send + Sync>>(vec![queued_url(
+                        format!("{url}/child"),
+                        Metadata::new(),
+                    )])
                 }
             })
             .await
