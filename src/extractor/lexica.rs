@@ -68,9 +68,7 @@ fn images(data: &Value, seen: &mut HashSet<String>, limit: usize) -> Vec<MediaIt
 }
 
 fn valid_cursor_string(cursor: &str) -> bool {
-    !cursor.trim().is_empty()
-        && cursor.len() <= 128
-        && !cursor.chars().any(char::is_control)
+    !cursor.trim().is_empty() && cursor.len() <= 128 && !cursor.chars().any(char::is_control)
 }
 
 fn next_cursor(data: &Value) -> Option<Value> {
@@ -279,7 +277,9 @@ mod tests {
                 assert_eq!(payload["source"], "search");
                 assert_eq!(payload["model"], "lexica-aperture-v2");
                 assert!(
-                    header.to_ascii_lowercase().contains("referer: https://lexica.art/?q=blue+sky"),
+                    header
+                        .to_ascii_lowercase()
+                        .contains("referer: https://lexica.art/?q=blue+sky"),
                     "{header}"
                 );
                 let reply = format!(
@@ -351,7 +351,10 @@ mod tests {
             2,
         )
         .await;
-        assert!(result.unwrap_err().to_string().contains("missing images array"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("missing images array"));
         server.await.unwrap();
     }
 }
