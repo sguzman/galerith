@@ -148,7 +148,8 @@ async fn user_media(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut first = base.join("api/v1/posts")?;
-    first.query_pairs_mut()
+    first
+        .query_pairs_mut()
         .append_pair("limit", "100")
         .append_pair("sort", "latest")
         .append_pair("period", "all")
@@ -233,7 +234,13 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base(client, &Url::parse("https://imgpile.com/")?, target, max_pages).await
+    resolve_at_base(
+        client,
+        &Url::parse("https://imgpile.com/")?,
+        target,
+        max_pages,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -341,7 +348,9 @@ mod tests {
     #[test]
     fn profile_pagination_next_page_must_not_escape_its_origin() {
         let first = Url::parse("https://imgpile.com/api/v1/posts?username=owner").unwrap();
-        let hostile = first.join("https://evil.example.org/api/v1/posts?page=2").unwrap();
+        let hostile = first
+            .join("https://evil.example.org/api/v1/posts?page=2")
+            .unwrap();
         assert_ne!(first.origin(), hostile.origin());
         let wrong = first.join("/admin?page=2").unwrap();
         assert_ne!(first.path(), wrong.path());
