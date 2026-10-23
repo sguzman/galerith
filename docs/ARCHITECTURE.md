@@ -12,6 +12,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
   │    ├── Gelbooru v0.2 XML API family (five hosts)
   │    └── 4chan / 4channel thread and bounded board media
   ├── read-only typed message inspection (directory, URL, deferred queue)
+  │    └── opt-in, one-level bounded queue expansion (no full job parity)
   ├── 1-based range selector / bounded filename formatter
   └── HTTP(S) client with Netscape cookie jar and bounded pacing
        └── download (resumes / retries / output lock)
@@ -21,7 +22,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 ```
 
 - `src/lib.rs`: shared `MediaItem` and direct media matcher
-- `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter and Wallhaven collection queue inspection, but no full gallery-dl recursive queue executor or metadata contract
+- `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter, Wallhaven deferred collection queues and opt-in one-level expansion, but no full gallery-dl recursive queue executor or metadata contract
 - `src/message.rs`: typed directory/URL/queue events and synthetic metadata adapter. [Detailed preview contract](MESSAGE_PROTOCOL.md)
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
 - `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
