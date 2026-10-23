@@ -350,3 +350,57 @@ fn inspection_selectors_cannot_be_silently_ignored() {
         assert!(!result.status.success(), "{args:?}");
     }
 }
+
+
+#[test]
+fn directory_scope_ranges_filter_before_url_emission() {
+    let url = "https://example.org/photo.png";
+    let selected = run(&[
+        "--follow-queues",
+        "--job-directory-range",
+        "1",
+        "--get-urls",
+        url,
+    ]);
+    assert!(selected.status.success());
+    assert_eq!(String::from_utf8_lossy(&selected.stdout).trim(), url);
+    let skipped = run(&[
+        "--follow-queues",
+        "--job-directory-range",
+        "2",
+        "--get-urls",
+        url,
+    ]);
+    assert!(skipped.status.success());
+    assert!(skipped.stdout.is_empty());
+
+    let inspected = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--message-directory-range",
+        "2",
+        url,
+    ]);
+    assert!(inspected.status.success());
+    assert!(inspected.stdout.is_empty());
+}
+
+#[test]
+fn directory_scope_selector_requires_its_corresponding_job_mode() {
+    let url = "https://example.org/photo.png";
+    for args in [
+        vec!["--job-directory-range", "1", url],
+        vec!["--dump-messages", "--message-directory-range", "1", url],
+        vec!["--follow-queues", "--job-directory-range", "0", url],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--message-directory-range",
+            "0",
+            url,
+        ],
+    ] {
+        let result = run(&args);
+        assert!(!result.status.success(), "{args:?}");
+    }
+}
