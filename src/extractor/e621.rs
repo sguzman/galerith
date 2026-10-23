@@ -25,6 +25,10 @@ pub enum Target {
         host: String,
         id: u64,
     },
+    ArtistSearch {
+        host: String,
+        parameters: Vec<(String, String)>,
+    },
     Popular {
         host: String,
         parameters: Vec<(String, String)>,
@@ -50,6 +54,23 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["posts", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id > 0).then_some(Target::Post { host, id })
+        }
+        ["artists"] => {
+            let parameters: Vec<(String, String)> = url.query_pairs()
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect();
+            if parameters.is_empty() || parameters.len() > 16
+                || parameters.iter().any(|(key, value)| {
+                    key.is_empty() || key.len() > 64 || value.len() > 512
+                        || !key.bytes().all(|b| {
+                            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'[' | b']')
+                        })
+                        || (key == "page" && value.parse::<u16>().ok().filter(|p| *p > 0).is_none())
+                })
+            {
+                return None;
+            }
+            Some(Target::ArtistSearch { host, parameters })
         }
         ["artists", id] => {
             let id = id.parse::<u64>().ok()?;
@@ -175,6 +196,7 @@ pub async fn resolve(
         | Target::Search { host, .. }
         | Target::Pool { host, .. }
         | Target::Artist { host, .. }
+        | Target::ArtistSearch { host, .. }
         | Target::Popular { host, .. }
         | Target::Favorites { host, .. } => host,
     };
@@ -291,6 +313,51 @@ async fn resolve_artist(
     paginate_posts(client, base, "posts.json", &tags, max_pages).await
 }
 
+async fn resolve_artist_search(
+    client: &Client,
+    base: &Url,
+    parameters: &[(String, String)],
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let start = parameters.iter().find(|(key, _)| key == "page")
+        .map(|(_, value)| value.parse::<u16>()).transpose()?.unwrap_or(1);
+    let mut output = Vec::new();
+    let mut first_artist = true;
+    for offset in 0..max_pages.max(1) {
+        let Some(page) = start.checked_add(offset) else { break };
+        if offset > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        let mut url = base.join("artists.json")?;
+        {
+            let mut query = url.query_pairs_mut();
+            for (key, value) in parameters {
+                if key != "page" {
+                    query.append_pair(key, value);
+                }
+            }
+            query.append_pair("page", &page.to_string());
+        }
+        let data: Value = client.get(url).send().await?.error_for_status()?.json().await?;
+        let artists = data.as_array().ok_or("e621 artist search must return an array")?;
+        for artist in artists.iter().take(20) {
+            let Some(name) = artist.get("name").and_then(Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 512)
+            else { continue };
+            if !first_artist {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            first_artist = false;
+            let tags = [("tags".to_owned(), name.to_owned())];
+            output.extend(paginate_posts(client, base, "posts.json", &tags, max_pages).await?);
+        }
+        if artists.len() < 20 {
+            break;
+        }
+    }
+    Ok(output)
+}
+
 /// Testing seam: the public router accepts only known upstream hostnames.
 async fn resolve_at_base(
     client: &Client,
@@ -301,6 +368,9 @@ async fn resolve_at_base(
     match target {
         Target::Pool { id, .. } => resolve_pool(client, base, id, max_pages).await,
         Target::Artist { id, .. } => resolve_artist(client, base, id, max_pages).await,
+        Target::ArtistSearch { parameters, .. } => {
+            resolve_artist_search(client, base, &parameters, max_pages).await
+        }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
             let data: Value = client
@@ -391,6 +461,15 @@ mod tests {
             })
         );
         assert!(match_url("https://e621.net/artists/0").is_none());
+        assert_eq!(
+            match_url("https://e621.net/artists?search%5Bname%5D=blue&page=2"),
+            Some(Target::ArtistSearch {
+                host: "e621.net".into(),
+                parameters: vec![("search[name]".into(), "blue".into()), ("page".into(), "2".into())],
+            })
+        );
+        assert!(match_url("https://e621.net/artists?page=0").is_none());
+        assert!(match_url("https://e621.net/artists").is_none());
         assert_eq!(match_url("https://not-e621.net/posts/90"), None);
         assert_eq!(match_url("http://e621.net/posts/90"), None);
     }
@@ -469,6 +548,42 @@ mod tests {
         let results = resolve_artist(&Client::new(), &api, 33, 1).await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].filename, "17.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn artist_search_uses_query_results_to_resolve_post_media() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                (
+                    "GET /artists.json?search%5Bname%5D=blue&page=2 HTTP/1.1",
+                    r#"[{"id":33,"name":"blue_fox"}]"#,
+                ),
+                (
+                    "GET /posts.json?tags=blue_fox&limit=75&page=1 HTTP/1.1",
+                    r#"{"posts":[{"id":88,"file":{"url":"https://cdn.example.org/88.jpg","ext":"jpg"}}]}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(needle), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let query = [("search[name]".into(), "blue".into()), ("page".into(), "2".into())];
+        let items = resolve_artist_search(&Client::new(), &base, &query, 1).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "88.jpg");
         server.await.unwrap();
     }
 
