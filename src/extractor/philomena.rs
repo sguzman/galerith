@@ -40,15 +40,23 @@ pub fn match_url(input: &str) -> Option<Target> {
     let segments: Vec<_> = url.path_segments()?.filter(|x| !x.is_empty()).collect();
     let query = match segments.as_slice() {
         ["tags", slug] => {
-            let decoded = percent_encoding::percent_decode_str(slug).decode_utf8().ok()?;
+            let decoded = percent_encoding::percent_decode_str(slug)
+                .decode_utf8()
+                .ok()?;
             let mut query = decoded.replace('+', " ");
             for (from, to) in [
-                ("-colon-", ":"), ("-dash-", "-"), ("-dot-", "."),
-                ("-plus-", "+"), ("-fwslash-", "/"), ("-bwslash-", "\\"),
+                ("-colon-", ":"),
+                ("-dash-", "-"),
+                ("-dot-", "."),
+                ("-plus-", "+"),
+                ("-fwslash-", "/"),
+                ("-bwslash-", "\\"),
             ] {
                 query = query.replace(from, to);
             }
-            if query.is_empty() || query.len() > 512 { return None; }
+            if query.is_empty() || query.len() > 512 {
+                return None;
+            }
             Query::Search(query)
         }
         ["search"] => Query::Search(
@@ -95,9 +103,6 @@ fn parse_image(item: &Value, category: &'static str) -> Option<MediaItem> {
         let (stem, _) = url.path().rsplit_once('.')?;
         let svg_path = format!("{stem}.svg");
         url.set_path(&svg_path);
-    }
-    if !matches!(url.scheme(), "http" | "https") {
-        return None;
     }
     let ext = url.path().rsplit_once('.')?.1;
     if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|c| c.is_ascii_alphanumeric()) {
@@ -333,7 +338,10 @@ mod tests {
     }
     #[tokio::test]
     async fn tag_slug_resolves_to_search_query_in_local_api() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -353,10 +361,11 @@ mod tests {
         });
         let api = Url::parse(&format!("http://{address}/")).unwrap();
         let target = match_url("https://derpibooru.org/tags/hello-colon-world").unwrap();
-        let result = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        let result = resolve_at_base(&Client::new(), target, 3, &api)
+            .await
+            .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].filename, "66.png");
         server.await.unwrap();
     }
-
 }
