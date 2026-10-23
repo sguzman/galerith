@@ -180,7 +180,10 @@ mod tests {
     }
     #[tokio::test]
     async fn end_to_end_post_fixture_uses_correct_api_path() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -188,7 +191,10 @@ mod tests {
             let mut data = [0_u8; 4096];
             let read = socket.read(&mut data).await.unwrap();
             let request = String::from_utf8_lossy(&data[..read]);
-            assert!(request.starts_with("GET /posts/56.json HTTP/1.1"), "{request}");
+            assert!(
+                request.starts_with("GET /posts/56.json HTTP/1.1"),
+                "{request}"
+            );
             let body = r#"{"id":56,"file_url":"https://cdn.example.org/p.png","file_ext":"png"}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -197,8 +203,13 @@ mod tests {
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let target = Target::Post { host: "safebooru.donmai.us".into(), id: 56 };
-        let result = resolve_at_base(&Client::new(), target, 1, &base).await.unwrap();
+        let target = Target::Post {
+            host: "safebooru.donmai.us".into(),
+            id: 56,
+        };
+        let result = resolve_at_base(&Client::new(), target, 1, &base)
+            .await
+            .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].filename, "56.png");
         server.await.unwrap();
@@ -206,7 +217,10 @@ mod tests {
 
     #[tokio::test]
     async fn end_to_end_tag_search_stops_at_empty_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -231,11 +245,15 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let target = Target::Search { host: "safebooru.donmai.us".into(), tags: "blue sky".into() };
-        let result = resolve_at_base(&Client::new(), target, 5, &base).await.unwrap();
+        let target = Target::Search {
+            host: "safebooru.donmai.us".into(),
+            tags: "blue sky".into(),
+        };
+        let result = resolve_at_base(&Client::new(), target, 5, &base)
+            .await
+            .unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].filename, "123.jpg");
         server.await.unwrap();
     }
-
 }
