@@ -497,8 +497,7 @@ mod tests {
                 let mut request = [0_u8; 4096];
                 let n = socket.read(&mut request).await.unwrap();
                 assert!(
-                    String::from_utf8_lossy(&request[..n])
-                        .contains(&format!("page={}", page + 1))
+                    String::from_utf8_lossy(&request[..n]).contains(&format!("page={}", page + 1))
                 );
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
