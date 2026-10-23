@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 57%` across 85 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 57%` across 86 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `██████░░░░ 63%`
+### 🧬 P4 — Extractor architecture — `██████░░░░ 64%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -187,6 +187,12 @@
   - [x] Dispatch thread URLs through typed native extraction rather than synthetic per-file directories — src/extractor/mod.rs resolve_messages for fourchan::match_url, CI 40039010520
   - [x] Verify 4chan typed post scopes with one local HTTP thread request and malformed attachment handling — src/extractor/fourchan.rs resolve_messages_at_base loopback and text/no-file fixtures; CI 40039010520
   - [ ] Reproduce full upstream thread/board post queue, comments, metadata, filename and archive semantics through reference differential testing
+- ⏩ **T413** Cross-family finite file selection and API page minimization — `████████░░ 80%`
+  - [x] Stop Gelbooru JSON page traversal when selected validated media count is satisfied — src/extractor/gelbooru.rs resolve_limited and one-page HTTP fixture; CI 40039969843
+  - [x] Count Gelbooru source posts separately from downloadable media so unavailable files never trigger false short-page stops — src/extractor/gelbooru.rs source_post_count and two-page missing-file fixture; CI 40039969843
+  - [x] Apply the validated-media ceiling across five-host Gelbooru v0.2 XML family without altering source-post pagination semantics — src/extractor/gelbooru_v02.rs resolve_limited and local HTTP fixtures; CI 40039969843
+  - [x] Apply the same finite stop to Moebooru post/search/pool/popular previews and dispatch through typed-job file selection — src/extractor/moebooru.rs resolve_limited, src/extractor/mod.rs, complete/partial-page loopback cases; CI 40039969843
+  - [ ] Achieve full early-termination, post/file/child selector and live differential parity across all pinned upstream extractors
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
