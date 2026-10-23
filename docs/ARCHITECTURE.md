@@ -11,6 +11,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
   │    ├── Gelbooru JSON posts and tags
   │    ├── Gelbooru v0.2 XML API family (five hosts)
   │    └── 4chan / 4channel thread and bounded board media
+  ├── read-only typed message inspection (directory, URL, deferred queue)
   ├── 1-based range selector / bounded filename formatter
   └── HTTP(S) client with Netscape cookie jar and bounded pacing
        └── download (resumes / retries / output lock)
@@ -20,7 +21,8 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 ```
 
 - `src/lib.rs`: shared `MediaItem` and direct media matcher
-- `src/extractor/`: independently written, limited JSON/XML booru API extractors; no gallery-dl-equivalent message queue or metadata contract yet
+- `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter and Wallhaven collection queue inspection, but no full gallery-dl recursive queue executor or metadata contract
+- `src/message.rs`: typed directory/URL/queue events and synthetic metadata adapter. [Detailed preview contract](MESSAGE_PROTOCOL.md)
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
 - `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
 - `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
@@ -31,10 +33,10 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 - `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`); the full gallery-dl postprocessor lifecycle remains outstanding
 - `src/bin/galerith-roadmap.rs`: task/acceptance and extractor inventory verification; CI checks both generated Markdown documents
 
-Tests are synthetic and offline: `tests/cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.
+Tests are synthetic and offline: `tests/cli.rs`, `tests/message_cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.
 
 Never include private conversations, credentials, real user media, logged-in sessions or protected site data in the public repository.
 
 ## Missing core infrastructure
 
-Extractor message queues and complete metadata dictionaries, authentication/login protocols, supported-site class inventory, full config and formatter dialects, archive interchange, file/post filtering, complete postprocessors (ZIP/CBZ/mtime/exec/rename), downloader integrations, and the rest of the pinned 272-file module inventory.
+Complete queue execution and full metadata dictionaries, authentication/login protocols, supported-site class inventory, full config and formatter dialects, archive interchange, file/post filtering, complete postprocessors (ZIP/CBZ/mtime/exec/rename), downloader integrations, and the rest of the pinned 272-file module inventory.
