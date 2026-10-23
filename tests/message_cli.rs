@@ -174,7 +174,6 @@ fn queue_depth_is_opt_in_bounded_and_has_no_effect_on_direct_media() {
     }
 }
 
-
 #[test]
 fn follow_queues_download_job_preview_preserves_direct_media_json() {
     let plain = run(&["--dump-json", "https://example.org/photo.png"]);
