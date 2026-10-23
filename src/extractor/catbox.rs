@@ -13,6 +13,23 @@ pub enum Target {
     Album { id: String },
 }
 
+/// Album context is available to library callers, but the generic CLI
+/// media-only output has not yet gained upstream directory/metadata semantics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlbumMetadata {
+    pub id: String,
+    pub title: Option<String>,
+    /// Original Catbox date text, not a normalized timestamp.
+    pub created_raw: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlbumDetails {
+    pub metadata: AlbumMetadata,
+    pub files: Vec<MediaItem>,
+}
+
 fn clean_name(raw: &str) -> Option<String> {
     let decoded = percent_encoding::percent_decode_str(raw)
         .decode_utf8()
@@ -87,11 +104,63 @@ fn parse_album_html(html: &str) -> Vec<MediaItem> {
     media
 }
 
-async fn resolve_album_at_base(
+fn read_album_text(html: &str, marker: &str) -> Option<String> {
+    let raw = html.split_once(marker)?.1.split('<').next()?.trim();
+    if raw.is_empty() || raw.len() > 2048 || raw.chars().any(char::is_control) {
+        return None;
+    }
+    let mut text = raw.to_owned();
+    for (entity, replacement) in [
+        ("&quot;", "\""),
+        ("&apos;", "'"),
+        ("&#39;", "'"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&amp;", "&"),
+    ] {
+        text = text.replace(entity, replacement);
+    }
+    Some(text)
+}
+
+fn parse_album_details(id: &str, html: &str) -> AlbumDetails {
+    let title = read_album_text(html, "<h1>");
+    let created_raw = read_album_text(html, "<p>Created ");
+    let description_source = if let Some((_, suffix)) = html.split_once("<p>Created ") {
+        suffix.split_once("</p>").map(|(_, following)| following)
+    } else {
+        Some(html)
+    };
+    let description = description_source.and_then(|source| read_album_text(source, "<p>"));
+    AlbumDetails {
+        metadata: AlbumMetadata {
+            id: id.to_owned(),
+            title,
+            created_raw,
+            description,
+        },
+        files: parse_album_html(html),
+    }
+}
+
+/// Read public album details without pretending the generic media contract
+/// supports upstream archive keys or directory templates yet.
+pub async fn resolve_album_details(
+    client: &Client,
+    input: &str,
+) -> Result<AlbumDetails, Box<dyn Error + Send + Sync>> {
+    let Some(Target::Album { id }) = match_url(input) else {
+        return Err("not a supported Catbox album URL".into());
+    };
+    let base = Url::parse("https://catbox.moe/")?;
+    resolve_album_details_at_base(client, &base, &id).await
+}
+
+async fn resolve_album_details_at_base(
     client: &Client,
     base: &Url,
     id: &str,
-) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+) -> Result<AlbumDetails, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("c/{id}"))?;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
@@ -108,7 +177,15 @@ async fn resolve_album_at_base(
         body.extend_from_slice(&chunk);
     }
     let page = String::from_utf8(body)?;
-    Ok(parse_album_html(&page))
+    Ok(parse_album_details(id, &page))
+}
+
+async fn resolve_album_at_base(
+    client: &Client,
+    base: &Url,
+    id: &str,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    Ok(resolve_album_details_at_base(client, base, id).await?.files)
 }
 
 pub async fn resolve(
@@ -157,6 +234,27 @@ mod tests {
         assert!(match_url("https://files.catbox.moe/bad%2Fname.jpg").is_none());
         assert!(match_url("https://evil.catbox.moe/c/album123").is_none());
         assert!(match_url("http://catbox.moe/c/album123").is_none());
+    }
+
+    #[test]
+    fn album_details_capture_basic_public_metadata_without_touching_media_names() {
+        let html = concat!(
+            "<h1>Photos &amp; Friends</h1>",
+            "<p>Created October 23 2026</p>",
+            "<p>A &quot;small&quot; collection</p>",
+            "<p>https://files.catbox.moe/a.jpg</p>"
+        );
+        let album = parse_album_details("abc12", html);
+        assert_eq!(album.metadata.id, "abc12");
+        assert_eq!(album.metadata.title.as_deref(), Some("Photos & Friends"));
+        assert_eq!(album.metadata.created_raw.as_deref(), Some("October 23 2026"));
+        assert_eq!(album.metadata.description.as_deref(), Some("A \"small\" collection"));
+        assert_eq!(album.files.len(), 1);
+        assert_eq!(album.files[0].filename, "a.jpg");
+        let missing = parse_album_details("empty", "<p>No album metadata</p>");
+        assert_eq!(missing.metadata.id, "empty");
+        assert_eq!(missing.metadata.created_raw, None);
+        assert_eq!(missing.metadata.description.as_deref(), Some("No album metadata"));
     }
 
     #[test]
