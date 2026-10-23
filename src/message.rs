@@ -127,7 +127,7 @@ fn selected_source_post(metadata: &Metadata, selected: &Option<IndexRange>) -> b
 /// Contextual fields such as collection_id and username may be inherited.
 fn child_context(metadata: &Metadata) -> Metadata {
     let mut context = metadata.clone();
-    for key in ["filename", "extractor", "post_id"] {
+    for key in ["filename", "extractor", "post_id", "source_post_id"] {
         context.remove(key);
     }
     context
