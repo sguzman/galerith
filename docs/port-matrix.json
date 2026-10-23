@@ -1985,7 +1985,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent Wikimedia Commons public File: page Action API GET preview with contact User-Agent, maxlag, bounded JSON, image host allowlist and offline HTTP tests; CI 40024629371 passed. Article/category generators, other wiki hosts, revisions, metadata, archive parity and live differential testing remain unaccepted."
+        "Independent Commons File: API plus article generator=images and categorymembers file lists, bounded token pagination, origin/media host validation, 1s request pacing, dedup and synthetic HTTP fixtures; CI 40026028078 passed. Subcategory recursion, cross-wiki APIs, complete metadata, revisions, archive/filename behavior and live reference parity remain unaccepted."
       ]
     },
     {
