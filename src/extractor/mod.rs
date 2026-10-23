@@ -140,7 +140,7 @@ pub async fn resolve(
         return imgbox::resolve(client, target).await;
     }
     if let Some(target) = imgpile::match_url(input) {
-        return imgpile::resolve(client, target).await;
+        return imgpile::resolve(client, target, max_pages).await;
     }
     if let Some(target) = e621::match_url(input) {
         return e621::resolve(client, target, max_pages).await;
@@ -182,6 +182,7 @@ mod tests {
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
+            ("https://imgpile.com/u/creator-1", "imgpile"),
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
