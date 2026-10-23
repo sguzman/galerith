@@ -92,13 +92,13 @@ impl IndexRange {
     /// upper bound. A conservative bound can include skipped step positions;
     /// it must never exclude a selected index.
     pub fn finite_upper_bound(&self) -> Option<usize> {
-        self.0
-            .iter()
-            .map(|clause| {
-                let end = clause.end?;
-                usize::try_from(end - 1).ok()
-            })
-            .max()?
+        let mut maximum = 0;
+        for clause in &self.0 {
+            let end = clause.end?;
+            let last = usize::try_from(end.checked_sub(1)?).ok()?;
+            maximum = maximum.max(last);
+        }
+        Some(maximum)
     }
 
     pub fn contains(&self, index: usize) -> bool {
