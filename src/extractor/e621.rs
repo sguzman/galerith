@@ -885,7 +885,7 @@ mod tests {
                 .collect();
             let payload = json!({"posts":posts}).to_string();
             let reply = format!(
-                "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{payload}",
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
                 payload.len()
             );
             socket.write_all(reply.as_bytes()).await.unwrap();
@@ -934,7 +934,7 @@ mod tests {
                 );
                 let payload = json!({"posts":posts}).to_string();
                 let reply = format!(
-                    "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{payload}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
                     payload.len()
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
