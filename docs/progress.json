@@ -958,11 +958,16 @@
                   "evidence": "src/extractor/moebooru.rs resolve_limited, src/extractor/mod.rs, complete/partial-page loopback cases; CI 40039969843"
                 },
                 {
+                  "title": "Stop Danbooru public tag-search API requests after finite selected media without stopping on full pages with missing files",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs resolve_tag_posts_limited + two local HTTP fixtures, src/extractor/mod.rs search-only dispatch; CI 40040566586"
+                },
+                {
                   "title": "Achieve full early-termination, post/file/child selector and live differential parity across all pinned upstream extractors",
                   "passed": false
                 }
               ],
-              "progress": 80
+              "progress": 83
             }
           ]
         },
