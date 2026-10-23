@@ -461,12 +461,28 @@ async fn resolve_at_base_limited(
     }
     match target {
         Target::Collections { user } => {
-            append_user_collections(client, base, user, &mut budget, &mut items, &mut seen, limit)
-                .await?;
+            append_user_collections(
+                client,
+                base,
+                user,
+                &mut budget,
+                &mut items,
+                &mut seen,
+                limit,
+            )
+            .await?;
         }
         _ => {
-            append_regular(client, base, target, &mut budget, &mut items, &mut seen, limit)
-                .await?;
+            append_regular(
+                client,
+                base,
+                target,
+                &mut budget,
+                &mut items,
+                &mut seen,
+                limit,
+            )
+            .await?;
         }
     }
     Ok(items)
@@ -480,7 +496,14 @@ pub async fn resolve_limited(
     max_pages: u16,
     maximum_items: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base_limited(client, &Url::parse(API_ROOT)?, &target, max_pages, maximum_items).await
+    resolve_at_base_limited(
+        client,
+        &Url::parse(API_ROOT)?,
+        &target,
+        max_pages,
+        maximum_items,
+    )
+    .await
 }
 
 async fn resolve_at_base(
@@ -497,7 +520,14 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base_limited(client, &Url::parse(API_ROOT)?, &target, max_pages, MAX_MEDIA).await
+    resolve_at_base_limited(
+        client,
+        &Url::parse(API_ROOT)?,
+        &target,
+        max_pages,
+        MAX_MEDIA,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -790,7 +820,13 @@ mod tests {
                 let request = String::from_utf8_lossy(&request[..n]);
                 let url = Url::parse(&format!(
                     "http://localhost{}",
-                    request.lines().next().unwrap().split_whitespace().nth(1).unwrap()
+                    request
+                        .lines()
+                        .next()
+                        .unwrap()
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap()
                 ))
                 .unwrap();
                 assert_eq!(url.path(), "/api/v1/search");
@@ -820,7 +856,10 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(
-            items.iter().map(|item| item.filename.as_str()).collect::<Vec<_>>(),
+            items
+                .iter()
+                .map(|item| item.filename.as_str())
+                .collect::<Vec<_>>(),
             ["wallhaven-94x38z.jpg", "wallhaven-ze1p56.png"]
         );
         server.await.unwrap();
