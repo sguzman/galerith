@@ -86,18 +86,25 @@ pub fn match_url(input: &str) -> Option<Target> {
                 .unwrap_or_default();
             Some(Target::Random { host, tags })
         }
-        ["posts", id] => {
+        ["posts", id] | ["post", "show", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id != 0).then_some(Target::Post { host, id })
         }
-        ["pools", id] | ["favorite_groups", id] => {
-            let kind = if parts[0] == "pools" {
-                CollectionKind::Pool
-            } else {
-                CollectionKind::FavoriteGroup
-            };
+        ["pools", id] | ["pool", "show", id] => {
             let id = id.parse::<u64>().ok()?;
-            (id > 0).then_some(Target::Collection { host, id, kind })
+            (id > 0).then_some(Target::Collection {
+                host,
+                id,
+                kind: CollectionKind::Pool,
+            })
+        }
+        ["favorite_groups", id] | ["favorite_group", "show", id] => {
+            let id = id.parse::<u64>().ok()?;
+            (id > 0).then_some(Target::Collection {
+                host,
+                id,
+                kind: CollectionKind::FavoriteGroup,
+            })
         }
         ["artists", id] => {
             let id = id.parse::<u64>().ok()?;
@@ -532,6 +539,30 @@ mod tests {
                 kind: CollectionKind::FavoriteGroup,
             })
         );
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/pool/show/42"),
+            Some(Target::Collection {
+                host: "danbooru.donmai.us".into(),
+                id: 42,
+                kind: CollectionKind::Pool,
+            })
+        );
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/favorite_group/show/71"),
+            Some(Target::Collection {
+                host: "danbooru.donmai.us".into(),
+                id: 71,
+                kind: CollectionKind::FavoriteGroup,
+            })
+        );
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/post/show/44"),
+            Some(Target::Post {
+                host: "danbooru.donmai.us".into(),
+                id: 44
+            })
+        );
+        assert!(match_url("https://danbooru.donmai.us/pool/show/0").is_none());
         assert!(match_url("https://danbooru.donmai.us/pools/0").is_none());
         assert!(match_url("https://danbooru.donmai.us/pools/42/edit").is_none());
         assert!(match_url("https://evil.donmai.us/pools/42").is_none());
