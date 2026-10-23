@@ -18,12 +18,14 @@ pub enum Target {
     Search { query: String, sort: Option<String> },
     Feed { actor: String, id: String },
     List { actor: String, id: String },
+    Likes { actor: String },
 }
 
 #[derive(Clone, Copy)]
 enum CollectionFeed {
     Generator,
     List,
+    Likes,
 }
 
 fn valid_segment(value: &str) -> bool {
@@ -113,6 +115,9 @@ pub fn match_url(input: &str) -> Option<Target> {
             actor: (*actor).to_owned(),
         }),
         ["profile", actor, "replies"] if valid_segment(actor) => Some(Target::Replies {
+            actor: (*actor).to_owned(),
+        }),
+        ["profile", actor, "likes"] if valid_segment(actor) => Some(Target::Likes {
             actor: (*actor).to_owned(),
         }),
         ["profile", actor, "avatar"] if valid_segment(actor) => Some(Target::Avatar {
@@ -300,11 +305,19 @@ async fn resolve_collection_feed(
     kind: CollectionFeed,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let (collection, endpoint_name, query_name) = match kind {
-        CollectionFeed::Generator => ("app.bsky.feed.generator", "app.bsky.feed.getFeed", "feed"),
-        CollectionFeed::List => ("app.bsky.graph.list", "app.bsky.feed.getListFeed", "list"),
+    let (endpoint_name, query_name, parameter) = match kind {
+        CollectionFeed::Generator => (
+            "app.bsky.feed.getFeed",
+            "feed",
+            format!("at://{did}/app.bsky.feed.generator/{id}"),
+        ),
+        CollectionFeed::List => (
+            "app.bsky.feed.getListFeed",
+            "list",
+            format!("at://{did}/app.bsky.graph.list/{id}"),
+        ),
+        CollectionFeed::Likes => ("app.bsky.feed.getActorLikes", "actor", did.to_owned()),
     };
-    let at_uri = format!("at://{did}/{collection}/{id}");
     let mut output = Vec::new();
     let mut seen = HashSet::new();
     let mut cursor: Option<String> = None;
@@ -316,7 +329,7 @@ async fn resolve_collection_feed(
         {
             let mut params = endpoint.query_pairs_mut();
             params
-                .append_pair(query_name, &at_uri)
+                .append_pair(query_name, &parameter)
                 .append_pair("limit", "100");
             if let Some(cursor) = &cursor {
                 params.append_pair("cursor", cursor);
@@ -409,7 +422,8 @@ async fn resolve_at_base(
         | Target::Avatar { actor }
         | Target::Banner { actor }
         | Target::Feed { actor, .. }
-        | Target::List { actor, .. } => actor,
+        | Target::List { actor, .. }
+        | Target::Likes { actor } => actor,
     };
     let did = resolve_actor(client, base, actor).await?;
     match target {
@@ -427,6 +441,9 @@ async fn resolve_at_base(
         }
         Target::List { id, .. } => {
             resolve_collection_feed(client, base, &did, &id, CollectionFeed::List, max_pages).await
+        }
+        Target::Likes { .. } => {
+            resolve_collection_feed(client, base, &did, "", CollectionFeed::Likes, max_pages).await
         }
         Target::Avatar { .. } | Target::Banner { .. } => {
             let kind = if matches!(target, Target::Avatar { .. }) {
@@ -475,7 +492,8 @@ async fn resolve_at_base(
                 | Target::Banner { .. }
                 | Target::Search { .. }
                 | Target::Feed { .. }
-                | Target::List { .. } => {
+                | Target::List { .. }
+                | Target::Likes { .. } => {
                     unreachable!("single posts and profile images are resolved above")
                 }
             };
@@ -631,7 +649,12 @@ mod tests {
             })
         );
         assert!(match_url("https://bsky.app/profile/a/lists/a%2Fb").is_none());
-        assert!(match_url("https://bsky.app/profile/alice.bsky.social/likes").is_none());
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/likes"),
+            Some(Target::Likes {
+                actor: "alice.bsky.social".into(),
+            })
+        );
         assert!(match_url("https://bsky.evil.app/profile/a/media").is_none());
         assert!(match_url("http://bsky.app/profile/a/media").is_none());
         assert!(match_url("https://bsky.app/profile/a%2Fb/media").is_none());
@@ -795,7 +818,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn public_feed_generators_and_lists_use_distinct_atproto_endpoints() {
+    async fn public_feed_generators_lists_and_likes_use_distinct_atproto_endpoints() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
             net::TcpListener,
@@ -817,6 +840,13 @@ mod tests {
                     "app.bsky.graph.list",
                     "list1",
                     "listpost",
+                ),
+                (
+                    "getActorLikes",
+                    "actor=",
+                    "did%3Aplc%3Aalice",
+                    "did%3Aplc%3Aalice",
+                    "likepost",
                 ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
@@ -856,6 +886,12 @@ mod tests {
                     id: "list1".into(),
                 },
                 "listpost_1.jpeg",
+            ),
+            (
+                Target::Likes {
+                    actor: "did:plc:alice".into(),
+                },
+                "likepost_1.jpeg",
             ),
         ] {
             let items = resolve_at_base(&Client::new(), target, 1, &base)
