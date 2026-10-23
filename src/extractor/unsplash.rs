@@ -341,6 +341,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn public_likes_and_collections_use_their_separate_endpoints() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (route, body) in [
+                (
+                    "GET /napi/users/alice/likes?order_by=latest&per_page=20&page=1 HTTP/1.1",
+                    r#"[{"id":"liked01","urls":{"raw":"https://images.unsplash.com/liked"}}]"#,
+                ),
+                (
+                    "GET /napi/collections/123/photos?order_by=latest&per_page=20&page=1 HTTP/1.1",
+                    r#"[{"id":"collect01","urls":{"raw":"https://images.unsplash.com/collected"}}]"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(route), "{request}");
+                let answer = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(answer.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let likes = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::Likes {
+                username: "alice".into(),
+            },
+            1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(likes.len(), 1);
+        assert_eq!(likes[0].filename, "liked01.jpg");
+        let collection = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::Collection { id: "123".into() },
+            1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(collection.len(), 1);
+        assert_eq!(collection[0].filename, "collect01.jpg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn user_photo_feed_paginates_full_page_and_deduplicates() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
