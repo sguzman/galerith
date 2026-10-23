@@ -1262,7 +1262,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent public Pixeldrain files and lists with validated file/album IDs, album item indices, availability handling, bounded JSON, safe filename values and local API fixtures; CI 40001147044 green; auth, ZIP/folders, metadata and live parity missing"
+        "Independent public Pixeldrain files and lists with validated file/album IDs, album item indices, availability handling, bounded JSON, safe filename values and local API fixtures; CI 40001147044 green; auth, ZIP/folders, metadata and live parity missing",
+        "Verified bounded nonrecursive public filesystem ?stat children and single files, strict path scoping, and explicit /api/list/ID/zip exports with synthetic HTTP fixture; CI 40002909144 green; authenticated and full recursive parity remain unsupported"
       ]
     },
     {

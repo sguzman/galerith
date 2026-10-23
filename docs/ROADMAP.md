@@ -274,12 +274,16 @@
   - [x] Resolve gallery and individual image pages through bounded offline HTTP — src/extractor/imagebam.rs three-request gallery localhost HTML fixture, 2MiB page guard; CI 39999653275
   - [ ] Reproduce full gallery pagination, metadata, archive/filename templates and live conformance
   - [x] Verify bounded ImageBam next-page gallery traversal with same-origin, repeated-page and cross-page ordering guards — src/extractor/imagebam.rs same-gallery cursor and two-listing/four-request TCP fixtures, src/extractor/mod.rs max_pages routing; CI 40000286877
-- 🗃️ **T517** Pixeldrain public file and album JSON extractor preview — `████████░░ 80%`
+- 🗃️ **T517** Pixeldrain public file and album JSON extractor preview — `█████████░ 89%`
   - [x] Recognize Pixeldrain public file/album and selected-item URLs conservatively — src/extractor/pixeldrain.rs URL ID/fragment tests, src/extractor/mod.rs dispatch; CI 40001147044
   - [x] Parse safe public file metadata and skip unavailable media — src/extractor/pixeldrain.rs filename and JSON availability validation tests; CI 40001147044
   - [x] Extract bounded album file lists and selected index consistently — src/extractor/pixeldrain.rs synthetic albums and selected-index fixtures; CI 40001147044
   - [x] Verify file info and album JSON endpoint traversal through local HTTP — src/extractor/pixeldrain.rs two-endpoint localhost JSON fixture, 2 MiB response guard; CI 40001147044
-  - [ ] Port authenticated APIs, ZIP exports, folder recursion, metadata and live upstream parity
+  - [ ] Port authenticated APIs, recursive filesystem traversal, ZIP configuration behavior, complete metadata and live upstream parity
+  - [x] Verify Pixeldrain filesystem URL shapes and path-traversal rejection — src/extractor/pixeldrain.rs folder-route, percent-dot, child-scope fixtures; src/extractor/mod.rs dispatcher; CI 40002558640
+  - [x] Resolve bounded Pixeldrain direct folder children with offline ?stat JSON — src/extractor/pixeldrain.rs duplicate, unavailable and nested-directory filters plus localhost stat HTTP fixture; CI 40002558640
+  - [x] Resolve Pixeldrain filesystem single-file stat metadata without recursion — src/extractor/pixeldrain.rs same-path typed file fixture; CI 40002909144
+  - [x] Resolve Pixeldrain album ZIP URL from public list metadata — src/extractor/pixeldrain.rs album title/filename fixture, localhost album ZIP metadata API and dispatcher route; CI 40002909144
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

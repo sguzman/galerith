@@ -1360,11 +1360,31 @@
                   "evidence": "src/extractor/pixeldrain.rs two-endpoint localhost JSON fixture, 2 MiB response guard; CI 40001147044"
                 },
                 {
-                  "title": "Port authenticated APIs, ZIP exports, folder recursion, metadata and live upstream parity",
+                  "title": "Port authenticated APIs, recursive filesystem traversal, ZIP configuration behavior, complete metadata and live upstream parity",
                   "passed": false
+                },
+                {
+                  "title": "Verify Pixeldrain filesystem URL shapes and path-traversal rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs folder-route, percent-dot, child-scope fixtures; src/extractor/mod.rs dispatcher; CI 40002558640"
+                },
+                {
+                  "title": "Resolve bounded Pixeldrain direct folder children with offline ?stat JSON",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs duplicate, unavailable and nested-directory filters plus localhost stat HTTP fixture; CI 40002558640"
+                },
+                {
+                  "title": "Resolve Pixeldrain filesystem single-file stat metadata without recursion",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs same-path typed file fixture; CI 40002909144"
+                },
+                {
+                  "title": "Resolve Pixeldrain album ZIP URL from public list metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/pixeldrain.rs album title/filename fixture, localhost album ZIP metadata API and dispatcher route; CI 40002909144"
                 }
               ],
-              "progress": 80
+              "progress": 89
             }
           ]
         }

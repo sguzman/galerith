@@ -49,7 +49,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 40001147044](https://github.com/sguzman/galerith/actions/runs/40001147044) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 40002909144](https://github.com/sguzman/galerith/actions/runs/40002909144) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 
