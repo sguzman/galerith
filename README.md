@@ -19,11 +19,11 @@ cargo run -- --get-urls 'https://safebooru.donmai.us/posts/123'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
 ```
 
-`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, temporary `.part` files, bounded retries, and existing-file skips. Missing upstream features include most options, nearly all site-specific extraction, metadata-template parity, cookies/auth, resume support, archives, postprocessing, and reference JSON output. Danbooru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
+`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, and existing-file skips. See [HTTP recovery guarantees](docs/DOWNLOADER.md). Missing upstream features include most options, nearly all site-specific extraction, metadata-template parity, cookies/auth, full upstream resume policies, archives, postprocessing, and reference JSON output. Danbooru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
 
 ## Port tracking
 
-**Overall MVP:** `███░░░░░░░ 25%` (42 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `███░░░░░░░ 31%` (42 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
@@ -38,7 +38,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39899209978](https://github.com/sguzman/galerith/actions/runs/39899209978) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39947298737](https://github.com/sguzman/galerith/actions/runs/39947298737) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 

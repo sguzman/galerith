@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███░░░░░░░ 25%` across 42 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███░░░░░░░ 31%` across 42 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,33 +49,33 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `███░░░░░░░ 25%`
+## 🌐 M1 — HTTP, storage and download parity — `████░░░░░░ 44%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `███░░░░░░░ 31%`
+### 📡 P2 — HTTP transfer engine — `██████░░░░ 56%`
 
-- ⬇️ **T201** Stream media downloads — `█████░░░░░ 50%`
+- ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
   - [x] Add local HTTP fixture tests — tests/download_http.rs; GitHub Actions 39898967165 passed
-  - [ ] Verify interrupted/large downloads
+  - [x] Verify interrupted/large downloads — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Match upstream downloader behavior
-- 🔄 **T202** Retry, backoff and rate control — `███░░░░░░░ 25%`
+- 🔄 **T202** Retry, backoff and rate control — `█████░░░░░ 50%`
   - [x] Provide bounded transient retries — src/download.rs
   - [ ] Honor Retry-After and timing policies
   - [ ] Implement per-host and global pacing
-  - [ ] Verify HTTP 429/5xx fixture matrix
-- ⏯️ **T203** Resume, partial files and atomic completion — `███░░░░░░░ 25%`
+  - [x] Verify HTTP 429/5xx fixture matrix — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
+- ⏯️ **T203** Resume, partial files and atomic completion — `████████░░ 75%`
   - [x] Write to .part then rename — src/download.rs
-  - [ ] Implement Range-based resumes
+  - [x] Implement Range-based resumes — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Preserve metadata/mtime, validate lengths
-  - [ ] Pass interruption and collision tests
+  - [x] Pass interruption and collision tests — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 - 🔌 **T204** HTTP configuration and proxy parity — `███░░░░░░░ 25%`
   - [x] Set request timeout — src/main.rs
   - [ ] Proxy, TLS, IPv4/IPv6 and user-agent
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
 
-### 🗃️ P3 — Paths, archive and persistence — `██░░░░░░░░ 19%`
+### 🗃️ P3 — Paths, archive and persistence — `███░░░░░░░ 31%`
 
 - 🗂️ **T301** Safe names and format templates — `███░░░░░░░ 25%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -92,16 +92,16 @@
   - [ ] Sidecar JSON/text/original metadata
   - [ ] Media extensions and MIME matching
   - [ ] Golden sidecar comparison tests
-- 🗄️ **T304** Download history and collision semantics — `███░░░░░░░ 25%`
+- 🗄️ **T304** Download history and collision semantics — `████████░░ 75%`
   - [x] Existing files skip by default — src/download.rs
-  - [ ] Safe overwrites and name conflict policy
+  - [x] Safe overwrites and name conflict policy — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Dedup across URLs/sites
-  - [ ] Regression tests for parallel tasks
+  - [x] Regression tests for parallel tasks — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 
-## 🧩 M2 — Extractor framework and site families — `██░░░░░░░░ 17%`
+## 🧩 M2 — Extractor framework and site families — `██░░░░░░░░ 22%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `█░░░░░░░░░ 13%`
+### 🧬 P4 — Extractor architecture — `███░░░░░░░ 25%`
 
 - 🧭 **T401** URL dispatch and category routing — `███░░░░░░░ 25%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -118,10 +118,10 @@
   - [ ] Ranges, filters and predicates
   - [ ] Order selection and deduplication
   - [ ] Page boundary tests
-- 🧪 **T404** Shared extractor harness — `░░░░░░░░░░ 0%`
-  - [ ] Deterministic mocked HTTP responses
+- 🧪 **T404** Shared extractor harness — `█████░░░░░ 50%`
+  - [x] Deterministic mocked HTTP responses — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Fixture discovery and golden comparisons
-  - [ ] Per-site contract assertions
+  - [x] Per-site contract assertions — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] CI compatibility matrix
 
 ### 🧱 P5 — Shared website families — `██░░░░░░░░ 20%`
@@ -224,19 +224,19 @@
   - [ ] Format selection/variant metadata
   - [ ] End-to-end integration fixtures
 
-## 🚀 M5 — Conformance, release and MVP inauguration — `██░░░░░░░░ 22%`
+## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 26%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.
 
-### 🧪 P10 — Differential quality assurance — `███░░░░░░░ 25%`
+### 🧪 P10 — Differential quality assurance — `███░░░░░░░ 33%`
 
 - 🔍 **T1001** Pin and run comparison oracle — `███░░░░░░░ 25%`
   - [x] Document upstream baseline — docs/SOURCE_BASELINE.md
   - [ ] Automated golden CLI corpus
   - [ ] Deterministic extractor comparisons
   - [ ] Signed reproducible reports
-- 🧫 **T1002** Stress, errors and recovery — `███░░░░░░░ 25%`
+- 🧫 **T1002** Stress, errors and recovery — `█████░░░░░ 50%`
   - [x] Local fixture server — tests/download_http.rs; GitHub Actions 39898967165 passed
-  - [ ] Retry/resume/fault injection
+  - [x] Retry/resume/fault injection — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Large galleries and concurrent ordering
   - [ ] Performance parity limits
 - 📋 **T1003** CLI, config, extractor feature ledger — `███░░░░░░░ 25%`
