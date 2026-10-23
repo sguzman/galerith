@@ -1,17 +1,19 @@
 //! Independent Wikimedia Commons public-file API preview.
 //! This uses the documented MediaWiki Action API, not HTML scraping.
-//! Only public Commons File: pages are currently implemented. Article/category
-//! generators, other MediaWiki hosts, revisions, full metadata and archive
-//! formatting remain part of the complete gallery-dl parity gate.
+//! Public Commons File:, ordinary article and Category: routes use Action API.
+//! Other MediaWiki hosts, recursive subcategories, revisions, full metadata
+//! and archive formatting remain part of the complete gallery-dl parity gate.
 use crate::{safe_filename, MediaItem};
 use percent_encoding::percent_decode_str;
 use reqwest::{header::USER_AGENT, Client};
 use serde_json::Value;
-use std::error::Error;
+use std::{collections::HashSet, error::Error, time::Duration};
 use url::Url;
 
 const API: &str = "https://commons.wikimedia.org/w/api.php";
 const MAX_RESPONSE: usize = 2 * 1024 * 1024;
+const MAX_MEDIA: usize = 2000;
+const MAX_API_PAGES: u16 = 100;
 const USER_AGENT_VALUE: &str = concat!(
     "Galerith/",
     env!("CARGO_PKG_VERSION"),
@@ -21,6 +23,26 @@ const USER_AGENT_VALUE: &str = concat!(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     CommonsFile { title: String },
+    CommonsArticle { title: String },
+    CommonsCategory { title: String },
+}
+
+impl Target {
+    fn title(&self) -> &str {
+        match self {
+            Self::CommonsFile { title }
+            | Self::CommonsArticle { title }
+            | Self::CommonsCategory { title } => title,
+        }
+    }
+
+    fn continuation_field(&self) -> Option<&'static str> {
+        match self {
+            Self::CommonsFile { .. } => None,
+            Self::CommonsArticle { .. } => Some("gimcontinue"),
+            Self::CommonsCategory { .. } => Some("gcmcontinue"),
+        }
+    }
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -31,24 +53,32 @@ pub fn match_url(input: &str) -> Option<Target> {
         || url.password().is_some()
         || url.port().is_some()
         || url.query().is_some()
+        || url.fragment().is_some()
     {
         return None;
     }
-    let raw = url.path().strip_prefix("/wiki/File:")?;
-    let file = percent_decode_str(raw).decode_utf8().ok()?;
-    if file.is_empty()
-        || file.len() > 180
-        || file
+    let raw = url.path().strip_prefix("/wiki/")?;
+    let title = percent_decode_str(raw).decode_utf8().ok()?;
+    if title.is_empty()
+        || title.len() > 180
+        || title
             .chars()
             .any(|ch| ch.is_control() || matches!(ch, '/' | '\\' | '#' | '?'))
-        || file == "."
-        || file == ".."
+        || title == "."
+        || title == ".."
     {
         return None;
     }
-    Some(Target::CommonsFile {
-        title: format!("File:{}", file.replace('_', " ")),
-    })
+    let title = title.replace('_', " ");
+    if title.starts_with("File:") && title.len() > 5 {
+        Some(Target::CommonsFile { title })
+    } else if title.starts_with("Category:") && title.len() > 9 {
+        Some(Target::CommonsCategory { title })
+    } else if !title.contains(':') {
+        Some(Target::CommonsArticle { title })
+    } else {
+        None
+    }
 }
 
 fn media_from_api(raw: &str) -> Option<MediaItem> {
@@ -85,7 +115,7 @@ fn parse_page(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Syn
         .and_then(Value::as_array)
         .ok_or("Wikimedia API response missing query pages")?;
     let mut media = Vec::new();
-    for page in pages.iter().take(4) {
+    for page in pages.iter().take(MAX_MEDIA) {
         if page.get("missing").is_some() || page.get("ns").and_then(Value::as_u64) != Some(6) {
             continue;
         }
@@ -98,28 +128,46 @@ fn parse_page(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Syn
         {
             if let Some(item) = media_from_api(raw) {
                 media.push(item);
-                break;
             }
         }
     }
     Ok(media)
 }
 
-async fn resolve_at_api(
-    client: &Client,
-    endpoint: &Url,
+fn continuation(
+    data: &Value,
     target: &Target,
-) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let Target::CommonsFile { title } = target;
-    let mut url = endpoint.clone();
-    url.query_pairs_mut()
-        .append_pair("action", "query")
-        .append_pair("format", "json")
-        .append_pair("formatversion", "2")
-        .append_pair("prop", "imageinfo")
-        .append_pair("iiprop", "url")
-        .append_pair("titles", title)
-        .append_pair("maxlag", "5");
+) -> Result<Option<(String, String)>, Box<dyn Error + Send + Sync>> {
+    let Some(expected) = target.continuation_field() else {
+        return Ok(None);
+    };
+    let Some(object) = data.get("continue") else {
+        return Ok(None);
+    };
+    let object = object
+        .as_object()
+        .ok_or("Wikimedia API returned invalid continuation object")?;
+    let Some(token) = object.get(expected) else {
+        return Ok(None);
+    };
+    let token = token.as_str().ok_or("Wikimedia continuation is not text")?;
+    if token.is_empty() || token.len() > 512 || token.chars().any(char::is_control) {
+        return Err("Wikimedia continuation token is invalid".into());
+    }
+    let generic = object
+        .get("continue")
+        .and_then(Value::as_str)
+        .unwrap_or("-||");
+    if generic.is_empty() || generic.len() > 512 || generic.chars().any(char::is_control) {
+        return Err("Wikimedia generic continuation is invalid".into());
+    }
+    Ok(Some((generic.to_owned(), token.to_owned())))
+}
+
+async fn request_api_page(
+    client: &Client,
+    url: Url,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let mut response = client
         .get(url)
         .header(USER_AGENT, USER_AGENT_VALUE)
@@ -140,14 +188,92 @@ async fn resolve_at_api(
         }
         bytes.extend_from_slice(&chunk);
     }
-    parse_page(&serde_json::from_slice(&bytes)?)
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+async fn resolve_at_api(
+    client: &Client,
+    endpoint: &Url,
+    target: &Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut media = Vec::new();
+    let mut seen_media = HashSet::new();
+    let mut seen_tokens = HashSet::new();
+    let mut next: Option<(String, String)> = None;
+    let pages = if matches!(target, Target::CommonsFile { .. }) {
+        1
+    } else {
+        max_pages.clamp(1, MAX_API_PAGES)
+    };
+    for index in 0..pages {
+        if index > 0 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        let mut url = endpoint.clone();
+        {
+            let mut params = url.query_pairs_mut();
+            params
+                .append_pair("action", "query")
+                .append_pair("format", "json")
+                .append_pair("formatversion", "2")
+                .append_pair("prop", "imageinfo")
+                .append_pair("iiprop", "url")
+                .append_pair("iilimit", "1")
+                .append_pair("maxlag", "5");
+            match target {
+                Target::CommonsFile { .. } => {
+                    params.append_pair("titles", target.title());
+                }
+                Target::CommonsArticle { .. } => {
+                    params
+                        .append_pair("generator", "images")
+                        .append_pair("gimlimit", "50")
+                        .append_pair("titles", target.title());
+                }
+                Target::CommonsCategory { .. } => {
+                    params
+                        .append_pair("generator", "categorymembers")
+                        .append_pair("gcmlimit", "50")
+                        .append_pair("gcmtype", "file")
+                        .append_pair("gcmtitle", target.title());
+                }
+            }
+            if let (Some((generic, token)), Some(field)) =
+                (next.as_ref(), target.continuation_field())
+            {
+                params
+                    .append_pair("continue", generic)
+                    .append_pair(field, token);
+            }
+        }
+        let data = request_api_page(client, url).await?;
+        let images = parse_page(&data)?;
+        for item in images {
+            if seen_media.insert(item.url.clone()) {
+                media.push(item);
+                if media.len() >= MAX_MEDIA {
+                    return Ok(media);
+                }
+            }
+        }
+        next = continuation(&data, target)?;
+        let Some(ref tokens) = next else {
+            break;
+        };
+        if !seen_tokens.insert(tokens.clone()) {
+            break;
+        }
+    }
+    Ok(media)
 }
 
 pub async fn resolve(
     client: &Client,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_api(client, &Url::parse(API)?, &target).await
+    resolve_at_api(client, &Url::parse(API)?, &target, max_pages).await
 }
 
 #[cfg(test)]
