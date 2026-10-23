@@ -287,6 +287,25 @@ pub async fn resolve_messages(
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
+/// Push a finite selected-file ceiling into Wallhaven pagination so
+/// the extractor avoids HTTP pages that cannot contain requested files.
+/// Other site previews retain their existing bounded eager resolution.
+async fn resolve_messages_bounded(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    file_bound: Option<usize>,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if let (Some(limit), Some(target)) = (file_bound, wallhaven::match_url(input)) {
+        if !matches!(target, wallhaven::Target::Collections { .. }) {
+            return Ok(from_media(
+                wallhaven::resolve_limited(client, target, max_pages, limit).await?,
+            ));
+        }
+    }
+    resolve_messages(client, input, max_pages).await
+}
+
 /// Queue events delegate to known website extractors, never to arbitrary
 /// direct-file hosts or a local-network endpoint. All current producers
 /// construct first-party public child URLs rather than consuming remote URLs.
@@ -320,7 +339,11 @@ pub async fn resolve_messages_traversing_selected(
     depth: u8,
     selection: &JobSelection,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let events = resolve_messages(client, input, max_pages).await?;
+    let file_bound = selection
+        .files
+        .as_ref()
+        .and_then(|range| range.finite_upper_bound());
+    let events = resolve_messages_bounded(client, input, max_pages, file_bound).await?;
     traverse_queue_job_filtered_with(
         events,
         depth,
@@ -333,7 +356,7 @@ pub async fn resolve_messages_traversing_selected(
             tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
             // Bound every queued child's page count independently; per-site
             // extractors may issue more than one API request per page.
-            resolve_messages(client, &url, max_pages.min(4)).await
+            resolve_messages_bounded(client, &url, max_pages.min(4), file_bound).await
         },
     )
     .await
