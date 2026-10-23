@@ -37,7 +37,9 @@ fn safe_folder_path(raw: &str) -> Option<String> {
         if decoded.is_empty()
             || decoded.len() > 200
             || matches!(decoded.as_ref(), "." | "..")
-            || decoded.chars().any(|ch| ch.is_control() || ch == '/' || ch == '\\' || ch == '?' || ch == '#')
+            || decoded
+                .chars()
+                .any(|ch| ch.is_control() || ch == '/' || ch == '\\' || ch == '?' || ch == '#')
         {
             return None;
         }
@@ -80,6 +82,11 @@ fn folder_item(child: &Value, parent: &str) -> Option<MediaItem> {
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
+    // Reject dot segments before URL normalization can silently erase them.
+    let lower = input.to_ascii_lowercase();
+    if lower.contains("%2e") || lower.contains("/../") || lower.contains("/./") {
+        return None;
+    }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https" || url.host_str() != Some("pixeldrain.com") {
         return None;
@@ -90,7 +97,7 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["d", rest @ ..] | ["api", "filesystem", rest @ ..] if !rest.is_empty() => {
             let path = safe_folder_path(&rest.join("/"))?;
             Some(Target::Folder { path })
-        },
+        }
         ["l", id] | ["api", "list", id] if valid_id(id) => {
             let selected = match url.fragment() {
                 Some(raw) => {
@@ -238,11 +245,8 @@ async fn resolve_at_base(
             album_media(&album, selected)
         }
         Target::Folder { path } => {
-            let response = read_json(
-                client,
-                base.join(&format!("api/filesystem/{path}?stat"))?,
-            )
-            .await?;
+            let response =
+                read_json(client, base.join(&format!("api/filesystem/{path}?stat"))?).await?;
             filesystem_media(&response, &path)
         }
     }
@@ -317,8 +321,16 @@ mod tests {
             "https://pixeldrain.com/api/filesystem/root123/photos/photo.jpg?attach"
         );
         assert!(folder_item(&child, "root123/different").is_none());
-        assert!(folder_item(&json!({"type":"dir","name":"nested","path":"/root123/photos/nested"}), "root123/photos").is_none());
-        assert!(folder_item(&json!({"type":"file","name":"nested.jpg","path":"/root123/photos/dir/nested.jpg"}), "root123/photos").is_none());
+        assert!(folder_item(
+            &json!({"type":"dir","name":"nested","path":"/root123/photos/nested"}),
+            "root123/photos"
+        )
+        .is_none());
+        assert!(folder_item(
+            &json!({"type":"file","name":"nested.jpg","path":"/root123/photos/dir/nested.jpg"}),
+            "root123/photos"
+        )
+        .is_none());
     }
 
     #[test]
