@@ -18,6 +18,8 @@ jobs:
         run: cargo fmt --all
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
+      - name: Roadmap and port-matrix consistency
+        run: cargo run --bin galerith-roadmap -- --check
       - name: Tests
         run: cargo test --all-targets
       - name: Release build
