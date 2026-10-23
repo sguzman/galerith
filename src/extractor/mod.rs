@@ -24,6 +24,7 @@ pub mod pixeldrain;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod unsplash;
+pub mod wallhaven;
 pub mod wallpapercave;
 pub mod webmshare;
 pub mod wikimedia;
@@ -84,6 +85,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "unsplash",
         "public photos, users, likes, collections and searches",
     ),
+    ("wallhaven", "public wallpaper details, searches and uploads via API"),
     (
         "wallpapercave",
         "public wallpaper download and gallery links",
@@ -143,6 +145,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("telegraph")
     } else if speakerdeck::match_url(input).is_some() {
         Some("speakerdeck")
+    } else if wallhaven::match_url(input).is_some() {
+        Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
         Some("wallpapercave")
     } else if webmshare::match_url(input).is_some() {
@@ -244,6 +248,9 @@ pub async fn resolve(
     if let Some(target) = speakerdeck::match_url(input) {
         return speakerdeck::resolve(client, target).await;
     }
+    if let Some(target) = wallhaven::match_url(input) {
+        return wallhaven::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = wallpapercave::match_url(input) {
         return wallpapercave::resolve(client, target).await;
     }
@@ -303,6 +310,8 @@ mod tests {
             ("https://telegra.ph/Article-03-04", "telegraph"),
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
+            ("https://wallhaven.cc/w/94x38z", "wallhaven"),
+            ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
             ("https://webmshare.com/play/ABc_123", "webmshare"),
             (
                 "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
