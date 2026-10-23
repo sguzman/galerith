@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 65%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 66%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -193,11 +193,12 @@
   - [x] Disable child and page shortcut when directory-scope filtering can exclude earlier media — src/message.rs directory_selection_disables_unsafe_early_page_limit and nested child fixture; CI 40039969843
   - [x] Preserve opt-in queue caps and legacy default file extraction while selective child requests are bounded — src/message.rs global depth/child/event limits, regression suite and --follow-queues opt-in CLI; CI 40039969843
   - [ ] Match full upstream child-range, post-filter, streaming cancellation and queue/job stop semantics with differential tests
-- ⏩ **T413** Cross-family finite file selection and API page minimization — `████████░░ 80%`
+- ⏩ **T413** Cross-family finite file selection and API page minimization — `████████░░ 83%`
   - [x] Stop Gelbooru JSON page traversal when selected validated media count is satisfied — src/extractor/gelbooru.rs resolve_limited and one-page HTTP fixture; CI 40039969843
   - [x] Count Gelbooru source posts separately from downloadable media so unavailable files never trigger false short-page stops — src/extractor/gelbooru.rs source_post_count and two-page missing-file fixture; CI 40039969843
   - [x] Apply the validated-media ceiling across five-host Gelbooru v0.2 XML family without altering source-post pagination semantics — src/extractor/gelbooru_v02.rs resolve_limited and local HTTP fixtures; CI 40039969843
   - [x] Apply the same finite stop to Moebooru post/search/pool/popular previews and dispatch through typed-job file selection — src/extractor/moebooru.rs resolve_limited, src/extractor/mod.rs, complete/partial-page loopback cases; CI 40039969843
+  - [x] Stop Danbooru public tag-search API requests after finite selected media without stopping on full pages with missing files — src/extractor/danbooru.rs resolve_tag_posts_limited + two local HTTP fixtures, src/extractor/mod.rs search-only dispatch; CI 40040566586
   - [ ] Achieve full early-termination, post/file/child selector and live differential parity across all pinned upstream extractors
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
