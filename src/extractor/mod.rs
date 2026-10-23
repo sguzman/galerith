@@ -24,7 +24,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("catbox", "public Catbox files and albums"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
-    ("foolfuuka", "archive threads, boards, galleries and searches"),
+    (
+        "foolfuuka",
+        "archive threads, boards, galleries and searches",
+    ),
     ("gelbooru", "public Gelbooru post and tag APIs"),
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
@@ -121,11 +124,17 @@ mod tests {
         let fixtures = [
             ("https://example.org/file.jpg", "directlink"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
-            ("https://bsky.app/profile/alice.bsky.social/post/3n9", "bluesky"),
+            (
+                "https://bsky.app/profile/alice.bsky.social/post/3n9",
+                "bluesky",
+            ),
             ("https://catbox.moe/c/album123", "catbox"),
             ("https://danbooru.donmai.us/posts/123", "danbooru"),
             ("https://e621.net/posts/123", "e621"),
-            ("https://gelbooru.com/index.php?page=post&s=view&id=123", "gelbooru"),
+            (
+                "https://gelbooru.com/index.php?page=post&s=view&id=123",
+                "gelbooru",
+            ),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
         ];
