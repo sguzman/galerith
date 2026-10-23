@@ -321,15 +321,21 @@ pub async fn resolve_messages_traversing_selected(
     selection: &JobSelection,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let events = resolve_messages(client, input, max_pages).await?;
-    traverse_queue_job_filtered_with(events, depth, max_children as usize, selection, |url| async move {
-        if !safe_queue_child_url(&url) {
-            return Err("queued URL has no supported safe native extractor".into());
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
-        // Bound every queued child's page count independently; per-site
-        // extractors may issue more than one API request per page.
-        resolve_messages(client, &url, max_pages.min(4)).await
-    })
+    traverse_queue_job_filtered_with(
+        events,
+        depth,
+        max_children as usize,
+        selection,
+        |url| async move {
+            if !safe_queue_child_url(&url) {
+                return Err("queued URL has no supported safe native extractor".into());
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
+            // Bound every queued child's page count independently; per-site
+            // extractors may issue more than one API request per page.
+            resolve_messages(client, &url, max_pages.min(4)).await
+        },
+    )
     .await
 }
 
