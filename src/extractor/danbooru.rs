@@ -7,6 +7,9 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
+const DANBOORU_PER_PAGE: usize = 200;
+const DANBOORU_PAGE_THRESHOLD: usize = DANBOORU_PER_PAGE - 20;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post {
@@ -214,7 +217,7 @@ async fn resolve_collection(
         endpoint
             .query_pairs_mut()
             .append_pair("tags", &format!("{}:{id}", kind.ordered_tag()))
-            .append_pair("limit", "50")
+            .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
             .append_pair("page", &page.to_string());
         let response: Value = client
             .get(endpoint)
@@ -231,7 +234,7 @@ async fn resolve_collection(
                 available.entry(id).or_insert(media);
             }
         }
-        if posts.len() < 50 {
+        if posts.len() < DANBOORU_PAGE_THRESHOLD {
             break;
         }
         if page < max_pages {
@@ -312,7 +315,7 @@ async fn resolve_popular(
                 }
             }
             query
-                .append_pair("limit", "50")
+                .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
                 .append_pair("page", &page.to_string());
         }
         let body: Value = client
@@ -322,14 +325,17 @@ async fn resolve_popular(
             .error_for_status()?
             .json()
             .await?;
-        if body
+        let count = body
             .as_array()
             .ok_or("invalid Danbooru popular posts response")?
-            .is_empty()
-        {
+            .len();
+        if count == 0 {
             break;
         }
         items.extend(post_items(&body, base)?);
+        if count < DANBOORU_PAGE_THRESHOLD {
+            break;
+        }
         if offset + 1 < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -353,7 +359,7 @@ async fn resolve_tag_posts(
         endpoint
             .query_pairs_mut()
             .append_pair("tags", tags)
-            .append_pair("limit", "50")
+            .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
             .append_pair("page", &page.to_string());
         let body: Value = client
             .get(endpoint)
@@ -362,14 +368,17 @@ async fn resolve_tag_posts(
             .error_for_status()?
             .json()
             .await?;
-        if body
+        let count = body
             .as_array()
             .ok_or("unexpected Danbooru posts response")?
-            .is_empty()
-        {
+            .len();
+        if count == 0 {
             break;
         }
         items.extend(post_items(&body, base)?);
+        if count < DANBOORU_PAGE_THRESHOLD {
+            break;
+        }
         if offset + 1 < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -499,7 +508,7 @@ mod tests {
             for (needle, body) in [
                 ("GET /pools/42.json HTTP/1.1", r#"{"post_ids":[8,7,9]}"#),
                 (
-                    "GET /posts.json?tags=ordpool%3A42&limit=50&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=ordpool%3A42&limit=200&page=1 HTTP/1.1",
                     r#"[{"id":7,"file_ext":"jpg","file_url":"https://img.example/7.jpg"},{"id":8,"file_ext":"png","file_url":"https://img.example/8.png"},{"id":9,"file_ext":"jpg","file_url":null}]"#,
                 ),
             ] {
@@ -542,7 +551,7 @@ mod tests {
                     r#"{"post_ids":[55,54]}"#,
                 ),
                 (
-                    "GET /posts.json?tags=ordfavgroup%3A71&limit=50&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=ordfavgroup%3A71&limit=200&page=1 HTTP/1.1",
                     r#"[{"id":54,"file_ext":"webm","file_url":"https://img.example/54.webm"},{"id":55,"file_ext":"jpg","file_url":"https://img.example/55.jpg"}]"#,
                 ),
             ] {
@@ -687,7 +696,7 @@ mod tests {
                     r#"{"id":33,"name":"blue_fox"}"#,
                 ),
                 (
-                    "GET /posts.json?tags=blue_fox&limit=50&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=blue_fox&limit=200&page=1 HTTP/1.1",
                     r#"[{"id":15,"file_ext":"png","file_url":"https://cdn.example.org/15.png"}]"#,
                 ),
             ] {
@@ -785,10 +794,20 @@ mod tests {
                 assert!(request.starts_with("GET /posts.json?"), "{request}");
                 assert!(request.contains("tags=blue+sky"), "{request}");
                 assert!(request.contains(&format!("page={page}")), "{request}");
+                assert!(request.contains("limit=200"), "{request}");
                 let body = if page == 2 {
-                    r#"[{"id":123,"file_url":"https://cdn.example.org/one.jpg","file_ext":"jpg"},{"id":124,"file_url":null,"file_ext":"png"}]"#
+                    let posts: Vec<_> = (1..=DANBOORU_PER_PAGE)
+                        .map(|id| {
+                            json!({
+                                "id": id,
+                                "file_url": format!("https://cdn.example.org/{id}.jpg"),
+                                "file_ext": "jpg"
+                            })
+                        })
+                        .collect();
+                    json!(posts).to_string()
                 } else {
-                    "[]"
+                    "[]".to_owned()
                 };
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -806,8 +825,10 @@ mod tests {
         let result = resolve_at_base(&Client::new(), target, 5, &base)
             .await
             .unwrap();
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].filename, "123.jpg");
+        assert_eq!(result.len(), DANBOORU_PER_PAGE);
+        assert_eq!(result[0].filename, "1.jpg");
+        assert_eq!(result[0].post_id, Some(1));
+        assert_eq!(result[DANBOORU_PER_PAGE - 1].post_id, Some(200));
         server.await.unwrap();
     }
 }
