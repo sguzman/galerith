@@ -13,6 +13,8 @@ pub enum Target {
     Media { actor: String },
     Posts { actor: String },
     Replies { actor: String },
+    Avatar { actor: String },
+    Banner { actor: String },
 }
 
 fn valid_segment(value: &str) -> bool {
@@ -50,8 +52,57 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["profile", actor, "replies"] if valid_segment(actor) => Some(Target::Replies {
             actor: (*actor).to_owned(),
         }),
+        ["profile", actor, "avatar"] if valid_segment(actor) => Some(Target::Avatar {
+            actor: (*actor).to_owned(),
+        }),
+        ["profile", actor, "banner"] | ["profile", actor, "background"]
+            if valid_segment(actor) =>
+        {
+            Some(Target::Banner {
+                actor: (*actor).to_owned(),
+            })
+        }
         _ => None,
     }
+}
+
+fn cdn_image(raw: &str) -> Option<(Url, String)> {
+    let url = Url::parse(raw).ok()?;
+    if url.scheme() != "https" || url.host_str() != Some("cdn.bsky.app") {
+        return None;
+    }
+    let ext = url
+        .path()
+        .rsplit_once('@')
+        .map(|(_, extension)| extension)
+        .or_else(|| url.path().rsplit_once('.').map(|(_, extension)| extension))
+        .unwrap_or("jpg");
+    if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    Some((url, ext.to_owned()))
+}
+
+fn profile_image(profile: &Value, did: &str, kind: &str) -> Option<MediaItem> {
+    if profile.get("did").and_then(Value::as_str)? != did {
+        return None;
+    }
+    let raw = profile.get(kind).and_then(Value::as_str)?;
+    let (url, ext) = cdn_image(raw)?;
+    let path_segment = url.path_segments()?.next_back()?;
+    let cid = path_segment.split('@').next()?;
+    if cid.is_empty()
+        || cid.len() > 200
+        || !cid.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    {
+        return None;
+    }
+    Some(MediaItem {
+        url: url.to_string(),
+        filename: safe_filename(&format!("{kind}_{cid}.{ext}")),
+        extractor: "bluesky",
+        post_id: None,
+    })
 }
 
 fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
@@ -73,11 +124,11 @@ fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
     else {
         return Vec::new();
     };
-    let Some(images) = post
-        .get("embed")
-        .and_then(|embed| embed.get("images"))
-        .and_then(Value::as_array)
-    else {
+    let Some(embed) = post.get("embed") else {
+        return Vec::new();
+    };
+    let media = embed.get("media").unwrap_or(embed);
+    let Some(images) = media.get("images").and_then(Value::as_array) else {
         return Vec::new();
     };
     let mut items = Vec::new();
@@ -85,21 +136,9 @@ fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
         let Some(raw) = image.get("fullsize").and_then(Value::as_str) else {
             continue;
         };
-        let Ok(url) = Url::parse(raw) else {
+        let Some((url, ext)) = cdn_image(raw) else {
             continue;
         };
-        if url.scheme() != "https" || url.host_str() != Some("cdn.bsky.app") {
-            continue;
-        }
-        let ext = url
-            .path()
-            .rsplit_once('@')
-            .map(|(_, extension)| extension)
-            .or_else(|| url.path().rsplit_once('.').map(|(_, extension)| extension))
-            .unwrap_or("jpg");
-        if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
-            continue;
-        }
         items.push(MediaItem {
             url: url.to_string(),
             filename: safe_filename(&format!("{rkey}_{}.{ext}", i + 1)),
@@ -158,10 +197,29 @@ async fn resolve_at_base(
         Target::Post { actor, .. }
         | Target::Media { actor }
         | Target::Posts { actor }
-        | Target::Replies { actor } => actor,
+        | Target::Replies { actor }
+        | Target::Avatar { actor }
+        | Target::Banner { actor } => actor,
     };
     let did = resolve_actor(client, base, actor).await?;
     match target {
+        Target::Avatar { .. } | Target::Banner { .. } => {
+            let kind = if matches!(target, Target::Avatar { .. }) {
+                "avatar"
+            } else {
+                "banner"
+            };
+            let mut endpoint = base.join("xrpc/app.bsky.actor.getProfile")?;
+            endpoint.query_pairs_mut().append_pair("actor", &did);
+            let profile: Value = client
+                .get(endpoint)
+                .send()
+                .await?
+                .error_for_status()?
+                .json()
+                .await?;
+            Ok(profile_image(&profile, &did, kind).into_iter().collect())
+        }
         Target::Post { rkey, .. } => {
             let mut endpoint = base.join("xrpc/app.bsky.feed.getPostThread")?;
             endpoint
@@ -288,6 +346,24 @@ mod tests {
                 actor: "alice.bsky.social".into(),
             })
         );
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/avatar"),
+            Some(Target::Avatar {
+                actor: "alice.bsky.social".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/did:plc:alice/background"),
+            Some(Target::Banner {
+                actor: "did:plc:alice".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/did:plc:alice/banner"),
+            Some(Target::Banner {
+                actor: "did:plc:alice".into(),
+            })
+        );
         assert!(match_url("https://bsky.app/profile/alice.bsky.social/likes").is_none());
         assert!(match_url("https://bsky.evil.app/profile/a/media").is_none());
         assert!(match_url("http://bsky.app/profile/a/media").is_none());
@@ -311,6 +387,67 @@ mod tests {
         assert_eq!(files[0].extractor, "bluesky");
         assert_eq!(files[0].post_id, None);
         assert!(parse_media(&post, "did:plc:other").is_empty());
+    }
+
+    #[test]
+    fn nested_record_with_media_images_are_retained() {
+        let post = json!({
+            "uri": "at://did:plc:alice/app.bsky.feed.post/3quote",
+            "author": {"did": "did:plc:alice"},
+            "embed": {"media": {"images": [
+                {"fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:alice/cid@webp"}
+            ]}}
+        });
+        let media = parse_media(&post, "did:plc:alice");
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].filename, "3quote_1.webp");
+    }
+
+    #[tokio::test]
+    async fn public_avatar_and_banner_use_profile_json_and_checked_cdn_urls() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with("GET /xrpc/app.bsky.actor.getProfile?actor=did%3Aplc%3Aalice HTTP/1.1"), "{request}");
+                let body = r#"{"did":"did:plc:alice","avatar":"https://cdn.bsky.app/img/avatar/plain/did:plc:alice/abc123@jpeg","banner":"https://cdn.bsky.app/img/banner/plain/did:plc:alice/def456@png"}"#;
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        for (target, name) in [
+            (Target::Avatar { actor: "did:plc:alice".into() }, "avatar_abc123.jpeg"),
+            (Target::Banner { actor: "did:plc:alice".into() }, "banner_def456.png"),
+        ] {
+            let result = resolve_at_base(&Client::new(), target, 1, &base)
+                .await
+                .unwrap();
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].filename, name);
+        }
+        server.await.unwrap();
+        let invalid = json!({
+            "did": "did:plc:other",
+            "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:alice/abc123@jpeg"
+        });
+        assert!(profile_image(&invalid, "did:plc:alice", "avatar").is_none());
+        let invalid_host = json!({
+            "did": "did:plc:alice",
+            "avatar": "https://evil.example.org/img/cid@png"
+        });
+        assert!(profile_image(&invalid_host, "did:plc:alice", "avatar").is_none());
     }
 
     #[tokio::test]
