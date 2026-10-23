@@ -17,7 +17,10 @@ pub enum Target {
         host: String,
         tags: String,
     },
-    Pool { host: String, id: u64 },
+    Pool {
+        host: String,
+        id: u64,
+    },
     Popular {
         host: String,
         parameters: Vec<(String, String)>,
@@ -222,8 +225,16 @@ async fn resolve_pool(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("pools/{id}.json"))?;
-    let metadata: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-    let post_ids = metadata.get("post_ids").and_then(Value::as_array)
+    let metadata: Value = client
+        .get(endpoint)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let post_ids = metadata
+        .get("post_ids")
+        .and_then(Value::as_array)
         .ok_or("e621 pool metadata missing post_ids")?;
     let mut order = Vec::with_capacity(post_ids.len());
     for value in post_ids {
@@ -234,9 +245,14 @@ async fn resolve_pool(
     }
     let tags = [("tags".to_owned(), format!("pool:{id}"))];
     let media = paginate_posts(client, base, "posts.json", &tags, max_pages).await?;
-    let available: HashMap<u64, MediaItem> = media.into_iter()
-        .filter_map(|item| item.post_id.map(|id| (id, item))).collect();
-    Ok(order.into_iter().filter_map(|id| available.get(&id).cloned()).collect())
+    let available: HashMap<u64, MediaItem> = media
+        .into_iter()
+        .filter_map(|item| item.post_id.map(|id| (id, item)))
+        .collect();
+    Ok(order
+        .into_iter()
+        .filter_map(|id| available.get(&id).cloned())
+        .collect())
 }
 
 /// Testing seam: the public router accepts only known upstream hostnames.
@@ -317,11 +333,17 @@ mod tests {
         assert_eq!(match_url("https://e621.net/favorites?page=0"), None);
         assert_eq!(
             match_url("https://e621.net/pools/123"),
-            Some(Target::Pool { host: "e621.net".into(), id: 123 })
+            Some(Target::Pool {
+                host: "e621.net".into(),
+                id: 123
+            })
         );
         assert_eq!(
             match_url("https://e926.net/pool/show/99"),
-            Some(Target::Pool { host: "e926.net".into(), id: 99 })
+            Some(Target::Pool {
+                host: "e926.net".into(),
+                id: 99
+            })
         );
         assert!(match_url("https://e621.net/pools/0").is_none());
         assert_eq!(match_url("https://not-e621.net/posts/90"), None);
@@ -338,10 +360,7 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (needle, body) in [
-                (
-                    "GET /pools/42.json HTTP/1.1",
-                    r#"{"post_ids":[99,98,97]}"#,
-                ),
+                ("GET /pools/42.json HTTP/1.1", r#"{"post_ids":[99,98,97]}"#),
                 (
                     "GET /posts.json?tags=pool%3A42&limit=75&page=1 HTTP/1.1",
                     r#"{"posts":[{"id":98,"file":{"url":"https://cdn.example/98.jpg","ext":"jpg"}},{"id":99,"file":{"url":"https://cdn.example/99.png","ext":"png"}},{"id":97,"file":{"url":null,"ext":"jpg"}}]}"#,
