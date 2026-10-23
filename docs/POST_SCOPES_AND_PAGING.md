@@ -28,6 +28,29 @@ post boundary, text-only posts, invalid attachments, one request per thread,
 and unchanged legacy file identity. **No live upstream differential parity
 is claimed**, and the overall upstream message contract remains incomplete.
 
+## Source-post ID selection across queued boards
+
+The opt-in `--job-source-post-range RANGE` and read-only
+`--message-source-post-range RANGE` select the native numeric
+`source_post_id`, never the existing timestamp-based media `post_id`.
+A concrete directory/URL with a missing or nonmatching source-post ID is
+excluded. File ordinals are counted **after** this scope selection so
+`--job-file-range 1` means the first eligible file, not the first file
+in a rejected source post.
+
+A 4chan board listing emits queues for threads, before post identities are
+known. Queues without a source-post ID are permitted to resolve subject to
+the existing depth, child-request and event caps; child post scopes are
+then filtered when their IDs are known. A queue explicitly carrying an
+invalid or excluded source-post ID does not trigger resolution. An excluded
+directory scope also suppresses its child requests.
+
+Source-post selection disables finite file-ceiling pushdown, since rejected
+posts could otherwise cause necessary later API pages to be skipped. These
+controls remain bounded preview semantics, not upstream-equivalent post
+expression filtering or live website parity.
+
+
 ## Wallhaven: bounded page requests for finite file ranges
 
 When a typed file selector has only finitely many possible file ordinals,
@@ -49,8 +72,10 @@ to avoid the initial API page.
 - A directory-range selector can discard an arbitrary number of preceding
   files; it disables the optimization to preserve correct selected ordinals.
 - Child queue indices and cycle controls remain separate from file indices.
-- Only Wallhaven's explicitly implemented pagination path uses this
-  optimization. Other extractors still use their normal bounded eager APIs.
+- Finite file-ceiling pushdown also covers selected Gelbooru, Moebooru
+  and Danbooru API routes. The exact supported variants and limits are
+  maintained in [pagination pushdown](PAGINATION_PUSHDOWN.md). Unsupported
+  routes retain their existing eager behavior.
 - Because the existing collector is not yet a streaming extractor interface,
   media already returned by the first API page may be parsed even if the
   caller asks for only its first entry. The network saving is **between**
