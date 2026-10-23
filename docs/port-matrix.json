@@ -362,9 +362,14 @@
     {
       "path": "gallery_dl/extractor/desktopography.py",
       "module": "desktopography",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/desktopography.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent Desktopography public site, yearly exhibition and portfolio wallpaper hierarchy; deduplicated and source-ordered media, checked canonical URLs, bounded HTML and full offline three-request traversal fixture; CI 40013345220 verified. Metadata/archives/live parity incomplete"
+      ]
     },
     {
       "path": "gallery_dl/extractor/deviantart.py",

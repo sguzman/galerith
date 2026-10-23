@@ -1683,6 +1683,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T527",
+              "emoji": "🖥️",
+              "name": "Desktopography site, exhibition and portfolio wallpaper preview",
+              "checks": [
+                {
+                  "title": "Recognize Desktopography root, exhibition and portfolio URL families conservatively",
+                  "passed": true,
+                  "evidence": "src/extractor/desktopography.rs strict public route fixtures and src/extractor/mod.rs registry; CI 40013345220"
+                },
+                {
+                  "title": "Parse ordered unique site exhibitions and exhibition portfolio-entry links",
+                  "passed": true,
+                  "evidence": "src/extractor/desktopography.rs site year/index and exhibition entry fixtures; CI 40013345220"
+                },
+                {
+                  "title": "Extract safe ordered multi-resolution portfolio wallpapers",
+                  "passed": true,
+                  "evidence": "src/extractor/desktopography.rs wallpaper-button media path, filename and host tests; CI 40013345220"
+                },
+                {
+                  "title": "Resolve bounded site → exhibition → portfolio image traversal through localhost HTML",
+                  "passed": true,
+                  "evidence": "src/extractor/desktopography.rs three-request localhost hierarchy fixture, request/media cap and 2 MiB HTML guard; CI 40013345220"
+                },
+                {
+                  "title": "Match complete upstream metadata, archive/filename formatting and all live site routes/behaviors",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

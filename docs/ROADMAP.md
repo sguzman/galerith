@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 51%` across 70 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 52%` across 71 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 65%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 66%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -340,6 +340,12 @@
   - [x] Reject unsafe/unrecognized hosts and invalid video metadata — src/extractor/webmshare.rs bad-host, invalid scheme and route fixtures; CI 40012334306
   - [x] Fetch bounded public video HTML using an offline TCP fixture — src/extractor/webmshare.rs 2 MiB buffered HTML guard and local public-video page fixture; CI 40012334306
   - [ ] Port full upstream metadata, title/date/archive formatting, all CDN variants and live conformance
+- 🖥️ **T527** Desktopography site, exhibition and portfolio wallpaper preview — `████████░░ 80%`
+  - [x] Recognize Desktopography root, exhibition and portfolio URL families conservatively — src/extractor/desktopography.rs strict public route fixtures and src/extractor/mod.rs registry; CI 40013345220
+  - [x] Parse ordered unique site exhibitions and exhibition portfolio-entry links — src/extractor/desktopography.rs site year/index and exhibition entry fixtures; CI 40013345220
+  - [x] Extract safe ordered multi-resolution portfolio wallpapers — src/extractor/desktopography.rs wallpaper-button media path, filename and host tests; CI 40013345220
+  - [x] Resolve bounded site → exhibition → portfolio image traversal through localhost HTML — src/extractor/desktopography.rs three-request localhost hierarchy fixture, request/media cap and 2 MiB HTML guard; CI 40013345220
+  - [ ] Match complete upstream metadata, archive/filename formatting and all live site routes/behaviors
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
