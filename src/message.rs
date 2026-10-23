@@ -76,7 +76,7 @@ impl JobSelection {
     /// so no finite file ordinal is safe to push into a listing extractor
     /// in that case. Keep a conservative unbounded listing instead.
     pub fn early_file_ceiling(&self) -> Option<usize> {
-        if self.directories.is_some() {
+        if self.directories.is_some() || self.source_posts.is_some() {
             return None;
         }
         self.files.as_ref()?.finite_upper_bound()
@@ -716,6 +716,7 @@ mod tests {
             files,
             children: None,
             directories: Some(IndexRange::parse("200").unwrap()),
+            source_posts: None,
         };
         assert_eq!(scoped.early_file_ceiling(), None);
         let unlimited = JobSelection {
