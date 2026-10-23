@@ -287,6 +287,17 @@ pub async fn resolve_messages(
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
+/// Queue-produced URLs must never smuggle credentials or unsupported
+/// protocols into a child extractor or subsequent native download.
+fn safe_queue_child_url(input: &str) -> bool {
+    url::Url::parse(input).is_ok_and(|parsed| {
+        matches!(parsed.scheme(), "http" | "https")
+            && parsed.host_str().is_some()
+            && parsed.username().is_empty()
+            && parsed.password().is_none()
+    })
+}
+
 /// Opt-in, bounded queue traversal for message inspection. Parent queue
 /// events are retained; child resolvers inherit metadata scopes, with child
 /// fields taking precedence. This is not a full gallery-dl download job.
@@ -299,8 +310,8 @@ pub async fn resolve_messages_traversing(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let events = resolve_messages(client, input, max_pages).await?;
     traverse_queue_job_with(events, depth, max_children as usize, |url| async move {
-        if extractor_name(&url).is_none() {
-            return Err("queued URL has no supported native extractor".into());
+        if !safe_queue_child_url(&url) || extractor_name(&url).is_none() {
+            return Err("queued URL has no supported safe native extractor".into());
         }
         tokio::time::sleep(std::time::Duration::from_millis(1400)).await;
         // Bound every queued child's page count independently; per-site
