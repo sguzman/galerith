@@ -141,7 +141,11 @@ struct Cli {
     job_directory_range: Option<String>,
 
     /// Select actual source post IDs in typed download jobs, not media IDs
-    #[arg(long = "job-source-post-range", value_name = "RANGE", requires = "follow_queues")]
+    #[arg(
+        long = "job-source-post-range",
+        value_name = "RANGE",
+        requires = "follow_queues"
+    )]
     job_source_post_range: Option<String>,
 
     /// Select URL-event ordinals in the read-only recursive message stream
@@ -169,7 +173,11 @@ struct Cli {
     message_directory_range: Option<String>,
 
     /// Select source post IDs in read-only typed message inspection
-    #[arg(long = "message-source-post-range", value_name = "RANGE", requires = "expand_queues")]
+    #[arg(
+        long = "message-source-post-range",
+        value_name = "RANGE",
+        requires = "expand_queues"
+    )]
     message_source_post_range: Option<String>,
 
     /// Resolve URLs without downloading
