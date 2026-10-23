@@ -247,14 +247,23 @@ mod tests {
         let album = parse_album_details("abc12", html);
         assert_eq!(album.metadata.id, "abc12");
         assert_eq!(album.metadata.title.as_deref(), Some("Photos & Friends"));
-        assert_eq!(album.metadata.created_raw.as_deref(), Some("October 23 2026"));
-        assert_eq!(album.metadata.description.as_deref(), Some("A \"small\" collection"));
+        assert_eq!(
+            album.metadata.created_raw.as_deref(),
+            Some("October 23 2026")
+        );
+        assert_eq!(
+            album.metadata.description.as_deref(),
+            Some("A \"small\" collection")
+        );
         assert_eq!(album.files.len(), 1);
         assert_eq!(album.files[0].filename, "a.jpg");
         let missing = parse_album_details("empty", "<p>No album metadata</p>");
         assert_eq!(missing.metadata.id, "empty");
         assert_eq!(missing.metadata.created_raw, None);
-        assert_eq!(missing.metadata.description.as_deref(), Some("No album metadata"));
+        assert_eq!(
+            missing.metadata.description.as_deref(),
+            Some("No album metadata")
+        );
     }
 
     #[test]
