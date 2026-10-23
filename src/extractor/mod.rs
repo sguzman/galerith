@@ -319,6 +319,11 @@ async fn resolve_messages_bounded(
             gelbooru_v02::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
+    if let (Some(limit), Some(target)) = (file_bound, moebooru::match_url(input)) {
+        return Ok(from_media(
+            moebooru::resolve_limited(client, target, max_pages, limit).await?,
+        ));
+    }
     resolve_messages(client, input, max_pages).await
 }
 
