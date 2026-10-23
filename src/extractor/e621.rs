@@ -248,6 +248,32 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &base).await
 }
 
+/// The typed file-selector preview only pushes a finite ceiling into
+/// public tag-search API pagination. Pools, favorites, artists and popular
+/// routes keep their existing resolution behavior and ordering.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_items: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    match target {
+        Target::Search { host, tags, page } => {
+            let base = Url::parse(&format!("https://{host}/"))?;
+            paginate_posts_bounded(
+                client,
+                &base,
+                "posts.json",
+                &[("tags".into(), tags), ("page".into(), page.to_string())],
+                max_pages,
+                max_items,
+            )
+            .await
+        }
+        other => resolve(client, other, max_pages).await,
+    }
+}
+
 async fn paginate_posts(
     client: &Client,
     base: &Url,
@@ -255,6 +281,20 @@ async fn paginate_posts(
     parameters: &[(String, String)],
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    paginate_posts_bounded(client, base, api_path, parameters, max_pages, usize::MAX).await
+}
+
+/// Only validated downloadable records contribute to the finite file ceiling.
+/// The API's raw post count still controls short-page detection.
+async fn paginate_posts_bounded(
+    client: &Client,
+    base: &Url,
+    api_path: &str,
+    parameters: &[(String, String)],
+    max_pages: u16,
+    max_items: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let max_items = max_items.max(1);
     let start = parameters
         .iter()
         .find(|(key, _)| key == "page")
@@ -289,7 +329,12 @@ async fn paginate_posts(
         if count == 0 {
             break;
         }
-        media.extend(parse_posts(&data, base)?);
+        for item in parse_posts(&data, base)? {
+            media.push(item);
+            if media.len() >= max_items {
+                return Ok(media);
+            }
+        }
         if count < E621_PAGE_THRESHOLD {
             break;
         }
@@ -819,6 +864,99 @@ mod tests {
         assert_eq!(items[0].filename, "77.jpg");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn bounded_tag_search_stops_before_next_page_after_valid_media_ceiling() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let n = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..n]);
+            assert!(request.starts_with("GET /posts.json?tags=fox&limit=320&page=1 HTTP/1.1"));
+            let posts: Vec<_> = (1..=320)
+                .map(|id| {
+                    json!({"id":id,"file":{"ext":"jpg","url":format!("https://static1.e621.net/data/{id}.jpg")}})
+                })
+                .collect();
+            let payload = json!({"posts":posts}).to_string();
+            let reply = format!(
+                "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{payload}",
+                payload.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let selected = paginate_posts_bounded(
+            &Client::new(),
+            &base,
+            "posts.json",
+            &[("tags".into(), "fox".into())],
+            3,
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].post_id, Some(1));
+        assert_eq!(selected[1].post_id, Some(2));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn bounded_tag_search_ignores_missing_media_before_stopping_page_requests() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (page, posts) in [
+                (1, {
+                    let mut posts = vec![json!({"id":1,"file":{"ext":"jpg","url":"https://static1.e621.net/one.jpg"}})];
+                    posts.extend((2..=320).map(|id| json!({"id":id,"file":{"ext":"jpg","url":null}})));
+                    posts
+                }),
+                (2, vec![json!({"id":321,"file":{"ext":"png","url":"https://static1.e621.net/two.png"}})]),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let n = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..n]);
+                assert!(
+                    request.contains(&format!("limit=320&page={page}")),
+                    "{request}"
+                );
+                let payload = json!({"posts":posts}).to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{payload}",
+                    payload.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let selected = paginate_posts_bounded(
+            &Client::new(),
+            &base,
+            "posts.json",
+            &[("tags".into(), "fox".into())],
+            3,
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].post_id, Some(1));
+        assert_eq!(selected[1].post_id, Some(321));
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn local_tag_search_fetches_two_pages_and_stops_at_empty_page() {
         use tokio::{
