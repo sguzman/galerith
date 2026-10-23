@@ -96,6 +96,8 @@ async fn persists_verified_partial_across_invocations() {
         first.write_all(
             b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nConnection: close\r\n\r\n12"
         ).await.unwrap();
+        first.flush().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(80)).await;
         drop(first);
         let mut second = next(&listener).await;
         let req = request(&mut second).await;
