@@ -305,4 +305,61 @@ mod tests {
         assert_eq!(media[2].filename, "image3.jpg");
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn rejects_declared_oversized_api_response_before_reading_body() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_RESPONSE + 1
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let url = Url::parse(&format!("http://{address}/api/infinite-prompts")).unwrap();
+        let result = request_page(&Client::new(), &url, "blue sky", &json!(0)).await;
+        assert!(result.unwrap_err().to_string().contains("response limit"));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_api_page_without_images_array() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let body = r#"{"prompts":[],"nextCursor":123}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::Search {
+                query: "blue sky".into(),
+            },
+            2,
+        )
+        .await;
+        assert!(result.unwrap_err().to_string().contains("missing images array"));
+        server.await.unwrap();
+    }
 }
