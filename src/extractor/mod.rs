@@ -37,7 +37,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbox", "public image pages and bounded galleries"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
-    ("pixeldrain", "public file and album JSON APIs"),
+    ("pixeldrain", "public file, list and nonrecursive filesystem JSON APIs"),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
@@ -163,6 +163,7 @@ mod tests {
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
+            ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
             ("https://pixeldrain.com/u/File12", "pixeldrain"),
