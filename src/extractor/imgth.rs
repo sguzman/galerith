@@ -16,9 +16,7 @@ pub enum Target {
 
 pub fn match_url(input: &str) -> Option<Target> {
     let url = Url::parse(input).ok()?;
-    if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("imgth.com" | "www.imgth.com"))
-    {
+    if url.scheme() != "https" || !matches!(url.host_str(), Some("imgth.com" | "www.imgth.com")) {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
@@ -41,7 +39,9 @@ fn original_from_thumb(raw: &str) -> Option<MediaItem> {
     let path = &raw[pos + "/thumbs/".len()..];
     if path.is_empty()
         || path.len() > 512
-        || path.split('/').any(|s| s.is_empty() || matches!(s, "." | ".."))
+        || path
+            .split('/')
+            .any(|s| s.is_empty() || matches!(s, "." | ".."))
         || !path
             .bytes()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'/' | b'.' | b'-' | b'_'))
@@ -72,7 +72,11 @@ fn thumbnails(html: &str) -> Vec<MediaItem> {
     };
     let mut result = Vec::new();
     let mut seen = HashSet::new();
-    for chunk in section.split("<img src=\"").skip(1).take(MAX_GALLERY_IMAGES) {
+    for chunk in section
+        .split("<img src=\"")
+        .skip(1)
+        .take(MAX_GALLERY_IMAGES)
+    {
         if let Some((raw, _)) = chunk.split_once('"') {
             if let Some(item) = original_from_thumb(raw) {
                 if seen.insert(item.url.clone()) {
@@ -144,7 +148,13 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    resolve_at_base(client, &Url::parse("https://imgth.com/")?, target, max_pages).await
+    resolve_at_base(
+        client,
+        &Url::parse("https://imgth.com/")?,
+        target,
+        max_pages,
+    )
+    .await
 }
 
 #[cfg(test)]
