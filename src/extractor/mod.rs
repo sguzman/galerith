@@ -2,8 +2,8 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod danbooru;
 pub mod e621;
-pub mod fourchan;
 pub mod foolfuuka;
+pub mod fourchan;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod moebooru;

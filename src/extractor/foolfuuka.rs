@@ -44,7 +44,9 @@ pub fn match_url(input: &str) -> Option<Target> {
     let board = parts.next()?;
     if board.is_empty()
         || board.len() > 8
-        || !board.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        || !board
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
     {
         return None;
     }
@@ -55,16 +57,19 @@ pub fn match_url(input: &str) -> Option<Target> {
     if thread == 0 || parts.next().is_some() {
         return None;
     }
-    Some(Target { host, category, board: board.into(), thread })
+    Some(Target {
+        host,
+        category,
+        board: board.into(),
+        thread,
+    })
 }
 
-fn file_for_post(
-    post: &Value,
-    category: &'static str,
-    base: &Url,
-) -> Option<MediaItem> {
+fn file_for_post(post: &Value, category: &'static str, base: &Url) -> Option<MediaItem> {
     let media = post.get("media")?.as_object()?;
-    let raw = media.get("media_link").and_then(Value::as_str)
+    let raw = media
+        .get("media_link")
+        .and_then(Value::as_str)
         .filter(|url| !url.is_empty())
         .or_else(|| media.get("remote_media_link").and_then(Value::as_str))?;
     let url = Url::parse(raw).or_else(|_| base.join(raw)).ok()?;
@@ -76,13 +81,18 @@ fn file_for_post(
     if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|x| x.is_ascii_alphanumeric()) {
         return None;
     }
-    let from_original = media.get("media_orig").and_then(Value::as_str)
+    let from_original = media
+        .get("media_orig")
+        .and_then(Value::as_str)
         .and_then(|x| x.split_once('.').map(|(id, _)| id))
         .filter(|x| x.len() <= 32 && !x.is_empty() && x.bytes().all(|b| b.is_ascii_digit()));
     let post_id = post.get("num").and_then(Value::as_u64);
-    let timestamp = from_original.map(str::to_owned)
+    let timestamp = from_original
+        .map(str::to_owned)
         .or_else(|| post_id.map(|id| id.to_string()))?;
-    let label = media.get("media_filename").and_then(Value::as_str)
+    let label = media
+        .get("media_filename")
+        .and_then(Value::as_str)
         .and_then(|v| v.rsplit_once('.').map(|(stem, _)| stem))
         .unwrap_or("untitled");
     let stem: String = safe_filename(label).chars().take(100).collect();
@@ -94,11 +104,17 @@ fn file_for_post(
     })
 }
 
-fn parse_thread(body: &Value, target: &Target, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
-    let data = body.get(target.thread.to_string()).ok_or("FoolFuuka API thread not found")?;
-    let op = data.get("op").ok_or("FoolFuuka API missing original post")?;
+fn parse_thread(
+    body: &Value,
+    target: &Target,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let data = body
+        .get(target.thread.to_string())
+        .ok_or("FoolFuuka API thread not found")?;
+    let op = data
+        .get("op")
+        .ok_or("FoolFuuka API missing original post")?;
     let mut output = Vec::new();
     if let Some(item) = file_for_post(op, target.category, base) {
         output.push(item);
@@ -115,21 +131,30 @@ fn parse_thread(body: &Value, target: &Target, base: &Url)
     Ok(output)
 }
 
-pub async fn resolve(client: &Client, target: Target)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", target.host))?;
     resolve_at_base(client, target, &base).await
 }
 
-async fn resolve_at_base(client: &Client, target: Target, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+async fn resolve_at_base(
+    client: &Client,
+    target: Target,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut api = base.join("_/api/chan/thread/")?;
     api.query_pairs_mut()
         .append_pair("board", &target.board)
         .append_pair("num", &target.thread.to_string());
-    let response: Value = client.get(api).send().await?.error_for_status()?.json().await?;
+    let response: Value = client
+        .get(api)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
     parse_thread(&response, &target, base)
 }
 
@@ -143,15 +168,19 @@ mod tests {
         assert_eq!(
             match_url("https://archive.4plebs.org/tg/thread/123"),
             Some(Target {
-                host: "archive.4plebs.org", category: "4plebs",
-                board: "tg".into(), thread: 123
+                host: "archive.4plebs.org",
+                category: "4plebs",
+                board: "tg".into(),
+                thread: 123
             })
         );
         assert_eq!(
             match_url("https://arch.b4k.co/g/thread/456"),
             Some(Target {
-                host: "arch.b4k.dev", category: "b4k",
-                board: "g".into(), thread: 456
+                host: "arch.b4k.dev",
+                category: "b4k",
+                board: "g".into(),
+                thread: 456
             })
         );
         assert!(match_url("https://desuarchive.org/g/search/text/test").is_none());
@@ -164,8 +193,10 @@ mod tests {
     fn orders_replies_and_rejects_unsafe_media() {
         let base = Url::parse("https://archived.moe/").unwrap();
         let target = Target {
-            host: "archived.moe", category: "archivedmoe",
-            board: "a".into(), thread: 123
+            host: "archived.moe",
+            category: "archivedmoe",
+            board: "a".into(),
+            thread: 123,
         };
         let body = json!({"123": {
             "op": {"num":123, "media": {
@@ -193,7 +224,10 @@ mod tests {
 
     #[tokio::test]
     async fn local_thread_endpoint_extracts_synthetic_attachment() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -213,8 +247,10 @@ mod tests {
         });
         let api = Url::parse(&format!("http://{address}/")).unwrap();
         let target = Target {
-            host: "archived.moe", category: "archivedmoe",
-            board: "a".into(), thread: 123
+            host: "archived.moe",
+            category: "archivedmoe",
+            board: "a".into(),
+            thread: 123,
         };
         let output = resolve_at_base(&Client::new(), target, &api).await.unwrap();
         assert_eq!(output.len(), 1);
