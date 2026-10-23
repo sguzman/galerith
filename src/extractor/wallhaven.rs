@@ -274,6 +274,7 @@ fn collection_details(
     Ok(result)
 }
 
+#[cfg(test)]
 fn collection_ids(data: &Value) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> {
     Ok(collection_details(data)?
         .into_iter()
