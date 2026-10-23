@@ -324,6 +324,13 @@ async fn resolve_messages_bounded(
             moebooru::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
+    if let (Some(limit), Some(target @ danbooru::Target::Search { .. })) =
+        (file_bound, danbooru::match_url(input))
+    {
+        return Ok(from_media(
+            danbooru::resolve_limited(client, target, max_pages, limit).await?,
+        ));
+    }
     resolve_messages(client, input, max_pages).await
 }
 
