@@ -1,0 +1,1129 @@
+{
+  "schema": 1,
+  "project": "galerith",
+  "scope": "complete-gallery-dl-port-is-MVP",
+  "method": "Each task percentage is rounded passed acceptance checks / total checks; phases and milestones average task percentages equally. A passed check requires evidence, and no live/CI result is credited without a verified run.",
+  "milestones": [
+    {
+      "id": "M0",
+      "emoji": "🧱",
+      "name": "Identity, provenance, project controls",
+      "gate": "Pinned upstream reference, honest task ledger, CI-validated Rust core.",
+      "phases": [
+        {
+          "id": "P0",
+          "emoji": "🧭",
+          "name": "Source reference and identity",
+          "tasks": [
+            {
+              "id": "T001",
+              "emoji": "📌",
+              "name": "Pin upstream commit and module inventory",
+              "checks": [
+                {
+                  "title": "Record upstream commit",
+                  "passed": true,
+                  "evidence": "docs/SOURCE_BASELINE.md"
+                },
+                {
+                  "title": "Catalog Python extractor files",
+                  "passed": true,
+                  "evidence": "docs/port-matrix.json"
+                },
+                {
+                  "title": "Automate catalog drift detection",
+                  "passed": false
+                }
+              ],
+              "progress": 67
+            },
+            {
+              "id": "T002",
+              "emoji": "🎨",
+              "name": "Assign OKLCH accent and README swatch",
+              "checks": [
+                {
+                  "title": "Specify perceptual color",
+                  "passed": true,
+                  "evidence": "docs/COLOR.md"
+                },
+                {
+                  "title": "Commit SVG and embed it",
+                  "passed": true,
+                  "evidence": "assets/galerith-color.svg; README.md"
+                },
+                {
+                  "title": "Verify accessible application contrast",
+                  "passed": false
+                }
+              ],
+              "progress": 67
+            },
+            {
+              "id": "T003",
+              "emoji": "⚖️",
+              "name": "Establish upstream licensing and provenance boundary",
+              "checks": [
+                {
+                  "title": "Preserve repository's initial MIT file",
+                  "passed": true,
+                  "evidence": "LICENSE"
+                },
+                {
+                  "title": "Document GPL-2.0 upstream and independent implementation policy",
+                  "passed": true,
+                  "evidence": "docs/PROVENANCE.md"
+                },
+                {
+                  "title": "Review each imported/translated source before distribution",
+                  "passed": false
+                }
+              ],
+              "progress": 67
+            },
+            {
+              "id": "T004",
+              "emoji": "📊",
+              "name": "Establish verifiable milestone/task progress",
+              "checks": [
+                {
+                  "title": "Commit machine ledger",
+                  "passed": true,
+                  "evidence": "docs/progress.json"
+                },
+                {
+                  "title": "Ship Rust renderer and generated roadmap",
+                  "passed": true,
+                  "evidence": "src/bin/galerith-roadmap.rs; docs/ROADMAP.md"
+                },
+                {
+                  "title": "CI validates rendered files",
+                  "passed": false
+                }
+              ],
+              "progress": 67
+            }
+          ]
+        },
+        {
+          "id": "P1",
+          "emoji": "🦀",
+          "name": "CLI foundation and quality gates",
+          "tasks": [
+            {
+              "id": "T101",
+              "emoji": "⌨️",
+              "name": "Native Rust binary and command parsing",
+              "checks": [
+                {
+                  "title": "Commit native CLI",
+                  "passed": true,
+                  "evidence": "src/main.rs; Cargo.toml"
+                },
+                {
+                  "title": "Write offline CLI tests",
+                  "passed": true,
+                  "evidence": "tests/cli.rs"
+                },
+                {
+                  "title": "Verify clean Linux CI",
+                  "passed": false
+                },
+                {
+                  "title": "Reach complete upstream argument parity",
+                  "passed": false
+                }
+              ],
+              "progress": 50
+            },
+            {
+              "id": "T102",
+              "emoji": "📥",
+              "name": "URL inputs and input-file semantics",
+              "checks": [
+                {
+                  "title": "Accept arguments and URL files",
+                  "passed": true,
+                  "evidence": "src/main.rs"
+                },
+                {
+                  "title": "Support stdin",
+                  "passed": true,
+                  "evidence": "src/main.rs"
+                },
+                {
+                  "title": "Match input-file mutation/retry behavior",
+                  "passed": false
+                },
+                {
+                  "title": "Differential CLI acceptance fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 50
+            },
+            {
+              "id": "T103",
+              "emoji": "🖨️",
+              "name": "Output, simulation and extraction flags",
+              "checks": [
+                {
+                  "title": "Implement basic URL/JSON/simulate flags",
+                  "passed": true,
+                  "evidence": "src/main.rs"
+                },
+                {
+                  "title": "Test flags without networking",
+                  "passed": true,
+                  "evidence": "tests/cli.rs"
+                },
+                {
+                  "title": "Reproduce upstream JSON message protocol",
+                  "passed": false
+                },
+                {
+                  "title": "Implement all print/list/diagnostics modes",
+                  "passed": false
+                }
+              ],
+              "progress": 50
+            },
+            {
+              "id": "T104",
+              "emoji": "📦",
+              "name": "Release-safe packaging and documentation",
+              "checks": [
+                {
+                  "title": "Document preview limitations",
+                  "passed": true,
+                  "evidence": "README.md"
+                },
+                {
+                  "title": "Compile Linux release in CI",
+                  "passed": false
+                },
+                {
+                  "title": "Package distribution and checksums",
+                  "passed": false
+                },
+                {
+                  "title": "Validate install on EndeavourOS",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "emoji": "🌐",
+      "name": "HTTP, storage and download parity",
+      "gate": "Resume, throttling, archive history, filename template and network behavior match reference.",
+      "phases": [
+        {
+          "id": "P2",
+          "emoji": "📡",
+          "name": "HTTP transfer engine",
+          "tasks": [
+            {
+              "id": "T201",
+              "emoji": "⬇️",
+              "name": "Stream media downloads",
+              "checks": [
+                {
+                  "title": "Implement chunked async HTTP writing",
+                  "passed": true,
+                  "evidence": "src/download.rs"
+                },
+                {
+                  "title": "Add local HTTP fixture tests",
+                  "passed": false
+                },
+                {
+                  "title": "Verify interrupted/large downloads",
+                  "passed": false
+                },
+                {
+                  "title": "Match upstream downloader behavior",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T202",
+              "emoji": "🔄",
+              "name": "Retry, backoff and rate control",
+              "checks": [
+                {
+                  "title": "Provide bounded transient retries",
+                  "passed": true,
+                  "evidence": "src/download.rs"
+                },
+                {
+                  "title": "Honor Retry-After and timing policies",
+                  "passed": false
+                },
+                {
+                  "title": "Implement per-host and global pacing",
+                  "passed": false
+                },
+                {
+                  "title": "Verify HTTP 429/5xx fixture matrix",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T203",
+              "emoji": "⏯️",
+              "name": "Resume, partial files and atomic completion",
+              "checks": [
+                {
+                  "title": "Write to .part then rename",
+                  "passed": true,
+                  "evidence": "src/download.rs"
+                },
+                {
+                  "title": "Implement Range-based resumes",
+                  "passed": false
+                },
+                {
+                  "title": "Preserve metadata/mtime, validate lengths",
+                  "passed": false
+                },
+                {
+                  "title": "Pass interruption and collision tests",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T204",
+              "emoji": "🔌",
+              "name": "HTTP configuration and proxy parity",
+              "checks": [
+                {
+                  "title": "Set request timeout",
+                  "passed": true,
+                  "evidence": "src/main.rs"
+                },
+                {
+                  "title": "Proxy, TLS, IPv4/IPv6 and user-agent",
+                  "passed": false
+                },
+                {
+                  "title": "Request headers/response diagnostics",
+                  "passed": false
+                },
+                {
+                  "title": "Differential network tests",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            }
+          ]
+        },
+        {
+          "id": "P3",
+          "emoji": "🗃️",
+          "name": "Paths, archive and persistence",
+          "tasks": [
+            {
+              "id": "T301",
+              "emoji": "🗂️",
+              "name": "Safe names and format templates",
+              "checks": [
+                {
+                  "title": "Sanitize a direct file basename",
+                  "passed": true,
+                  "evidence": "src/lib.rs"
+                },
+                {
+                  "title": "Format field interpolation and conditionals",
+                  "passed": false
+                },
+                {
+                  "title": "Platform filename rules and normalization",
+                  "passed": false
+                },
+                {
+                  "title": "Reference-compatible filesystem tests",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T302",
+              "emoji": "🧾",
+              "name": "SQLite archive, cache and duplicate rules",
+              "checks": [
+                {
+                  "title": "Archive schemas and durable writes",
+                  "passed": false
+                },
+                {
+                  "title": "Archive ID semantics across extractors",
+                  "passed": false
+                },
+                {
+                  "title": "Cache expiry/locking/recovery",
+                  "passed": false
+                },
+                {
+                  "title": "Migration and retry fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T303",
+              "emoji": "📋",
+              "name": "Metadata sidecars and extension handling",
+              "checks": [
+                {
+                  "title": "Metadata model for extractors",
+                  "passed": true,
+                  "evidence": "src/lib.rs"
+                },
+                {
+                  "title": "Sidecar JSON/text/original metadata",
+                  "passed": false
+                },
+                {
+                  "title": "Media extensions and MIME matching",
+                  "passed": false
+                },
+                {
+                  "title": "Golden sidecar comparison tests",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T304",
+              "emoji": "🗄️",
+              "name": "Download history and collision semantics",
+              "checks": [
+                {
+                  "title": "Existing files skip by default",
+                  "passed": true,
+                  "evidence": "src/download.rs"
+                },
+                {
+                  "title": "Safe overwrites and name conflict policy",
+                  "passed": false
+                },
+                {
+                  "title": "Dedup across URLs/sites",
+                  "passed": false
+                },
+                {
+                  "title": "Regression tests for parallel tasks",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "emoji": "🧩",
+      "name": "Extractor framework and site families",
+      "gate": "Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.",
+      "phases": [
+        {
+          "id": "P4",
+          "emoji": "🧬",
+          "name": "Extractor architecture",
+          "tasks": [
+            {
+              "id": "T401",
+              "emoji": "🧭",
+              "name": "URL dispatch and category routing",
+              "checks": [
+                {
+                  "title": "Implement conservative direct-media matching",
+                  "passed": true,
+                  "evidence": "src/lib.rs"
+                },
+                {
+                  "title": "Introduce registries and priority rules",
+                  "passed": false
+                },
+                {
+                  "title": "Support child extractors and queues",
+                  "passed": false
+                },
+                {
+                  "title": "Differential URL-match fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T402",
+              "emoji": "📨",
+              "name": "Structured extractor message protocol",
+              "checks": [
+                {
+                  "title": "Represent a media item with source and filename",
+                  "passed": true,
+                  "evidence": "src/lib.rs"
+                },
+                {
+                  "title": "Directory metadata and file message variants",
+                  "passed": false
+                },
+                {
+                  "title": "Deferred URL resolution and redirects",
+                  "passed": false
+                },
+                {
+                  "title": "Reference message fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T403",
+              "emoji": "🔎",
+              "name": "Pagination, filtering and selectors",
+              "checks": [
+                {
+                  "title": "Iterative pagination and stop conditions",
+                  "passed": false
+                },
+                {
+                  "title": "Ranges, filters and predicates",
+                  "passed": false
+                },
+                {
+                  "title": "Order selection and deduplication",
+                  "passed": false
+                },
+                {
+                  "title": "Page boundary tests",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T404",
+              "emoji": "🧪",
+              "name": "Shared extractor harness",
+              "checks": [
+                {
+                  "title": "Deterministic mocked HTTP responses",
+                  "passed": false
+                },
+                {
+                  "title": "Fixture discovery and golden comparisons",
+                  "passed": false
+                },
+                {
+                  "title": "Per-site contract assertions",
+                  "passed": false
+                },
+                {
+                  "title": "CI compatibility matrix",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        },
+        {
+          "id": "P5",
+          "emoji": "🧱",
+          "name": "Shared website families",
+          "tasks": [
+            {
+              "id": "T501",
+              "emoji": "🖼️",
+              "name": "Imageboard and booru API families",
+              "checks": [
+                {
+                  "title": "Implement generic booru API contracts",
+                  "passed": false
+                },
+                {
+                  "title": "Port specialized API variants",
+                  "passed": false
+                },
+                {
+                  "title": "Metadata and pagination fixtures",
+                  "passed": false
+                },
+                {
+                  "title": "Differential sample gallery acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T502",
+              "emoji": "📚",
+              "name": "Manga and chapter readers",
+              "checks": [
+                {
+                  "title": "Chapter/panel enumeration",
+                  "passed": false
+                },
+                {
+                  "title": "Ordering and next-page logic",
+                  "passed": false
+                },
+                {
+                  "title": "Image resolution and fallback",
+                  "passed": false
+                },
+                {
+                  "title": "Fixture parity",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T503",
+              "emoji": "🧑‍🎨",
+              "name": "Social, creator and authenticated gallery families",
+              "checks": [
+                {
+                  "title": "Account/profile/post abstractions",
+                  "passed": false
+                },
+                {
+                  "title": "Nested albums/media handling",
+                  "passed": false
+                },
+                {
+                  "title": "Pagination and rate rules",
+                  "passed": false
+                },
+                {
+                  "title": "Compatibility fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T504",
+              "emoji": "🌍",
+              "name": "Generic and direct URL behavior",
+              "checks": [
+                {
+                  "title": "Recognize direct HTTP media URL",
+                  "passed": true,
+                  "evidence": "src/lib.rs"
+                },
+                {
+                  "title": "Match upstream directlink URL matching",
+                  "passed": false
+                },
+                {
+                  "title": "Generic gallery discovery and crawling",
+                  "passed": false
+                },
+                {
+                  "title": "Full reference fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "emoji": "🕸️",
+      "name": "Full upstream extractor catalog",
+      "gate": "All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.",
+      "phases": [
+        {
+          "id": "P6",
+          "emoji": "📚",
+          "name": "Module-by-module port",
+          "tasks": [
+            {
+              "id": "T601",
+              "emoji": "📐",
+              "name": "Track every upstream extractor source module",
+              "checks": [
+                {
+                  "title": "Commit pinned inventory",
+                  "passed": true,
+                  "evidence": "docs/port-matrix.json"
+                },
+                {
+                  "title": "Map each class/category within modules",
+                  "passed": false
+                },
+                {
+                  "title": "Report implemented/tested parity counts",
+                  "passed": false
+                },
+                {
+                  "title": "Accept all modules with source-referenced evidence",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T602",
+              "emoji": "🔬",
+              "name": "Port every site-specific module",
+              "checks": [
+                {
+                  "title": "Implement all catalogued extractor sites",
+                  "passed": false
+                },
+                {
+                  "title": "Exercise all documented URL variants",
+                  "passed": false
+                },
+                {
+                  "title": "Validate pagination and metadata",
+                  "passed": false
+                },
+                {
+                  "title": "No unresolved module parity gaps",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T603",
+              "emoji": "🛠️",
+              "name": "Port every helper and special extractor",
+              "checks": [
+                {
+                  "title": "Classify helper utilities separately",
+                  "passed": false
+                },
+                {
+                  "title": "Port intermediary URL resolvers",
+                  "passed": false
+                },
+                {
+                  "title": "Recursive and no-op behaviors",
+                  "passed": false
+                },
+                {
+                  "title": "Test all helper chains",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        },
+        {
+          "id": "P7",
+          "emoji": "🔄",
+          "name": "Upstream drift and support claims",
+          "tasks": [
+            {
+              "id": "T701",
+              "emoji": "📆",
+              "name": "Detect upstream extractor changes",
+              "checks": [
+                {
+                  "title": "Fetch pinned catalog for baseline",
+                  "passed": true,
+                  "evidence": "docs/SOURCE_BASELINE.md"
+                },
+                {
+                  "title": "Automate subsequent baseline comparisons",
+                  "passed": false
+                },
+                {
+                  "title": "Assess removed/renamed site definitions",
+                  "passed": false
+                }
+              ],
+              "progress": 33
+            },
+            {
+              "id": "T702",
+              "emoji": "🧪",
+              "name": "Catalog conformance evidence",
+              "checks": [
+                {
+                  "title": "Stable per-site test manifest",
+                  "passed": false
+                },
+                {
+                  "title": "Mock offline tests for core variants",
+                  "passed": false
+                },
+                {
+                  "title": "Opt-in live site probes with rate policies",
+                  "passed": false
+                },
+                {
+                  "title": "No unsupported claimed-complete category",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "emoji": "🔐",
+      "name": "Authentication, configuration, processing",
+      "gate": "Cookies, login, config dialects, pipeline transformations, and external integrations reach upstream parity.",
+      "phases": [
+        {
+          "id": "P8",
+          "emoji": "🪪",
+          "name": "Sessions, cookies and auth",
+          "tasks": [
+            {
+              "id": "T801",
+              "emoji": "🍪",
+              "name": "Cookie jars and browser imports",
+              "checks": [
+                {
+                  "title": "Netscape cookie files",
+                  "passed": false
+                },
+                {
+                  "title": "Browser store imports",
+                  "passed": false
+                },
+                {
+                  "title": "Domain/path/security semantics",
+                  "passed": false
+                },
+                {
+                  "title": "Fixture comparisons",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T802",
+              "emoji": "🔑",
+              "name": "Tokens, OAuth and account sessions",
+              "checks": [
+                {
+                  "title": "Authentication/session API",
+                  "passed": false
+                },
+                {
+                  "title": "Token refresh and secret storage",
+                  "passed": false
+                },
+                {
+                  "title": "Site-specific login challenges",
+                  "passed": false
+                },
+                {
+                  "title": "Authenticated extractor tests",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T803",
+              "emoji": "🛡️",
+              "name": "Safe boundaries and telemetry",
+              "checks": [
+                {
+                  "title": "No secrets in logs",
+                  "passed": false
+                },
+                {
+                  "title": "Redirect/cookie leak prevention",
+                  "passed": false
+                },
+                {
+                  "title": "Credential file permissions",
+                  "passed": false
+                },
+                {
+                  "title": "Adversarial fixture verification",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        },
+        {
+          "id": "P9",
+          "emoji": "🛠️",
+          "name": "Config and post-processing",
+          "tasks": [
+            {
+              "id": "T901",
+              "emoji": "⚙️",
+              "name": "Upstream configuration file semantics",
+              "checks": [
+                {
+                  "title": "JSON/YAML/TOML supported",
+                  "passed": false
+                },
+                {
+                  "title": "Precedence/overrides/compat options",
+                  "passed": false
+                },
+                {
+                  "title": "Extractor/downloader namespace",
+                  "passed": false
+                },
+                {
+                  "title": "Differential config fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T902",
+              "emoji": "🔧",
+              "name": "Postprocessors and actions",
+              "checks": [
+                {
+                  "title": "Metadata/rename/zip processing",
+                  "passed": false
+                },
+                {
+                  "title": "External command workflows",
+                  "passed": false
+                },
+                {
+                  "title": "Filters and event hooks",
+                  "passed": false
+                },
+                {
+                  "title": "Golden processed output tests",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T903",
+              "emoji": "🎞️",
+              "name": "Media and external downloader integrations",
+              "checks": [
+                {
+                  "title": "Native media support",
+                  "passed": false
+                },
+                {
+                  "title": "External downloader adapters",
+                  "passed": false
+                },
+                {
+                  "title": "Format selection/variant metadata",
+                  "passed": false
+                },
+                {
+                  "title": "End-to-end integration fixtures",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "emoji": "🚀",
+      "name": "Conformance, release and MVP inauguration",
+      "gate": "Complete feature and extractor parity verified on Linux, then stable MVP versioned release.",
+      "phases": [
+        {
+          "id": "P10",
+          "emoji": "🧪",
+          "name": "Differential quality assurance",
+          "tasks": [
+            {
+              "id": "T1001",
+              "emoji": "🔍",
+              "name": "Pin and run comparison oracle",
+              "checks": [
+                {
+                  "title": "Document upstream baseline",
+                  "passed": true,
+                  "evidence": "docs/SOURCE_BASELINE.md"
+                },
+                {
+                  "title": "Automated golden CLI corpus",
+                  "passed": false
+                },
+                {
+                  "title": "Deterministic extractor comparisons",
+                  "passed": false
+                },
+                {
+                  "title": "Signed reproducible reports",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            },
+            {
+              "id": "T1002",
+              "emoji": "🧫",
+              "name": "Stress, errors and recovery",
+              "checks": [
+                {
+                  "title": "Local fixture server",
+                  "passed": false
+                },
+                {
+                  "title": "Retry/resume/fault injection",
+                  "passed": false
+                },
+                {
+                  "title": "Large galleries and concurrent ordering",
+                  "passed": false
+                },
+                {
+                  "title": "Performance parity limits",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T1003",
+              "emoji": "📋",
+              "name": "CLI, config, extractor feature ledger",
+              "checks": [
+                {
+                  "title": "Document acceptance standard",
+                  "passed": true,
+                  "evidence": "docs/ACCEPTANCE.md"
+                },
+                {
+                  "title": "Feature-by-feature signed-off matrix",
+                  "passed": false
+                },
+                {
+                  "title": "All catalog rows complete",
+                  "passed": false
+                },
+                {
+                  "title": "No known failed acceptance gates",
+                  "passed": false
+                }
+              ],
+              "progress": 25
+            }
+          ]
+        },
+        {
+          "id": "P11",
+          "emoji": "🏁",
+          "name": "Release graduation",
+          "tasks": [
+            {
+              "id": "T1101",
+              "emoji": "🐧",
+              "name": "EndeavourOS and portable Linux acceptance",
+              "checks": [
+                {
+                  "title": "Linux CI test jobs",
+                  "passed": false
+                },
+                {
+                  "title": "Native EndeavourOS install and runtime smoke",
+                  "passed": false
+                },
+                {
+                  "title": "Long-run archive validation",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T1102",
+              "emoji": "📦",
+              "name": "Build and distribute native binaries",
+              "checks": [
+                {
+                  "title": "Release-mode build",
+                  "passed": false
+                },
+                {
+                  "title": "Versioned Linux artifact/checksums",
+                  "passed": false
+                },
+                {
+                  "title": "Document repeatable installation",
+                  "passed": false
+                },
+                {
+                  "title": "Supply-chain/license review",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            },
+            {
+              "id": "T1103",
+              "emoji": "🎯",
+              "name": "Inaugurate complete-port MVP",
+              "checks": [
+                {
+                  "title": "Every MVP milestone acceptance gate passed",
+                  "passed": false
+                },
+                {
+                  "title": "Upstream parity report reviewed",
+                  "passed": false
+                },
+                {
+                  "title": "All supported-site rows complete",
+                  "passed": false
+                },
+                {
+                  "title": "Stable release tagged and documented",
+                  "passed": false
+                }
+              ],
+              "progress": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

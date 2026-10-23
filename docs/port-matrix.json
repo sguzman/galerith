@@ -1,0 +1,1917 @@
+{
+  "schema": 1,
+  "source_repository": "mikf/gallery-dl",
+  "pinned_commit": "7f226f74108501c8ac3120548370f68f19e6f9b3",
+  "module_count": 272,
+  "status_policy": "complete requires source-equivalent behavior, URL fixture parity and accepted proof; partial means only some behavior exists",
+  "modules": [
+    {
+      "path": "gallery_dl/extractor/2ch.py",
+      "module": "2ch",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/2chan.py",
+      "module": "2chan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/2chen.py",
+      "module": "2chen",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/35photo.py",
+      "module": "35photo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/3dbooru.py",
+      "module": "3dbooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/4archive.py",
+      "module": "4archive",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/4chan.py",
+      "module": "4chan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/4chanarchives.py",
+      "module": "4chanarchives",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/500px.py",
+      "module": "500px",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/8chan.py",
+      "module": "8chan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/8muses.py",
+      "module": "8muses",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/__init__.py",
+      "module": "__init__",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/adultempire.py",
+      "module": "adultempire",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/agnph.py",
+      "module": "agnph",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/ahottie.py",
+      "module": "ahottie",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/allporncomic.py",
+      "module": "allporncomic",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/ao3.py",
+      "module": "ao3",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/arcalive.py",
+      "module": "arcalive",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/architizer.py",
+      "module": "architizer",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/arena.py",
+      "module": "arena",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/artstation.py",
+      "module": "artstation",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/aryion.py",
+      "module": "aryion",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/audiochan.py",
+      "module": "audiochan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/bbc.py",
+      "module": "bbc",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/behance.py",
+      "module": "behance",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/bellazon.py",
+      "module": "bellazon",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/bilibili.py",
+      "module": "bilibili",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/blogger.py",
+      "module": "blogger",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/bluesky.py",
+      "module": "bluesky",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/booru.py",
+      "module": "booru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/boosty.py",
+      "module": "boosty",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/booth.py",
+      "module": "booth",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/bunkr.py",
+      "module": "bunkr",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/catbox.py",
+      "module": "catbox",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/cfake.py",
+      "module": "cfake",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/chevereto.py",
+      "module": "chevereto",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/cien.py",
+      "module": "cien",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/civitai.py",
+      "module": "civitai",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/comedywildlifephoto.py",
+      "module": "comedywildlifephoto",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/comick.py",
+      "module": "comick",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/comicvine.py",
+      "module": "comicvine",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/common.py",
+      "module": "common",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/cyberdrop.py",
+      "module": "cyberdrop",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/cyberfile.py",
+      "module": "cyberfile",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/danbooru.py",
+      "module": "danbooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/dandadan.py",
+      "module": "dandadan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/dankefuerslesen.py",
+      "module": "dankefuerslesen",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/desktopography.py",
+      "module": "desktopography",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/deviantart.py",
+      "module": "deviantart",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/directlink.py",
+      "module": "directlink",
+      "status": "partial",
+      "rust_paths": [
+        "src/lib.rs"
+      ],
+      "evidence": [
+        "direct media matching implementation; upstream parity tests pending"
+      ]
+    },
+    {
+      "path": "gallery_dl/extractor/discord.py",
+      "module": "discord",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/dynastyscans.py",
+      "module": "dynastyscans",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/e621.py",
+      "module": "e621",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/eporner.py",
+      "module": "eporner",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/erome.py",
+      "module": "erome",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/everia.py",
+      "module": "everia",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/facebook.py",
+      "module": "facebook",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fanbox.py",
+      "module": "fanbox",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fansly.py",
+      "module": "fansly",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fantia.py",
+      "module": "fantia",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fapachi.py",
+      "module": "fapachi",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fapello.py",
+      "module": "fapello",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fikfap.py",
+      "module": "fikfap",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/filester.py",
+      "module": "filester",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fitnakedgirls.py",
+      "module": "fitnakedgirls",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/flickr.py",
+      "module": "flickr",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/foolfuuka.py",
+      "module": "foolfuuka",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/foolslide.py",
+      "module": "foolslide",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/foriio.py",
+      "module": "foriio",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/furaffinity.py",
+      "module": "furaffinity",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/furry34.py",
+      "module": "furry34",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/fuskator.py",
+      "module": "fuskator",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/gelbooru.py",
+      "module": "gelbooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/gelbooru_v01.py",
+      "module": "gelbooru_v01",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/gelbooru_v02.py",
+      "module": "gelbooru_v02",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/generic.py",
+      "module": "generic",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/girlsreleased.py",
+      "module": "girlsreleased",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/girlswithmuscle.py",
+      "module": "girlswithmuscle",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/gofile.py",
+      "module": "gofile",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hatenablog.py",
+      "module": "hatenablog",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hentai2read.py",
+      "module": "hentai2read",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hentaicosplays.py",
+      "module": "hentaicosplays",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hentaihere.py",
+      "module": "hentaihere",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hiperdex.py",
+      "module": "hiperdex",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/hotleak.py",
+      "module": "hotleak",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/idolcomplex.py",
+      "module": "idolcomplex",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imagebam.py",
+      "module": "imagebam",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imagechest.py",
+      "module": "imagechest",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imagefap.py",
+      "module": "imagefap",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imagehosts.py",
+      "module": "imagehosts",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imagepond.py",
+      "module": "imagepond",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imageshack.py",
+      "module": "imageshack",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imgbb.py",
+      "module": "imgbb",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imgbox.py",
+      "module": "imgbox",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imgpile.py",
+      "module": "imgpile",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imgth.py",
+      "module": "imgth",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imgur.py",
+      "module": "imgur",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/imhentai.py",
+      "module": "imhentai",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/inkbunny.py",
+      "module": "inkbunny",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/instagram.py",
+      "module": "instagram",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/issuu.py",
+      "module": "issuu",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/itaku.py",
+      "module": "itaku",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/itchio.py",
+      "module": "itchio",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/iwara.py",
+      "module": "iwara",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/joyreactor.py",
+      "module": "joyreactor",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/jschan.py",
+      "module": "jschan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/kabeuchi.py",
+      "module": "kabeuchi",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/kaliscan.py",
+      "module": "kaliscan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/keenspot.py",
+      "module": "keenspot",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/kemono.py",
+      "module": "kemono",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/khinsider.py",
+      "module": "khinsider",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/komikcast.py",
+      "module": "komikcast",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/koofr.py",
+      "module": "koofr",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/leakgallery.py",
+      "module": "leakgallery",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lensdump.py",
+      "module": "lensdump",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lexica.py",
+      "module": "lexica",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lightroom.py",
+      "module": "lightroom",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/listal.py",
+      "module": "listal",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/livedoor.py",
+      "module": "livedoor",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lofter.py",
+      "module": "lofter",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lolisafe.py",
+      "module": "lolisafe",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/luscious.py",
+      "module": "luscious",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/lynxchan.py",
+      "module": "lynxchan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/madokami.py",
+      "module": "madokami",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangadex.py",
+      "module": "mangadex",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangafire.py",
+      "module": "mangafire",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangafox.py",
+      "module": "mangafox",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangafreak.py",
+      "module": "mangafreak",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangahere.py",
+      "module": "mangahere",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/manganelo.py",
+      "module": "manganelo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangapark.py",
+      "module": "mangapark",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangaread.py",
+      "module": "mangaread",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangareader.py",
+      "module": "mangareader",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangataro.py",
+      "module": "mangataro",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangatown.py",
+      "module": "mangatown",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mangoxo.py",
+      "module": "mangoxo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mastodon.py",
+      "module": "mastodon",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/message.py",
+      "module": "message",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/misskey.py",
+      "module": "misskey",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/mixdrop.py",
+      "module": "mixdrop",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/moebooru.py",
+      "module": "moebooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/motherless.py",
+      "module": "motherless",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/myhentaigallery.py",
+      "module": "myhentaigallery",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/myportfolio.py",
+      "module": "myportfolio",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/naverblog.py",
+      "module": "naverblog",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/naverchzzk.py",
+      "module": "naverchzzk",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/naverwebtoon.py",
+      "module": "naverwebtoon",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nekohouse.py",
+      "module": "nekohouse",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/newgrounds.py",
+      "module": "newgrounds",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nijie.py",
+      "module": "nijie",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nitter.py",
+      "module": "nitter",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/noop.py",
+      "module": "noop",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nozomi.py",
+      "module": "nozomi",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nsfwalbum.py",
+      "module": "nsfwalbum",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/nudostar.py",
+      "module": "nudostar",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/oauth.py",
+      "module": "oauth",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/okporn.py",
+      "module": "okporn",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/paheal.py",
+      "module": "paheal",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/patreon.py",
+      "module": "patreon",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pexels.py",
+      "module": "pexels",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/philomena.py",
+      "module": "philomena",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pholder.py",
+      "module": "pholder",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/photovogue.py",
+      "module": "photovogue",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/picarto.py",
+      "module": "picarto",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/picazor.py",
+      "module": "picazor",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pictoa.py",
+      "module": "pictoa",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/piczel.py",
+      "module": "piczel",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pillowfort.py",
+      "module": "pillowfort",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pinterest.py",
+      "module": "pinterest",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pixeldrain.py",
+      "module": "pixeldrain",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pixiv.py",
+      "module": "pixiv",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pixnet.py",
+      "module": "pixnet",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/plurk.py",
+      "module": "plurk",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/poipiku.py",
+      "module": "poipiku",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/poringa.py",
+      "module": "poringa",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pornhub.py",
+      "module": "pornhub",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pornpics.py",
+      "module": "pornpics",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/pornstarstube.py",
+      "module": "pornstarstube",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/postmill.py",
+      "module": "postmill",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/rawkuma.py",
+      "module": "rawkuma",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/reactor.py",
+      "module": "reactor",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/readcomiconline.py",
+      "module": "readcomiconline",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/realbooru.py",
+      "module": "realbooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/recursive.py",
+      "module": "recursive",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/reddit.py",
+      "module": "reddit",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/redgifs.py",
+      "module": "redgifs",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/rule34us.py",
+      "module": "rule34us",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/rule34vault.py",
+      "module": "rule34vault",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/rule34xyz.py",
+      "module": "rule34xyz",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/s3ndpics.py",
+      "module": "s3ndpics",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/sankaku.py",
+      "module": "sankaku",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/sankakucomplex.py",
+      "module": "sankakucomplex",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/scatbooru.py",
+      "module": "scatbooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/scrolller.py",
+      "module": "scrolller",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/seiga.py",
+      "module": "seiga",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/senmanga.py",
+      "module": "senmanga",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/sexcom.py",
+      "module": "sexcom",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/shimmie2.py",
+      "module": "shimmie2",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/shopify.py",
+      "module": "shopify",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/simplyhentai.py",
+      "module": "simplyhentai",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/sizebooru.py",
+      "module": "sizebooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/skeb.py",
+      "module": "skeb",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/slickpic.py",
+      "module": "slickpic",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/slideshare.py",
+      "module": "slideshare",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/smugmug.py",
+      "module": "smugmug",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/soundgasm.py",
+      "module": "soundgasm",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/speakerdeck.py",
+      "module": "speakerdeck",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/steamgriddb.py",
+      "module": "steamgriddb",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/subscribestar.py",
+      "module": "subscribestar",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/sxypix.py",
+      "module": "sxypix",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/szurubooru.py",
+      "module": "szurubooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tapas.py",
+      "module": "tapas",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tcbscans.py",
+      "module": "tcbscans",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/telegraph.py",
+      "module": "telegraph",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tenor.py",
+      "module": "tenor",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/thefap.py",
+      "module": "thefap",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/thehentaiworld.py",
+      "module": "thehentaiworld",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tiktok.py",
+      "module": "tiktok",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tmohentai.py",
+      "module": "tmohentai",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/toyhouse.py",
+      "module": "toyhouse",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tumblr.py",
+      "module": "tumblr",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tumblrgallery.py",
+      "module": "tumblrgallery",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/tungsten.py",
+      "module": "tungsten",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/turbo.py",
+      "module": "turbo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/twibooru.py",
+      "module": "twibooru",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/twitter.py",
+      "module": "twitter",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/unsplash.py",
+      "module": "unsplash",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/uploadir.py",
+      "module": "uploadir",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/urlgalleries.py",
+      "module": "urlgalleries",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/urlshortener.py",
+      "module": "urlshortener",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/500px_graphql.py",
+      "module": "utils/500px_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/__init__.py",
+      "module": "utils/__init__",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/behance_graphql.py",
+      "module": "utils/behance_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/deviantart_journal.py",
+      "module": "utils/deviantart_journal",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/deviantart_tiptap.py",
+      "module": "utils/deviantart_tiptap",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/geo.py",
+      "module": "utils/geo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/joyreactor_graphql.py",
+      "module": "utils/joyreactor_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/jsurl.py",
+      "module": "utils/jsurl",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/luscious_graphql.py",
+      "module": "utils/luscious_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/mangafire_vrf.py",
+      "module": "utils/mangafire_vrf",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/mangapark_graphql.py",
+      "module": "utils/mangapark_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/patreon_tiptap.py",
+      "module": "utils/patreon_tiptap",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/scrolller_graphql.py",
+      "module": "utils/scrolller_graphql",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/twitter_article.py",
+      "module": "utils/twitter_article",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/utils/twitter_transaction_id.py",
+      "module": "utils/twitter_transaction_id",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/vanillarock.py",
+      "module": "vanillarock",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/vichan.py",
+      "module": "vichan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/vipergirls.py",
+      "module": "vipergirls",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/vk.py",
+      "module": "vk",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/vsco.py",
+      "module": "vsco",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/wallhaven.py",
+      "module": "wallhaven",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/wallpapercave.py",
+      "module": "wallpapercave",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/warosu.py",
+      "module": "warosu",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/weasyl.py",
+      "module": "weasyl",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/webmshare.py",
+      "module": "webmshare",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/webtoons.py",
+      "module": "webtoons",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/weebcentral.py",
+      "module": "weebcentral",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/weebdex.py",
+      "module": "weebdex",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/weibo.py",
+      "module": "weibo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/whyp.py",
+      "module": "whyp",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/wikiart.py",
+      "module": "wikiart",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/wikifeet.py",
+      "module": "wikifeet",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/wikimedia.py",
+      "module": "wikimedia",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/xasiat.py",
+      "module": "xasiat",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/xenforo.py",
+      "module": "xenforo",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/xfolio.py",
+      "module": "xfolio",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/xhamster.py",
+      "module": "xhamster",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/xvideos.py",
+      "module": "xvideos",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/yiffverse.py",
+      "module": "yiffverse",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/yourlesbians.py",
+      "module": "yourlesbians",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/ytdl.py",
+      "module": "ytdl",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    },
+    {
+      "path": "gallery_dl/extractor/zerochan.py",
+      "module": "zerochan",
+      "status": "not_ported",
+      "rust_paths": [],
+      "evidence": []
+    }
+  ]
+}

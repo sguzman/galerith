@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-label="Galerith color identity: archival jade #90D8AA">
+  <rect width="640" height="160" rx="20" fill="#19251F"/>
+  <rect x="24" y="24" width="112" height="112" rx="20" fill="#90D8AA"/>
+  <path d="M47 104 L68 78 L83 94 L105 63 L122 104 Z" fill="#19251F" opacity=".85"/>
+  <circle cx="59" cy="57" r="8" fill="#19251F"/>
+  <text x="165" y="78" fill="#F7FAF8" font-family="sans-serif" font-size="38" font-weight="700">Galerith</text>
+  <text x="165" y="110" fill="#90D8AA" font-family="monospace" font-size="18">#90D8AA · archival jade</text>
+</svg>
