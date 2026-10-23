@@ -29,7 +29,11 @@ pub mod wallpapercave;
 pub mod webmshare;
 pub mod wikimedia;
 
-use crate::{extract_direct_media, MediaItem};
+use crate::{
+    extract_direct_media,
+    message::{from_media, ExtractorMessage},
+    MediaItem,
+};
 use reqwest::Client;
 use std::error::Error;
 
@@ -267,6 +271,20 @@ pub async fn resolve(
         return unsplash::resolve(client, target, max_pages).await;
     }
     Ok(vec![extract_direct_media(input)?])
+}
+
+/// Read-only preview of the extractor message stream. Flattened site
+/// adapters produce directory/URL events from known MediaItem fields.
+/// Wallhaven public collection indexes instead retain child queue events.
+pub async fn resolve_messages(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if let Some(wallhaven::Target::Collections { user }) = wallhaven::match_url(input) {
+        return wallhaven::queued_collections(client, &user, max_pages).await;
+    }
+    Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
 #[cfg(test)]
