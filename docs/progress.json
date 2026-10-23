@@ -739,6 +739,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T407",
+              "emoji": "🔁",
+              "name": "Opt-in bounded one-level extractor queue expansion",
+              "checks": [
+                {
+                  "title": "Preserve parent queue events and insert resolved first-level child events in deterministic order",
+                  "passed": true,
+                  "evidence": "src/message.rs expand_queues_with and single-level unit fixtures; CI 40033265412"
+                },
+                {
+                  "title": "Deduplicate child URLs and cap expansion to 16 even for excessive caller limits",
+                  "passed": true,
+                  "evidence": "src/message.rs duplicate, zero-budget and hard-cap queue fixtures; CI 40033265412"
+                },
+                {
+                  "title": "Expose read-only CLI --expand-queues with explicit 1..16 child limit and mutually dependent flags",
+                  "passed": true,
+                  "evidence": "src/main.rs and tests/message_cli.rs parser/legacy-output regression fixtures; CI 40033265412"
+                },
+                {
+                  "title": "Connect deferred child URLs to the native extractor message resolver with conservative per-child pacing",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs resolve_messages_expanding dispatch and 1400ms wait; Rust compilation, Clippy and tests in CI 40033265412"
+                },
+                {
+                  "title": "Verify actual multi-site end-to-end queue execution, metadata inheritance, redirects, multi-level recursion and live upstream differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
