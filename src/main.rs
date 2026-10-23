@@ -6,8 +6,8 @@ use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::resolve,
     filename::render as render_filename,
-    privacy::{display_error, display_url},
     postprocess::write_metadata,
+    privacy::{display_error, display_url},
     range::IndexRange,
 };
 use std::{

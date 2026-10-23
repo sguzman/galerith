@@ -26,15 +26,17 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
     let dir = dir();
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/image.jpg?sig=top-secret");
-    let args = [
-        "--write-metadata", "-d", dir.to_str().unwrap(), &url,
-    ];
+    let args = ["--write-metadata", "-d", dir.to_str().unwrap(), &url];
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args(args)
         .output()
         .unwrap();
     server.join().unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"IMG");
     let sidecar = dir.join("image.jpg.json");
     let value: serde_json::Value = serde_json::from_slice(&fs::read(&sidecar).unwrap()).unwrap();
@@ -47,7 +49,11 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
         .args(args)
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(sidecar.exists());
     fs::remove_dir_all(dir).unwrap();
 }
@@ -57,8 +63,13 @@ fn dry_run_with_metadata_flag_never_creates_sidecar() {
     let dir = dir().with_extension("dry");
     let _ = fs::remove_dir_all(&dir);
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--write-metadata", "--simulate", "-d", dir.to_str().unwrap(),
-            "https://example.org/preview.jpg"])
+        .args([
+            "--write-metadata",
+            "--simulate",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.org/preview.jpg",
+        ])
         .output()
         .unwrap();
     assert!(output.status.success());

@@ -13,7 +13,9 @@ use tokio::fs;
 
 fn sidecar_path(target: &Path) -> Result<PathBuf, io::Error> {
     let mut filename = OsString::from(
-        target.file_name().ok_or_else(|| io::Error::other("missing downloaded filename"))?,
+        target
+            .file_name()
+            .ok_or_else(|| io::Error::other("missing downloaded filename"))?,
     );
     filename.push(".json");
     Ok(target.with_file_name(filename))
@@ -34,7 +36,9 @@ pub async fn write_metadata(
     });
     let bytes = serde_json::to_vec_pretty(&value)?;
     let mut tmp_name = OsString::from(
-        output.file_name().ok_or_else(|| io::Error::other("invalid sidecar filename"))?,
+        output
+            .file_name()
+            .ok_or_else(|| io::Error::other("invalid sidecar filename"))?,
     );
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
@@ -54,13 +58,12 @@ mod tests {
 
     #[tokio::test]
     async fn creates_redacted_per_file_metadata_with_no_temporary_residue() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-metadata-test-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-metadata-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root).await;
         fs::create_dir_all(&root).await.unwrap();
-        let item = extract_direct_media("https://user:private@example.org/picture.jpg?sig=secret").unwrap();
+        let item = extract_direct_media("https://user:private@example.org/picture.jpg?sig=secret")
+            .unwrap();
         let target = root.join("picture.jpg");
         fs::write(&target, b"jpeg fixture").await.unwrap();
         let sidecar = write_metadata(&target, &item).await.unwrap();
