@@ -428,4 +428,97 @@ mod tests {
         assert_eq!(items[0].filename, "yandere_84.jpg");
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn finite_media_selection_halts_moebooru_before_next_api_page() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = socket.read(&mut request).await.unwrap();
+            assert!(String::from_utf8_lossy(&request[..n]).contains("page=1"));
+            let posts: Vec<Value> = (1..=100)
+                .map(|id| json!({"id":id,"file_url":format!("https://cdn.example.org/{id}.jpg")}))
+                .collect();
+            let body = Value::Array(posts).to_string();
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+            assert!(
+                tokio::time::timeout(Duration::from_millis(1250), listener.accept())
+                    .await
+                    .is_err(),
+                "another page fetched after finite media ceiling"
+            );
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "yande.re",
+            category: "yandere",
+            query: Query::Tags("sky".into()),
+        };
+        let items = resolve_at_base_limited(&Client::new(), target, 5, &base, 1)
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].post_id, Some(1));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn moebooru_full_page_with_undownloadable_posts_continues() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut first: Vec<Value> = (1..=100)
+                .map(|id| json!({"id":id,"file_url":null}))
+                .collect();
+            first[0] = json!({"id":1,"file_url":"https://cdn.example.org/1.jpg"});
+            for (page, body) in [
+                Value::Array(first).to_string(),
+                json!([{"id":101,"file_url":"https://cdn.example.org/101.png"}]).to_string(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..n])
+                        .contains(&format!("page={}", page + 1))
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "yande.re",
+            category: "yandere",
+            query: Query::Tags("blue".into()),
+        };
+        let items = resolve_at_base_limited(&Client::new(), target, 3, &base, 2)
+            .await
+            .unwrap();
+        assert_eq!(
+            items.iter().map(|item| item.post_id).collect::<Vec<_>>(),
+            vec![Some(1), Some(101)]
+        );
+        server.await.unwrap();
+    }
 }
