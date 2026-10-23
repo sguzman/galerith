@@ -403,3 +403,72 @@ fn directory_scope_selector_requires_its_corresponding_job_mode() {
         assert!(!result.status.success(), "{args:?}");
     }
 }
+
+#[test]
+fn source_post_range_requires_true_source_metadata() {
+    let url = "https://example.org/asset.jpg";
+    let output = run(&[
+        "--follow-queues",
+        "--job-source-post-range",
+        "120-122",
+        "--get-urls",
+        url,
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty(), "direct media has no source-post ID");
+
+    let message = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--message-source-post-range",
+        "120:123",
+        url,
+    ]);
+    assert!(
+        message.status.success(),
+        "{}",
+        String::from_utf8_lossy(&message.stderr)
+    );
+    assert!(message.stdout.is_empty());
+}
+
+#[test]
+fn source_post_range_is_bounded_and_never_ignored_in_other_modes() {
+    let url = "https://example.org/asset.jpg";
+    for args in [
+        vec!["--job-source-post-range", "120", url],
+        vec!["--message-source-post-range", "120", url],
+        vec![
+            "--dump-messages",
+            "--message-source-post-range",
+            "120",
+            url,
+        ],
+        vec![
+            "--follow-queues",
+            "--job-source-post-range",
+            "0",
+            url,
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--message-source-post-range",
+            "0",
+            url,
+        ],
+        vec![
+            "--follow-queues",
+            "--job-source-post-range",
+            "12:1",
+            url,
+        ],
+    ] {
+        let result = run(&args);
+        assert!(!result.status.success(), "{args:?} should be rejected");
+    }
+}
