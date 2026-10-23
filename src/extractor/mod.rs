@@ -4,6 +4,7 @@ pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod danbooru;
+pub mod desktopography;
 pub mod e621;
 pub mod foolfuuka;
 pub mod fourchan;
@@ -36,6 +37,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
+    ("desktopography", "site, exhibition and portfolio wallpaper pages"),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     (
         "foolfuuka",
@@ -109,6 +111,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("e621")
     } else if danbooru::match_url(input).is_some() {
         Some("danbooru")
+    } else if desktopography::match_url(input).is_some() {
+        Some("desktopography")
     } else if pixeldrain::match_url(input).is_some() {
         Some("pixeldrain")
     } else if telegraph::match_url(input).is_some() {
@@ -194,6 +198,9 @@ pub async fn resolve(
     if let Some(target) = danbooru::match_url(input) {
         return danbooru::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = desktopography::match_url(input) {
+        return desktopography::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = pixeldrain::match_url(input) {
         return pixeldrain::resolve(client, target).await;
     }
@@ -230,6 +237,7 @@ mod tests {
                 "comedywildlifephoto",
             ),
             ("https://danbooru.donmai.us/posts/123", "danbooru"),
+            ("https://desktopography.net/portfolios/forest-glow", "desktopography"),
             ("https://e621.net/posts/123", "e621"),
             ("https://archive.4plebs.org/tg/thread/123", "foolfuuka"),
             (
