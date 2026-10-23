@@ -200,8 +200,7 @@ where
                     .directories
                     .as_ref()
                     .is_none_or(|range| range.contains(directory_ordinal));
-                frame.directory_included &=
-                    selected_source_post(metadata, &selection.source_posts);
+                frame.directory_included &= selected_source_post(metadata, &selection.source_posts);
                 emit = frame.directory_included;
             }
             ExtractorMessage::Url { metadata, .. } => {
