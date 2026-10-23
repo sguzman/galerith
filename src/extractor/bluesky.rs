@@ -74,11 +74,12 @@ fn cdn_image(raw: &str) -> Option<(Url, String)> {
         .rsplit_once('@')
         .map(|(_, extension)| extension)
         .or_else(|| url.path().rsplit_once('.').map(|(_, extension)| extension))
-        .unwrap_or("jpg");
+        .unwrap_or("jpg")
+        .to_owned();
     if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return None;
     }
-    Some((url, ext.to_owned()))
+    Some((url, ext))
 }
 
 fn profile_image(profile: &Value, did: &str, kind: &str) -> Option<MediaItem> {
@@ -243,7 +244,9 @@ async fn resolve_at_base(
                 Target::Media { .. } => "posts_with_media",
                 Target::Posts { .. } => "posts_and_author_threads",
                 Target::Replies { .. } => "posts_with_replies",
-                Target::Post { .. } => unreachable!("single posts are resolved above"),
+                Target::Post { .. } | Target::Avatar { .. } | Target::Banner { .. } => {
+                    unreachable!("single posts and profile images are resolved above")
+                }
             };
             let mut result = Vec::new();
             let mut seen = HashSet::new();
