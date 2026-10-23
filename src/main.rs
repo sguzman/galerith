@@ -107,7 +107,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(cli.http_timeout))
-        .user_agent(format!("Galerith/{} (+https://github.com/sguzman/galerith)", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!(
+            "Galerith/{} (+https://github.com/sguzman/galerith)",
+            env!("CARGO_PKG_VERSION")
+        ))
         .build()?;
     let options = DownloadOptions {
         destination: cli.destination,
