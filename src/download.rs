@@ -2,6 +2,7 @@
 //! A partial file is never appended without a matching source fingerprint and
 //! an HTTP validator. This is a safe subset of gallery-dl's HTTP semantics.
 use crate::{safe_filename, MediaItem};
+use fs2::FileExt;
 use reqwest::{
     header::{CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER},
     Client, StatusCode,
@@ -27,6 +28,35 @@ pub struct DownloadOptions {
 pub enum DownloadOutcome {
     Saved(PathBuf),
     Skipped(PathBuf),
+}
+
+/// Advisory locks live in stable per-target files and are released by the OS
+/// even if a process crashes. Never unlink a lockfile while another process
+/// might have opened it: doing so can split the lock namespace.
+struct OutputLock(std::fs::File);
+
+impl Drop for OutputLock {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.0);
+    }
+}
+
+async fn lock_output(dir: &Path, filename: &str)
+    -> Result<OutputLock, Box<dyn Error + Send + Sync>>
+{
+    let path = dir.join(format!(".{filename}.galerith.lock"));
+    let file = std::fs::OpenOptions::new()
+        .read(true).write(true).create(true).truncate(false)
+        .open(path)?;
+    loop {
+        match file.try_lock_exclusive() {
+            Ok(()) => return Ok(OutputLock(file)),
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                tokio::time::sleep(Duration::from_millis(30)).await;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +175,9 @@ pub async fn download(
     }
 
     fs::create_dir_all(&options.destination).await?;
+    // Hold this OS advisory lock through the existence check, transfer and
+    // rename. Parallel Galerith workers cannot clobber the same .part file.
+    let _lock = lock_output(&options.destination, &item.filename).await?;
     let target = options.destination.join(&item.filename);
     if !options.no_skip && fs::try_exists(&target).await? {
         return Ok(DownloadOutcome::Skipped(target));
