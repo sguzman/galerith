@@ -23,9 +23,11 @@ cargo run -- --download-archive ./gallery.sqlite -d ./media 'https://example.org
 cargo run -- --get-urls 'https://safebooru.donmai.us/posts/123'
 cargo run -- -C ./cookies.txt 'https://example.org/private.jpg'
 cargo run -- -d ./media 'https://example.org/sample.jpg'
+cargo run -- -f '{category}_{filename}' --range '1:5:2' --simulate 'https://example.org/sample.jpg'
+cargo run -- -c ./config.toml --write-metadata 'https://example.org/sample.jpg'
 ```
 
-`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, existing-file skips, and a native SQLite download archive. See [HTTP recovery guarantees](docs/DOWNLOADER.md), [SQLite archive behavior](docs/ARCHIVE.md), and [format/config/metadata boundaries](docs/COMPATIBILITY.md). Missing upstream features include most options, nearly all site-specific extraction, metadata-template parity, cookies/auth, full upstream resume and archive compatibility, postprocessing, and reference JSON output. Supported preliminary booru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
+`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, existing-file skips, and a native SQLite download archive. See [HTTP recovery guarantees](docs/DOWNLOADER.md), [SQLite archive behavior](docs/ARCHIVE.md), and [format/config/metadata boundaries](docs/COMPATIBILITY.md). Missing upstream features include many options, nearly all site-specific extraction, advanced filename templates and metadata vocabularies, browser cookie importing and site-specific auth, complete resume/archive parity, most postprocessors, and reference JSON message parity. Basic JSON/YAML/TOML configuration, Netscape cookie files, index ranges, filename fields and redacted JSON metadata sidecars are partial previews. Supported preliminary booru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
 
 ## Port tracking
 
