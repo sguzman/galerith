@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 57%` across 88 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 58%` across 89 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 66%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 67%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -200,6 +200,12 @@
   - [x] Apply the same finite stop to Moebooru post/search/pool/popular previews and dispatch through typed-job file selection — src/extractor/moebooru.rs resolve_limited, src/extractor/mod.rs, complete/partial-page loopback cases; CI 40039969843
   - [x] Stop Danbooru public tag-search API requests after finite selected media without stopping on full pages with missing files — src/extractor/danbooru.rs resolve_tag_posts_limited + two local HTTP fixtures, src/extractor/mod.rs search-only dispatch; CI 40040566586
   - [ ] Achieve full early-termination, post/file/child selector and live differential parity across all pinned upstream extractors
+- 🧷 **T414** Native source-post ID selection and deferred board queue discovery — `████████░░ 80%`
+  - [x] Select real numeric source-post IDs without conflating archived media IDs — src/message.rs selected_source_post; src/extractor/fourchan.rs source_post_id; CI 40041354956
+  - [x] Expose opt-in typed download and read-only source-post ranges with invalid-mode and input checks — src/main.rs and tests/message_cli.rs; CI 40041354956
+  - [x] Filter source-post scopes before file ordinals and isolate identities across queued extractors — src/message.rs source_post_filter_precedes_file_ordinal_selector and child-context tests; CI 40041494175
+  - [x] Discover post scopes through bounded ID-unknown board queues while rejecting explicit invalid IDs — src/message.rs board queue and invalid-identity regressions; CI 40041594048
+  - [ ] Match all upstream post predicates, queued post-scoping rules and live differential parity
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 

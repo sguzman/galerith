@@ -968,6 +968,38 @@
                 }
               ],
               "progress": 83
+            },
+            {
+              "id": "T414",
+              "emoji": "🧷",
+              "name": "Native source-post ID selection and deferred board queue discovery",
+              "checks": [
+                {
+                  "title": "Select real numeric source-post IDs without conflating archived media IDs",
+                  "passed": true,
+                  "evidence": "src/message.rs selected_source_post; src/extractor/fourchan.rs source_post_id; CI 40041354956"
+                },
+                {
+                  "title": "Expose opt-in typed download and read-only source-post ranges with invalid-mode and input checks",
+                  "passed": true,
+                  "evidence": "src/main.rs and tests/message_cli.rs; CI 40041354956"
+                },
+                {
+                  "title": "Filter source-post scopes before file ordinals and isolate identities across queued extractors",
+                  "passed": true,
+                  "evidence": "src/message.rs source_post_filter_precedes_file_ordinal_selector and child-context tests; CI 40041494175"
+                },
+                {
+                  "title": "Discover post scopes through bounded ID-unknown board queues while rejecting explicit invalid IDs",
+                  "passed": true,
+                  "evidence": "src/message.rs board queue and invalid-identity regressions; CI 40041594048"
+                },
+                {
+                  "title": "Match all upstream post predicates, queued post-scoping rules and live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
