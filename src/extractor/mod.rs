@@ -15,8 +15,8 @@ pub mod imgbb;
 pub mod imgbox;
 pub mod imgpile;
 pub mod imgth;
-pub mod lightroom;
 pub mod lexica;
+pub mod lightroom;
 pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
@@ -63,7 +63,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "lightroom",
         "public Lightroom shared albums and image renditions",
     ),
-    ("lexica", "public prompt-image searches over POST cursor API"),
+    (
+        "lexica",
+        "public prompt-image searches over POST cursor API",
+    ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
     ("photovogue", "public photographer photo API feeds"),
