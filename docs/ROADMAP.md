@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 36%` across 44 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 38%` across 49 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 51%`
+## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 52%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████░░░░ 56%`
@@ -75,7 +75,7 @@
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
 
-### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 45%`
+### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 50%`
 
 - 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -99,11 +99,20 @@
   - [x] Safe overwrites and name conflict policy — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Dedup across URLs/sites
   - [x] Regression tests for parallel tasks — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
+- 🧵 **T305** Safe field-based filename formatting preview — `███████░░░ 67%`
+  - [x] Named fields, padding and escaped braces — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [x] Reject dangerous or unsupported filename templates — src/filename.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [ ] Full upstream conditional and transformation language
+- 📄 **T306** Native JSON sidecar preview — `█████░░░░░ 50%`
+  - [x] Sidecars for downloaded or existing media — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [x] Token redaction and atomic sidecar rename — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [ ] Full upstream metadata and output formats
+  - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███░░░░░░░ 34%`
+## 🧩 M2 — Extractor framework and site families — `████░░░░░░ 35%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███░░░░░░░ 30%`
+### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
 
 - 🧭 **T401** URL dispatch and category routing — `███░░░░░░░ 25%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -126,6 +135,11 @@
   - [ ] Fixture discovery and golden comparisons
   - [x] Per-site contract assertions — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] CI compatibility matrix
+- 🔢 **T405** Media index selection preview — `█████░░░░░ 50%`
+  - [x] Parse 1-based index, range and step syntax — src/range.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [x] CLI index filtering and error regression tests — src/main.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [ ] Stop paging before unnecessary extractor requests
+  - [ ] Full post and child range parity
 
 ### 🧱 P5 — Shared website families — `████░░░░░░ 36%`
 
@@ -198,10 +212,10 @@
   - [ ] Opt-in live site probes with rate policies
   - [ ] No unsupported claimed-complete category
 
-## 🔐 M4 — Authentication, configuration, processing — `█░░░░░░░░░ 12%`
+## 🔐 M4 — Authentication, configuration, processing — `██░░░░░░░░ 21%`
 **Acceptance gate:** Cookies, login, config dialects, pipeline transformations, and external integrations reach upstream parity.
 
-### 🪪 P8 — Sessions, cookies and auth — `██░░░░░░░░ 15%`
+### 🪪 P8 — Sessions, cookies and auth — `██░░░░░░░░ 24%`
 
 - 🍪 **T801** Cookie jars and browser imports — `███░░░░░░░ 25%`
   - [x] Netscape cookie files — src/cookies.rs; tests/cookie_cli.rs; GitHub Actions 39950715590 (domain/path/TLS scopes and authenticated HTTP integration)
@@ -219,11 +233,16 @@
   - [ ] Credential file permissions
   - [ ] Adversarial fixture verification
   - [x] Mask query credentials and passwords in CLI error output — src/privacy.rs; tests/cli.rs; GitHub Actions 39954702418
+- 🔒 **T804** Signed URL diagnostic redaction preview — `█████░░░░░ 50%`
+  - [x] Strip query tokens and URL credentials in errors — src/privacy.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [x] Test signed URL redaction in CLI failures — tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [ ] All remaining diagnostic paths audited
+  - [ ] Redirect/cookie leakage adversarial fixtures
 
-### 🛠️ P9 — Config and post-processing — `█░░░░░░░░░ 8%`
+### 🛠️ P9 — Config and post-processing — `██░░░░░░░░ 19%`
 
 - ⚙️ **T901** Upstream configuration file semantics — `███░░░░░░░ 25%`
-  - [x] JSON/YAML/TOML supported — src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418 (explicit JSON/YAML/TOML config and precedence)
+  - [x] JSON/YAML/TOML supported — src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
   - [ ] Precedence/overrides/compat options
   - [ ] Extractor/downloader namespace
   - [ ] Differential config fixtures
@@ -237,6 +256,11 @@
   - [ ] External downloader adapters
   - [ ] Format selection/variant metadata
   - [ ] End-to-end integration fixtures
+- 🧾 **T904** Explicit config overlays and precedence preview — `█████░░░░░ 50%`
+  - [x] JSON YAML TOML and typed overrides — src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [x] Nested extractor config and CLI override precedence — src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
+  - [ ] Automatic config lookup and all upstream namespaces
+  - [ ] Upstream differential configuration tests
 
 ## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 26%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.

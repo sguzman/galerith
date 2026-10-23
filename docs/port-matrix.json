@@ -532,7 +532,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Post and tag-search API subset, synthetic tests and GitHub Actions 39954702418; full upstream class support pending"
+        "Synthetic JSON / local HTTP post and tags API preview; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded; not complete"
       ]
     },
     {

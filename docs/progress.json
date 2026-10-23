@@ -454,6 +454,54 @@
                 }
               ],
               "progress": 75
+            },
+            {
+              "id": "T305",
+              "emoji": "🧵",
+              "name": "Safe field-based filename formatting preview",
+              "progress": 67,
+              "checks": [
+                {
+                  "title": "Named fields, padding and escaped braces",
+                  "passed": true,
+                  "evidence": "src/filename.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Reject dangerous or unsupported filename templates",
+                  "passed": true,
+                  "evidence": "src/filename.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Full upstream conditional and transformation language",
+                  "passed": false
+                }
+              ]
+            },
+            {
+              "id": "T306",
+              "emoji": "📄",
+              "name": "Native JSON sidecar preview",
+              "progress": 50,
+              "checks": [
+                {
+                  "title": "Sidecars for downloaded or existing media",
+                  "passed": true,
+                  "evidence": "src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Token redaction and atomic sidecar rename",
+                  "passed": true,
+                  "evidence": "src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Full upstream metadata and output formats",
+                  "passed": false
+                },
+                {
+                  "title": "Reference golden metadata comparisons",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
@@ -574,6 +622,32 @@
                 }
               ],
               "progress": 50
+            },
+            {
+              "id": "T405",
+              "emoji": "🔢",
+              "name": "Media index selection preview",
+              "progress": 50,
+              "checks": [
+                {
+                  "title": "Parse 1-based index, range and step syntax",
+                  "passed": true,
+                  "evidence": "src/range.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "CLI index filtering and error regression tests",
+                  "passed": true,
+                  "evidence": "src/main.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Stop paging before unnecessary extractor requests",
+                  "passed": false
+                },
+                {
+                  "title": "Full post and child range parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         },
@@ -992,6 +1066,32 @@
                 }
               ],
               "progress": 20
+            },
+            {
+              "id": "T804",
+              "emoji": "🔒",
+              "name": "Signed URL diagnostic redaction preview",
+              "progress": 50,
+              "checks": [
+                {
+                  "title": "Strip query tokens and URL credentials in errors",
+                  "passed": true,
+                  "evidence": "src/privacy.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Test signed URL redaction in CLI failures",
+                  "passed": true,
+                  "evidence": "tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "All remaining diagnostic paths audited",
+                  "passed": false
+                },
+                {
+                  "title": "Redirect/cookie leakage adversarial fixtures",
+                  "passed": false
+                }
+              ]
             }
           ]
         },
@@ -1008,7 +1108,7 @@
                 {
                   "title": "JSON/YAML/TOML supported",
                   "passed": true,
-                  "evidence": "src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418 (explicit JSON/YAML/TOML config and precedence)"
+                  "evidence": "src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
                 },
                 {
                   "title": "Precedence/overrides/compat options",
@@ -1072,6 +1172,32 @@
                 }
               ],
               "progress": 0
+            },
+            {
+              "id": "T904",
+              "emoji": "🧾",
+              "name": "Explicit config overlays and precedence preview",
+              "progress": 50,
+              "checks": [
+                {
+                  "title": "JSON YAML TOML and typed overrides",
+                  "passed": true,
+                  "evidence": "src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Nested extractor config and CLI override precedence",
+                  "passed": true,
+                  "evidence": "src/config.rs; tests/config_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                },
+                {
+                  "title": "Automatic config lookup and all upstream namespaces",
+                  "passed": false
+                },
+                {
+                  "title": "Upstream differential configuration tests",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
