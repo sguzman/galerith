@@ -506,6 +506,7 @@ pub async fn resolve_limited(
     .await
 }
 
+#[cfg(test)]
 async fn resolve_at_base(
     client: &Client,
     base: &Url,
