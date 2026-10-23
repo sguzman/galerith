@@ -1912,6 +1912,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T534",
+              "emoji": "🗄️",
+              "name": "Wallhaven public user-collection paginated gallery preview",
+              "checks": [
+                {
+                  "title": "Recognize only public favorites collection IDs with valid usernames and no URL credentials",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs collection route matcher and src/extractor/mod.rs registry fixtures; CI 40027542231"
+                },
+                {
+                  "title": "Retrieve read-only public /v1/collections/{username}/{id} JSON without API keys",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs localhost endpoint/query/header fixture and safe path inputs; CI 40027542231"
+                },
+                {
+                  "title": "Follow bounded collection pages, keep media order and deduplicate repeated image IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs two-page localhost collection HTTP test with original image validation; CI 40027542231"
+                },
+                {
+                  "title": "Share controlled page/media/response-size limits and API pacing with public search routes",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs 100-page, 2000-media, 2MiB and 1400ms pacing code covered by integration suite; CI 40027542231"
+                },
+                {
+                  "title": "Port public collection enumeration, advanced filters, authenticated/private collections, metadata/archive parity and live upstream conformance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
