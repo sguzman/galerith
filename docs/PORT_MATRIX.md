@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 16 · Not ported: 256.**
+**Complete: 0 · Partial: 17 · Not ported: 255.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -221,7 +221,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/szurubooru.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/tapas.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/tcbscans.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/telegraph.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/telegraph.py` | 🟡 Partial | `src/extractor/telegraph.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/tenor.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/thefap.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/thehentaiworld.py` | ⚪ Not ported | — |

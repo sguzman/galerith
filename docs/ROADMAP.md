@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 48%` across 63 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 48%` across 64 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 61%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 62%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 67%`
+### 🧱 P5 — Shared website families — `███████░░░ 68%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -298,6 +298,12 @@
   - [x] Bound profile traversal, reject cross-site paging and duplicate media — src/extractor/imgpile.rs page cap, visited-page and media URL sets, origin/path validation; CI 40004911827
   - [ ] Port full metadata and upstream config/auth formats with live differential acceptance
   - [x] Verify requested Imgpile user identity and public visibility survive pagination — src/extractor/imgpile.rs scoped_next_page rejects cross-account/private/foreign links, carries username and visibility in local second-page fixture; CI 40005595143
+- 📜 **T520** Telegraph public article image preview — `████████░░ 80%`
+  - [x] Recognize exact Telegraph article URL routes and reject normalized traversal — src/extractor/telegraph.rs URL/host and encoded traversal regression; src/extractor/mod.rs registry; CI 40006284862
+  - [x] Parse ordered figure images while excluding embeds, unsafe media and duplicate links — src/extractor/telegraph.rs synthetic figure/embed/foreign-host fixtures; CI 40006284862
+  - [x] Parse bare image markup when article figures are absent — src/extractor/telegraph.rs bare-image fallback tests; CI 40006284862
+  - [x] Fetch bounded public article HTML through an offline HTTP fixture — src/extractor/telegraph.rs 2 MiB HTML read guard and localhost article response; CI 40006284862
+  - [ ] Port Telegraph article metadata, captions, full archive/filename semantics and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

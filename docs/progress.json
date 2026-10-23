@@ -1459,6 +1459,38 @@
                 }
               ],
               "progress": 86
+            },
+            {
+              "id": "T520",
+              "emoji": "📜",
+              "name": "Telegraph public article image preview",
+              "checks": [
+                {
+                  "title": "Recognize exact Telegraph article URL routes and reject normalized traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/telegraph.rs URL/host and encoded traversal regression; src/extractor/mod.rs registry; CI 40006284862"
+                },
+                {
+                  "title": "Parse ordered figure images while excluding embeds, unsafe media and duplicate links",
+                  "passed": true,
+                  "evidence": "src/extractor/telegraph.rs synthetic figure/embed/foreign-host fixtures; CI 40006284862"
+                },
+                {
+                  "title": "Parse bare image markup when article figures are absent",
+                  "passed": true,
+                  "evidence": "src/extractor/telegraph.rs bare-image fallback tests; CI 40006284862"
+                },
+                {
+                  "title": "Fetch bounded public article HTML through an offline HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/telegraph.rs 2 MiB HTML read guard and localhost article response; CI 40006284862"
+                },
+                {
+                  "title": "Port Telegraph article metadata, captions, full archive/filename semantics and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

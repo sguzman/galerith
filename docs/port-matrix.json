@@ -1581,9 +1581,14 @@
     {
       "path": "gallery_dl/extractor/telegraph.py",
       "module": "telegraph",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/telegraph.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Telegraph article image extraction, canonical hosted URLs, figure/bare-image fallback, embed filtering and bounded offline HTTP tests; CI 40006284862 verified. Full upstream metadata/captions, naming/archive and live parity absent"
+      ]
     },
     {
       "path": "gallery_dl/extractor/tenor.py",
