@@ -8,7 +8,7 @@ Run `galerith --follow-queues --job-file-range 1:6:2 --get-urls URL` to emit the
 
 Finite file-only ranges can stop additional Wallhaven API pages when enough unique files have been collected. When a directory selector is active, this optimization is disabled because discarded earlier scopes may contain arbitrarily many files. See [source post scopes and pagination](POST_SCOPES_AND_PAGING.md).
 
-These controls operate **before** the selected file events become native downloader candidates. Child selection operates **before** the associated HTTP requests, so excluded child extractors are not contacted. Directory selection suppresses events and child requests belonging to excluded directory scopes.
+These controls operate **before** the selected file events become native downloader candidates. Child selection operates **before** the associated HTTP requests, so excluded child extractors are not contacted. With a finite file range, the job also skips later child API requests once every possible selected file ordinal has been consumed; this shortcut is disabled whenever directory filtering could exclude earlier files. Directory selection suppresses events and child requests belonging to excluded directory scopes.
 
 ## Read-only inspection
 
