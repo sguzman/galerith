@@ -85,7 +85,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "unsplash",
         "public photos, users, likes, collections and searches",
     ),
-    ("wallhaven", "public wallpaper details, searches and uploads via API"),
+    (
+        "wallhaven",
+        "public wallpaper details, searches and uploads via API",
+    ),
     (
         "wallpapercave",
         "public wallpaper download and gallery links",
