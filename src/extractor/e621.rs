@@ -21,6 +21,10 @@ pub enum Target {
         host: String,
         id: u64,
     },
+    Artist {
+        host: String,
+        id: u64,
+    },
     Popular {
         host: String,
         parameters: Vec<(String, String)>,
@@ -46,6 +50,10 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["posts", id] => {
             let id = id.strip_suffix(".json").unwrap_or(id).parse::<u64>().ok()?;
             (id > 0).then_some(Target::Post { host, id })
+        }
+        ["artists", id] => {
+            let id = id.parse::<u64>().ok()?;
+            (id > 0).then_some(Target::Artist { host, id })
         }
         ["pools", id] | ["pool", "show", id] => {
             let id = id.parse::<u64>().ok()?;
@@ -166,6 +174,7 @@ pub async fn resolve(
         Target::Post { host, .. }
         | Target::Search { host, .. }
         | Target::Pool { host, .. }
+        | Target::Artist { host, .. }
         | Target::Popular { host, .. }
         | Target::Favorites { host, .. } => host,
     };
@@ -259,6 +268,21 @@ async fn resolve_pool(
         .collect())
 }
 
+async fn resolve_artist(
+    client: &Client,
+    base: &Url,
+    id: u64,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let endpoint = base.join(&format!("artists/{id}.json"))?;
+    let artist: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let name = artist.get("name").and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= 512)
+        .ok_or("e621 artist record missing a usable name")?;
+    let tags = [("tags".to_owned(), name.to_owned())];
+    paginate_posts(client, base, "posts.json", &tags, max_pages).await
+}
+
 /// Testing seam: the public router accepts only known upstream hostnames.
 async fn resolve_at_base(
     client: &Client,
@@ -268,6 +292,7 @@ async fn resolve_at_base(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Pool { id, .. } => resolve_pool(client, base, id, max_pages).await,
+        Target::Artist { id, .. } => resolve_artist(client, base, id, max_pages).await,
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
             let data: Value = client
@@ -350,6 +375,11 @@ mod tests {
             })
         );
         assert!(match_url("https://e621.net/pools/0").is_none());
+        assert_eq!(
+            match_url("https://e621.net/artists/33"),
+            Some(Target::Artist { host: "e621.net".into(), id: 33 })
+        );
+        assert!(match_url("https://e621.net/artists/0").is_none());
         assert_eq!(match_url("https://not-e621.net/posts/90"), None);
         assert_eq!(match_url("http://e621.net/posts/90"), None);
     }
@@ -390,6 +420,41 @@ mod tests {
             vec![Some(99), Some(98)]
         );
         assert_eq!(result[0].filename, "99.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn artist_record_queues_matching_posts_via_native_json_api() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                ("GET /artists/33.json HTTP/1.1", r#"{"id":33,"name":"blue_fox"}"#),
+                (
+                    "GET /posts.json?tags=blue_fox&limit=75&page=1 HTTP/1.1",
+                    r#"{"posts":[{"id":17,"file":{"url":"https://cdn.example/17.png","ext":"png"}}]}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(needle), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let results = resolve_artist(&Client::new(), &api, 33, 1).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].filename, "17.png");
         server.await.unwrap();
     }
 
