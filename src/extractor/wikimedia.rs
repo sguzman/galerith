@@ -288,12 +288,28 @@ mod tests {
                 title: "File:Blue sky.png".into()
             })
         );
+        assert_eq!(
+            match_url("https://commons.wikimedia.org/wiki/Category:Night_sky"),
+            Some(Target::CommonsCategory {
+                title: "Category:Night sky".into()
+            })
+        );
+        assert_eq!(
+            match_url("https://commons.wikimedia.org/wiki/Featured_pictures"),
+            Some(Target::CommonsArticle {
+                title: "Featured pictures".into()
+            })
+        );
         for bad in [
             "http://commons.wikimedia.org/wiki/File:Blue_sky.png",
             "https://commons.wikimedia.org.evil.test/wiki/File:Blue_sky.png",
-            "https://commons.wikimedia.org/wiki/Category:Photos",
+            "https://commons.wikimedia.org/wiki/Category:",
+            "https://commons.wikimedia.org/wiki/Special:RecentChanges",
             "https://commons.wikimedia.org/wiki/File:",
             "https://commons.wikimedia.org/wiki/File:Bad%2Fname.jpg",
+            "https://commons.wikimedia.org/wiki/Category:Bad%2Fname",
+            "https://commons.wikimedia.org/wiki/Featured_pictures?oldid=2",
+            "https://commons.wikimedia.org/wiki/File:Blue_sky.png#section",
             "https://commons.wikimedia.org/wiki/File:Blue.png?oldid=2",
             "https://en.wikipedia.org/wiki/File:Blue_sky.png",
         ] {
@@ -392,6 +408,7 @@ mod tests {
             &Target::CommonsFile {
                 title: "File:Blue sky.png".into(),
             },
+            1,
         )
         .await
         .unwrap();
@@ -434,6 +451,7 @@ mod tests {
             &Target::CommonsFile {
                 title: "File:Blue sky.png".into(),
             },
+            1,
         )
         .await;
         assert!(response.unwrap_err().to_string().contains("2 MiB"));
