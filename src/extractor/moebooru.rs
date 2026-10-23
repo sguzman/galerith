@@ -1,6 +1,6 @@
 //! Native Moebooru JSON API preview for pinned host families.
 //! Post, tag-search and pool-file enumeration are implemented independently.
-//! Popular feeds, authentication, full metadata and formatting remain pending.
+//! Authentication, full metadata and formatting remain pending.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
@@ -12,6 +12,7 @@ pub enum Query {
     Post(u64),
     Tags(String),
     Pool(u64),
+    Popular { feed: &'static str, parameters: Vec<(String, String)> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +53,25 @@ pub fn match_url(input: &str) -> Option<Target> {
                 return None;
             }
             Query::Pool(id)
+        }
+        ("post", Some(feed), None, None) => {
+            let feed = match feed {
+                "popular_by_day" => "popular_by_day",
+                "popular_by_week" => "popular_by_week",
+                "popular_by_month" => "popular_by_month",
+                "popular_recent" => "popular_recent",
+                _ => return None,
+            };
+            let parameters: Vec<(String, String)> = url.query_pairs()
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect();
+            if parameters.len() > 12 || parameters.iter().any(|(key, value)| {
+                key.is_empty() || key.len() > 32 || value.len() > 128
+                    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            }) {
+                return None;
+            }
+            Query::Popular { feed, parameters }
         }
         ("post", None, None, None) => {
             let tags = url
@@ -127,10 +147,22 @@ async fn resolve_at_base(
     max_pages: u16,
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Query::Popular { feed, parameters } = &target.query {
+        let mut endpoint = base.join(&format!("post/{feed}.json"))?;
+        {
+            let mut query = endpoint.query_pairs_mut();
+            for (key, value) in parameters {
+                query.append_pair(key, value);
+            }
+        }
+        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        return parse_items(&body, target.category);
+    }
     let tags = match &target.query {
         Query::Post(id) => format!("id:{id}"),
         Query::Tags(tags) => tags.clone(),
         Query::Pool(id) => format!("pool:{id}"),
+        Query::Popular { .. } => unreachable!("popular queries return above"),
     };
     let pages = if matches!(target.query, Query::Post(_)) {
         1
@@ -195,7 +227,17 @@ mod tests {
             })
         );
         assert!(match_url("https://lolibooru.moe/post/show/0").is_none());
-        assert!(match_url("https://yande.re/post/popular_by_day").is_none());
+        assert_eq!(
+            match_url("https://yande.re/post/popular_by_day?year=2025&month=10"),
+            Some(Target {
+                host: "yande.re", category: "yandere",
+                query: Query::Popular {
+                    feed: "popular_by_day",
+                    parameters: vec![("year".into(), "2025".into()), ("month".into(), "10".into())]
+                }
+            })
+        );
+        assert!(match_url("https://yande.re/post/popular_by_hour").is_none());
         assert!(match_url("http://yande.re/post/show/1").is_none());
         assert!(match_url("https://untrusted.example/post/show/1").is_none());
     }
@@ -291,4 +333,39 @@ mod tests {
         assert_eq!(files[0].filename, "konachan_44.png");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn local_popular_feed_matches_upstream_json_endpoint() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0_u8; 4096];
+            let count = socket.read(&mut bytes).await.unwrap();
+            let request = String::from_utf8_lossy(&bytes[..count]);
+            assert!(request.starts_with("GET /post/popular_by_week.json?"), "{request}");
+            assert!(request.contains("year=2025"), "{request}");
+            assert!(request.contains("month=10"), "{request}");
+            let payload = r#"[{"id":84,"file_url":"https://img.example.org/pic.jpg"}]"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "yande.re",
+            category: "yandere",
+            query: Query::Popular {
+                feed: "popular_by_week",
+                parameters: vec![("year".into(), "2025".into()), ("month".into(), "10".into())],
+            },
+        };
+        let items = resolve_at_base(&Client::new(), target, 9, &base).await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "yandere_84.jpg");
+        server.await.unwrap();
+    }
+
 }
