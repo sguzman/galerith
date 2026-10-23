@@ -14,7 +14,10 @@ use reqwest::Client;
 use std::error::Error;
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if foolfuuka::match_url(input).is_some() || foolfuuka::match_board_url(input).is_some() || foolfuuka::match_gallery_url(input).is_some() {
+    if foolfuuka::match_url(input).is_some()
+        || foolfuuka::match_board_url(input).is_some()
+        || foolfuuka::match_gallery_url(input).is_some()
+    {
         Some("foolfuuka")
     } else if philomena::match_url(input).is_some() {
         Some("philomena")

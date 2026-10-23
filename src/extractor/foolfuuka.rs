@@ -4,7 +4,11 @@
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use serde_json::Value;
-use std::{collections::{BTreeSet, HashSet}, error::Error, time::Duration};
+use std::{
+    collections::{BTreeSet, HashSet},
+    error::Error,
+    time::Duration,
+};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,7 +230,9 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
     let board = parts.next()?;
     if board.is_empty()
         || board.len() > 8
-        || !board.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        || !board
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
         || parts.next()? != "gallery"
     {
         return None;
@@ -235,7 +241,9 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
         None => (1, false),
         Some(page) => {
             let page = page.parse::<u16>().ok()?;
-            if page == 0 { return None; }
+            if page == 0 {
+                return None;
+            }
             (page, true)
         }
     };
@@ -243,38 +251,64 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
         return None;
     }
     Some(Gallery {
-        host, category, board: board.to_owned(), first_page, explicit_page,
+        host,
+        category,
+        board: board.to_owned(),
+        first_page,
+        explicit_page,
     })
 }
 
-pub async fn resolve_gallery(client: &Client, gallery: Gallery, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve_gallery(
+    client: &Client,
+    gallery: Gallery,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", gallery.host))?;
     resolve_gallery_at_base(client, gallery, max_pages, &base).await
 }
 
-async fn resolve_gallery_at_base(client: &Client, gallery: Gallery, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
-    let count = if gallery.explicit_page { 1 } else { max_pages.max(1) };
+async fn resolve_gallery_at_base(
+    client: &Client,
+    gallery: Gallery,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let count = if gallery.explicit_page {
+        1
+    } else {
+        max_pages.max(1)
+    };
     let mut items = Vec::new();
     let mut seen = HashSet::new();
     for offset in 0..count {
-        let Some(page) = gallery.first_page.checked_add(offset) else { break };
+        let Some(page) = gallery.first_page.checked_add(offset) else {
+            break;
+        };
         if offset > 0 {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         let mut endpoint = base.join("_/api/chan/gallery/")?;
-        endpoint.query_pairs_mut()
+        endpoint
+            .query_pairs_mut()
             .append_pair("board", &gallery.board)
             .append_pair("page", &page.to_string());
-        let data: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        let data: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
         if data.is_null() {
             break;
         }
-        let posts = data.as_array().ok_or("FoolFuuka gallery API must return a post array")?;
-        if posts.is_empty() { break; }
+        let posts = data
+            .as_array()
+            .ok_or("FoolFuuka gallery API must return a post array")?;
+        if posts.is_empty() {
+            break;
+        }
         for post in posts {
             if let Some(item) = file_for_post(post, gallery.category, base) {
                 if seen.insert(item.url.clone()) {
@@ -499,15 +533,21 @@ mod tests {
         assert_eq!(
             match_gallery_url("https://desuarchive.org/g/gallery"),
             Some(Gallery {
-                host: "desuarchive.org", category: "desuarchive",
-                board: "g".into(), first_page: 1, explicit_page: false
+                host: "desuarchive.org",
+                category: "desuarchive",
+                board: "g".into(),
+                first_page: 1,
+                explicit_page: false
             })
         );
         assert_eq!(
             match_gallery_url("https://archived.moe/a/gallery/4"),
             Some(Gallery {
-                host: "archived.moe", category: "archivedmoe",
-                board: "a".into(), first_page: 4, explicit_page: true
+                host: "archived.moe",
+                category: "archivedmoe",
+                board: "a".into(),
+                first_page: 4,
+                explicit_page: true
             })
         );
         assert!(match_gallery_url("https://archived.moe/a/thread/1").is_none());
@@ -518,7 +558,10 @@ mod tests {
 
     #[tokio::test]
     async fn gallery_reads_media_from_local_fixture() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -526,7 +569,10 @@ mod tests {
             let mut bytes = [0u8; 4096];
             let n = socket.read(&mut bytes).await.unwrap();
             let request = String::from_utf8_lossy(&bytes[..n]);
-            assert!(request.starts_with("GET /_/api/chan/gallery/?board=a&page=4 HTTP/1.1"), "{request}");
+            assert!(
+                request.starts_with("GET /_/api/chan/gallery/?board=a&page=4 HTTP/1.1"),
+                "{request}"
+            );
             let body = r#"[{"num":123,"media":{"media_link":"/files/123.jpg","media":"123.jpg","media_filename":"fixture.jpg","media_orig":"990.jpg"}},{"num":124,"media":null}]"#;
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -536,10 +582,15 @@ mod tests {
         });
         let api = Url::parse(&format!("http://{addr}/")).unwrap();
         let gallery = Gallery {
-            host: "archived.moe", category: "archivedmoe",
-            board: "a".into(), first_page: 4, explicit_page: true
+            host: "archived.moe",
+            category: "archivedmoe",
+            board: "a".into(),
+            first_page: 4,
+            explicit_page: true,
         };
-        let items = resolve_gallery_at_base(&Client::new(), gallery, 3, &api).await.unwrap();
+        let items = resolve_gallery_at_base(&Client::new(), gallery, 3, &api)
+            .await
+            .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "990 fixture.jpg");
         server.await.unwrap();
