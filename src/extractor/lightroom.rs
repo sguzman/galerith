@@ -304,12 +304,12 @@ mod tests {
 </script>"#,
             );
             let first = r#"while(1);
-{"base":"https://lightroom.adobe.com/","resources":[{"asset":{"id":"first","links":{"/rels/rendition_type/400":{"href":"https://assets.adobe.io/first.jpg"},"/rels/rendition_type/1200":{"href":"https://assets.adobe.io/first-large.jpg"}}}}],"links":{"next":{"href":"#NEXT#"}}}"#;
+{"base":"https://lightroom.adobe.com/","resources":[{"asset":{"id":"first","links":{"/rels/rendition_type/400":{"href":"https://assets.adobe.io/first.jpg"},"/rels/rendition_type/1200":{"href":"https://assets.adobe.io/first-large.jpg"}}}}],"links":{"next":{"href":"NEXT_PAGE_MARKER"}}}"#;
             let second = r#"while(1);
 {"resources":[{"asset":{"id":"second","links":{"/rels/rendition_type/800":{"href":"https://assets.adobe.io/second.webp"}}}}],"links":{}}"#;
             for (expected, body) in [
                 ("GET /shares/abcdef HTTP/1.1", album),
-                ("GET /album/page1 HTTP/1.1", first.replace("#NEXT#", &format!("{base}album/page2"))),
+                ("GET /album/page1 HTTP/1.1", first.replace("NEXT_PAGE_MARKER", &format!("{base}album/page2"))),
                 ("GET /album/page2 HTTP/1.1", second.to_owned()),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
@@ -334,7 +334,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].filename, "0001_first.jpg");
+        assert_eq!(result[0].filename, "0001_first-large.jpg");
         assert_eq!(result[1].filename, "0002_second.webp");
         server.await.unwrap();
     }
