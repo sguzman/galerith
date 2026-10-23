@@ -392,7 +392,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Native posts and bounded tag search on e621/e926/e6ai, synthetic fixtures, CI 39949514147; full upstream classes and metadata remain unported"
+        "Posts, tag search, popular/favorites API, MD5 fallback; synthetic fixtures and CI 39968400252. Pool/artist/auth/reference metadata remain outstanding."
       ]
     },
     {

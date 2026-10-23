@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 48%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 49%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -178,11 +178,12 @@
   - [x] Parse JSON media records with safe filenames — src/extractor/danbooru.rs
   - [x] Verify synthetic API parser and CLI tests in Linux CI — GitHub Actions 39898967165: test and release build passed
   - [ ] Reproduce complete upstream Danbooru semantics and authentication
-- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 75%`
+- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 80%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
   - [x] Verify post and paginated tag-search API fixtures in Linux CI — GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)
-  - [ ] Implement upstream pools, artist, favorite, popular, account and metadata behavior
+  - [ ] Implement upstream pool ordering, artists, full favorites/popular, account and metadata behavior
+  - [x] Verify bounded popular and favorites JSON endpoints — src/extractor/e621.rs synthetic HTTP pagination and URL fixtures; GitHub Actions 39968400252
 - 🌸 **T507** Initial Gelbooru JSON API post and tag-search extraction — `████████░░ 75%`
   - [x] Recognize post and tag searches with query-order independence — src/extractor/gelbooru.rs URL matching and parser tests
   - [x] Resolve synthetic Gelbooru JSON post API media records — src/extractor/gelbooru.rs local API fixture

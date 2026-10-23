@@ -854,11 +854,16 @@
                   "evidence": "GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)"
                 },
                 {
-                  "title": "Implement upstream pools, artist, favorite, popular, account and metadata behavior",
+                  "title": "Implement upstream pool ordering, artists, full favorites/popular, account and metadata behavior",
                   "passed": false
+                },
+                {
+                  "title": "Verify bounded popular and favorites JSON endpoints",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs synthetic HTTP pagination and URL fixtures; GitHub Actions 39968400252"
                 }
               ],
-              "progress": 75
+              "progress": 80
             },
             {
               "id": "T507",
