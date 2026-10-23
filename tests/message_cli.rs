@@ -351,7 +351,6 @@ fn inspection_selectors_cannot_be_silently_ignored() {
     }
 }
 
-
 #[test]
 fn directory_scope_ranges_filter_before_url_emission() {
     let url = "https://example.org/photo.png";
