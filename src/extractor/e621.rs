@@ -138,13 +138,19 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     })
 }
 
+fn posts_list(data: &Value) -> Result<&[Value], Box<dyn Error + Send + Sync>> {
+    let posts = match data {
+        Value::Array(posts) => posts,
+        Value::Object(_) => data.get("posts")
+            .and_then(Value::as_array)
+            .ok_or("unexpected e621 posts list response")?,
+        _ => return Err("unexpected e621 posts list response".into()),
+    };
+    Ok(posts)
+}
+
 fn parse_posts(data: &Value, base: &Url) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let posts = data
-        .get("posts")
-        .and_then(Value::as_array)
-        .ok_or("unexpected e621 posts list response")?;
-    Ok(posts
-        .iter()
+    Ok(posts_list(data)?.iter()
         .filter_map(|post| parse_post(post, base))
         .collect())
 }
@@ -202,11 +208,7 @@ async fn paginate_posts(
             .error_for_status()?
             .json()
             .await?;
-        let empty = data
-            .get("posts")
-            .and_then(Value::as_array)
-            .ok_or("unexpected e621 posts list response")?
-            .is_empty();
+        let empty = posts_list(&data)?.is_empty();
         if empty {
             break;
         }
@@ -423,6 +425,25 @@ mod tests {
             "0123456789abcdef0123456789abcdef.jpg"
         );
         assert!(parse_posts(&json!({"posts":{}}), &base).is_err());
+    }
+
+    #[test]
+    fn supports_both_bare_arrays_and_post_wrappers() {
+        let base = Url::parse("https://e621.net/").unwrap();
+        let post = json!({"id": 88, "file": {
+            "url": "https://cdn.example.org/88.png", "ext": "png"
+        }});
+        let bare = json!([post.clone()]);
+        let wrapper = json!({"posts":[post]});
+        let a = parse_posts(&bare, &base).unwrap();
+        let b = parse_posts(&wrapper, &base).unwrap();
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].url, b[0].url);
+        assert_eq!(a[0].filename, b[0].filename);
+        assert_eq!(posts_list(&bare).unwrap().len(), 1);
+        assert_eq!(posts_list(&wrapper).unwrap().len(), 1);
+        assert!(posts_list(&json!({"posts":{}})).is_err());
+        assert!(posts_list(&json!(null)).is_err());
     }
 
     #[tokio::test]
