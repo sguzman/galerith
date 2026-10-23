@@ -243,9 +243,14 @@ mod tests {
             assert_eq!(pairs.get("format").map(String::as_str), Some("json"));
             assert_eq!(pairs.get("formatversion").map(String::as_str), Some("2"));
             assert_eq!(pairs.get("prop").map(String::as_str), Some("imageinfo"));
-            assert_eq!(pairs.get("titles").map(String::as_str), Some("File:Blue sky.png"));
+            assert_eq!(
+                pairs.get("titles").map(String::as_str),
+                Some("File:Blue sky.png")
+            );
             assert_eq!(pairs.get("maxlag").map(String::as_str), Some("5"));
-            assert!(request.to_ascii_lowercase().contains("user-agent: galerith/"));
+            assert!(request
+                .to_ascii_lowercase()
+                .contains("user-agent: galerith/"));
             assert!(request.contains("github.com/sguzman/galerith"));
             let body = r#"{"query":{"pages":[{"ns":6,"title":"File:Blue sky.png","imageinfo":[{"url":"https://upload.wikimedia.org/wikipedia/commons/5/5f/Blue_sky.png"}]}]}}"#;
             let reply = format!(
