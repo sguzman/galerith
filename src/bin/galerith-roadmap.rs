@@ -1,12 +1,7 @@
 //! Keep roadmap, upstream module inventory and acceptance percentages consistent.
 //! No Python, external generators or implicit claims of successful site parity.
 use serde::Deserialize;
-use std::{
-    collections::BTreeSet,
-    error::Error,
-    fs,
-    process,
-};
+use std::{collections::BTreeSet, error::Error, fs, process};
 
 #[derive(Deserialize)]
 struct Ledger {
@@ -84,14 +79,20 @@ fn render_roadmap(ledger: &Ledger) -> Result<String, Box<dyn Error>> {
                     if check.passed {
                         passed += 1;
                         if check.evidence.as_deref().unwrap_or("").trim().is_empty() {
-                            return Err(format!("accepted check lacks evidence: {}", task.id).into());
+                            return Err(
+                                format!("accepted check lacks evidence: {}", task.id).into()
+                            );
                         }
                     }
                 }
-                let actual = (100 * passed + task.checks.len() as u32 / 2)
-                    / task.checks.len() as u32;
+                let actual =
+                    (100 * passed + task.checks.len() as u32 / 2) / task.checks.len() as u32;
                 if task.progress != actual {
-                    return Err(format!("stale progress for {}: {} instead of {}", task.id, task.progress, actual).into());
+                    return Err(format!(
+                        "stale progress for {}: {} instead of {}",
+                        task.id, task.progress, actual
+                    )
+                    .into());
                 }
                 percentages.push(task.progress);
             }
@@ -107,12 +108,19 @@ fn render_roadmap(ledger: &Ledger) -> Result<String, Box<dyn Error>> {
         String::new(),
     ];
     for milestone in &ledger.milestones {
-        let milestone_progress: Vec<u32> = milestone.phases.iter()
-            .flat_map(|phase| phase.tasks.iter().map(|task| task.progress)).collect();
+        let milestone_progress: Vec<u32> = milestone
+            .phases
+            .iter()
+            .flat_map(|phase| phase.tasks.iter().map(|task| task.progress))
+            .collect();
         let total = average(&milestone_progress);
         lines.push(format!(
             "## {} {} — {} — `{} {}%`",
-            milestone.emoji, milestone.id, milestone.name, bar(total), total
+            milestone.emoji,
+            milestone.id,
+            milestone.name,
+            bar(total),
+            total
         ));
         lines.push(format!("**Acceptance gate:** {}", milestone.gate));
         lines.push(String::new());
@@ -121,13 +129,21 @@ fn render_roadmap(ledger: &Ledger) -> Result<String, Box<dyn Error>> {
             let percent = average(&values);
             lines.push(format!(
                 "### {} {} — {} — `{} {}%`",
-                phase.emoji, phase.id, phase.name, bar(percent), percent
+                phase.emoji,
+                phase.id,
+                phase.name,
+                bar(percent),
+                percent
             ));
             lines.push(String::new());
             for task in &phase.tasks {
                 lines.push(format!(
                     "- {} **{}** {} — `{} {}%`",
-                    task.emoji, task.id, task.name, bar(task.progress), task.progress
+                    task.emoji,
+                    task.id,
+                    task.name,
+                    bar(task.progress),
+                    task.progress
                 ));
                 for check in &task.checks {
                     let evidence = if check.passed {
@@ -164,12 +180,23 @@ fn render_matrix(matrix: &PortMatrix) -> Result<String, Box<dyn Error>> {
         if !paths.insert(module.path.as_str()) {
             return Err(format!("duplicate upstream path: {}", module.path).into());
         }
-        if !matches!(module.status.as_str(), "not_ported" | "partial" | "complete") {
+        if !matches!(
+            module.status.as_str(),
+            "not_ported" | "partial" | "complete"
+        ) {
             return Err(format!("unrecognized port status for {}", module.path).into());
         }
     }
-    let partial = matrix.modules.iter().filter(|x| x.status == "partial").count();
-    let complete = matrix.modules.iter().filter(|x| x.status == "complete").count();
+    let partial = matrix
+        .modules
+        .iter()
+        .filter(|x| x.status == "partial")
+        .count();
+    let complete = matrix
+        .modules
+        .iter()
+        .filter(|x| x.status == "complete")
+        .count();
     let missing = matrix.modules.len() - partial - complete;
     let mut lines = vec![
         "# 🧩 Upstream extractor module parity matrix".to_owned(),
@@ -187,8 +214,12 @@ fn render_matrix(matrix: &PortMatrix) -> Result<String, Box<dyn Error>> {
         let counterpart = if module.rust_paths.is_empty() {
             "—".to_owned()
         } else {
-            module.rust_paths.iter().map(|p| format!("`{p}`"))
-                .collect::<Vec<_>>().join(", ")
+            module
+                .rust_paths
+                .iter()
+                .map(|p| format!("`{p}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
         };
         lines.push(format!(
             "| `{}` | {} | {} |",
@@ -209,7 +240,10 @@ fn verify_or_write(path: &str, expected: &str, check: bool) -> Result<(), Box<dy
     if check {
         let existing = fs::read_to_string(path)?;
         if existing != expected {
-            return Err(format!("{path} is stale: regenerate with cargo run --bin galerith-roadmap").into());
+            return Err(format!(
+                "{path} is stale: regenerate with cargo run --bin galerith-roadmap"
+            )
+            .into());
         }
     } else {
         fs::write(path, expected)?;

@@ -47,10 +47,29 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
         .ok_or(ExtractError::UnsupportedUrl)?;
     if !matches!(
         extension.to_ascii_lowercase().as_str(),
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "bmp"
-            | "tif" | "tiff" | "svg" | "jxl" | "mp4" | "webm"
-            | "mov" | "m4v" | "mp3" | "ogg" | "opus" | "flac"
-            | "wav" | "pdf" | "cbz" | "zip"
+        "jpg"
+            | "jpeg"
+            | "png"
+            | "gif"
+            | "webp"
+            | "avif"
+            | "bmp"
+            | "tif"
+            | "tiff"
+            | "svg"
+            | "jxl"
+            | "mp4"
+            | "webm"
+            | "mov"
+            | "m4v"
+            | "mp3"
+            | "ogg"
+            | "opus"
+            | "flac"
+            | "wav"
+            | "pdf"
+            | "cbz"
+            | "zip"
     ) {
         return Err(ExtractError::UnsupportedUrl);
     }
@@ -111,6 +130,9 @@ mod tests {
 
     #[test]
     fn malformed_url_rejected() {
-        assert_eq!(extract_direct_media("not a URL").unwrap_err(), ExtractError::InvalidUrl);
+        assert_eq!(
+            extract_direct_media("not a URL").unwrap_err(),
+            ExtractError::InvalidUrl
+        );
     }
 }

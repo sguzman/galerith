@@ -39,5 +39,7 @@ fn json_extraction_is_offline() {
 fn unsupported_urls_fail_explicitly() {
     let output = run(&["--simulate", "https://example.org/gallery/5"]);
     assert!(!output.status.success());
-    assert!(String::from_utf8(output.stderr).unwrap().contains("no implemented extractor"));
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("no implemented extractor"));
 }

@@ -11,7 +11,10 @@ use std::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "galerith", about = "Rust gallery downloader (early compatibility preview)")]
+#[command(
+    name = "galerith",
+    about = "Rust gallery downloader (early compatibility preview)"
+)]
 struct Cli {
     /// Media URLs to process
     #[arg(value_name = "URL")]
@@ -86,7 +89,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             std::fs::read_to_string(input)?
         };
         urls.extend(
-            content.lines().map(str::trim).filter(|line| !line.is_empty() && !line.starts_with('#')).map(str::to_owned),
+            content
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .map(str::to_owned),
         );
     }
     if urls.is_empty() {
@@ -121,9 +128,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         } else {
             match download(&client, &item, &options).await {
-                Ok(DownloadOutcome::Saved(path)) if !cli.quiet => println!("saved {}", path.display()),
-                Ok(DownloadOutcome::Skipped(path)) if !cli.quiet => println!("skipped {}", path.display()),
-                Ok(_) => {},
+                Ok(DownloadOutcome::Saved(path)) if !cli.quiet => {
+                    println!("saved {}", path.display())
+                }
+                Ok(DownloadOutcome::Skipped(path)) if !cli.quiet => {
+                    println!("skipped {}", path.display())
+                }
+                Ok(_) => {}
                 Err(error) => {
                     eprintln!("galerith: {url}: {error}");
                     failed += 1;
