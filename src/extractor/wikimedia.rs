@@ -38,8 +38,9 @@ pub fn match_url(input: &str) -> Option<Target> {
     let file = percent_decode_str(raw).decode_utf8().ok()?;
     if file.is_empty()
         || file.len() > 180
-        || file.chars().any(char::is_control)
-        || file.contains(['/', '\\', '#', '?'])
+        || file
+            .chars()
+            .any(|ch| ch.is_control() || matches!(ch, '/' | '\\' | '#' | '?'))
         || file == "."
         || file == ".."
     {
@@ -68,7 +69,7 @@ fn media_from_api(raw: &str) -> Option<MediaItem> {
     }
     let filename = safe_filename(&filename);
     Some(MediaItem {
-        url: url.into(),
+        url: url.to_string(),
         filename,
         extractor: "wikimedia",
         post_id: None,
