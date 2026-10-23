@@ -196,7 +196,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let items = match resolve(&client, &url, cli.max_pages).await {
             Ok(items) => items,
             Err(error) => {
-                eprintln!("galerith: {}: {}", display_url(&url), display_error(error.as_ref()));
+                eprintln!(
+                    "galerith: {}: {}",
+                    display_url(&url),
+                    display_error(error.as_ref())
+                );
                 failed += 1;
                 continue;
             }
@@ -250,7 +254,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                     }
                     Err(error) => {
-                        eprintln!("galerith: {}: {}", display_url(&item.url), display_error(error.as_ref()));
+                        eprintln!(
+                            "galerith: {}: {}",
+                            display_url(&item.url),
+                            display_error(error.as_ref())
+                        );
                         failed += 1;
                     }
                 }

@@ -53,7 +53,10 @@ mod tests {
             "https://example.test:8080/image.jpg"
         );
         assert_eq!(display_url("not-a-url"), "[invalid URL]");
-        assert_eq!(display_url("file:///private/secret.png"), "[unsupported URL scheme]");
+        assert_eq!(
+            display_url("file:///private/secret.png"),
+            "[unsupported URL scheme]"
+        );
     }
 
     #[test]
