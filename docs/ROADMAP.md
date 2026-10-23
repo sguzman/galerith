@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `██████░░░░ 58%`
+### 🧱 P5 — Shared website families — `██████░░░░ 59%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -238,7 +238,7 @@
   - [x] Verify bounded board listing, explicit page selection and thread recursion — src/extractor/foolfuuka.rs; CI 39963113023 (localhost board index, URL parser and full regression suite)
   - [x] Resolve bounded gallery pages and skip missing media in offline fixtures — src/extractor/foolfuuka.rs; CI 39963720920 (gallery URL and local JSON fixtures)
   - [x] Verify bounded archive search routes and two JSON response formats — src/extractor/foolfuuka.rs; synthetic API and response fixtures; CI 39965026874
-- 🦋 **T513** Bluesky public post and media-feed extractor preview — `███████░░░ 71%`
+- 🦋 **T513** Bluesky public post and media-feed extractor preview — `████████░░ 82%`
   - [x] Recognize public Bluesky post and profile-media URLs without claiming unsupported routes — src/extractor/bluesky.rs; src/extractor/mod.rs strict URL and dispatcher fixtures; CI 39990408813
   - [x] Parse and validate public CDN images, safe filenames and author DID — src/extractor/bluesky.rs synthetic image and foreign-author fixtures; CI 39990408813
   - [x] Resolve a public post via handle lookup and ATProto thread endpoint — src/extractor/bluesky.rs two-request local JSON API test; CI 39990408813
@@ -246,6 +246,10 @@
   - [ ] Reproduce original PDS blobs, video, quotations, authentication and upstream metadata
   - [ ] Pass reference differential and opt-in live-site acceptance
   - [x] Route Bluesky posts/replies feeds with upstream filter selection — src/extractor/bluesky.rs posts_and_author_threads and posts_with_replies local HTTP fixtures; CI 39990979641
+  - [x] Verify Bluesky avatar/banner profile API and CDN-checked media — src/extractor/bluesky.rs; src/extractor/mod.rs; dual localhost profile fixtures; CI 39992898425
+  - [x] Verify images nested in Bluesky record-with-media embeds — src/extractor/bluesky.rs nested-image fixture; CI 39992898425
+  - [x] Verify public Bluesky search and hashtag image feeds — src/extractor/bluesky.rs; src/extractor/mod.rs; multi-author searchPosts localhost fixtures; CI 39993774326
+  - [x] Reject mismatched post URIs and repeated feed cursors — src/extractor/bluesky.rs strict AT URI and cursor-cycle tests; CI 39993774326
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

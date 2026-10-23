@@ -1184,9 +1184,29 @@
                   "title": "Route Bluesky posts/replies feeds with upstream filter selection",
                   "passed": true,
                   "evidence": "src/extractor/bluesky.rs posts_and_author_threads and posts_with_replies local HTTP fixtures; CI 39990979641"
+                },
+                {
+                  "title": "Verify Bluesky avatar/banner profile API and CDN-checked media",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs; src/extractor/mod.rs; dual localhost profile fixtures; CI 39992898425"
+                },
+                {
+                  "title": "Verify images nested in Bluesky record-with-media embeds",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs nested-image fixture; CI 39992898425"
+                },
+                {
+                  "title": "Verify public Bluesky search and hashtag image feeds",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs; src/extractor/mod.rs; multi-author searchPosts localhost fixtures; CI 39993774326"
+                },
+                {
+                  "title": "Reject mismatched post URIs and repeated feed cursors",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs strict AT URI and cursor-cycle tests; CI 39993774326"
                 }
               ],
-              "progress": 71
+              "progress": 82
             }
           ]
         }
