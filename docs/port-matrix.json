@@ -489,9 +489,14 @@
     {
       "path": "gallery_dl/extractor/foolfuuka.py",
       "module": "foolfuuka",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/foolfuuka.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Nine-host archived-thread extraction preview with local HTTP/JSON fixtures, CI 39962347749; reference parity incomplete"
+      ]
     },
     {
       "path": "gallery_dl/extractor/foolslide.py",

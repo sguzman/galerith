@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 8 · Not ported: 264.**
+**Complete: 0 · Partial: 9 · Not ported: 263.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -74,7 +74,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/filester.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/fitnakedgirls.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/flickr.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/foolfuuka.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/foolfuuka.py` | 🟡 Partial | `src/extractor/foolfuuka.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/foolslide.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/foriio.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/furaffinity.py` | ⚪ Not ported | — |

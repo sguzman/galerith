@@ -994,6 +994,33 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T512",
+              "emoji": "🗄️",
+              "name": "FoolFuuka archive family thread media preview",
+              "progress": 75,
+              "checks": [
+                {
+                  "title": "Match nine pinned archive hosts and strict thread URL forms",
+                  "passed": true,
+                  "evidence": "src/extractor/foolfuuka.rs; CI 39962347749"
+                },
+                {
+                  "title": "Parse ordered replies and validate attachment URLs/filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/foolfuuka.rs synthetic archive parser fixtures; CI 39962347749"
+                },
+                {
+                  "title": "Exercise thread JSON API using localhost HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/foolfuuka.rs local API test; CI 39962347749"
+                },
+                {
+                  "title": "Complete archive-specific redirects, searches, board/gallery routes and metadata",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

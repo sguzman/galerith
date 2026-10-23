@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 41%` across 55 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 42%` across 56 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 45%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 47%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -151,7 +151,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `█████░░░░░ 50%`
+### 🧱 P5 — Shared website families — `█████░░░░░ 52%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -208,6 +208,11 @@
   - [x] Parse representations and fallback media with safe output names — src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804
   - [x] Verify synthetic image and gallery search API requests — src/extractor/philomena.rs local HTTP fixtures; GitHub Actions 39961510804
   - [ ] Implement full tags, search filters, auth, SVG rules and upstream metadata
+- 🗄️ **T512** FoolFuuka archive family thread media preview — `████████░░ 75%`
+  - [x] Match nine pinned archive hosts and strict thread URL forms — src/extractor/foolfuuka.rs; CI 39962347749
+  - [x] Parse ordered replies and validate attachment URLs/filenames — src/extractor/foolfuuka.rs synthetic archive parser fixtures; CI 39962347749
+  - [x] Exercise thread JSON API using localhost HTTP fixture — src/extractor/foolfuuka.rs local API test; CI 39962347749
+  - [ ] Complete archive-specific redirects, searches, board/gallery routes and metadata
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
