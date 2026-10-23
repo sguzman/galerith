@@ -148,10 +148,19 @@ async fn delay(attempt: u32, retry_after: Option<Duration>) {
     tokio::time::sleep(retry_after.unwrap_or(fallback)).await;
 }
 
+fn parse_retry_after(value: &str, now: std::time::SystemTime) -> Option<Duration> {
+    let delay = if let Ok(seconds) = value.trim().parse::<u64>() {
+        Duration::from_secs(seconds.min(60))
+    } else {
+        let date = httpdate::parse_http_date(value.trim()).ok()?;
+        date.duration_since(now).unwrap_or(Duration::ZERO)
+    };
+    Some(delay.min(Duration::from_secs(60)))
+}
+
 fn retry_after(response: &reqwest::Response) -> Option<Duration> {
-    // HTTP dates are a future compatibility task; bounded delta-seconds are supported.
-    let seconds = header(response, RETRY_AFTER)?.parse::<u64>().ok()?;
-    Some(Duration::from_secs(seconds.min(60)))
+    let value = header(response, RETRY_AFTER)?;
+    parse_retry_after(&value, std::time::SystemTime::now())
 }
 
 async fn invalidate(part: &Path, metadata: &Path) -> io::Result<()> {
@@ -356,6 +365,25 @@ mod tests {
         assert_eq!(resumed_length("bytes 4-8/10", 4), None);
         assert_eq!(resumed_length("bytes 4-9/*", 4), None);
         assert_eq!(resumed_length("bytes 4-3/10", 4), None);
+    }
+
+    #[test]
+    fn retry_after_accepts_delta_seconds_and_http_dates() {
+        let now = std::time::SystemTime::UNIX_EPOCH
+            + Duration::from_secs(1_445_412_480 - 15);
+        assert_eq!(parse_retry_after("5", now), Some(Duration::from_secs(5)));
+        assert_eq!(parse_retry_after("9999", now), Some(Duration::from_secs(60)));
+        assert_eq!(
+            parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT", now),
+            Some(Duration::from_secs(15))
+        );
+        let past = now + Duration::from_secs(30);
+        assert_eq!(
+            parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT", past),
+            Some(Duration::ZERO)
+        );
+        assert_eq!(parse_retry_after("bogus", now), None);
+        assert_eq!(parse_retry_after("-2", now), None);
     }
 
     #[test]
