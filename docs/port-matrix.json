@@ -1891,7 +1891,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent Wallhaven public wallpaper, q search, uploads and public favorites/{id} collection preview; official JSON API, safe media URL/ID validation, bounded response/pagination/pacing, duplicate suppression and synthetic HTTP fixtures; CI 40027542231 passed. Collection enumeration, advanced filtering, auth/private data, full metadata/archive and live parity outstanding."
+        "Independent public Wallhaven image/search/upload/collection/detail/index profile previews. Collection list IDs are validated and deduplicated before flattened gallery expansion, with globally bounded API calls, 1400ms pacing, 2 MiB JSON cap, original CDN validation and offline HTTP tests; CI 40031267694 passed. Upstream queued extraction, complete metadata/archive/filename formatting, auth and live site differential parity remain unaccepted."
       ]
     },
     {
