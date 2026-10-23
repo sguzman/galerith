@@ -730,4 +730,89 @@ mod tests {
             "https://example.org/two.jpg"
         );
     }
+
+    #[tokio::test]
+    async fn directory_selection_suppresses_entire_scopes_before_queue_requests() {
+        use std::cell::Cell;
+        let calls = Cell::new(0usize);
+        let events = vec![
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({"post_id":1})).unwrap(),
+            },
+            queued_url("https://example.org/unselected".into(), Metadata::new()),
+            ExtractorMessage::Url {
+                url: "https://example.org/unselected.jpg".into(),
+                metadata: Metadata::new(),
+            },
+            ExtractorMessage::Directory {
+                metadata: serde_json::from_value(json!({"post_id":2})).unwrap(),
+            },
+            queued_url("https://example.org/selected".into(), Metadata::new()),
+            ExtractorMessage::Url {
+                url: "https://example.org/selected.jpg".into(),
+                metadata: Metadata::new(),
+            },
+        ];
+        let selected = JobSelection {
+            files: None,
+            children: None,
+            directories: Some(IndexRange::parse("2").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(events, 1, 8, &selected, |url| {
+            calls.set(calls.get() + 1);
+            async move {
+                assert_eq!(url, "https://example.org/selected");
+                Ok::<_, Box<dyn Error + Send + Sync>>(vec![ExtractorMessage::Url {
+                    url: "https://example.org/from-child.jpg".into(),
+                    metadata: Metadata::new(),
+                }])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert_eq!(output.len(), 4);
+        let json: Vec<Value> = output
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap())
+            .collect();
+        assert_eq!(json[0]["type"], "directory");
+        assert_eq!(json[0]["metadata"]["post_id"], 2);
+        assert_eq!(json[1]["url"], "https://example.org/selected");
+        assert_eq!(json[2]["url"], "https://example.org/from-child.jpg");
+        assert_eq!(json[3]["url"], "https://example.org/selected.jpg");
+    }
+
+    #[tokio::test]
+    async fn directory_selection_precedes_file_ordinals() {
+        let items = vec![
+            MediaItem {
+                url: "https://example.org/one.jpg".into(),
+                filename: "one.jpg".into(),
+                extractor: "directlink",
+                post_id: None,
+            },
+            MediaItem {
+                url: "https://example.org/two.jpg".into(),
+                filename: "two.jpg".into(),
+                extractor: "directlink",
+                post_id: None,
+            },
+        ];
+        let filter = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: Some(IndexRange::parse("2").unwrap()),
+        };
+        let events = traverse_queue_job_filtered_with(from_media(items), 0, 0, &filter, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["url"],
+            "https://example.org/two.jpg"
+        );
+    }
 }
