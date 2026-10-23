@@ -21,6 +21,7 @@ pub enum Target {
     Search { query: String },
     Uploads { user: String },
     Collection { user: String, collection_id: String },
+    Collections { user: String },
 }
 
 fn valid_id(id: &str) -> bool {
@@ -53,8 +54,17 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["w", id] if valid_id(id) && url.query().is_none() => {
             Some(Target::Image { id: (*id).into() })
         }
-        ["user", user, "uploads"] if valid_user(user) && url.query().is_none() => {
+        ["user", user] | ["user", user, ""] | ["user", user, "uploads"]
+            if valid_user(user) && url.query().is_none() =>
+        {
             Some(Target::Uploads {
+                user: (*user).into(),
+            })
+        }
+        ["user", user, "favorites"] | ["user", user, "favorites", ""]
+            if valid_user(user) && url.query().is_none() =>
+        {
+            Some(Target::Collections {
                 user: (*user).into(),
             })
         }
@@ -200,6 +210,7 @@ async fn resolve_at_base(
                 user,
                 collection_id,
             } => base.join(&format!("v1/collections/{user}/{collection_id}"))?,
+            Target::Collections { user } => base.join(&format!("v1/collections/{user}"))?,
         };
         match target {
             Target::Image { .. } => {}
@@ -215,7 +226,7 @@ async fn resolve_at_base(
                     .append_pair("q", &format!("@{user}"))
                     .append_pair("page", &page.to_string());
             }
-            Target::Collection { .. } => {
+            Target::Collection { .. } | Target::Collections { .. } => {
                 endpoint
                     .query_pairs_mut()
                     .append_pair("page", &page.to_string());
@@ -288,6 +299,18 @@ mod tests {
             })
         );
         assert_eq!(
+            match_url("https://wallhaven.cc/user/example-1"),
+            Some(Target::Uploads {
+                user: "example-1".into()
+            })
+        );
+        assert_eq!(
+            match_url("https://wallhaven.cc/user/example-1/favorites"),
+            Some(Target::Collections {
+                user: "example-1".into()
+            })
+        );
+        assert_eq!(
             match_url("https://wallhaven.cc/user/example-1/favorites/12345"),
             Some(Target::Collection {
                 user: "example-1".into(),
@@ -301,8 +324,8 @@ mod tests {
             "https://wallhaven.cc/search?q=blue&q=other",
             "https://wallhaven.cc/search?purity=111&q=blue",
             "https://wallhaven.cc/search?q=",
-            "https://wallhaven.cc/user/alice/favorites/",
             "https://wallhaven.cc/user/alice/favorites/notanid",
+            "https://wallhaven.cc/user/alice/favorites?api_key=secret",
             "https://wallhaven.cc/user/alice/favorites/12?apikey=secret",
             "https://wallhaven.cc/w/a",
         ] {
