@@ -119,9 +119,17 @@ fn gallery_image_paths(html: &str) -> Vec<String> {
             break;
         }
     }
-    // The pinned gallery-dl extractor processes the gallery key list backwards.
-    paths.reverse();
     paths
+}
+
+fn next_gallery_page(html: &str, current: &Url, first: &Url) -> Option<Url> {
+    let following = html.split_once("rel=\"next\" aria-label=\"Next")?.1;
+    let raw = following.split_once("href=\"")?.1.split_once('"')?.0;
+    let next = current.join(raw).ok()?;
+    (next.origin() == first.origin()
+        && next.path() == first.path()
+        && next != *current)
+        .then_some(next)
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
@@ -146,6 +154,7 @@ async fn resolve_at_base(
     client: &Client,
     base: &Url,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Image { path } => {
@@ -155,9 +164,39 @@ async fn resolve_at_base(
             ])
         }
         Target::Gallery { path } => {
-            let html = read_html(client, base.join(&path)?).await?;
+            let first = base.join(&path)?;
+            let mut page = first.clone();
+            let mut visited_pages = HashSet::new();
+            let mut visited_images = HashSet::new();
+            let mut image_paths = Vec::new();
+            for index in 0..max_pages.clamp(1, 100) {
+                if !visited_pages.insert(page.to_string()) {
+                    break;
+                }
+                if index > 0 {
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                }
+                let html = read_html(client, page.clone()).await?;
+                for image in gallery_image_paths(&html) {
+                    if visited_images.insert(image.clone()) {
+                        image_paths.push(image);
+                    }
+                    if image_paths.len() == MAX_GALLERY_IMAGES {
+                        break;
+                    }
+                }
+                if image_paths.len() == MAX_GALLERY_IMAGES {
+                    break;
+                }
+                let Some(next) = next_gallery_page(&html, &page, &first) else {
+                    break;
+                };
+                page = next;
+            }
+            // Pinned gallery-dl preserves the reverse of gallery listing order.
+            image_paths.reverse();
             let mut media = Vec::new();
-            for image_path in gallery_image_paths(&html) {
+            for image_path in image_paths {
                 let html = read_html(client, base.join(&image_path)?).await?;
                 if let Some(item) = parse_image_page(&html) {
                     media.push(item);
@@ -171,9 +210,10 @@ async fn resolve_at_base(
 pub async fn resolve(
     client: &Client,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://www.imagebam.com/")?;
-    resolve_at_base(client, &base, target).await
+    resolve_at_base(client, &base, target, max_pages).await
 }
 
 #[cfg(test)]
@@ -228,7 +268,76 @@ mod tests {
             "<a href=\"https://www.imagebam.com/view/Galbum\">",
             "<a href=\"https://evil.example.com/view/Mwrong\">",
         );
-        assert_eq!(gallery_image_paths(html), ["view/Msecond2", "view/Mfirst1"]);
+        assert_eq!(gallery_image_paths(html), ["view/Mfirst1", "view/Msecond2"]);
+    }
+
+    #[test]
+    fn gallery_next_pages_are_same_origin_and_same_gallery_only() {
+        let root = Url::parse("https://www.imagebam.com/gallery/abc123").unwrap();
+        let html = r#"<a rel="next" aria-label="Next page" href="?page=2">More</a>"#;
+        let next = next_gallery_page(html, &root, &root).unwrap();
+        assert_eq!(next.as_str(), "https://www.imagebam.com/gallery/abc123?page=2");
+        assert_eq!(next_gallery_page(html, &next, &root), None);
+        let bad = r#"<a rel="next" aria-label="Next" href="https://evil.example.org/trap">"#;
+        assert!(next_gallery_page(bad, &root, &root).is_none());
+        let escaped = r#"<a rel="next" aria-label="Next" href="/image/evil">"#;
+        assert!(next_gallery_page(escaped, &root, &root).is_none());
+    }
+
+    #[tokio::test]
+    async fn gallery_next_page_is_bounded_and_orders_media_across_pages() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (route, body) in [
+                (
+                    "GET /gallery/album7 HTTP/1.1",
+                    "<a href=\"https://www.imagebam.com/view/Mfirst1\"><a rel=\"next\" aria-label=\"Next page\" href=\"?page=2\">",
+                ),
+                (
+                    "GET /gallery/album7?page=2 HTTP/1.1",
+                    "<a href=\"https://www.imagebam.com/view/Msecond2\">",
+                ),
+                (
+                    "GET /view/Msecond2 HTTP/1.1",
+                    r#"<img src="https://images2.imagebam.com/img/two.png" alt="two.png">"#,
+                ),
+                (
+                    "GET /view/Mfirst1 HTTP/1.1",
+                    r#"<img src="https://images2.imagebam.com/img/one.jpg" alt="one.jpg">"#,
+                ),
+            ] {
+                let (mut connection, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let n = connection.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..n]);
+                assert!(request.starts_with(route), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                connection.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = resolve_at_base(
+            &Client::new(),
+            &base,
+            Target::Gallery {
+                path: "gallery/album7".into(),
+            },
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].filename, "two.png");
+        assert_eq!(result[1].filename, "one.jpg");
+        server.await.unwrap();
     }
 
     #[tokio::test]
@@ -273,6 +382,7 @@ mod tests {
             Target::Gallery {
                 path: "gallery/album7".into(),
             },
+            1,
         )
         .await
         .unwrap();
