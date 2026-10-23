@@ -141,6 +141,42 @@ async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + S
     Ok(serde_json::from_slice(&bytes)?)
 }
 
+fn scoped_next_page(current: &Url, first: &Url, raw: &str, name: &str) -> Option<Url> {
+    let mut next = current.join(raw).ok()?;
+    if next.origin() != first.origin() || next.path() != first.path() {
+        return None;
+    }
+    let mut username_seen = false;
+    let mut public_seen = false;
+    for (key, value) in next.query_pairs() {
+        match key.as_ref() {
+            "username" => {
+                if username_seen || value != name {
+                    return None;
+                }
+                username_seen = true;
+            }
+            "visibility" => {
+                if public_seen || value != "public" {
+                    return None;
+                }
+                public_seen = true;
+            }
+            _ => {}
+        }
+    }
+    {
+        let mut query = next.query_pairs_mut();
+        if !username_seen {
+            query.append_pair("username", name);
+        }
+        if !public_seen {
+            query.append_pair("visibility", "public");
+        }
+    }
+    (next != *current).then_some(next)
+}
+
 async fn user_media(
     client: &Client,
     base: &Url,
@@ -190,12 +226,10 @@ async fn user_media(
             .and_then(|links| links.get("next"))
             .and_then(Value::as_str)
             .filter(|link| !link.is_empty() && link.len() <= 1024);
-        let Some(next) = next.and_then(|link| page.join(link).ok()) else {
+        let Some(next) = next.and_then(|link| scoped_next_page(&page, &first, link, name))
+        else {
             break;
         };
-        if next.origin() != first.origin() || next.path() != first.path() {
-            break;
-        }
         page = next;
     }
     let mut media = Vec::new();
@@ -303,7 +337,7 @@ mod tests {
                     r#"{"data":[{"slug":"first12"},{"slug":"first12"}],"links":{"next":"?page=2"}}"#,
                 ),
                 (
-                    "GET /api/v1/posts?page=2 HTTP/1.1",
+                    "GET /api/v1/posts?page=2&username=creator&visibility=public HTTP/1.1",
                     r#"{"data":[{"slug":"second34"}],"links":{"next":null}}"#,
                 ),
                 (
@@ -346,15 +380,20 @@ mod tests {
     }
 
     #[test]
-    fn profile_pagination_next_page_must_not_escape_its_origin() {
+    fn profile_pagination_keeps_actor_scope_and_public_visibility() {
         let first = Url::parse("https://imgpile.com/api/v1/posts?username=owner").unwrap();
-        let hostile = first
-            .join("https://evil.example.org/api/v1/posts?page=2")
-            .unwrap();
-        assert_ne!(first.origin(), hostile.origin());
-        let wrong = first.join("/admin?page=2").unwrap();
-        assert_ne!(first.path(), wrong.path());
+        let next = scoped_next_page(&first, &first, "?page=2", "owner").unwrap();
+        assert_eq!(
+            next.as_str(),
+            "https://imgpile.com/api/v1/posts?page=2&username=owner&visibility=public"
+        );
+        assert!(scoped_next_page(&next, &first, "?page=2", "owner").is_none());
+        assert!(scoped_next_page(&first, &first, "https://evil.example.org/api/v1/posts?page=2", "owner").is_none());
+        assert!(scoped_next_page(&first, &first, "/admin?page=2", "owner").is_none());
+        assert!(scoped_next_page(&first, &first, "?page=2&username=other", "owner").is_none());
+        assert!(scoped_next_page(&first, &first, "?page=2&visibility=private", "owner").is_none());
     }
+
 
     #[tokio::test]
     async fn public_post_resolves_from_local_html() {
