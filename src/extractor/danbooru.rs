@@ -1,4 +1,4 @@
-//! Partial Danbooru read-only post, tag, pool, favorite-group, media-asset and popular extraction.
+//! Partial Danbooru read-only post, tag, pool, favorite-group, media-asset, artist and popular extraction.
 //! API reference: https://safebooru.donmai.us/wiki_pages/api%3Aposts
 //! Module status is PARTIAL until gallery-dl parity is verified.
 use crate::{safe_filename, MediaItem};
@@ -23,6 +23,10 @@ pub enum Target {
         kind: CollectionKind,
     },
     MediaAsset {
+        host: String,
+        id: u64,
+    },
+    Artist {
         host: String,
         id: u64,
     },
@@ -78,6 +82,10 @@ pub fn match_url(input: &str) -> Option<Target> {
             };
             let id = id.parse::<u64>().ok()?;
             (id > 0).then_some(Target::Collection { host, id, kind })
+        }
+        ["artists", id] => {
+            let id = id.parse::<u64>().ok()?;
+            (id > 0).then_some(Target::Artist { host, id })
         }
         ["media_assets", id] => {
             let id = id.parse::<u64>().ok()?;
@@ -161,6 +169,7 @@ pub async fn resolve(
         | Target::Search { host, .. }
         | Target::Collection { host, .. }
         | Target::MediaAsset { host, .. }
+        | Target::Artist { host, .. }
         | Target::Popular { host, .. } => host,
     };
     let base = Url::parse(&format!("https://{host}/"))?;
@@ -323,6 +332,45 @@ async fn resolve_popular(
     Ok(items)
 }
 
+async fn resolve_tag_posts(
+    client: &Client,
+    base: &Url,
+    tags: &str,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let mut items = Vec::new();
+    for page in 1..=max_pages.max(1) {
+        let mut endpoint = base.join("posts.json")?;
+        endpoint.query_pairs_mut()
+            .append_pair("tags", tags)
+            .append_pair("limit", "50")
+            .append_pair("page", &page.to_string());
+        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        if body.as_array().ok_or("unexpected Danbooru posts response")?.is_empty() {
+            break;
+        }
+        items.extend(post_items(&body, base)?);
+        if page < max_pages {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+    Ok(items)
+}
+
+async fn resolve_artist(
+    client: &Client,
+    base: &Url,
+    id: u64,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let endpoint = base.join(&format!("artists/{id}.json"))?;
+    let artist: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let name = artist.get("name").and_then(Value::as_str)
+        .filter(|name| !name.is_empty() && name.len() <= 512)
+        .ok_or("Danbooru artist response missing a usable name")?;
+    resolve_tag_posts(client, base, name, max_pages).await
+}
+
 /// Private injection seam for deterministic synthetic server tests. Public
 /// dispatch still restricts real extraction to recognized Danbooru hosts.
 async fn resolve_at_base(
@@ -333,6 +381,7 @@ async fn resolve_at_base(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::MediaAsset { id, .. } => resolve_media_asset(client, base, id).await,
+        Target::Artist { id, .. } => resolve_artist(client, base, id, max_pages).await,
         Target::Popular { parameters, .. } => {
             resolve_popular(client, base, &parameters, max_pages).await
         }
@@ -346,29 +395,7 @@ async fn resolve_at_base(
             post_items(&body, base)
         }
         Target::Search { tags, .. } => {
-            let mut items = Vec::new();
-            for page in 1..=max_pages.max(1) {
-                let mut endpoint = base.join("posts.json")?;
-                endpoint
-                    .query_pairs_mut()
-                    .append_pair("tags", &tags)
-                    .append_pair("limit", "50")
-                    .append_pair("page", &page.to_string());
-                let response = client.get(endpoint).send().await?.error_for_status()?;
-                let body: Value = response.json().await?;
-                let page_is_empty = body
-                    .as_array()
-                    .ok_or("unexpected Danbooru posts response")?
-                    .is_empty();
-                if page_is_empty {
-                    break;
-                }
-                items.extend(post_items(&body, base)?);
-                if page < max_pages {
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                }
-            }
-            Ok(items)
+            resolve_tag_posts(client, base, &tags, max_pages).await
         }
     }
 }
@@ -522,6 +549,11 @@ mod tests {
         assert!(match_url("https://danbooru.donmai.us/media_assets/0").is_none());
         assert!(match_url("https://danbooru.donmai.us/explore/posts/popular?page=0").is_none());
         assert!(match_url("https://imposter.donmai.us/media_assets/22").is_none());
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/artists/33"),
+            Some(Target::Artist { host: "danbooru.donmai.us".into(), id: 33 })
+        );
+        assert!(match_url("https://safebooru.donmai.us/artists/0").is_none());
     }
 
     #[tokio::test]
@@ -595,6 +627,41 @@ mod tests {
             .unwrap();
         assert_eq!(media.len(), 1);
         assert_eq!(media[0].filename, "60.jpg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn artist_record_resolves_into_a_bounded_tag_query() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (needle, body) in [
+                ("GET /artists/33.json HTTP/1.1", r#"{"id":33,"name":"blue_fox"}"#),
+                (
+                    "GET /posts.json?tags=blue_fox&limit=50&page=1 HTTP/1.1",
+                    r#"[{"id":15,"file_ext":"png","file_url":"https://cdn.example.org/15.png"}]"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 4096];
+                let n = socket.read(&mut bytes).await.unwrap();
+                let request = String::from_utf8_lossy(&bytes[..n]);
+                assert!(request.starts_with(needle), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = resolve_artist(&Client::new(), &base, 33, 1).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].filename, "15.png");
         server.await.unwrap();
     }
 
