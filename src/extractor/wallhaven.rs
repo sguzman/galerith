@@ -554,4 +554,78 @@ mod tests {
         assert!(error.to_string().contains("response limit"));
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn public_collection_uses_scoped_api_and_bounded_page_traversal() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for page in 1..=2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                loop {
+                    let mut chunk = [0_u8; 2048];
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&chunk[..n]);
+                    assert!(request.len() <= 8192);
+                    if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8(request).unwrap();
+                let first_line = request.lines().next().unwrap();
+                assert!(first_line.starts_with("GET "));
+                let target_path = first_line.split_whitespace().nth(1).unwrap();
+                let url = Url::parse(&format!("http://localhost{target_path}")).unwrap();
+                assert_eq!(url.path(), "/api/v1/collections/example-1/12345");
+                let query: std::collections::HashMap<_, _> =
+                    url.query_pairs().into_owned().collect();
+                assert_eq!(query.len(), 1);
+                assert_eq!(query.get("page").map(String::as_str), Some(if page == 1 { "1" } else { "2" }));
+                assert!(!request.to_ascii_lowercase().contains("x-api-key:"));
+                let body = if page == 1 {
+                    serde_json::json!({
+                        "data":[{"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"}],
+                        "meta":{"current_page":1,"last_page":2}
+                    })
+                } else {
+                    serde_json::json!({
+                        "data":[
+                            {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                            {"id":"ze1p56","path":"https://w.wallhaven.cc/full/ze/wallhaven-ze1p56.png"}
+                        ],
+                        "meta":{"current_page":2,"last_page":2}
+                    })
+                };
+                let body = body.to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Collection {
+                user: "example-1".into(),
+                collection_id: "12345".into(),
+            },
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            ["wallhaven-94x38z.jpg", "wallhaven-ze1p56.png"]
+        );
+        server.await.unwrap();
+    }
 }
