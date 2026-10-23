@@ -24,12 +24,8 @@ pub struct Target {
 
 fn host_info(host: &str) -> Option<(&'static str, &'static str, &'static str)> {
     match host {
-        "derpibooru.org" | "www.derpibooru.org" => {
-            Some(("derpibooru.org", "derpibooru", "56027"))
-        }
-        "ponybooru.org" | "www.ponybooru.org" => {
-            Some(("ponybooru.org", "ponybooru", "3"))
-        }
+        "derpibooru.org" | "www.derpibooru.org" => Some(("derpibooru.org", "derpibooru", "56027")),
+        "ponybooru.org" | "www.ponybooru.org" => Some(("ponybooru.org", "ponybooru", "3")),
         "furbooru.org" => Some(("furbooru.org", "furbooru", "2")),
         _ => None,
     }
@@ -45,26 +41,37 @@ pub fn match_url(input: &str) -> Option<Target> {
     let query = match segments.as_slice() {
         ["images", id] | [id] => {
             let id = id.parse::<u64>().ok()?;
-            if id == 0 { return None; }
+            if id == 0 {
+                return None;
+            }
             Query::Image(id)
         }
         ["search"] => Query::Search(
-            url.query_pairs().find(|(k, _)| k == "q")
-                .map(|(_, v)| v.into_owned())?
+            url.query_pairs()
+                .find(|(k, _)| k == "q")
+                .map(|(_, v)| v.into_owned())?,
         ),
         ["galleries", id] => {
             let id = id.parse::<u64>().ok()?;
-            if id == 0 { return None; }
+            if id == 0 {
+                return None;
+            }
             Query::Gallery(id)
         }
         _ => return None,
     };
-    Some(Target { host, category, filter_id, query })
+    Some(Target {
+        host,
+        category,
+        filter_id,
+        query,
+    })
 }
 
 fn parse_image(item: &Value, category: &'static str) -> Option<MediaItem> {
     let id = item.get("id")?.as_u64()?;
-    let raw = item.get("representations")
+    let raw = item
+        .get("representations")
         .and_then(|v| v.get("full"))
         .and_then(Value::as_str)
         .or_else(|| item.get("view_url").and_then(Value::as_str))?;
@@ -84,28 +91,50 @@ fn parse_image(item: &Value, category: &'static str) -> Option<MediaItem> {
     })
 }
 
-fn images(data: &Value, category: &'static str)
-    -> Result<(Vec<MediaItem>, usize), Box<dyn Error + Send + Sync>>
-{
-    let posts = data.get("images").and_then(Value::as_array)
+fn images(
+    data: &Value,
+    category: &'static str,
+) -> Result<(Vec<MediaItem>, usize), Box<dyn Error + Send + Sync>> {
+    let posts = data
+        .get("images")
+        .and_then(Value::as_array)
         .ok_or("Philomena search response missing image array")?;
-    Ok((posts.iter().filter_map(|item| parse_image(item, category)).collect(), posts.len()))
+    Ok((
+        posts
+            .iter()
+            .filter_map(|item| parse_image(item, category))
+            .collect(),
+        posts.len(),
+    ))
 }
 
-pub async fn resolve(client: &Client, target: Target, max_pages: u16)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let api = Url::parse(&format!("https://{}/api/v1/json/", target.host))?;
     resolve_at_base(client, target, max_pages, &api).await
 }
 
-async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: &Url)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+async fn resolve_at_base(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Query::Image(id) = &target.query {
         let endpoint = base.join(&format!("images/{id}"))?;
-        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
-        let image = body.get("image").ok_or("Philomena API did not return an image")?;
+        let body: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let image = body
+            .get("image")
+            .ok_or("Philomena API did not return an image")?;
         return Ok(parse_image(image, target.category).into_iter().collect());
     }
     let query = match &target.query {
@@ -116,15 +145,24 @@ async fn resolve_at_base(client: &Client, target: Target, max_pages: u16, base: 
     let mut results = Vec::new();
     for page in 1..=max_pages.max(1) {
         let mut endpoint = base.join("search/images")?;
-        endpoint.query_pairs_mut()
+        endpoint
+            .query_pairs_mut()
             .append_pair("q", &query)
             .append_pair("filter_id", target.filter_id)
             .append_pair("per_page", "50")
             .append_pair("page", &page.to_string());
-        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        let body: Value = client
+            .get(endpoint)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
         let (fresh, count) = images(&body, target.category)?;
         results.extend(fresh);
-        if count < 50 { break; }
+        if count < 50 {
+            break;
+        }
         if page < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -142,22 +180,28 @@ mod tests {
         assert_eq!(
             match_url("https://www.derpibooru.org/images/77"),
             Some(Target {
-                host: "derpibooru.org", category: "derpibooru",
-                filter_id: "56027", query: Query::Image(77)
+                host: "derpibooru.org",
+                category: "derpibooru",
+                filter_id: "56027",
+                query: Query::Image(77)
             })
         );
         assert_eq!(
             match_url("https://ponybooru.org/search?q=morning+light"),
             Some(Target {
-                host: "ponybooru.org", category: "ponybooru",
-                filter_id: "3", query: Query::Search("morning light".into())
+                host: "ponybooru.org",
+                category: "ponybooru",
+                filter_id: "3",
+                query: Query::Search("morning light".into())
             })
         );
         assert_eq!(
             match_url("https://furbooru.org/galleries/50"),
             Some(Target {
-                host: "furbooru.org", category: "furbooru",
-                filter_id: "2", query: Query::Gallery(50)
+                host: "furbooru.org",
+                category: "furbooru",
+                filter_id: "2",
+                query: Query::Gallery(50)
             })
         );
         assert!(match_url("https://derpibooru.org/tags/pink").is_none());
@@ -183,7 +227,10 @@ mod tests {
 
     #[tokio::test]
     async fn local_single_image_endpoint_and_returned_media() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -201,10 +248,14 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let target = Target {
-            host: "derpibooru.org", category: "derpibooru",
-            filter_id: "56027", query: Query::Image(44)
+            host: "derpibooru.org",
+            category: "derpibooru",
+            filter_id: "56027",
+            query: Query::Image(44),
         };
-        let results = resolve_at_base(&Client::new(), target, 1, &base).await.unwrap();
+        let results = resolve_at_base(&Client::new(), target, 1, &base)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].filename, "44.jpg");
         server.await.unwrap();
@@ -212,7 +263,10 @@ mod tests {
 
     #[tokio::test]
     async fn gallery_search_uses_filter_and_pagination_fields() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -233,10 +287,14 @@ mod tests {
         });
         let api = Url::parse(&format!("http://{addr}/")).unwrap();
         let target = Target {
-            host: "furbooru.org", category: "furbooru",
-            filter_id: "2", query: Query::Gallery(100)
+            host: "furbooru.org",
+            category: "furbooru",
+            filter_id: "2",
+            query: Query::Gallery(100),
         };
-        let results = resolve_at_base(&Client::new(), target, 5, &api).await.unwrap();
+        let results = resolve_at_base(&Client::new(), target, 5, &api)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].filename, "50.webp");
         server.await.unwrap();
