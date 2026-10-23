@@ -1,0 +1,17 @@
+[package]
+name = "galerith"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+description = "A Rust-native gallery downloader targeting complete gallery-dl compatibility"
+license = "MIT"
+repository = "https://github.com/sguzman/galerith"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+percent-encoding = "2.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "time"] }
+url = "2.5"
