@@ -386,9 +386,7 @@ mod tests {
             assert!(request.contains("pid=0"), "{request}");
             let posts = (1..=100)
                 .map(|id| {
-                    format!(
-                        "<post id=\"{id}\" file_url=\"https://cdn.example.org/{id}.jpg\" />"
-                    )
+                    format!("<post id=\"{id}\" file_url=\"https://cdn.example.org/{id}.jpg\" />")
                 })
                 .collect::<String>();
             let body = format!("<posts>{posts}</posts>");
