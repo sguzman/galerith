@@ -17,6 +17,7 @@ Use `galerith --dump-messages --expand-queues --message-file-range 2 --message-c
 ## Exact scope and limitations
 
 - **Directory** here means a typed `Directory` message. Some current preview adapters emit one directory per media item; this is not a reliable upstream post boundary.
+- **Source-post ID filtering** matches the native numeric `source_post_id` field, never the archive/media `post_id`. A board-level queue with **no** source-post ID may still be followed so its child post scopes can be tested; a queue with an explicitly mismatching or invalid ID is excluded. Filtering still rejects concrete directories and URLs without a matching source-post ID.
 - Directory indices count encountered directory messages globally for each root input, including visited child frames. Excluding a directory drops all subsequent URL and queue messages in that frame until the next directory; it does not fetch skipped queue children.
 - File indices count eligible URL messages globally in depth-first order, after directory selection. Child indices count eligible queue messages globally, also after directory selection, **before** duplicate/cycle suppression. Excluded file messages cannot trigger a native download.
 - These selectors do not enforce early HTTP pagination termination for already-resolving parent APIs. They do not implement gallery-dl expression predicates, complete post-range semantics, streaming job execution, redirect policies, or metadata-formatting parity.
