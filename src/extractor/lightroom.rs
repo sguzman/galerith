@@ -343,7 +343,11 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].filename, "0001_first-large.jpg");
+        assert_eq!(result[0].filename, "0001_first.jpg");
+        assert_eq!(
+            result[0].url,
+            "https://assets.adobe.io/first-large.jpg"
+        );
         assert_eq!(result[1].filename, "0002_second.webp");
         server.await.unwrap();
     }
