@@ -126,9 +126,7 @@ fn next_gallery_page(html: &str, current: &Url, first: &Url) -> Option<Url> {
     let following = html.split_once("rel=\"next\" aria-label=\"Next")?.1;
     let raw = following.split_once("href=\"")?.1.split_once('"')?.0;
     let next = current.join(raw).ok()?;
-    (next.origin() == first.origin()
-        && next.path() == first.path()
-        && next != *current)
+    (next.origin() == first.origin() && next.path() == first.path() && next != *current)
         .then_some(next)
 }
 
@@ -276,7 +274,10 @@ mod tests {
         let root = Url::parse("https://www.imagebam.com/gallery/abc123").unwrap();
         let html = r#"<a rel="next" aria-label="Next page" href="?page=2">More</a>"#;
         let next = next_gallery_page(html, &root, &root).unwrap();
-        assert_eq!(next.as_str(), "https://www.imagebam.com/gallery/abc123?page=2");
+        assert_eq!(
+            next.as_str(),
+            "https://www.imagebam.com/gallery/abc123?page=2"
+        );
         assert_eq!(next_gallery_page(html, &next, &root), None);
         let bad = r#"<a rel="next" aria-label="Next" href="https://evil.example.org/trap">"#;
         assert!(next_gallery_page(bad, &root, &root).is_none());
