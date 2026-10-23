@@ -333,6 +333,7 @@ async fn resolve_at_base(
     };
     let did = resolve_actor(client, base, actor).await?;
     match target {
+        Target::Search { .. } => unreachable!("search is resolved separately"),
         Target::Avatar { .. } | Target::Banner { .. } => {
             let kind = if matches!(target, Target::Avatar { .. }) {
                 "avatar"
