@@ -5,7 +5,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | Rust extractor | Recognized inputs | Implemented subset | Major unresolved behavior |
 |---|---|---|---|
 | `directlink` | Direct HTTP(S) URLs ending in selected media extensions | Filename validation and direct streaming | Upstream matching, file policy and full downloader contract |
-| `danbooru` | `danbooru.donmai.us` and `safebooru.donmai.us` posts, tags, random posts, pools, favorite groups and legacy routes | JSON post/search with starting-page selection (200-per-page and short-page exit), ordered collections, random, popular, original media assets and single artists | Accounts, full metadata, alternate formats and complete site parity |
+| `danbooru` | `danbooru.donmai.us` and `safebooru.donmai.us` posts, tags, random posts, pools, favorite groups and legacy routes | JSON post/search with starting-page selection (200-per-page and short-page exit), ordered collections, random, popular, original media assets and single-artist/artist-search extraction | Accounts, full metadata, alternate formats and complete site parity |
 | `e621` | `e621.net`, `e621.cc` and `e621.anthro.fr` frontend aliases, `e926.net`, `e6ai.net` | JSON posts and paginated tag/legacy index search (320-per-page, short-page exit), base-32 posts, popular/favorites, ordered pools, artist searches, MD5 recovery | Auth, full metadata, alternate formats and complete artist workflows |
 | `gelbooru` | `gelbooru.com` individual post and tag search pages | Public JSON post and bounded tag-search request | Pools, favorites, redirects, auth, filename and metadata semantics |
 | `gelbooru_v02` | Five pinned XML/DAPI hostnames and post/tag-search pages | XML post and bounded tag-search requests, full-page pagination despite missing media | Full pool/favorites/auth/metadata and host-specific media handling |
@@ -16,4 +16,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 39988716288](https://github.com/sguzman/galerith/actions/runs/39988716288) (legacy routes, Danbooru random and pagination regression tests, full Rust CI and release build).
+**Verified integration:** [CI 39989179914](https://github.com/sguzman/galerith/actions/runs/39989179914) (Danbooru artist-search, legacy routes, random and pagination tests, full Rust CI and release build).

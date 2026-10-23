@@ -869,6 +869,11 @@
                   "title": "Recognize legacy Danbooru post, pool and favorite-group links",
                   "passed": true,
                   "evidence": "src/extractor/danbooru.rs route fixtures; CI 39988716288"
+                },
+                {
+                  "title": "Verify bounded Danbooru artist-search API and post-query expansion",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs; src/extractor/mod.rs; two-request localhost JSON fixture; CI 39989179914"
                 }
               ],
               "progress": 92

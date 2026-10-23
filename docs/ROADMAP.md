@@ -186,6 +186,7 @@
   - [x] Verify Danbooru 200-post API pages and short-page termination — src/extractor/danbooru.rs full-page, tag and popular short-page fixtures; CI 39988426053
   - [x] Verify Danbooru random-post JSON with optional tags — src/extractor/danbooru.rs; src/extractor/mod.rs; two-response localhost fixtures; CI 39988542883
   - [x] Recognize legacy Danbooru post, pool and favorite-group links — src/extractor/danbooru.rs route fixtures; CI 39988716288
+  - [x] Verify bounded Danbooru artist-search API and post-query expansion — src/extractor/danbooru.rs; src/extractor/mod.rs; two-request localhost JSON fixture; CI 39989179914
 - 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `█████████░ 92%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
