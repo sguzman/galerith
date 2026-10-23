@@ -121,6 +121,14 @@ mod tests {
             Some("bluesky")
         );
         assert_eq!(
+            extractor_name("https://bsky.app/profile/alice.bsky.social/feed/gen1"),
+            Some("bluesky")
+        );
+        assert_eq!(
+            extractor_name("https://bsky.app/profile/alice.bsky.social/lists/list1"),
+            Some("bluesky")
+        );
+        assert_eq!(
             extractor_name("https://danbooru.donmai.us/posts/random?tags=fox"),
             Some("danbooru")
         );
