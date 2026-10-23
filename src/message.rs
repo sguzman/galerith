@@ -206,13 +206,14 @@ where
             ExtractorMessage::Url { metadata, .. } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                if frame.directory_included {
+                if frame.directory_included
+                    && selected_source_post(metadata, &selection.source_posts)
+                {
                     file_ordinal += 1;
-                    emit = selected_source_post(metadata, &selection.source_posts)
-                        && selection
-                            .files
-                            .as_ref()
-                            .is_none_or(|range| range.contains(file_ordinal));
+                    emit = selection
+                        .files
+                        .as_ref()
+                        .is_none_or(|range| range.contains(file_ordinal));
                 } else {
                     emit = false;
                 }
