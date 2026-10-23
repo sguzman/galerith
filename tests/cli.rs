@@ -81,3 +81,19 @@ fn unsafe_filename_template_fails_without_file_access() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("unsafe output filename"));
 }
+
+#[test]
+fn error_output_never_prints_signed_query_parameters() {
+    let output = run(&[
+        "--simulate",
+        "https://example.org/gallery/42?api_key=private-token-in-query",
+    ]);
+    assert!(!output.status.success());
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(!combined.contains("private-token-in-query"));
+    assert!(combined.contains("https://example.org/gallery/42"));
+}
