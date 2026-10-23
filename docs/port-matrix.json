@@ -900,7 +900,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent public Lexica query/POST cursor extractor preview and offline HTTP regression tests committed, awaiting push CI. Prompt metadata, complete filename/archive behavior and live upstream differential parity are not accepted."
+        "Independent Lexica public query/POST-cursor preview with bounded resources, image-ID validation, duplicate suppression and synthetic HTTP regression fixtures verified by GitHub Actions 40023659175. Complete upstream prompt association, metadata, archive/filename semantics and live site conformance remain unaccepted."
       ]
     },
     {
