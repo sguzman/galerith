@@ -85,6 +85,16 @@ fn inherit_missing(metadata: &mut Metadata, parent: &Metadata) {
     }
 }
 
+/// Per-file identity fields must not leak into unrelated child extractors.
+/// Contextual fields such as collection_id and username may be inherited.
+fn child_context(metadata: &Metadata) -> Metadata {
+    let mut context = metadata.clone();
+    for key in ["filename", "extractor", "post_id"] {
+        context.remove(key);
+    }
+    context
+}
+
 /// Inspect a bounded, recursive extractor-message job with an explicit stack.
 ///
 /// Directory events establish scope for subsequent URL/Queue events in that
@@ -134,7 +144,7 @@ where
                 inherit_missing(metadata, &frame.inherited);
                 if frame.depth < depth_limit && seen.len() < child_limit && seen.insert(url.clone())
                 {
-                    next = Some((url.clone(), metadata.clone(), frame.depth + 1));
+                    next = Some((url.clone(), child_context(metadata), frame.depth + 1));
                 }
             }
         }
