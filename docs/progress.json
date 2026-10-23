@@ -1792,26 +1792,30 @@
               "checks": [
                 {
                   "title": "Recognize public Lexica search URLs and route only supported patterns",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/lexica.rs public URL matcher, src/extractor/mod.rs dispatcher and offline URL fixtures; GitHub Actions 40023659175 passed"
                 },
                 {
                   "title": "Issue public POST search requests with accurate payloads and bounded cursor pagination",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/lexica.rs bounded POST cursor resolver, asserted JSON/Referer HTTP payloads and cycle fixture; GitHub Actions 40023659175 passed"
                 },
                 {
                   "title": "Filter invalid image IDs, deduplicate, and preserve ordered JPEG URLs",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/lexica.rs safe ID/JPEG filename validation, duplicate suppression and ordered pagination fixtures; GitHub Actions 40023659175 passed"
                 },
                 {
                   "title": "Verify 2 MiB response limits, malformed payload rejection and cursor-cycle termination",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/lexica.rs 2 MiB response and media caps, malformed JSON schema rejection and complete HTTP fixture reads; GitHub Actions 40023659175 passed"
                 },
                 {
                   "title": "Complete prompt metadata, naming/archive rules and live upstream differential acceptance",
                   "passed": false
                 }
               ],
-              "progress": 0
+              "progress": 80
             }
           ]
         }
