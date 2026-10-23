@@ -52,3 +52,28 @@ fn danbooru_registered_but_not_claimed_complete() {
     assert!(text.contains("danbooru"));
     assert!(text.contains("partial"));
 }
+
+#[test]
+fn filename_template_updates_json_without_network() {
+    let output = run(&[
+        "-f",
+        "{category}_{stem}.{extension}",
+        "--dump-json",
+        "https://example.org/image.webp",
+    ]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(item["filename"], "directlink_image.webp");
+}
+
+#[test]
+fn unsafe_filename_template_fails_without_file_access() {
+    let output = run(&[
+        "-f",
+        "../{filename}",
+        "--simulate",
+        "https://example.org/image.webp",
+    ]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unsafe output filename"));
+}
