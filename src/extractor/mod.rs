@@ -116,7 +116,7 @@ pub async fn resolve(
         return catbox::resolve(client, target).await;
     }
     if let Some(target) = imagebam::match_url(input) {
-        return imagebam::resolve(client, target).await;
+        return imagebam::resolve(client, target, max_pages).await;
     }
     if let Some(target) = imgbox::match_url(input) {
         return imgbox::resolve(client, target).await;
