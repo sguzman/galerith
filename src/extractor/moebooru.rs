@@ -151,12 +151,35 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &base).await
 }
 
+/// Bound the number of valid media candidates before fetching another API
+/// page. Missing/unsafe file records do not count toward this limit.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let base = Url::parse(&format!("https://{}/", target.host))?;
+    resolve_at_base_limited(client, target, max_pages, &base, max_media).await
+}
+
 async fn resolve_at_base(
     client: &Client,
     target: Target,
     max_pages: u16,
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, target, max_pages, base, usize::MAX).await
+}
+
+async fn resolve_at_base_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let media_limit = max_media.max(1);
     if let Query::Popular { feed, parameters } = &target.query {
         let mut endpoint = base.join(&format!("post/{feed}.json"))?;
         {
@@ -172,7 +195,10 @@ async fn resolve_at_base(
             .error_for_status()?
             .json()
             .await?;
-        return parse_items(&body, target.category);
+        return Ok(parse_items(&body, target.category)?
+            .into_iter()
+            .take(media_limit)
+            .collect());
     }
     let tags = match &target.query {
         Query::Post(id) => format!("id:{id}"),
@@ -200,8 +226,12 @@ async fn resolve_at_base(
             .ok_or("Moebooru API returned non-array JSON")?
             .len()
             < 100;
-        output.extend(parse_items(&body, target.category)?);
-        if short_page || matches!(target.query, Query::Post(_)) {
+        let remaining = media_limit.saturating_sub(output.len());
+        output.extend(parse_items(&body, target.category)?.into_iter().take(remaining));
+        if output.len() >= media_limit
+            || short_page
+            || matches!(target.query, Query::Post(_))
+        {
             break;
         }
         if page < pages {
