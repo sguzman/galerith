@@ -30,7 +30,8 @@ pub fn match_url(input: &str) -> Option<Target> {
             (id != 0).then_some(Target::Post { host, id })
         }
         ["posts"] | ["posts.json"] => {
-            let tags = url.query_pairs()
+            let tags = url
+                .query_pairs()
                 .find(|(name, _)| name == "tags")
                 .map(|(_, value)| value.into_owned())
                 .unwrap_or_default();
@@ -94,13 +95,17 @@ pub async fn resolve(
             let mut items = Vec::new();
             for page in 1..=max_pages.max(1) {
                 let mut endpoint = base.join("posts.json")?;
-                endpoint.query_pairs_mut()
+                endpoint
+                    .query_pairs_mut()
                     .append_pair("tags", &tags)
                     .append_pair("limit", "50")
                     .append_pair("page", &page.to_string());
                 let response = client.get(endpoint).send().await?.error_for_status()?;
                 let body: Value = response.json().await?;
-                let page_is_empty = body.as_array().ok_or("unexpected Danbooru posts response")?.is_empty();
+                let page_is_empty = body
+                    .as_array()
+                    .ok_or("unexpected Danbooru posts response")?
+                    .is_empty();
                 if page_is_empty {
                     break;
                 }
@@ -123,11 +128,17 @@ mod tests {
     fn post_routes_and_search_query_are_explicit() {
         assert_eq!(
             match_url("https://danbooru.donmai.us/posts/42.json"),
-            Some(Target::Post { host: "danbooru.donmai.us".into(), id: 42 })
+            Some(Target::Post {
+                host: "danbooru.donmai.us".into(),
+                id: 42
+            })
         );
         assert_eq!(
             match_url("https://safebooru.donmai.us/posts?tags=blue+sky"),
-            Some(Target::Search { host: "safebooru.donmai.us".into(), tags: "blue sky".into() })
+            Some(Target::Search {
+                host: "safebooru.donmai.us".into(),
+                tags: "blue sky".into()
+            })
         );
         assert_eq!(match_url("https://evil.example/posts/42"), None);
         assert_eq!(match_url("http://danbooru.donmai.us/posts/42"), None);

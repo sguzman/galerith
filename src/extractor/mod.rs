@@ -32,8 +32,14 @@ mod tests {
     use super::*;
     #[test]
     fn dispatch_does_not_claim_unsupported_sites() {
-        assert_eq!(extractor_name("https://danbooru.donmai.us/posts/123"), Some("danbooru"));
-        assert_eq!(extractor_name("https://example.org/a.jpg"), Some("directlink"));
+        assert_eq!(
+            extractor_name("https://danbooru.donmai.us/posts/123"),
+            Some("danbooru")
+        );
+        assert_eq!(
+            extractor_name("https://example.org/a.jpg"),
+            Some("directlink")
+        );
         assert_eq!(extractor_name("https://pixiv.net/en/artworks/123"), None);
     }
 }
