@@ -62,6 +62,13 @@ single safe filename and recognized extractor provenance. An offline CLI
 fixture verifies actual HTTP transfer and atomic file creation. This is
 not a complete replacement for upstream archive/metadata/job semantics.
 
+Job-time positive ordinal selectors can filter file URLs, queued child requests
+and directory scopes before the corresponding actions. Inspection uses
+`--message-file-range`, `--message-child-range` and `--message-directory-range`;
+typed downloads use `--job-file-range`, `--job-child-range` and
+`--job-directory-range`. See [job filtering](JOB_FILTERS.md) for exact
+sequence semantics, supported syntax and upstream limitations.
+
 The flag is intentionally distinct from upstream command aliases. It
 conflicts with other preview output modes, media ranges, filename overrides,
 archive writing and metadata writing. It creates no local files.
