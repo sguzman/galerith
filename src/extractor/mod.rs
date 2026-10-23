@@ -22,6 +22,7 @@ pub mod photovogue;
 pub mod pixeldrain;
 pub mod speakerdeck;
 pub mod telegraph;
+pub mod unsplash;
 pub mod wallpapercave;
 pub mod webmshare;
 
@@ -73,6 +74,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "telegraph",
         "public article images and embedded figure filters",
     ),
+    ("unsplash", "public photos, users, likes, collections and searches"),
     (
         "wallpapercave",
         "public wallpaper download and gallery links",
@@ -133,6 +135,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("wallpapercave")
     } else if webmshare::match_url(input).is_some() {
         Some("webmshare")
+    } else if unsplash::match_url(input).is_some() {
+        Some("unsplash")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -229,6 +233,9 @@ pub async fn resolve(
     if let Some(target) = webmshare::match_url(input) {
         return webmshare::resolve(client, target).await;
     }
+    if let Some(target) = unsplash::match_url(input) {
+        return unsplash::resolve(client, target, max_pages).await;
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -276,6 +283,7 @@ mod tests {
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://webmshare.com/play/ABc_123", "webmshare"),
+            ("https://unsplash.com/photos/abc-123", "unsplash"),
             (
                 "https://www.vogue.com/photovogue/photographers/12345",
                 "photovogue",
