@@ -237,14 +237,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         retries: cli.retries,
         no_skip: cli.no_skip,
     };
-    let archive = if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
-        None
-    } else {
-        cli.download_archive
-            .as_ref()
-            .map(|path| Archive::open(path))
-            .transpose()?
-    };
+    let archive =
+        if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
+            None
+        } else {
+            cli.download_archive
+                .as_ref()
+                .map(|path| Archive::open(path))
+                .transpose()?
+        };
     let selected = cli
         .file_range
         .as_deref()
