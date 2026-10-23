@@ -88,6 +88,19 @@ impl IndexRange {
         Ok(Self(ranges))
     }
 
+    /// Largest possible selected ordinal, when every clause has a finite
+    /// upper bound. A conservative bound can include skipped step positions;
+    /// it must never exclude a selected index.
+    pub fn finite_upper_bound(&self) -> Option<usize> {
+        self.0
+            .iter()
+            .map(|clause| {
+                let end = clause.end?;
+                usize::try_from(end - 1).ok()
+            })
+            .max()?
+    }
+
     pub fn contains(&self, index: usize) -> bool {
         let Ok(index) = u64::try_from(index) else {
             return false;
@@ -118,6 +131,26 @@ mod tests {
         }
         for value in [2, 6, 7] {
             assert!(!step.contains(value));
+        }
+    }
+
+    #[test]
+    fn finite_range_bound_is_conservative_and_never_drops_selected_positions() {
+        for (spec, expected) in [
+            ("1", Some(1)),
+            ("2-5", Some(5)),
+            ("2:6:2", Some(5)),
+            ("1,9:12:2,3-4", Some(11)),
+            ("1-", None),
+            ("1,5:", None),
+        ] {
+            let parsed = IndexRange::parse(spec).unwrap();
+            assert_eq!(parsed.finite_upper_bound(), expected, "{spec}");
+            if let Some(limit) = expected {
+                for index in limit + 1..limit + 10 {
+                    assert!(!parsed.contains(index), "{spec}: {index}");
+                }
+            }
         }
     }
 
