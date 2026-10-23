@@ -446,9 +446,12 @@ mod tests {
             let req = String::from_utf8(request).unwrap();
             let line = req.lines().next().unwrap();
             assert!(line.starts_with("GET "));
-            let url = Url::parse(&format!("http://localhost{}", line.split_whitespace().nth(1).unwrap())).unwrap();
-            let query: std::collections::HashMap<_, _> =
-                url.query_pairs().into_owned().collect();
+            let url = Url::parse(&format!(
+                "http://localhost{}",
+                line.split_whitespace().nth(1).unwrap()
+            ))
+            .unwrap();
+            let query: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
             assert_eq!(url.path(), "/api/v1/search");
             assert_eq!(query.get("q").map(String::as_str), Some("@example-1"));
             assert_eq!(query.get("page").map(String::as_str), Some("1"));
