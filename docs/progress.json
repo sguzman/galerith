@@ -1325,9 +1325,14 @@
                 {
                   "title": "Reproduce full gallery pagination, metadata, archive/filename templates and live conformance",
                   "passed": false
+                },
+                {
+                  "title": "Verify bounded ImageBam next-page gallery traversal with same-origin, repeated-page and cross-page ordering guards",
+                  "passed": true,
+                  "evidence": "src/extractor/imagebam.rs same-gallery cursor and two-listing/four-request TCP fixtures, src/extractor/mod.rs max_pages routing; CI 40000286877"
                 }
               ],
-              "progress": 80
+              "progress": 83
             }
           ]
         }

@@ -267,12 +267,13 @@
   - [x] Verify single Imgbox image extraction using local HTTP — src/extractor/imgbox.rs local image-page TCP fixture; CI 39998586897
   - [x] Resolve ordered gallery images with bounded keys and offline multi-page fixtures — src/extractor/imgbox.rs gallery key order and dedup tests, three-response local HTTP fixture; CI 39998853147
   - [ ] Reproduce Imgbox full metadata/archive/filename rules and opt-in live conformance
-- 🖇️ **T516** ImageBam public image and gallery extractor preview — `████████░░ 80%`
+- 🖇️ **T516** ImageBam public image and gallery extractor preview — `████████░░ 83%`
   - [x] Recognize public ImageBam gallery and image URL variants — src/extractor/imagebam.rs strict image/gallery ID and hostname fixtures; src/extractor/mod.rs; CI 39999653275
   - [x] Parse safe original ImageBam CDN media and filenames from HTML — src/extractor/imagebam.rs strict CDN/unsafe-scheme fixtures; CI 39999653275
   - [x] Preserve image keys and pinned first-gallery-page media ordering — src/extractor/imagebam.rs duplicate-image and reversed-order fixtures; CI 39999653275
   - [x] Resolve gallery and individual image pages through bounded offline HTTP — src/extractor/imagebam.rs three-request gallery localhost HTML fixture, 2MiB page guard; CI 39999653275
   - [ ] Reproduce full gallery pagination, metadata, archive/filename templates and live conformance
+  - [x] Verify bounded ImageBam next-page gallery traversal with same-origin, repeated-page and cross-page ordering guards — src/extractor/imagebam.rs same-gallery cursor and two-listing/four-request TCP fixtures, src/extractor/mod.rs max_pages routing; CI 40000286877
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -660,7 +660,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent ImageBam public single images and first-page gallery previews, conservative URLs, 2MiB HTML transfer bounds, reverse gallery ordering, strict original CDN and local fixtures; CI 39999653275 passed; full pagination/metadata/archive/live parity missing"
+        "Independent ImageBam public single images and first-page gallery previews, conservative URLs, 2MiB HTML transfer bounds, reverse gallery ordering, strict original CDN and local fixtures; CI 39999653275 passed; full pagination/metadata/archive/live parity missing",
+        "Bounded same-gallery next-page traversal and reverse image-key order across pages with cross-origin guards; CI 40000286877 verified"
       ]
     },
     {
