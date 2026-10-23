@@ -227,11 +227,12 @@ async fn resolve_at_base_limited(
             .len()
             < 100;
         let remaining = media_limit.saturating_sub(output.len());
-        output.extend(parse_items(&body, target.category)?.into_iter().take(remaining));
-        if output.len() >= media_limit
-            || short_page
-            || matches!(target.query, Query::Post(_))
-        {
+        output.extend(
+            parse_items(&body, target.category)?
+                .into_iter()
+                .take(remaining),
+        );
+        if output.len() >= media_limit || short_page || matches!(target.query, Query::Post(_)) {
             break;
         }
         if page < pages {
