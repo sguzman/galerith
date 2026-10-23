@@ -565,4 +565,79 @@ mod tests {
         );
         assert_eq!(extractor_name("https://pixiv.net/en/artworks/123"), None);
     }
+
+    #[test]
+    fn typed_message_adapter_only_downloads_url_events() {
+        let item = MediaItem {
+            url: "https://example.org/file.jpg".into(),
+            filename: "file.jpg".into(),
+            extractor: "directlink",
+            post_id: Some(42),
+        };
+        let mut events = from_media(vec![item.clone()]);
+        events.insert(
+            1,
+            ExtractorMessage::Queue {
+                url: "https://example.org/child.jpg".into(),
+                metadata: serde_json::Map::new(),
+            },
+        );
+        assert_eq!(media_from_messages(events).unwrap(), vec![item]);
+    }
+
+    #[test]
+    fn message_download_adapter_rejects_untrusted_media_inputs() {
+        use serde_json::json;
+        let cases = [
+            (
+                "https://example.org/image.jpg",
+                json!({"extractor":"directlink","filename":"../image.jpg"}),
+            ),
+            (
+                "file:///tmp/image.jpg",
+                json!({"extractor":"directlink","filename":"image.jpg"}),
+            ),
+            (
+                "https://user:secret@example.org/image.jpg",
+                json!({"extractor":"directlink","filename":"image.jpg"}),
+            ),
+            (
+                "https://example.org/image.jpg",
+                json!({"extractor":"unknown","filename":"image.jpg"}),
+            ),
+            (
+                "https://example.org/image.jpg",
+                json!({"extractor":"directlink"}),
+            ),
+            (
+                "https://example.org/image.jpg",
+                json!({"extractor":"directlink","filename":"image.jpg","post_id":"invalid"}),
+            ),
+        ];
+        for (url, metadata) in cases {
+            let event = ExtractorMessage::Url {
+                url: url.into(),
+                metadata: serde_json::from_value(metadata).unwrap(),
+            };
+            assert!(media_from_messages(vec![event]).is_err(), "{url}");
+        }
+    }
+
+    #[test]
+    fn typed_message_adapter_keeps_valid_child_provenance_and_filename() {
+        let events = vec![ExtractorMessage::Url {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg".into(),
+            metadata: serde_json::from_value(serde_json::json!({
+                "category":"wallhaven",
+                "extractor":"wallhaven",
+                "filename":"wallhaven-94x38z.jpg",
+                "collection_id":"12345"
+            }))
+            .unwrap(),
+        }];
+        let files = media_from_messages(events).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].extractor, "wallhaven");
+        assert_eq!(files[0].filename, "wallhaven-94x38z.jpg");
+    }
 }
