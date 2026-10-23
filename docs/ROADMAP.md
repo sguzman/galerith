@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `████░░░░░░ 39%` across 51 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `████░░░░░░ 40%` across 52 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 52%`
+## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 54%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `██████░░░░ 55%`
+### 📡 P2 — HTTP transfer engine — `██████░░░░ 58%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -79,6 +79,11 @@
   - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [ ] Implement full proxy authentication, TLS and address-family selection
   - [ ] Compare upstream HTTP configuration behavior
+- ⏱️ **T206** Retry-After dates and constant download pacing preview — `████████░░ 75%`
+  - [x] Bound numeric Retry-After and support HTTP-date values — src/download.rs; GitHub Actions 39957617755 passed
+  - [x] Test date handling, past values and invalid retry hints offline — src/download.rs unit tests; GitHub Actions 39957617755 passed
+  - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
+  - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
 
 ### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 50%`
 

@@ -361,6 +361,33 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T206",
+              "emoji": "⏱️",
+              "name": "Retry-After dates and constant download pacing preview",
+              "progress": 75,
+              "checks": [
+                {
+                  "title": "Bound numeric Retry-After and support HTTP-date values",
+                  "passed": true,
+                  "evidence": "src/download.rs; GitHub Actions 39957617755 passed"
+                },
+                {
+                  "title": "Test date handling, past values and invalid retry hints offline",
+                  "passed": true,
+                  "evidence": "src/download.rs unit tests; GitHub Actions 39957617755 passed"
+                },
+                {
+                  "title": "Support constant --sleep and verify local HTTP request delay",
+                  "passed": true,
+                  "evidence": "src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed"
+                },
+                {
+                  "title": "Implement reference range-based sleeps, skip/extractor/request timing and pacing policy",
+                  "passed": false
+                }
+              ]
             }
           ]
         },

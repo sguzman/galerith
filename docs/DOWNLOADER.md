@@ -23,7 +23,7 @@ Filename input is revalidated at the downloader boundary; callers cannot bypass 
 
 ## HTTP retry behavior
 
-Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric `Retry-After` seconds are accepted (capped at 60 seconds). HTTP-date `Retry-After`, configurable rate limiting, concurrent downloads, metadata modification times and complete upstream retry policies remain unimplemented.
+Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric seconds and RFC-style HTTP-date `Retry-After` values are accepted (each capped at 60 seconds). `--sleep` accepts constant nonnegative delays up to 3600 seconds before each media download. Sleep ranges, request/extractor/skip pacing, metadata modification times and complete upstream retry policies remain unimplemented.
 
 ## Verified synthetic tests
 
@@ -34,4 +34,4 @@ Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bound
 - Parallel same-output attempts (one download plus one skip); safe overwrite and error preservation.
 - No real media, private account content, tokens, or site traffic are used in these regression fixtures.
 
-Verification: [GitHub Actions 39947298737](https://github.com/sguzman/galerith/actions/runs/39947298737). 
+Verification: [GitHub Actions 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428). 

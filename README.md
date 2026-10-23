@@ -6,7 +6,7 @@
 
 **Color:** `#90D8AA` · `oklch(82.22% 0.0973 155.6)` ([rationale](docs/COLOR.md)).
 
-> **Early bootstrap — not the MVP.** The MVP is **complete gallery-dl feature and extractor compatibility**. Current preview extractors cover direct HTTP(S) media URLs, Danbooru posts/tag searches, e621/e926/e6ai posts/tag searches, and Gelbooru posts/tag searches. **None** currently achieves full upstream parity. No production parity claim is made.
+> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Danbooru, e621/e926/e6ai, Gelbooru, and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
 
 ## Native CLI preview
 
@@ -26,13 +26,15 @@ cargo run -- -d ./media 'https://example.org/sample.jpg'
 cargo run -- -f '{category}_{filename}' --range '1:5:2' --simulate 'https://example.org/sample.jpg'
 cargo run -- -c ./config.toml --write-metadata 'https://example.org/sample.jpg'
 cargo run -- -a 'MyAgent/1.0' --proxy 'http://127.0.0.1:8080' 'https://example.org/sample.jpg'
+cargo run -- --sleep 0.15 -d ./media 'https://example.org/sample.jpg'
+cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 ```
 
-`galerith` is the executable name. The current downloader uses chunked HTTP(S) transfer, validated resumable `.part` files, bounded retries, output locks, existing-file skips, and a native SQLite download archive. See [HTTP recovery guarantees](docs/DOWNLOADER.md), [SQLite archive behavior](docs/ARCHIVE.md), and [format/config/metadata boundaries](docs/COMPATIBILITY.md). Missing upstream features include many options, nearly all site-specific extraction, advanced filename templates and metadata vocabularies, browser cookie importing and site-specific auth, complete resume/archive parity, most postprocessors, and reference JSON message parity. Basic JSON/YAML/TOML configuration, Netscape cookie files, index ranges, filename fields and redacted JSON metadata sidecars are partial previews. Supported preliminary booru tag searches default to one API page (adjust with `--max-pages`). Do not rely on this preview as a replacement for gallery-dl.
+`galerith` is the executable name. The native preview includes stream/resume/retries, path locks, a Galerith-specific SQLite archive, explicit JSON/YAML/TOML configuration, Netscape cookies, filename fields, index ranges, redacted JSON metadata sidecars, proxy/user-agent options and limited `--sleep` pacing. See [downloader](docs/DOWNLOADER.md), [network options](docs/NETWORK_OPTIONS.md), [configuration](docs/CONFIG.md), [extractor previews](docs/EXTRACTOR_PREVIEWS.md), and [full compatibility gaps](docs/COMPATIBILITY.md). Full source-site extraction, auth, metadata, format templates, archive interchange, postprocessors, message protocols and live-site conformance are still missing. Previews are not production replacements.
 
 ## Port tracking
 
-**Overall MVP:** `████░░░░░░ 36%` (44 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `████░░░░░░ 40%` (52 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
@@ -47,7 +49,7 @@ cargo test --all-targets
 cargo run --bin galerith-roadmap -- --check
 ```
 
-**Verified Linux CI:** [run 39956648701](https://github.com/sguzman/galerith/actions/runs/39956648701) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
+**Verified Linux CI:** [run 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo.
 
 ## License
 
