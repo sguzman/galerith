@@ -369,4 +369,114 @@ mod tests {
         assert!(files.is_empty());
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn limited_xml_search_stops_before_second_page() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = socket.read(&mut request).await.unwrap();
+            let request = String::from_utf8_lossy(&request[..n]);
+            assert!(request.contains("pid=0"), "{request}");
+            let posts = (1..=100)
+                .map(|id| {
+                    format!(
+                        "<post id=\"{id}\" file_url=\"https://cdn.example.org/{id}.jpg\" />"
+                    )
+                })
+                .collect::<String>();
+            let body = format!("<posts>{posts}</posts>");
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            assert!(
+                tokio::time::timeout(Duration::from_millis(1250), listener.accept())
+                    .await
+                    .is_err(),
+                "unnecessary page after satisfying selected file ceiling"
+            );
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let files = resolve_at_base_limited(
+            &Client::new(),
+            Target::Search {
+                host: "safebooru.org".into(),
+                tags: "blue".into(),
+            },
+            5,
+            &api,
+            1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].post_id, Some(1));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn xml_media_ceiling_counts_usable_files_not_source_posts() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let posts = (1..=100)
+                .map(|id| {
+                    if id == 1 {
+                        format!("<post id=\"{id}\" file_url=\"https://cdn.example.org/1.jpg\"/>")
+                    } else {
+                        format!("<post id=\"{id}\" file_url=\"\"/>")
+                    }
+                })
+                .collect::<String>();
+            for (page, body) in [
+                format!("<posts>{posts}</posts>"),
+                "<posts><post id=\"101\" file_url=\"https://cdn.example.org/101.png\"/></posts>"
+                    .to_owned(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                let request = String::from_utf8_lossy(&request[..n]);
+                assert!(request.contains(&format!("pid={page}")), "{request}");
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let files = resolve_at_base_limited(
+            &Client::new(),
+            Target::Search {
+                host: "xbooru.com".into(),
+                tags: "all".into(),
+            },
+            3,
+            &api,
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            files.iter().map(|item| item.post_id).collect::<Vec<_>>(),
+            vec![Some(1), Some(101)]
+        );
+        server.await.unwrap();
+    }
 }
