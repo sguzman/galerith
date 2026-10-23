@@ -36,6 +36,11 @@ pub fn match_url(input: &str) -> Option<Target> {
                 rkey: (*rkey).to_owned(),
             })
         }
+        ["profile", actor] | ["profile", actor, ""] if valid_segment(actor) => {
+            Some(Target::Media {
+                actor: (*actor).to_owned(),
+            })
+        }
         ["profile", actor, "media"] if valid_segment(actor) => Some(Target::Media {
             actor: (*actor).to_owned(),
         }),
@@ -271,7 +276,18 @@ mod tests {
                 actor: "alice.bsky.social".into(),
             })
         );
-        assert!(match_url("https://bsky.app/profile/alice.bsky.social").is_none());
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social"),
+            Some(Target::Media {
+                actor: "alice.bsky.social".into(),
+            })
+        );
+        assert_eq!(
+            match_url("https://bsky.app/profile/alice.bsky.social/"),
+            Some(Target::Media {
+                actor: "alice.bsky.social".into(),
+            })
+        );
         assert!(match_url("https://bsky.app/profile/alice.bsky.social/likes").is_none());
         assert!(match_url("https://bsky.evil.app/profile/a/media").is_none());
         assert!(match_url("http://bsky.app/profile/a/media").is_none());
