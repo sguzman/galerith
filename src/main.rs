@@ -86,6 +86,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     if cli.list_extractors {
         println!("directlink (direct HTTP(S) media URLs only; partial parity)");
         println!("danbooru (post URLs and tag searches only; partial parity)");
+        println!("e621 (e621/e926/e6ai posts and tag searches only; partial parity)");
         return Ok(());
     }
 
