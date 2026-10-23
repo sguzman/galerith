@@ -18,7 +18,9 @@ fn clean_name(raw: &str) -> Option<String> {
     if decoded.is_empty()
         || decoded.len() > 255
         || matches!(decoded.as_ref(), "." | "..")
-        || decoded.chars().any(|ch| ch.is_control() || ch == '/' || ch == '\\')
+        || decoded
+            .chars()
+            .any(|ch| ch.is_control() || ch == '/' || ch == '\\')
     {
         return None;
     }
@@ -89,7 +91,13 @@ async fn resolve_album_at_base(
     id: &str,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("c/{id}"))?;
-    let page = client.get(endpoint).send().await?.error_for_status()?.text().await?;
+    let page = client
+        .get(endpoint)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
     Ok(parse_album_html(&page))
 }
 
