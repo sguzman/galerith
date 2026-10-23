@@ -66,12 +66,14 @@ pub const MAX_JOB_MESSAGES: usize = 8192;
 pub struct JobSelection {
     pub files: Option<IndexRange>,
     pub children: Option<IndexRange>,
+    pub directories: Option<IndexRange>,
 }
 
 struct JobFrame {
     events: std::vec::IntoIter<ExtractorMessage>,
     inherited: Metadata,
     directory: Metadata,
+    directory_included: bool,
     depth: u8,
 }
 
@@ -81,6 +83,7 @@ impl JobFrame {
             events: events.into_iter(),
             inherited,
             directory: Metadata::new(),
+            directory_included: true,
             depth,
         }
     }
@@ -148,6 +151,7 @@ where
     let mut scanned = 0usize;
     let mut file_ordinal = 0usize;
     let mut child_ordinal = 0usize;
+    let mut directory_ordinal = 0usize;
 
     while let Some(frame) = frames.last_mut() {
         let Some(mut message) = frame.events.next() else {
@@ -165,24 +169,39 @@ where
             ExtractorMessage::Directory { metadata } => {
                 inherit_missing(metadata, &frame.inherited);
                 frame.directory = metadata.clone();
+                directory_ordinal += 1;
+                frame.directory_included = selection
+                    .directories
+                    .as_ref()
+                    .is_none_or(|range| range.contains(directory_ordinal));
+                emit = frame.directory_included;
             }
             ExtractorMessage::Url { metadata, .. } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                file_ordinal += 1;
-                emit = selection
-                    .files
-                    .as_ref()
-                    .is_none_or(|range| range.contains(file_ordinal));
+                if frame.directory_included {
+                    file_ordinal += 1;
+                    emit = selection
+                        .files
+                        .as_ref()
+                        .is_none_or(|range| range.contains(file_ordinal));
+                } else {
+                    emit = false;
+                }
             }
             ExtractorMessage::Queue { url, metadata } => {
                 inherit_missing(metadata, &frame.directory);
                 inherit_missing(metadata, &frame.inherited);
-                child_ordinal += 1;
-                if selection
-                    .children
-                    .as_ref()
-                    .is_none_or(|range| range.contains(child_ordinal))
+                if !frame.directory_included {
+                    emit = false;
+                } else {
+                    child_ordinal += 1;
+                }
+                if frame.directory_included
+                    && selection
+                        .children
+                        .as_ref()
+                        .is_none_or(|range| range.contains(child_ordinal))
                     && frame.depth < depth_limit
                     && seen.len() < child_limit
                     && seen.insert(queue_identity(url))
@@ -596,6 +615,7 @@ mod tests {
         let selected = JobSelection {
             files: Some(IndexRange::parse("2").unwrap()),
             children: Some(IndexRange::parse("2").unwrap()),
+            directories: None,
         };
         let output = traverse_queue_job_filtered_with(roots, 2, 8, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -633,6 +653,7 @@ mod tests {
         let selected = JobSelection {
             files: None,
             children: Some(IndexRange::parse("2-3").unwrap()),
+            directories: None,
         };
         let output = traverse_queue_job_filtered_with(roots, 1, 2, &selected, |url| {
             calls.set(calls.get() + 1);
@@ -663,6 +684,7 @@ mod tests {
         let selection = JobSelection {
             files: Some(IndexRange::parse("1").unwrap()),
             children: None,
+            directories: None,
         };
         let error = traverse_queue_job_filtered_with(events, 0, 0, &selection, |_| async {
             Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
@@ -691,6 +713,7 @@ mod tests {
         let selection = JobSelection {
             files: Some(IndexRange::parse("2").unwrap()),
             children: None,
+            directories: None,
         };
         let output =
             traverse_queue_job_filtered_with(from_media(media), 0, 0, &selection, |_| async {
