@@ -421,4 +421,99 @@ mod tests {
         assert!(parse_items(&serde_json::json!({"error":"rate-limited"}), true).is_err());
         assert!(parse_items(&serde_json::json!({}), true).is_err());
     }
+
+    #[tokio::test]
+    async fn user_uploads_query_is_scoped_and_read_only() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 2048];
+                let n = socket.read(&mut chunk).await.unwrap();
+                assert!(n > 0);
+                request.extend_from_slice(&chunk[..n]);
+                assert!(request.len() <= 8192);
+                if request.windows(4).any(|x| x == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let req = String::from_utf8(request).unwrap();
+            let line = req.lines().next().unwrap();
+            assert!(line.starts_with("GET "));
+            let url = Url::parse(&format!("http://localhost{}", line.split_whitespace().nth(1).unwrap())).unwrap();
+            let query: std::collections::HashMap<_, _> =
+                url.query_pairs().into_owned().collect();
+            assert_eq!(url.path(), "/api/v1/search");
+            assert_eq!(query.get("q").map(String::as_str), Some("@example-1"));
+            assert_eq!(query.get("page").map(String::as_str), Some("1"));
+            assert!(!req.contains("X-API-Key:"));
+            let body = r#"{"data":[],"meta":{"current_page":1,"last_page":1}}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Uploads {
+                user: "example-1".into(),
+            },
+            3,
+        )
+        .await
+        .unwrap();
+        assert!(items.is_empty());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_public_api_response_without_reading_body() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut chunk = [0_u8; 2048];
+                let n = socket.read(&mut chunk).await.unwrap();
+                assert!(n > 0);
+                request.extend_from_slice(&chunk[..n]);
+                assert!(request.len() <= 8192);
+                if request.windows(4).any(|x| x == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_RESPONSE + 1
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let error = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Image {
+                id: "94x38z".into(),
+            },
+            1,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("response limit"));
+        server.await.unwrap();
+    }
 }
