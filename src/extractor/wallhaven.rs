@@ -354,10 +354,7 @@ async fn append_user_collections(
             }
         }
         // Reserve at least one media-page request for the first collection.
-        if ids.len() >= MAX_COLLECTIONS
-            || budget.remaining <= 1
-            || !list_next_page(&data, page)?
-        {
+        if ids.len() >= MAX_COLLECTIONS || budget.remaining <= 1 || !list_next_page(&data, page)? {
             break;
         }
     }
@@ -927,8 +924,9 @@ mod tests {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut req = [0_u8; 2048];
                 let n = socket.read(&mut req).await.unwrap();
-                assert!(String::from_utf8_lossy(&req[..n])
-                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                assert!(
+                    String::from_utf8_lossy(&req[..n]).starts_with(&format!("GET {path} HTTP/1.1"))
+                );
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
