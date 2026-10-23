@@ -58,7 +58,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "telegraph",
         "public article images and embedded figure filters",
     ),
-    ("wallpapercave", "public wallpaper download and gallery links"),
+    (
+        "wallpapercave",
+        "public wallpaper download and gallery links",
+    ),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
