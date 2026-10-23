@@ -6,6 +6,9 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
+const E621_PER_PAGE: usize = 320;
+const E621_PAGE_THRESHOLD: usize = E621_PER_PAGE - 20;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post {
@@ -272,7 +275,7 @@ async fn paginate_posts(
                 }
             }
             query
-                .append_pair("limit", "75")
+                .append_pair("limit", &E621_PER_PAGE.to_string())
                 .append_pair("page", &page.to_string());
         }
         let data: Value = client
@@ -282,11 +285,14 @@ async fn paginate_posts(
             .error_for_status()?
             .json()
             .await?;
-        let empty = posts_list(&data)?.is_empty();
-        if empty {
+        let count = posts_list(&data)?.len();
+        if count == 0 {
             break;
         }
         media.extend(parse_posts(&data, base)?);
+        if count < E621_PAGE_THRESHOLD {
+            break;
+        }
         if offset + 1 < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -617,7 +623,7 @@ mod tests {
             for (needle, body) in [
                 ("GET /pools/42.json HTTP/1.1", r#"{"post_ids":[99,98,97]}"#),
                 (
-                    "GET /posts.json?tags=pool%3A42&limit=75&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=pool%3A42&limit=320&page=1 HTTP/1.1",
                     r#"{"posts":[{"id":98,"file":{"url":"https://cdn.example/98.jpg","ext":"jpg"}},{"id":99,"file":{"url":"https://cdn.example/99.png","ext":"png"}},{"id":97,"file":{"url":null,"ext":"jpg"}}]}"#,
                 ),
             ] {
@@ -659,7 +665,7 @@ mod tests {
                     r#"{"id":33,"name":"blue_fox"}"#,
                 ),
                 (
-                    "GET /posts.json?tags=blue_fox&limit=75&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=blue_fox&limit=320&page=1 HTTP/1.1",
                     r#"{"posts":[{"id":17,"file":{"url":"https://cdn.example/17.png","ext":"png"}}]}"#,
                 ),
             ] {
@@ -697,7 +703,7 @@ mod tests {
                     r#"[{"id":33,"name":"blue_fox"}]"#,
                 ),
                 (
-                    "GET /posts.json?tags=blue_fox&limit=75&page=1 HTTP/1.1",
+                    "GET /posts.json?tags=blue_fox&limit=320&page=1 HTTP/1.1",
                     r#"{"posts":[{"id":88,"file":{"url":"https://cdn.example.org/88.jpg","ext":"jpg"}}]}"#,
                 ),
             ] {
@@ -830,10 +836,14 @@ mod tests {
                 assert!(request.starts_with("GET /posts.json?"), "{request}");
                 assert!(request.contains("tags=blue+sky"), "{request}");
                 assert!(request.contains(&format!("page={page}")), "{request}");
+                assert!(request.contains("limit=320"), "{request}");
                 let body = if page == 2 {
-                    r#"{"posts":[{"id":5,"file":{"url":"/media/5.png","ext":"png"}},{"id":6,"file":{"url":null,"ext":"jpg"}}]}"#
+                    let posts: Vec<_> = (1..=E621_PER_PAGE)
+                        .map(|id| json!({"id": id, "file": {"url": format!("/media/{id}.png"), "ext": "png"}}))
+                        .collect();
+                    json!({"posts": posts}).to_string()
                 } else {
-                    r#"{"posts":[]}"#
+                    r#"{"posts":[]}"#.to_owned()
                 };
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()
@@ -850,9 +860,45 @@ mod tests {
         let items = resolve_at_base(&Client::new(), target, 5, &base)
             .await
             .unwrap();
-        assert_eq!(items.len(), 1);
-        assert_eq!(items[0].filename, "5.png");
-        assert_eq!(items[0].post_id, Some(5));
+        assert_eq!(items.len(), E621_PER_PAGE);
+        assert_eq!(items[0].filename, "1.png");
+        assert_eq!(items[0].post_id, Some(1));
+        assert_eq!(items[E621_PER_PAGE - 1].post_id, Some(320));
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn short_e621_result_page_ends_pagination_without_extra_request() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut connection, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 4096];
+            let n = connection.read(&mut buf).await.unwrap();
+            let request = String::from_utf8_lossy(&buf[..n]);
+            assert!(request.contains("limit=320&page=1"), "{request}");
+            let body = r#"{"posts":[{"id":11,"file":{"url":"/media/11.jpg","ext":"jpg"}}]}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            connection.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let result = paginate_posts(
+            &Client::new(),
+            &base,
+            "posts.json",
+            &[("tags".into(), "test".into())],
+            5,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].post_id, Some(11));
         server.await.unwrap();
     }
     #[tokio::test]
