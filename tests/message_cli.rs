@@ -282,3 +282,76 @@ fn job_filters_are_opt_in_and_use_checked_positive_range_syntax() {
         assert!(!response.status.success(), "{args:?}");
     }
 }
+
+#[test]
+fn message_inspection_can_filter_file_events_without_fetching_media() {
+    let url = "https://example.org/preview.jpg";
+    let full = run(&["--dump-messages", "--expand-queues", url]);
+    assert!(full.status.success());
+    let only_first = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--message-file-range",
+        "1",
+        url,
+    ]);
+    assert!(only_first.status.success());
+    assert_eq!(only_first.stdout, full.stdout);
+    let exclude_first = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--message-file-range",
+        "2",
+        url,
+    ]);
+    assert!(exclude_first.status.success());
+    let output = String::from_utf8(exclude_first.stdout).unwrap();
+    let events: Vec<serde_json::Value> = output
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["type"], "directory");
+
+    let child_only = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "--message-child-range",
+        "1",
+        url,
+    ]);
+    assert!(child_only.status.success());
+    assert_eq!(child_only.stdout, full.stdout);
+}
+
+#[test]
+fn inspection_selectors_cannot_be_silently_ignored() {
+    let url = "https://example.org/image.jpg";
+    for args in [
+        vec!["--message-file-range", "1", url],
+        vec!["--dump-messages", "--message-child-range", "1", url],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--message-file-range",
+            "0",
+            url,
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--message-child-range",
+            "1:9:0",
+            url,
+        ],
+        vec![
+            "--follow-queues",
+            "--message-file-range",
+            "1",
+            url,
+        ],
+    ] {
+        let result = run(&args);
+        assert!(!result.status.success(), "{args:?}");
+    }
+}
