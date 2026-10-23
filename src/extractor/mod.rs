@@ -16,6 +16,7 @@ pub mod imgpile;
 pub mod imgth;
 pub mod moebooru;
 pub mod philomena;
+pub mod photovogue;
 pub mod pixeldrain;
 pub mod speakerdeck;
 pub mod telegraph;
@@ -51,6 +52,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
+    ("photovogue", "public photographer photo API feeds"),
     (
         "pixeldrain",
         "public file, list and nonrecursive filesystem JSON APIs",
@@ -75,6 +77,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("foolfuuka")
     } else if philomena::match_url(input).is_some() {
         Some("philomena")
+    } else if photovogue::match_url(input).is_some() {
+        Some("photovogue")
     } else if moebooru::match_url(input).is_some() {
         Some("moebooru")
     } else if gelbooru_v02::match_url(input).is_some() {
@@ -137,6 +141,9 @@ pub async fn resolve(
     }
     if let Some(target) = philomena::match_url(input) {
         return philomena::resolve(client, target, max_pages).await;
+    }
+    if let Some(target) = photovogue::match_url(input) {
+        return photovogue::resolve(client, target, max_pages).await;
     }
     if let Some(target) = moebooru::match_url(input) {
         return moebooru::resolve(client, target, max_pages).await;
@@ -236,6 +243,10 @@ mod tests {
             ("https://telegra.ph/Article-03-04", "telegraph"),
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
+            (
+                "https://www.vogue.com/photovogue/photographers/12345",
+                "photovogue",
+            ),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
