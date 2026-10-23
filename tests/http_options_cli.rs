@@ -32,11 +32,12 @@ fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
     });
     let dir = destination();
     let _ = fs::remove_dir_all(&dir);
+    let proxy_address = format!("http://127.0.0.1:{port}");
     let args = [
         "-a",
         "synthetic-galerith-agent/42",
         "--proxy",
-        &format!("http://127.0.0.1:{port}"),
+        proxy_address.as_str(),
         "-d",
         dir.to_str().unwrap(),
         "http://example.invalid/asset.jpg",
