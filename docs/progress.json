@@ -1204,9 +1204,19 @@
                   "title": "Reject mismatched post URIs and repeated feed cursors",
                   "passed": true,
                   "evidence": "src/extractor/bluesky.rs strict AT URI and cursor-cycle tests; CI 39993774326"
+                },
+                {
+                  "title": "Verify Bluesky feed generators and list feeds through public ATProto APIs",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs; src/extractor/mod.rs; distinct getFeed/getListFeed local fixtures; CI 39994607373"
+                },
+                {
+                  "title": "Verify public Bluesky actor-likes feed with scoped actor",
+                  "passed": true,
+                  "evidence": "src/extractor/bluesky.rs; src/extractor/mod.rs; getActorLikes localhost JSON fixture; CI 39994921773"
                 }
               ],
-              "progress": 82
+              "progress": 85
             }
           ]
         }
