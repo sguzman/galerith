@@ -55,9 +55,7 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["profile", actor, "avatar"] if valid_segment(actor) => Some(Target::Avatar {
             actor: (*actor).to_owned(),
         }),
-        ["profile", actor, "banner"] | ["profile", actor, "background"]
-            if valid_segment(actor) =>
-        {
+        ["profile", actor, "banner"] | ["profile", actor, "background"] if valid_segment(actor) => {
             Some(Target::Banner {
                 actor: (*actor).to_owned(),
             })
@@ -417,7 +415,12 @@ mod tests {
                 let mut buf = [0_u8; 4096];
                 let n = socket.read(&mut buf).await.unwrap();
                 let request = String::from_utf8_lossy(&buf[..n]);
-                assert!(request.starts_with("GET /xrpc/app.bsky.actor.getProfile?actor=did%3Aplc%3Aalice HTTP/1.1"), "{request}");
+                assert!(
+                    request.starts_with(
+                        "GET /xrpc/app.bsky.actor.getProfile?actor=did%3Aplc%3Aalice HTTP/1.1"
+                    ),
+                    "{request}"
+                );
                 let body = r#"{"did":"did:plc:alice","avatar":"https://cdn.bsky.app/img/avatar/plain/did:plc:alice/abc123@jpeg","banner":"https://cdn.bsky.app/img/banner/plain/did:plc:alice/def456@png"}"#;
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -428,8 +431,18 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         for (target, name) in [
-            (Target::Avatar { actor: "did:plc:alice".into() }, "avatar_abc123.jpeg"),
-            (Target::Banner { actor: "did:plc:alice".into() }, "banner_def456.png"),
+            (
+                Target::Avatar {
+                    actor: "did:plc:alice".into(),
+                },
+                "avatar_abc123.jpeg",
+            ),
+            (
+                Target::Banner {
+                    actor: "did:plc:alice".into(),
+                },
+                "banner_def456.png",
+            ),
         ] {
             let result = resolve_at_base(&Client::new(), target, 1, &base)
                 .await
