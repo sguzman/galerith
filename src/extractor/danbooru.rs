@@ -165,7 +165,7 @@ mod tests {
             {"id": 9, "file_ext": "../bad", "file_url": "https://cdn.example/x"}
         ]);
         let base = Url::parse("https://danbooru.donmai.us/").unwrap();
-        let items = post_items(&body, base).unwrap();
+        let items = post_items(&body, &base).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "7.png");
         assert_eq!(items[0].post_id, Some(7));
