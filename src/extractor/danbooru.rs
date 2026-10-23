@@ -1164,4 +1164,98 @@ mod tests {
         assert_eq!(result[DANBOORU_PER_PAGE - 1].post_id, Some(200));
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn finite_danbooru_tag_range_avoids_second_api_page() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = stream.read(&mut request).await.unwrap();
+            let request = String::from_utf8_lossy(&request[..n]);
+            assert!(request.contains("page=1"), "{request}");
+            assert!(request.contains("limit=200"), "{request}");
+            let posts: Vec<Value> = (1..=200)
+                .map(|id| json!({
+                    "id":id,
+                    "file_url":format!("https://cdn.example.org/{id}.jpg"),
+                    "file_ext":"jpg"
+                }))
+                .collect();
+            let body = Value::Array(posts).to_string();
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+            assert!(
+                tokio::time::timeout(Duration::from_millis(1250), listener.accept())
+                    .await
+                    .is_err(),
+                "API page two should not be requested for selected first file"
+            );
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let files =
+            resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 4, 1)
+                .await
+                .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].post_id, Some(1));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn full_danbooru_page_with_missing_files_does_not_end_search_early() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut first: Vec<Value> = (1..=200)
+                .map(|id| json!({"id":id,"file_url":null,"file_ext":"jpg"}))
+                .collect();
+            first[0] = json!({
+                "id":1,"file_url":"https://cdn.example.org/1.jpg","file_ext":"jpg"
+            });
+            for (page, body) in [
+                Value::Array(first).to_string(),
+                json!([{
+                    "id":201,"file_url":"https://cdn.example.org/201.png","file_ext":"png"
+                }])
+                .to_string(),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = stream.read(&mut request).await.unwrap();
+                let request = String::from_utf8_lossy(&request[..n]);
+                assert!(request.contains(&format!("page={}", page + 1)), "{request}");
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let files =
+            resolve_tag_posts_limited(&Client::new(), &base, "sky", 1, 3, 2)
+                .await
+                .unwrap();
+        assert_eq!(
+            files.iter().map(|item| item.post_id).collect::<Vec<_>>(),
+            vec![Some(1), Some(201)]
+        );
+        server.await.unwrap();
+    }
 }
