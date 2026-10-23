@@ -167,7 +167,7 @@
   - [x] Implement deterministic multi-level stack traversal with limits, queue-cycle suppression and retained parent events — src/message.rs iterative JobFrame, 4-depth/16-child/8192-event hard limits and synthetic regression cases; CI 40034433893; URL-normalized cycle identities and retained aliases verified in CI 40035532138
   - [x] Inherit parent directory/queue metadata without overriding child fields or leaking parent file identity — src/message.rs scope precedence and filename/extractor/post_id isolation tests; CI 40035028633
   - [x] Expose explicit --queue-depth inspection controls while preserving all existing output modes by default — src/main.rs, tests/message_cli.rs; bounded 1..4 CLI fixture checks; CI 40034433893
-  - [x] Convert URL-only events into validated native media downloads behind opt-in --follow-queues with local end-to-end transfer verification — src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633; queued child HTTP(S)/credential guard tests CI 40035532138
+  - [x] Convert URL-only events into validated native media downloads behind opt-in --follow-queues with local end-to-end transfer verification — src/extractor/mod.rs candidate validation, src/main.rs opt-in pipeline, tests/message_download_cli.rs loopback transfer; CI 40035028633; queued child HTTP(S)/credential guard tests CI 40035532138; registered website extractor/hostname allowlist and local-IP rejection CI 40035944411
   - [ ] Prove full gallery-dl download-job parity: recursive filters, redirects, metadata/postprocessing/archive propagation, all extractor classes and live differential testing
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
