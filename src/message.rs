@@ -69,6 +69,18 @@ pub struct JobSelection {
     pub directories: Option<IndexRange>,
 }
 
+impl JobSelection {
+    /// A directory filter can discard an arbitrary number of earlier URLs,
+    /// so no finite file ordinal is safe to push into a listing extractor
+    /// in that case. Keep a conservative unbounded listing instead.
+    pub fn early_file_ceiling(&self) -> Option<usize> {
+        if self.directories.is_some() {
+            return None;
+        }
+        self.files.as_ref()?.finite_upper_bound()
+    }
+}
+
 struct JobFrame {
     events: std::vec::IntoIter<ExtractorMessage>,
     inherited: Metadata,
@@ -593,6 +605,29 @@ mod tests {
             serde_json::to_value(&output[0]).unwrap()["url"],
             "https://EXAMPLE.org/album?id=1#first"
         );
+    }
+
+    #[test]
+    fn directory_selection_disables_unsafe_early_page_limit() {
+        let files = Some(IndexRange::parse("1:5:2").unwrap());
+        let unrestricted = JobSelection {
+            files: files.clone(),
+            children: None,
+            directories: None,
+        };
+        assert_eq!(unrestricted.early_file_ceiling(), Some(4));
+        let scoped = JobSelection {
+            files,
+            children: None,
+            directories: Some(IndexRange::parse("200").unwrap()),
+        };
+        assert_eq!(scoped.early_file_ceiling(), None);
+        let unlimited = JobSelection {
+            files: Some(IndexRange::parse("1-").unwrap()),
+            children: None,
+            directories: None,
+        };
+        assert_eq!(unlimited.early_file_ceiling(), None);
     }
 
     #[tokio::test]
