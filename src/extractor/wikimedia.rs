@@ -483,12 +483,22 @@ mod tests {
                     }
                 }
                 let request = String::from_utf8(request).unwrap();
-                let path = request.lines().next().unwrap().split_whitespace().nth(1).unwrap();
+                let path = request
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap();
                 let url = Url::parse(&format!("http://localhost{path}")).unwrap();
                 let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
                 assert_eq!(query.get("generator"), Some(&generator));
                 assert_eq!(
-                    query.get(if generator == "images" { "titles" } else { "gcmtitle" }),
+                    query.get(if generator == "images" {
+                        "titles"
+                    } else {
+                        "gcmtitle"
+                    }),
                     Some(&expected_title)
                 );
                 assert_eq!(query.get("prop").map(String::as_str), Some("imageinfo"));
@@ -529,7 +539,11 @@ mod tests {
                         {"ns":6,"title":"File:Malicious.jpg","imageinfo":[{"url":"https://untrusted.invalid/bad.jpg"}]}
                     ]}
                 });
-                let body = if index == 0 { first.to_string() } else { second.to_string() };
+                let body = if index == 0 {
+                    first.to_string()
+                } else {
+                    second.to_string()
+                };
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
@@ -543,7 +557,10 @@ mod tests {
             .unwrap();
         server.await.unwrap();
         assert_eq!(
-            media.iter().map(|item| item.filename.as_str()).collect::<Vec<_>>(),
+            media
+                .iter()
+                .map(|item| item.filename.as_str())
+                .collect::<Vec<_>>(),
             ["A.jpg", "B.jpg", "C.jpg"]
         );
     }
@@ -578,23 +595,30 @@ mod tests {
             title: "Category:Night sky".into(),
         };
         assert_eq!(
-            continuation(&serde_json::json!({"continue":{"continue":"-||","gcmcontinue":"next"}}), &target).unwrap(),
+            continuation(
+                &serde_json::json!({"continue":{"continue":"-||","gcmcontinue":"next"}}),
+                &target
+            )
+            .unwrap(),
             Some(("-||".into(), "next".into()))
         );
-        assert!(
-            continuation(&serde_json::json!({"continue":{"gcmcontinue":"bad\u{0000}next"}}), &target)
-                .is_err()
-        );
-        assert!(
-            continuation(&serde_json::json!({"continue":{"gcmcontinue":"x".repeat(513)}}), &target)
-                .is_err()
-        );
-        assert!(
-            continuation(&serde_json::json!({"continue":"invalid"}), &target).is_err()
-        );
+        assert!(continuation(
+            &serde_json::json!({"continue":{"gcmcontinue":"bad\u{0000}next"}}),
+            &target
+        )
+        .is_err());
+        assert!(continuation(
+            &serde_json::json!({"continue":{"gcmcontinue":"x".repeat(513)}}),
+            &target
+        )
+        .is_err());
+        assert!(continuation(&serde_json::json!({"continue":"invalid"}), &target).is_err());
         assert_eq!(
-            continuation(&serde_json::json!({"continue":{"gimcontinue":"wrong-generator"}}), &target)
-                .unwrap(),
+            continuation(
+                &serde_json::json!({"continue":{"gimcontinue":"wrong-generator"}}),
+                &target
+            )
+            .unwrap(),
             None
         );
     }
