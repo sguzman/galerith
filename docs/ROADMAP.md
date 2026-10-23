@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 55%` across 80 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 55%` across 81 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 70%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `█████░░░░░ 48%`
+### 🧬 P4 — Extractor architecture — `█████░░░░░ 53%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -157,6 +157,12 @@
   - [x] Emit deferred collection queue events from Wallhaven public collection lists, without fetching child galleries — src/extractor/wallhaven.rs queue_collections_at_base fixtures, src/extractor/mod.rs dispatch; CI 40032410873
   - [x] Validate queue ID/dedup/page bounds, event serialization, legacy output and redacted diagnostics in offline tests — src/message.rs, src/extractor/wallhaven.rs and tests/message_cli.rs; CI 40032410873
   - [ ] Port complete upstream queue execution, recursive extraction, redirects, metadata scope propagation and reference differential tests
+- 🔁 **T407** Opt-in bounded one-level extractor queue expansion — `████████░░ 80%`
+  - [x] Preserve parent queue events and insert resolved first-level child events in deterministic order — src/message.rs expand_queues_with and single-level unit fixtures; CI 40033265412
+  - [x] Deduplicate child URLs and cap expansion to 16 even for excessive caller limits — src/message.rs duplicate, zero-budget and hard-cap queue fixtures; CI 40033265412
+  - [x] Expose read-only CLI --expand-queues with explicit 1..16 child limit and mutually dependent flags — src/main.rs and tests/message_cli.rs parser/legacy-output regression fixtures; CI 40033265412
+  - [x] Connect deferred child URLs to the native extractor message resolver with conservative per-child pacing — src/extractor/mod.rs resolve_messages_expanding dispatch and 1400ms wait; Rust compilation, Clippy and tests in CI 40033265412
+  - [ ] Verify actual multi-site end-to-end queue execution, metadata inheritance, redirects, multi-level recursion and live upstream differential parity
 
 ### 🧱 P5 — Shared website families — `███████░░░ 73%`
 
