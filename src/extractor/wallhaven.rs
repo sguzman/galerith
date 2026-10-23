@@ -353,7 +353,11 @@ async fn append_user_collections(
                 }
             }
         }
-        if ids.len() >= MAX_COLLECTIONS || !list_next_page(&data, page)? {
+        // Reserve at least one media-page request for the first collection.
+        if ids.len() >= MAX_COLLECTIONS
+            || budget.remaining <= 1
+            || !list_next_page(&data, page)?
+        {
             break;
         }
     }
@@ -388,6 +392,11 @@ async fn resolve_at_base(
     let mut items = Vec::new();
     let mut seen = HashSet::new();
     let mut budget = ApiBudget::new(max_pages);
+    if matches!(target, Target::Collections { .. }) {
+        // The discovery lookup is overhead, not a downloadable media page.
+        // With CLI --max-pages=1, fetch the index and one media page.
+        budget.remaining = budget.remaining.saturating_add(1);
+    }
     match target {
         Target::Collections { user } => {
             append_user_collections(client, base, user, &mut budget, &mut items, &mut seen).await?;
@@ -897,7 +906,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn collection_index_does_not_multiply_the_page_budget() {
+    async fn collection_index_default_allows_one_media_page_after_discovery() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
             net::TcpListener,
@@ -905,18 +914,27 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            // One allowed request only: the index is read, but no fan-out starts.
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut req = [0_u8; 2048];
-            let n = socket.read(&mut req).await.unwrap();
-            assert!(String::from_utf8_lossy(&req[..n])
-                .starts_with("GET /api/v1/collections/example-1 HTTP/1.1"));
-            let body = r#"{"data":[{"id":12345},{"id":67890}]}"#;
-            let reply = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            socket.write_all(reply.as_bytes()).await.unwrap();
+            for (path, body) in [
+                (
+                    "/api/v1/collections/example-1",
+                    r#"{"data":[{"id":12345},{"id":67890}]}"#,
+                ),
+                (
+                    "/api/v1/collections/example-1/12345?page=1",
+                    r#"{"data":[{"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"}],"meta":{"current_page":1,"last_page":2}}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut req = [0_u8; 2048];
+                let n = socket.read(&mut req).await.unwrap();
+                assert!(String::from_utf8_lossy(&req[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
         });
         let base = Url::parse(&format!("http://{address}/api/")).unwrap();
         let items = resolve_at_base(
@@ -929,7 +947,8 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(items.is_empty());
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "wallhaven-94x38z.jpg");
         server.await.unwrap();
     }
 }
