@@ -88,7 +88,7 @@ fn parse_media(post: &Value, expected_did: &str) -> Vec<MediaItem> {
             continue;
         }
         items.push(MediaItem {
-            url: url.into(),
+            url: url.to_string(),
             filename: safe_filename(&format!("{rkey}_{}.{ext}", i + 1)),
             extractor: "bluesky",
             post_id: None,
