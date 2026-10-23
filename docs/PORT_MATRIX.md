@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 27 · Not ported: 245.**
+**Complete: 0 · Partial: 28 · Not ported: 244.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -270,7 +270,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/whyp.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/wikiart.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/wikifeet.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/wikimedia.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/wikimedia.py` | 🟡 Partial | `src/extractor/wikimedia.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/xasiat.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/xenforo.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/xfolio.py` | ⚪ Not ported | — |
