@@ -16,6 +16,7 @@ pub enum Target {
     Search {
         host: String,
         tags: String,
+        page: u16,
     },
     Collection {
         host: String,
@@ -112,12 +113,16 @@ pub fn match_url(input: &str) -> Option<Target> {
             Some(Target::Popular { host, parameters })
         }
         ["posts"] | ["posts.json"] => {
-            let tags = url
-                .query_pairs()
-                .find(|(name, _)| name == "tags")
-                .map(|(_, value)| value.into_owned())
-                .unwrap_or_default();
-            Some(Target::Search { host, tags })
+            let mut tags = String::new();
+            let mut page = 1;
+            for (key, value) in url.query_pairs() {
+                match key.as_ref() {
+                    "tags" => tags = value.into_owned(),
+                    "page" => page = value.parse::<u16>().ok().filter(|p| *p > 0)?,
+                    _ => {}
+                }
+            }
+            Some(Target::Search { host, tags, page })
         }
         _ => None,
     }
@@ -336,10 +341,14 @@ async fn resolve_tag_posts(
     client: &Client,
     base: &Url,
     tags: &str,
+    start_page: u16,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut items = Vec::new();
-    for page in 1..=max_pages.max(1) {
+    for offset in 0..max_pages.max(1) {
+        let Some(page) = start_page.checked_add(offset) else {
+            break;
+        };
         let mut endpoint = base.join("posts.json")?;
         endpoint
             .query_pairs_mut()
@@ -361,7 +370,7 @@ async fn resolve_tag_posts(
             break;
         }
         items.extend(post_items(&body, base)?);
-        if page < max_pages {
+        if offset + 1 < max_pages {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
@@ -387,7 +396,7 @@ async fn resolve_artist(
         .and_then(Value::as_str)
         .filter(|name| !name.is_empty() && name.len() <= 512)
         .ok_or("Danbooru artist response missing a usable name")?;
-    resolve_tag_posts(client, base, name, max_pages).await
+    resolve_tag_posts(client, base, name, 1, max_pages).await
 }
 
 /// Private injection seam for deterministic synthetic server tests. Public
@@ -413,7 +422,9 @@ async fn resolve_at_base(
             let body: Value = response.json().await?;
             post_items(&body, base)
         }
-        Target::Search { tags, .. } => resolve_tag_posts(client, base, &tags, max_pages).await,
+        Target::Search { tags, page, .. } => {
+            resolve_tag_posts(client, base, &tags, page, max_pages).await
+        }
     }
 }
 
@@ -435,9 +446,20 @@ mod tests {
             match_url("https://safebooru.donmai.us/posts?tags=blue+sky"),
             Some(Target::Search {
                 host: "safebooru.donmai.us".into(),
-                tags: "blue sky".into()
+                tags: "blue sky".into(),
+                page: 1
             })
         );
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/posts?tags=fox&page=2"),
+            Some(Target::Search {
+                host: "danbooru.donmai.us".into(),
+                tags: "fox".into(),
+                page: 2
+            })
+        );
+        assert!(match_url("https://danbooru.donmai.us/posts?tags=fox&page=0").is_none());
+        assert!(match_url("https://danbooru.donmai.us/posts?tags=fox&page=bogus").is_none());
         assert_eq!(match_url("https://evil.example/posts/42"), None);
         assert_eq!(match_url("http://danbooru.donmai.us/posts/42"), None);
     }
@@ -755,7 +777,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for page in 1..=2 {
+            for page in 2..=3 {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut data = [0_u8; 4096];
                 let read = socket.read(&mut data).await.unwrap();
@@ -763,7 +785,7 @@ mod tests {
                 assert!(request.starts_with("GET /posts.json?"), "{request}");
                 assert!(request.contains("tags=blue+sky"), "{request}");
                 assert!(request.contains(&format!("page={page}")), "{request}");
-                let body = if page == 1 {
+                let body = if page == 2 {
                     r#"[{"id":123,"file_url":"https://cdn.example.org/one.jpg","file_ext":"jpg"},{"id":124,"file_url":null,"file_ext":"png"}]"#
                 } else {
                     "[]"
@@ -779,6 +801,7 @@ mod tests {
         let target = Target::Search {
             host: "safebooru.donmai.us".into(),
             tags: "blue sky".into(),
+            page: 2,
         };
         let result = resolve_at_base(&Client::new(), target, 5, &base)
             .await
