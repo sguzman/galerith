@@ -7,6 +7,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 | Wallhaven | Public wallpapers, q-only search, user uploads and collection-index flattening with bounded/capped API requests, verified offline (CI 40031267694) | Complete queue-message semantics, advanced search, authentication, collection metadata, filenames/archive and live site equivalence |
 | Wikimedia Commons | Public File: pages and article/category image lists through official Action API, approved upload CDN links, guarded pagination and identified requests (CI 40026028078) | Other Wikimedia and MediaWiki hosts, recursive subcategories, full file revisions, rich metadata/license attribution, upstream archive and filename behavior |
 | Lexica | Public prompt-image search over bounded JSON POST/cursor API; validated JPEG IDs and deduplication (CI 40023659175) | Full prompt metadata, upstream archive/filename templates, authentication and live behavior |
+| Typed messages | Read-only `--dump-messages` JSON lines for directory/URL events and Wallhaven deferred collection queues (CI 40032410873) | Full gallery-dl recursive queue job semantics, redirects, metadata propagation, filters and differential parity |
 | Basic direct links | HTTP(S) image/video/doc extensions | Complete directlink selection and MIME handling |
 | Danbooru | Single posts and bounded tag searches | Pools, artists, metadata, login, full pagination |
 | e621 family | e621/e926/e6ai posts and tags; MD5 URL fallback | Pools, favorites, popular feeds, artist URLs, authorization |
