@@ -206,4 +206,36 @@ mod tests {
         assert_eq!(files[0].filename, "yandere_44.webp");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn pool_query_resolves_bounded_page_and_skips_missing_media() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = [0_u8; 4096];
+            let n = socket.read(&mut bytes).await.unwrap();
+            let request = String::from_utf8_lossy(&bytes[..n]);
+            assert!(request.starts_with("GET /post.json?"), "{request}");
+            assert!(request.contains("tags=pool%3A25"), "{request}");
+            assert!(request.contains("page=1"), "{request}");
+            let payload = r#"[{"id":44,"file_url":"https://img.example.org/test.png"},{"id":45,"file_url":null}]"#;
+            let answer = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            socket.write_all(answer.as_bytes()).await.unwrap();
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "konachan.com",
+            category: "konachan",
+            query: Query::Pool(25),
+        };
+        let files = resolve_at_base(&Client::new(), target, 3, &api).await.unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].filename, "konachan_44.png");
+        server.await.unwrap();
+    }
+
 }
