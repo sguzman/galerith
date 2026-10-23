@@ -1784,6 +1784,34 @@
                 }
               ],
               "progress": 83
+            },
+            {
+              "id": "T530",
+              "emoji": "🎨",
+              "name": "Lexica public prompt search POST/cursor extractor preview",
+              "checks": [
+                {
+                  "title": "Recognize public Lexica search URLs and route only supported patterns",
+                  "passed": false
+                },
+                {
+                  "title": "Issue public POST search requests with accurate payloads and bounded cursor pagination",
+                  "passed": false
+                },
+                {
+                  "title": "Filter invalid image IDs, deduplicate, and preserve ordered JPEG URLs",
+                  "passed": false
+                },
+                {
+                  "title": "Verify 2 MiB response limits, malformed payload rejection and cursor-cycle termination",
+                  "passed": false
+                },
+                {
+                  "title": "Complete prompt metadata, naming/archive rules and live upstream differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 0
             }
           ]
         }
