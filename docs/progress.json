@@ -1880,6 +1880,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T533",
+              "emoji": "🏞️",
+              "name": "Wallhaven public wallpaper, search and upload API preview",
+              "checks": [
+                {
+                  "title": "Route only supported public wallpaper, search-query and user-upload URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs strict URL fixtures and src/extractor/mod.rs dispatch tests; CI 40026953430"
+                },
+                {
+                  "title": "Read individual public wallpaper JSON and validate original Wallhaven CDN images/IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs single-image localhost HTTP test and host/path/extension/ID rejection cases; CI 40026953430"
+                },
+                {
+                  "title": "Page public searches with ordered ID deduplication and safe pagination metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs two-page localhost search fixture, bad-host filtering, page limits and API metadata assertions; CI 40026953430"
+                },
+                {
+                  "title": "Verify user-upload query, resource bounds and API-compliant paced requests without embedded API keys",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs @username local HTTP test, 2 MiB response guard fixture, 100-page/2000-media caps, 1400ms request pacing; CI 40026953430"
+                },
+                {
+                  "title": "Match all upstream filters, user collections, account auth, rich metadata, naming/archive rules and live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
