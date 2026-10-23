@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 53%` across 74 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 53%` across 75 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -365,6 +365,12 @@
   - [x] Filter invalid image IDs, deduplicate, and preserve ordered JPEG URLs — src/extractor/lexica.rs safe ID/JPEG filename validation, duplicate suppression and ordered pagination fixtures; GitHub Actions 40023659175 passed
   - [x] Verify 2 MiB response limits, malformed payload rejection and cursor-cycle termination — src/extractor/lexica.rs 2 MiB response and media caps, malformed JSON schema rejection and complete HTTP fixture reads; GitHub Actions 40023659175 passed
   - [ ] Complete prompt metadata, naming/archive rules and live upstream differential acceptance
+- 🌐 **T531** Wikimedia Commons public File: imageinfo API preview — `████████░░ 80%`
+  - [x] Route only canonical public Commons File: pages and reject untrusted URL shapes — src/extractor/wikimedia.rs strict File URL fixtures, src/extractor/mod.rs dispatch/registry; GitHub Actions 40024629371
+  - [x] Use read-only MediaWiki Action API GET with a contact-bearing User-Agent and maxlag — src/extractor/wikimedia.rs localhost query parameter, request method and identification tests; GitHub Actions 40024629371
+  - [x] Parse Commons imageinfo, validate allowed image-host paths, and create safe filenames — src/extractor/wikimedia.rs imageinfo and forbidden-media URL tests; GitHub Actions 40024629371
+  - [x] Bound API response size, reject malformed/error payloads and verify HTTP overflow handling — src/extractor/wikimedia.rs 2 MiB content-length HTTP fixture and malformed/missing imageinfo tests; GitHub Actions 40024629371
+  - [ ] Implement all upstream Wikimedia/MediaWiki hosts, category/article generators, revisions, metadata, archive naming and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
