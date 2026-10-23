@@ -56,10 +56,15 @@ fn item_from_file(value: &Value) -> Option<MediaItem> {
     if !valid_id(id) {
         return None;
     }
-    let availability = value.get("availability");
-    if availability.is_some_and(|v| {
-        !v.is_null() && v != false && v != "" && v != 0
-    }) {
+    let unavailable = value.get("availability").is_some_and(|status| match status {
+        Value::Null => false,
+        Value::Bool(value) => *value,
+        Value::Number(value) => value.as_i64() != Some(0),
+        Value::String(value) => !value.is_empty(),
+        Value::Array(value) => !value.is_empty(),
+        Value::Object(value) => !value.is_empty(),
+    });
+    if unavailable {
         return None;
     }
     let name = value.get("name")?.as_str()?;
