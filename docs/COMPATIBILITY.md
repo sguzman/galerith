@@ -13,7 +13,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 | e621 family | e621/e926/e6ai posts and tags; MD5 URL fallback | Pools, favorites, popular feeds, artist URLs, authorization |
 | Gelbooru | Posts and tag search via JSON API | Pools, favorites, redirects, rich metadata, pagination edge cases |
 | Gelbooru v0.2 XML | Partial posts/tag-search API for rule34, safebooru.org, tbib, hypnohub and xbooru | Pools, favorites, auth, site fallback URLs, tags, metadata, full paging |
-| 4chan / 4channel | Thread attachments and bounded board-to-thread traversal | Upstream directory/filename/metadata, archive edge cases, full queue model |
+| 4chan / 4channel | Public thread attachments, typed source-backed post scopes, 256-entry deferred board-to-thread queues, 2 MiB board and 4 MiB thread JSON guards, bounded child selection (CI 40040148553) | Full upstream metadata/directory naming, archive behavior, live board/queue variants, post predicates, auth and reference parity |
 | `-f / --filename` | `{filename}`, `{stem}`, `{extension}`, `{category}`, `{extractor}`, `{id}`, `{post_id}`, escaped braces and integer ID padding | Full gallery-dl format grammar, transformations, conditions, arbitrary metadata |
 | `--range` | 1-based single, inclusive, open-ended and stepped slice expressions | Early stopping and per-message file/post/child range semantics |
 | Config | Explicit `-c`, `--config-json`, `--config-yaml`, `--config-toml`, `-o` with nested overlay; filename/base-directory subset | Default discovery, complete option precedence and namespaces, CLI config diagnostics |
