@@ -1,7 +1,10 @@
 //! Read-only 4chan / 4channel thread-media preview.
 //! Uses documented JSON endpoints; full directory templates, thumbnail fallback
 //! and source metadata are not yet at upstream parity.
-use crate::{safe_filename, MediaItem};
+use crate::{
+    message::{media_metadata, ExtractorMessage, Metadata},
+    safe_filename, MediaItem,
+};
 use reqwest::Client;
 use serde_json::Value;
 use std::{collections::HashSet, error::Error, time::Duration};
@@ -146,40 +149,78 @@ async fn resolve_board_at_base(
     Ok(items)
 }
 
+fn media_from_post(post: &Value, board: &str) -> Option<MediaItem> {
+    let tim = post.get("tim")?.as_u64()?;
+    let ext = post.get("ext")?.as_str()?.strip_prefix('.')?;
+    let original = post.get("filename")?.as_str()?;
+    if ext.is_empty() || ext.len() > 10 || !ext.bytes().all(|x| x.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let name = safe_filename(original);
+    let name: String = name.chars().take(100).collect();
+    let filename = safe_filename(&format!("{tim} {name}.{ext}"));
+    let url = format!("https://i.4cdn.org/{board}/{tim}.{ext}");
+    Some(MediaItem {
+        url,
+        filename,
+        extractor: "4chan",
+        post_id: Some(tim),
+    })
+}
+
 fn files(body: &Value, board: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let posts = body
         .get("posts")
         .and_then(Value::as_array)
         .ok_or("4chan API response missing posts")?;
-    let mut media = Vec::new();
+    Ok(posts
+        .iter()
+        .filter_map(|post| media_from_post(post, board))
+        .collect())
+}
+
+/// Preserve real API post boundaries, including text-only posts, without
+/// changing the legacy MediaItem download/archive identifier (the media tim).
+/// source_post_id is the API post number, distinct from post_id in the
+/// current MediaItem projection, which is the file's CDN timestamp.
+fn thread_messages(
+    body: &Value,
+    board: &str,
+    thread_id: u64,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let posts = body
+        .get("posts")
+        .and_then(Value::as_array)
+        .ok_or("4chan API response missing posts")?;
+    let mut output = Vec::new();
     for post in posts {
-        let Some(tim) = post.get("tim").and_then(Value::as_u64) else {
-            continue;
-        };
-        let Some(ext) = post.get("ext").and_then(Value::as_str) else {
-            continue;
-        };
-        let Some(original) = post.get("filename").and_then(Value::as_str) else {
-            continue;
-        };
-        let Some(ext) = ext.strip_prefix('.') else {
-            continue;
-        };
-        if ext.is_empty() || ext.len() > 10 || !ext.bytes().all(|x| x.is_ascii_alphanumeric()) {
+        let media = media_from_post(post, board);
+        let source_post = post.get("no").and_then(Value::as_u64).filter(|id| *id > 0);
+        if source_post.is_none() && media.is_none() {
             continue;
         }
-        let name = safe_filename(original);
-        let name: String = name.chars().take(100).collect();
-        let filename = safe_filename(&format!("{tim} {name}.{ext}"));
-        let url = format!("https://i.4cdn.org/{board}/{tim}.{ext}");
-        media.push(MediaItem {
-            url,
-            filename,
-            extractor: "4chan",
-            post_id: Some(tim),
+        let mut metadata = Metadata::new();
+        metadata.insert("category".into(), "4chan".into());
+        metadata.insert("board".into(), board.into());
+        metadata.insert("thread_id".into(), thread_id.into());
+        if let Some(post_id) = source_post {
+            metadata.insert("source_post_id".into(), post_id.into());
+        }
+        output.push(ExtractorMessage::Directory {
+            metadata: metadata.clone(),
         });
+        if let Some(item) = media {
+            let mut fields = media_metadata(&item);
+            for (key, value) in metadata {
+                fields.entry(key).or_insert(value);
+            }
+            output.push(ExtractorMessage::Url {
+                url: item.url,
+                metadata: fields,
+            });
+        }
     }
-    Ok(media)
+    Ok(output)
 }
 
 pub async fn resolve(
@@ -190,20 +231,43 @@ pub async fn resolve(
     resolve_at_base(client, target, &api).await
 }
 
-async fn resolve_at_base(
+async fn thread_json(
     client: &Client,
-    target: Thread,
+    target: &Thread,
     api: &Url,
-) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{}/thread/{}.json", target.board, target.id))?;
-    let body: Value = client
+    Ok(client
         .get(endpoint)
         .send()
         .await?
         .error_for_status()?
         .json()
-        .await?;
-    files(&body, &target.board)
+        .await?)
+}
+
+async fn resolve_at_base(
+    client: &Client,
+    target: Thread,
+    api: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    files(&thread_json(client, &target, api).await?, &target.board)
+}
+
+async fn resolve_messages_at_base(
+    client: &Client,
+    target: Thread,
+    api: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    thread_messages(&thread_json(client, &target, api).await?, &target.board, target.id)
+}
+
+/// Public typed 4chan thread preview with API-backed post grouping.
+pub async fn resolve_messages(
+    client: &Client,
+    target: Thread,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    resolve_messages_at_base(client, target, &Url::parse("https://a.4cdn.org/")?).await
 }
 
 #[cfg(test)]
