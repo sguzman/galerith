@@ -53,7 +53,9 @@ pub fn match_url(input: &str) -> Option<Target> {
             Some(Target::Image { id: (*id).into() })
         }
         ["user", user, "uploads"] if valid_user(user) && url.query().is_none() => {
-            Some(Target::Uploads { user: (*user).into() })
+            Some(Target::Uploads {
+                user: (*user).into(),
+            })
         }
         ["search"] | ["search", ""] => {
             let mut pairs = url.query_pairs();
@@ -115,7 +117,10 @@ fn image_from_json(wp: &Value) -> Option<(String, MediaItem)> {
     ))
 }
 
-fn parse_items(data: &Value, single: bool) -> Result<Vec<(String, MediaItem)>, Box<dyn Error + Send + Sync>> {
+fn parse_items(
+    data: &Value,
+    single: bool,
+) -> Result<Vec<(String, MediaItem)>, Box<dyn Error + Send + Sync>> {
     if data.get("error").is_some() {
         return Err("Wallhaven API returned an error".into());
     }
@@ -142,7 +147,10 @@ async fn fetch_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + 
         .send()
         .await?
         .error_for_status()?;
-    if response.content_length().is_some_and(|len| len > MAX_RESPONSE as u64) {
+    if response
+        .content_length()
+        .is_some_and(|len| len > MAX_RESPONSE as u64)
+    {
         return Err("Wallhaven JSON exceeded the response limit".into());
     }
     let mut bytes = Vec::new();
@@ -182,7 +190,10 @@ async fn resolve_at_base(
                 Target::Uploads { user } => format!("@{user}"),
                 Target::Image { .. } => unreachable!(),
             };
-            endpoint.query_pairs_mut().append_pair("q", &q).append_pair("page", &page.to_string());
+            endpoint
+                .query_pairs_mut()
+                .append_pair("q", &q)
+                .append_pair("page", &page.to_string());
         }
         let data = fetch_json(client, endpoint).await?;
         let one = matches!(target, Target::Image { .. });
@@ -197,9 +208,17 @@ async fn resolve_at_base(
         if one {
             break;
         }
-        let meta = data.get("meta").ok_or("Wallhaven listing lacks pagination metadata")?;
-        let current = meta.get("current_page").and_then(Value::as_u64).ok_or("Wallhaven page index missing")?;
-        let last = meta.get("last_page").and_then(Value::as_u64).ok_or("Wallhaven last page missing")?;
+        let meta = data
+            .get("meta")
+            .ok_or("Wallhaven listing lacks pagination metadata")?;
+        let current = meta
+            .get("current_page")
+            .and_then(Value::as_u64)
+            .ok_or("Wallhaven page index missing")?;
+        let last = meta
+            .get("last_page")
+            .and_then(Value::as_u64)
+            .ok_or("Wallhaven last page missing")?;
         if current == 0 || current != page as u64 || last < current {
             return Err("Wallhaven pagination metadata was inconsistent".into());
         }
@@ -226,15 +245,21 @@ mod tests {
     fn routes_only_safe_public_image_search_and_upload_urls() {
         assert_eq!(
             match_url("https://wallhaven.cc/w/94x38z"),
-            Some(Target::Image { id: "94x38z".into() })
+            Some(Target::Image {
+                id: "94x38z".into()
+            })
         );
         assert_eq!(
             match_url("https://wallhaven.cc/search?q=blue+sky"),
-            Some(Target::Search { query: "blue sky".into() })
+            Some(Target::Search {
+                query: "blue sky".into()
+            })
         );
         assert_eq!(
             match_url("https://wallhaven.cc/user/example-1/uploads"),
-            Some(Target::Uploads { user: "example-1".into() })
+            Some(Target::Uploads {
+                user: "example-1".into()
+            })
         );
         for bad in [
             "http://wallhaven.cc/w/94x38z",
@@ -262,7 +287,8 @@ mod tests {
         assert!(image_from_json(&serde_json::json!({
             "id":"94x38z",
             "path":"https://w.wallhaven.cc/94/wallhaven-94x38z.jpg"
-        })).is_some());
+        }))
+        .is_some());
         for path in [
             "http://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg",
             "https://w.wallhaven.cc.evil.org/full/94/wallhaven-94x38z.jpg",
@@ -270,13 +296,19 @@ mod tests {
             "https://w.wallhaven.cc/full/94/wallhaven-94x38z.svg",
             "https://w.wallhaven.cc/other/path/file.jpg",
         ] {
-            assert!(image_from_json(&serde_json::json!({"id":"94x38z","path":path})).is_none(), "{path}");
+            assert!(
+                image_from_json(&serde_json::json!({"id":"94x38z","path":path})).is_none(),
+                "{path}"
+            );
         }
     }
 
     #[tokio::test]
     async fn single_wallpaper_resolves_through_public_json_api() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt},net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -286,11 +318,23 @@ mod tests {
             let request = String::from_utf8_lossy(&req[..n]);
             assert!(request.starts_with("GET /api/v1/w/94x38z HTTP/1.1"));
             let body = r#"{"data":{"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"}}"#;
-            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{address}/api/")).unwrap();
-        let items = resolve_at_base(&Client::new(),&base,&Target::Image{id:"94x38z".into()},2).await.unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Image {
+                id: "94x38z".into(),
+            },
+            2,
+        )
+        .await
+        .unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "wallhaven-94x38z.jpg");
         server.await.unwrap();
@@ -298,7 +342,10 @@ mod tests {
 
     #[tokio::test]
     async fn search_paginates_deduplicates_and_stops_at_api_last_page() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt},net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -311,9 +358,13 @@ mod tests {
                 let path = first.split_whitespace().nth(1).unwrap();
                 let url = Url::parse(&format!("http://localhost{path}")).unwrap();
                 assert_eq!(url.path(), "/api/v1/search");
-                let pairs: std::collections::HashMap<_,_> = url.query_pairs().into_owned().collect();
-                assert_eq!(pairs.get("q").map(String::as_str),Some("blue sky"));
-                assert_eq!(pairs.get("page").map(String::as_str),Some(if page==1{"1"}else{"2"}));
+                let pairs: std::collections::HashMap<_, _> =
+                    url.query_pairs().into_owned().collect();
+                assert_eq!(pairs.get("q").map(String::as_str), Some("blue sky"));
+                assert_eq!(
+                    pairs.get("page").map(String::as_str),
+                    Some(if page == 1 { "1" } else { "2" })
+                );
                 let first_page = serde_json::json!({
                     "data":[
                         {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
@@ -327,21 +378,47 @@ mod tests {
                         {"id":"unsafe","path":"https://evil.test/unsafe.jpg"}
                     ],"meta":{"current_page":2,"last_page":2}
                 });
-                let body = if page == 1 {first_page.to_string()} else {last_page.to_string()};
-                let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+                let body = if page == 1 {
+                    first_page.to_string()
+                } else {
+                    last_page.to_string()
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{address}/api/")).unwrap();
-        let items = resolve_at_base(&Client::new(),&base,&Target::Search{query:"blue sky".into()},3).await.unwrap();
-        assert_eq!(items.iter().map(|x|x.filename.as_str()).collect::<Vec<_>>(),["wallhaven-94x38z.jpg","wallhaven-ze1p56.png","wallhaven-a1b2c3.jpg"]);
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Search {
+                query: "blue sky".into(),
+            },
+            3,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            items
+                .iter()
+                .map(|x| x.filename.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "wallhaven-94x38z.jpg",
+                "wallhaven-ze1p56.png",
+                "wallhaven-a1b2c3.jpg"
+            ]
+        );
         server.await.unwrap();
     }
 
     #[test]
     fn rejects_bad_listing_shapes_and_error_responses() {
-        assert!(parse_items(&serde_json::json!({"data":{}}),false).is_err());
-        assert!(parse_items(&serde_json::json!({"error":"rate-limited"}),true).is_err());
-        assert!(parse_items(&serde_json::json!({}),true).is_err());
+        assert!(parse_items(&serde_json::json!({"data":{}}), false).is_err());
+        assert!(parse_items(&serde_json::json!({"error":"rate-limited"}), true).is_err());
+        assert!(parse_items(&serde_json::json!({}), true).is_err());
     }
 }
