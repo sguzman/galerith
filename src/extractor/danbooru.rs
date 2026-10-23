@@ -1,4 +1,4 @@
-//! Partial Danbooru read-only post, tag, pool and favorite-group extraction.
+//! Partial Danbooru read-only post, tag, pool, favorite-group, media-asset and popular extraction.
 //! API reference: https://safebooru.donmai.us/wiki_pages/api%3Aposts
 //! Module status is PARTIAL until gallery-dl parity is verified.
 use crate::{safe_filename, MediaItem};
@@ -22,6 +22,8 @@ pub enum Target {
         id: u64,
         kind: CollectionKind,
     },
+    MediaAsset { host: String, id: u64 },
+    Popular { host: String, parameters: Vec<(String, String)> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +72,23 @@ pub fn match_url(input: &str) -> Option<Target> {
             };
             let id = id.parse::<u64>().ok()?;
             (id > 0).then_some(Target::Collection { host, id, kind })
+        }
+        ["media_assets", id] => {
+            let id = id.parse::<u64>().ok()?;
+            (id > 0).then_some(Target::MediaAsset { host, id })
+        }
+        ["popular"] | ["explore", "posts", "popular"] => {
+            let parameters: Vec<(String, String)> = url.query_pairs()
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect();
+            if parameters.len() > 12 || parameters.iter().any(|(key, value)| {
+                key.is_empty() || key.len() > 32 || value.len() > 128
+                    || !key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                    || (key == "page" && value.parse::<u16>().ok().filter(|n| *n > 0).is_none())
+            }) {
+                return None;
+            }
+            Some(Target::Popular { host, parameters })
         }
         ["posts"] | ["posts.json"] => {
             let tags = url
@@ -127,7 +146,9 @@ pub async fn resolve(
     let host = match &target {
         Target::Post { host, .. }
         | Target::Search { host, .. }
-        | Target::Collection { host, .. } => host,
+        | Target::Collection { host, .. }
+        | Target::MediaAsset { host, .. }
+        | Target::Popular { host, .. } => host,
     };
     let base = Url::parse(&format!("https://{host}/"))?;
     resolve_at_base(client, target, max_pages, &base).await
@@ -196,6 +217,71 @@ async fn resolve_collection(
         .collect())
 }
 
+async fn resolve_media_asset(
+    client: &Client,
+    base: &Url,
+    id: u64,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let endpoint = base.join(&format!("media_assets/{id}.json"))?;
+    let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+    let variants = body.get("variants").and_then(Value::as_array)
+        .ok_or("Danbooru media asset response missing variants")?;
+    let raw = variants.last()
+        .and_then(|item| item.get("url"))
+        .and_then(Value::as_str)
+        .ok_or("Danbooru media asset has no original media URL")?;
+    let url = Url::parse(raw).or_else(|_| base.join(raw))?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("unsafe Danbooru media asset URL".into());
+    }
+    let ext = url.path().rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .ok_or("Danbooru media asset missing file extension")?;
+    if ext.is_empty() || ext.len() > 16 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return Err("Danbooru media asset extension is invalid".into());
+    }
+    let post = serde_json::json!({
+        "id": id,
+        "file_url": url.to_string(),
+        "file_ext": ext,
+    });
+    post_items(&post, base)
+}
+
+async fn resolve_popular(
+    client: &Client,
+    base: &Url,
+    parameters: &[(String, String)],
+    max_pages: u16,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let start = parameters.iter().find(|(key, _)| key == "page")
+        .map(|(_, value)| value.parse::<u16>())
+        .transpose()?.unwrap_or(1);
+    let mut items = Vec::new();
+    for offset in 0..max_pages.max(1) {
+        let Some(page) = start.checked_add(offset) else { break };
+        let mut endpoint = base.join("explore/posts/popular.json")?;
+        {
+            let mut query = endpoint.query_pairs_mut();
+            for (key, value) in parameters {
+                if key != "page" && key != "limit" {
+                    query.append_pair(key, value);
+                }
+            }
+            query.append_pair("limit", "50").append_pair("page", &page.to_string());
+        }
+        let body: Value = client.get(endpoint).send().await?.error_for_status()?.json().await?;
+        if body.as_array().ok_or("invalid Danbooru popular posts response")?.is_empty() {
+            break;
+        }
+        items.extend(post_items(&body, base)?);
+        if offset + 1 < max_pages {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+    Ok(items)
+}
+
 /// Private injection seam for deterministic synthetic server tests. Public
 /// dispatch still restricts real extraction to recognized Danbooru hosts.
 async fn resolve_at_base(
@@ -205,6 +291,8 @@ async fn resolve_at_base(
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
+        Target::MediaAsset { id, .. } => resolve_media_asset(client, base, id).await,
+        Target::Popular { parameters, .. } => resolve_popular(client, base, &parameters, max_pages).await,
         Target::Collection { id, kind, .. } => {
             resolve_collection(client, base, id, kind, max_pages).await
         }
@@ -369,6 +457,78 @@ mod tests {
             items.iter().map(|it| it.post_id).collect::<Vec<_>>(),
             vec![Some(55), Some(54)]
         );
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn media_assets_and_popular_urls_are_strictly_matched() {
+        assert_eq!(
+            match_url("https://danbooru.donmai.us/media_assets/22"),
+            Some(Target::MediaAsset { host: "danbooru.donmai.us".into(), id: 22 })
+        );
+        assert_eq!(
+            match_url("https://safebooru.donmai.us/explore/posts/popular?scale=week"),
+            Some(Target::Popular {
+                host: "safebooru.donmai.us".into(),
+                parameters: vec![("scale".into(), "week".into())],
+            })
+        );
+        assert!(match_url("https://danbooru.donmai.us/media_assets/0").is_none());
+        assert!(match_url("https://danbooru.donmai.us/explore/posts/popular?page=0").is_none());
+        assert!(match_url("https://imposter.donmai.us/media_assets/22").is_none());
+    }
+
+    #[tokio::test]
+    async fn media_asset_uses_last_variant_from_json_api() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 4096];
+            let n = socket.read(&mut buf).await.unwrap();
+            let req = String::from_utf8_lossy(&buf[..n]);
+            assert!(req.starts_with("GET /media_assets/22.json HTTP/1.1"), "{req}");
+            let body = r#"{"variants":[{"url":"https://cdn.example.org/preview.jpg"},{"url":"https://cdn.example.org/original.webp?token=abc"}]}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let media = resolve_media_asset(&Client::new(), &base, 22).await.unwrap();
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].filename, "22.webp");
+        assert_eq!(media[0].url, "https://cdn.example.org/original.webp?token=abc");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn popular_feed_uses_expected_query_and_json_api_path() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 4096];
+            let n = socket.read(&mut buf).await.unwrap();
+            let req = String::from_utf8_lossy(&buf[..n]);
+            assert!(req.starts_with("GET /explore/posts/popular.json?"), "{req}");
+            assert!(req.contains("scale=week"), "{req}");
+            assert!(req.contains("page=3"), "{req}");
+            let body = r#"[{"id":60,"file_url":"https://cdn.example.org/60.jpg","file_ext":"jpg"}]"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let params = [("scale".to_owned(), "week".to_owned()), ("page".to_owned(), "3".to_owned())];
+        let media = resolve_popular(&Client::new(), &base, &params, 1).await.unwrap();
+        assert_eq!(media.len(), 1);
+        assert_eq!(media[0].filename, "60.jpg");
         server.await.unwrap();
     }
 
