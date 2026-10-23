@@ -20,6 +20,7 @@ pub enum Target {
     Image { id: String },
     Search { query: String },
     Uploads { user: String },
+    Collection { user: String, collection_id: String },
 }
 
 fn valid_id(id: &str) -> bool {
@@ -55,6 +56,18 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["user", user, "uploads"] if valid_user(user) && url.query().is_none() => {
             Some(Target::Uploads {
                 user: (*user).into(),
+            })
+        }
+        ["user", user, "favorites", collection_id]
+            if valid_user(user)
+                && !collection_id.is_empty()
+                && collection_id.len() <= 12
+                && collection_id.bytes().all(|b| b.is_ascii_digit())
+                && url.query().is_none() =>
+        {
+            Some(Target::Collection {
+                user: (*user).into(),
+                collection_id: (*collection_id).into(),
             })
         }
         ["search"] | ["search", ""] => {
@@ -183,17 +196,30 @@ async fn resolve_at_base(
         let mut endpoint = match target {
             Target::Image { id } => base.join(&format!("v1/w/{id}"))?,
             Target::Search { .. } | Target::Uploads { .. } => base.join("v1/search")?,
+            Target::Collection {
+                user,
+                collection_id,
+            } => base.join(&format!("v1/collections/{user}/{collection_id}"))?,
         };
-        if !matches!(target, Target::Image { .. }) {
-            let q = match target {
-                Target::Search { query } => query.clone(),
-                Target::Uploads { user } => format!("@{user}"),
-                Target::Image { .. } => unreachable!(),
-            };
-            endpoint
-                .query_pairs_mut()
-                .append_pair("q", &q)
-                .append_pair("page", &page.to_string());
+        match target {
+            Target::Image { .. } => {}
+            Target::Search { query } => {
+                endpoint
+                    .query_pairs_mut()
+                    .append_pair("q", query)
+                    .append_pair("page", &page.to_string());
+            }
+            Target::Uploads { user } => {
+                endpoint
+                    .query_pairs_mut()
+                    .append_pair("q", &format!("@{user}"))
+                    .append_pair("page", &page.to_string());
+            }
+            Target::Collection { .. } => {
+                endpoint
+                    .query_pairs_mut()
+                    .append_pair("page", &page.to_string());
+            }
         }
         let data = fetch_json(client, endpoint).await?;
         let one = matches!(target, Target::Image { .. });
@@ -261,6 +287,13 @@ mod tests {
                 user: "example-1".into()
             })
         );
+        assert_eq!(
+            match_url("https://wallhaven.cc/user/example-1/favorites/12345"),
+            Some(Target::Collection {
+                user: "example-1".into(),
+                collection_id: "12345".into()
+            })
+        );
         for bad in [
             "http://wallhaven.cc/w/94x38z",
             "https://wallhaven.cc.evil.org/w/94x38z",
@@ -268,7 +301,9 @@ mod tests {
             "https://wallhaven.cc/search?q=blue&q=other",
             "https://wallhaven.cc/search?purity=111&q=blue",
             "https://wallhaven.cc/search?q=",
-            "https://wallhaven.cc/user/alice/favorites/1",
+            "https://wallhaven.cc/user/alice/favorites/",
+            "https://wallhaven.cc/user/alice/favorites/notanid",
+            "https://wallhaven.cc/user/alice/favorites/12?apikey=secret",
             "https://wallhaven.cc/w/a",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
