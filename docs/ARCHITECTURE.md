@@ -20,6 +20,8 @@ Currently shipped:
 - `src/main.rs`: first Rust CLI and a strict subset of upstream flags.
 - `src/lib.rs`: direct-media URL recognition, shared metadata and safe leaf filenames.
 - `src/extractor/`: preliminary site URL dispatch and Danbooru posts API reader (partial parity).
+- `src/archive.rs`: native SQLite archive storing hashed URL keys or scoped post IDs after successful downloads (not yet upstream-compatible).
+- `tests/archive_cli.rs`: native CLI archive persistence and extraction-only side-effect checks.
 - `src/download.rs`: streamed downloads, HTTP validator-bound resumes, content-range validation, bounded retries and per-target advisory locking (see [download policy](DOWNLOADER.md)).
 - `src/archive.rs`: conservative SQLite completed-download ledger, independent of upstream gallery-dl archive representation (see [archive policy](ARCHIVE.md)).
 - `tests/cli.rs`: basic offline CLI cases.

@@ -83,7 +83,7 @@
   - [ ] Platform filename rules and normalization
   - [ ] Reference-compatible filesystem tests
 - 🧾 **T302** SQLite archive, cache and duplicate rules — `███░░░░░░░ 25%`
-  - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906: SQLite unit and CLI integration tests passed
+  - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)
   - [ ] Archive ID semantics across extractors
   - [ ] Cache expiry/locking/recovery
   - [ ] Migration and retry fixtures

@@ -376,7 +376,7 @@
                 {
                   "title": "Archive schemas and durable writes",
                   "passed": true,
-                  "evidence": "src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906: SQLite unit and CLI integration tests passed"
+                  "evidence": "src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)"
                 },
                 {
                   "title": "Archive ID semantics across extractors",

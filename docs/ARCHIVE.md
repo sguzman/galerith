@@ -1,22 +1,16 @@
 # 🗃️ Native download archive (preview)
 
-Galerith has a Rust/SQLite `--download-archive FILE` implementation. It is a **new Galerith archive format**, not yet an implementation of gallery-dl's archive schema or all extractor-specific archive IDs.
+The `--download-archive FILE` option creates a SQLite file and records **only successfully completed downloads**. Previously recorded items are skipped before fetching their media bytes. Existing files skipped by filename alone are **not** automatically recorded, since their origin has not been verified.
 
-## CLI
+## Format
 
-```sh
-galerith --download-archive ./state/gallery.sqlite -d ./media https://example.org/photo.jpg
-```
+- Database: SQLite table `downloads(category, identity, recorded_at)`; unique composite key on category and identity
+- For direct-media URLs, `identity` is the SHA-256 digest of the URL and `category` identifies the extractor. Signed URLs are not stored in plaintext.
+- For the preliminary Danbooru extractor, `identity` is its post ID, namespaced to its extractor. This allows a previously downloaded post to be recognized after URL changes.
+- Reopening the database retains results across invocations.
+- Extract-only/dry-run modes (`--get-urls`, `--dump-json`, `--simulate`, `--no-download`) do not open or modify the archive.
+- Successful overwrite downloads are recorded, but skipping an already existing filename does not imply download success.
 
-- The SQLite database is created only for downloading; `--get-urls`, `--dump-json`, `--simulate`, and `--no-download` do not create or inspect it.
-- Records are written **only after** a successful download and completion rename. A skip due solely to a pre-existing filename does not create an archive entry.
-- Archive hits prevent network fetches even if the output file has subsequently been deleted; removing the output file does not remove its recorded archive identity.
-- Category/identity are unique together. Danbooru uses `post:<post-id>` scoped to the Danbooru extractor. Direct-link URLs use a SHA-256 digest of the full source URL. This limits stored secrets, but expiring token parameters currently also affect the identity.
-- The current schema is `downloads(category, identity, recorded_at)` with a compound primary key. Multiple processes use SQLite's lock handling and a finite busy timeout.
-- This does not yet migrate or read an upstream gallery-dl SQLite archive. More complete extractor identities, schema migration tests, and upstream compatibility remain required for the MVP.
+**Limitations:** The database has a Galerith-specific schema, not the gallery-dl archive schema. There is no interchange with gallery-dl, migration, cache-expiry model or distributed reservation/claim protocol yet. File-output locks protect concurrent writes, but the archive currently does not prevent two separate concurrent processes from both querying the same unrecorded entry before a first successful download.
 
-## Acceptance evidence
-
-- `src/archive.rs`: database operations and independent unit tests for reopen, duplicate insert, extractor scoping and URL-token non-persistence.
-- `tests/archive_cli.rs`: CLI downloads with `--download-archive`, persists state, deletes completed output and confirms a second invocation skips a now-unreachable server.
-- CI: [39948367906](https://github.com/sguzman/galerith/actions/runs/39948367906).
+Verification: [GitHub Actions 39948367906](https://github.com/sguzman/galerith/actions/runs/39948367906), including synthetic HTTP download + repeat CLI calls, persistence after reopen and extraction-only isolation.
