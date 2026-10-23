@@ -1,6 +1,6 @@
 //! Independent, partial Imgbox public image-page extractor.
-//! Galleries, original metadata/numbering, album templates, authentication,
-//! and live upstream parity are not yet supported.
+//! Gallery traversal is bounded; complete metadata, archive keys, filename
+//! templates, authentication and live upstream parity remain unsupported.
 use crate::{safe_filename, MediaItem};
 use reqwest::Client;
 use std::{collections::HashSet, error::Error};
@@ -33,7 +33,8 @@ fn valid_imgbox_host(host: &str) -> bool {
 
 pub fn match_url(input: &str) -> Option<Target> {
     let url = Url::parse(input).ok()?;
-    if url.scheme() != "https" || !valid_imgbox_host(url.host_str()?) {
+    let host = url.host_str()?;
+    if url.scheme() != "https" || !valid_imgbox_host(host) {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
