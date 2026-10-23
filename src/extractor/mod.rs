@@ -18,6 +18,7 @@ pub mod philomena;
 pub mod pixeldrain;
 pub mod speakerdeck;
 pub mod telegraph;
+pub mod wallpapercave;
 
 use crate::{extract_direct_media, MediaItem};
 use reqwest::Client;
@@ -57,6 +58,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "telegraph",
         "public article images and embedded figure filters",
     ),
+    ("wallpapercave", "public wallpaper download and gallery links"),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
@@ -100,6 +102,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("telegraph")
     } else if speakerdeck::match_url(input).is_some() {
         Some("speakerdeck")
+    } else if wallpapercave::match_url(input).is_some() {
+        Some("wallpapercave")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -178,6 +182,9 @@ pub async fn resolve(
     if let Some(target) = speakerdeck::match_url(input) {
         return speakerdeck::resolve(client, target).await;
     }
+    if let Some(target) = wallpapercave::match_url(input) {
+        return wallpapercave::resolve(client, target).await;
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -214,6 +221,7 @@ mod tests {
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://telegra.ph/Article-03-04", "telegraph"),
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
+            ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("https://derpibooru.org/images/123", "philomena"),
