@@ -327,7 +327,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Danbooru and Safebooru posts, tag search, metadata-ordered pools/favorite groups, synthetic HTTP tests; CI 39981159625. Full upstream auth, media assets, and formatting remain outstanding."
+        "Post/tag search, metadata-ordered pool/favorite groups, original media assets and popular JSON endpoints; synthetic HTTP CI 39981891550; auth, variants and metadata parity incomplete."
       ]
     },
     {

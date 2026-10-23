@@ -834,9 +834,19 @@
                   "title": "Verify metadata-ordered pool and favorite-group extraction",
                   "passed": true,
                   "evidence": "src/extractor/danbooru.rs; ordered local JSON API fixtures and GitHub Actions 39981159625"
+                },
+                {
+                  "title": "Verify Danbooru original media-asset API variant selection",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs synthetic media-asset fixture; CI 39981891550"
+                },
+                {
+                  "title": "Verify bounded Danbooru popular feed JSON endpoints",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs popular API fixture; CI 39981891550"
                 }
               ],
-              "progress": 80
+              "progress": 86
             },
             {
               "id": "T506",
