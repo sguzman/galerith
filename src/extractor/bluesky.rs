@@ -307,7 +307,9 @@ async fn resolve_collection_feed(
         let mut endpoint = base.join(&format!("xrpc/{endpoint_name}"))?;
         {
             let mut params = endpoint.query_pairs_mut();
-            params.append_pair(query_name, &at_uri).append_pair("limit", "100");
+            params
+                .append_pair(query_name, &at_uri)
+                .append_pair("limit", "100");
             if let Some(cursor) = &cursor {
                 params.append_pair("cursor", cursor);
             }
@@ -806,8 +808,20 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (endpoint, key, record_kind, id, rkey) in [
-                ("getFeed", "feed=", "app.bsky.feed.generator", "gen1", "genpost"),
-                ("getListFeed", "list=", "app.bsky.graph.list", "list1", "listpost"),
+                (
+                    "getFeed",
+                    "feed=",
+                    "app.bsky.feed.generator",
+                    "gen1",
+                    "genpost",
+                ),
+                (
+                    "getListFeed",
+                    "list=",
+                    "app.bsky.graph.list",
+                    "list1",
+                    "listpost",
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buf = [0_u8; 4096];
