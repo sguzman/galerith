@@ -911,9 +911,19 @@
                   "title": "Verify requested e621 tag-search starting page",
                   "passed": true,
                   "evidence": "src/extractor/e621.rs local multi-page API fixture and invalid-page tests; CI 39986280202"
+                },
+                {
+                  "title": "Verify alternate e621 frontend and legacy tag-index routes",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs; src/extractor/mod.rs; synthetic URL fixtures; CI 39987105598"
+                },
+                {
+                  "title": "Match pinned e621 per-page request size and short-page stopping",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs full-page and short-page localhost fixtures; CI 39987399555"
                 }
               ],
-              "progress": 91
+              "progress": 92
             },
             {
               "id": "T507",
