@@ -1028,7 +1028,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Four site family post/tag/pool subset; local HTTP and JSON fixtures; CI 39960525151; all complete-site checks remain open"
+        "Post, tag, pool and four popular feed modes; local JSON/API fixtures; CI 39965682429; advanced auth/metadata and full parity missing"
       ]
     },
     {

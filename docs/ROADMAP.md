@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 47%`
+## 🧩 M2 — Extractor framework and site families — `█████░░░░░ 48%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 34%`
@@ -198,11 +198,12 @@
   - [x] Parse XML post metadata and reject unsafe media schemes — src/extractor/gelbooru_v02.rs unit fixtures; GitHub Actions 39959270238 passed
   - [x] Verify synthetic HTTP post and bounded tag-search DAPI requests — src/extractor/gelbooru_v02.rs local TCP fixtures; GitHub Actions 39959270238 passed
   - [ ] Port complete pools, favorites, auth, fallback URLs, tags and reference metadata
-- 🎏 **T510** Moebooru JSON family post/tag/pool extractor preview — `████████░░ 75%`
+- 🎏 **T510** Moebooru JSON family post/tag/pool extractor preview — `████████░░ 80%`
   - [x] Route four upstream site families and three supported URL shapes — src/extractor/moebooru.rs; CI 39960525151
   - [x] Parse synthetic JSON media and validate metadata-driven filenames — src/extractor/moebooru.rs synthetic JSON unit fixtures; CI 39960525151
   - [x] Verify post and pool API queries with localhost HTTP fixtures — src/extractor/moebooru.rs synthetic server tests; CI 39960525151
-  - [ ] Reproduce popular, complete pool metadata and upstream auth/format semantics
+  - [ ] Reproduce full popular-feed metadata, complete pool metadata and upstream auth/format semantics
+  - [x] Verify Moebooru popular feed routing and synthetic API — src/extractor/moebooru.rs; CI 39965682429
 - 🦄 **T511** Philomena JSON API images, searches and galleries preview — `████████░░ 75%`
   - [x] Match only pinned Philomena host and supported routes — src/extractor/philomena.rs; GitHub Actions 39961510804
   - [x] Parse representations and fallback media with safe output names — src/extractor/philomena.rs JSON parser fixtures; GitHub Actions 39961510804

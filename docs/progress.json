@@ -945,7 +945,7 @@
               "id": "T510",
               "emoji": "🎏",
               "name": "Moebooru JSON family post/tag/pool extractor preview",
-              "progress": 75,
+              "progress": 80,
               "checks": [
                 {
                   "title": "Route four upstream site families and three supported URL shapes",
@@ -963,8 +963,13 @@
                   "evidence": "src/extractor/moebooru.rs synthetic server tests; CI 39960525151"
                 },
                 {
-                  "title": "Reproduce popular, complete pool metadata and upstream auth/format semantics",
+                  "title": "Reproduce full popular-feed metadata, complete pool metadata and upstream auth/format semantics",
                   "passed": false
+                },
+                {
+                  "title": "Verify Moebooru popular feed routing and synthetic API",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs; CI 39965682429"
                 }
               ]
             },
