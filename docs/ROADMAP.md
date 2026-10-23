@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 57%` across 86 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 57%` across 88 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `███████░░░ 71%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `██████░░░░ 64%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 65%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -187,6 +187,12 @@
   - [x] Dispatch thread URLs through typed native extraction rather than synthetic per-file directories — src/extractor/mod.rs resolve_messages for fourchan::match_url, CI 40039010520
   - [x] Verify 4chan typed post scopes with one local HTTP thread request and malformed attachment handling — src/extractor/fourchan.rs resolve_messages_at_base loopback and text/no-file fixtures; CI 40039010520
   - [ ] Reproduce full upstream thread/board post queue, comments, metadata, filename and archive semantics through reference differential testing
+- ⏭️ **T412** Early child queue stopping after finite selected media — `████████░░ 80%`
+  - [x] Skip later deferred child extraction requests once a finite selected-file upper bound has been consumed — src/message.rs file_ordinal ceiling in iterative queue job and selected-child request-count test; CI 40039969843
+  - [x] Keep deferred Queue messages visible after skipping their HTTP-backed child expansion — src/message.rs deterministic event-order fixture with unexpanded queue events; CI 40039969843
+  - [x] Disable child and page shortcut when directory-scope filtering can exclude earlier media — src/message.rs directory_selection_disables_unsafe_early_page_limit and nested child fixture; CI 40039969843
+  - [x] Preserve opt-in queue caps and legacy default file extraction while selective child requests are bounded — src/message.rs global depth/child/event limits, regression suite and --follow-queues opt-in CLI; CI 40039969843
+  - [ ] Match full upstream child-range, post-filter, streaming cancellation and queue/job stop semantics with differential tests
 - ⏩ **T413** Cross-family finite file selection and API page minimization — `████████░░ 80%`
   - [x] Stop Gelbooru JSON page traversal when selected validated media count is satisfied — src/extractor/gelbooru.rs resolve_limited and one-page HTTP fixture; CI 40039969843
   - [x] Count Gelbooru source posts separately from downloadable media so unavailable files never trigger false short-page stops — src/extractor/gelbooru.rs source_post_count and two-page missing-file fixture; CI 40039969843
@@ -437,6 +443,12 @@
   - [x] Expand distinct public collections into ordered, deduplicated media through read-only API requests — src/extractor/wallhaven.rs localhost two-collection HTTP fixture with cross-collection media deduplication and untrusted image rejection; CI 40031267694
   - [x] Bound discovery and gallery HTTP requests globally, preserve useful default page behavior, and test multi-page collection indexes — src/extractor/wallhaven.rs ApiBudget pacing and caps, default-one-page and four-request multi-index HTTP regressions; CI 40031267694
   - [ ] Implement upstream queued-collection message semantics, collection metadata, complete auth and live differential acceptance
+- 🧵 **T536** 4chan bounded public board-to-thread deferred queue and scoped thread messages — `████████░░ 80%`
+  - [x] Translate selected unique 4chan public board index thread IDs into deferred Queue events without eagerly fetching threads — src/extractor/fourchan.rs board_queue_messages/queue_board_at_base and synthetic dedup/page fixtures; CI 40039969843
+  - [x] Cap board queue output to 256 threads and streaming board index JSON to 2 MiB — src/extractor/fourchan.rs MAX_BOARD_QUEUES/MAX_BOARD_INDEX_BYTES and oversized header fixture; CI 40039969843
+  - [x] Route typed board URLs to the native queue engine and verify selective child-thread expansion into real post scopes and media — src/extractor/mod.rs, src/extractor/fourchan.rs filtered_board_queues_feed_true_thread_scopes_and_media_projection; CI 40039969843
+  - [x] Bound individual thread JSON bodies to 4 MiB, reject oversized responses, and preserve legacy attachment identity — src/extractor/fourchan.rs thread_json streaming guard/oversized HTTP fixture, source_post_id and tim separation; CI 40040148553
+  - [ ] Verify complete upstream 4chan/4channel board and thread queue, post filters, filenames, metadata, login variants and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
