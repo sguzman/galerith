@@ -37,7 +37,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbox", "public image pages and bounded galleries"),
     ("moebooru", "post, tag, pool and popular JSON routes"),
     ("philomena", "images, tags, searches and galleries"),
-    ("pixeldrain", "public file, list and nonrecursive filesystem JSON APIs"),
+    (
+        "pixeldrain",
+        "public file, list and nonrecursive filesystem JSON APIs",
+    ),
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
