@@ -1217,6 +1217,38 @@
                 }
               ],
               "progress": 85
+            },
+            {
+              "id": "T514",
+              "emoji": "📦",
+              "name": "Catbox file and album extractor preview",
+              "checks": [
+                {
+                  "title": "Match only known Catbox file and album hosts and routes",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs strict URL matching fixtures; src/extractor/mod.rs; CI 39995628800"
+                },
+                {
+                  "title": "Validate Catbox file URLs, basenames and path traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs safe-name and encoded traversal fixtures; CI 39995628800"
+                },
+                {
+                  "title": "Extract and deduplicate ordered file links from synthetic album HTML",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs independent bounded HTML parser regression; CI 39995628800"
+                },
+                {
+                  "title": "Verify Catbox album HTTP with localhost HTML fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/catbox.rs local TCP server and response fixture; CI 39995628800"
+                },
+                {
+                  "title": "Reproduce upstream album metadata, directory/archive semantics and live-site parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

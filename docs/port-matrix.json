@@ -249,9 +249,14 @@
     {
       "path": "gallery_dl/extractor/catbox.py",
       "module": "catbox",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/catbox.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Public Catbox files and bounded album HTML parsing with strict host checks and synthetic localhost fixtures; CI 39995628800 succeeded; full upstream metadata, directory/archive semantics and live conformance remain unported"
+      ]
     },
     {
       "path": "gallery_dl/extractor/cfake.py",
