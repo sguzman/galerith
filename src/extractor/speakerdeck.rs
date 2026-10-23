@@ -29,18 +29,19 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("speakerdeck.com" | "www.speakerdeck.com"))
+        || !matches!(
+            url.host_str(),
+            Some("speakerdeck.com" | "www.speakerdeck.com")
+        )
     {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
-        [user, slug] if valid_part(user) && valid_part(slug) => {
-            Some(Target::Presentation {
-                user: (*user).to_owned(),
-                slug: (*slug).to_owned(),
-            })
-        }
+        [user, slug] if valid_part(user) && valid_part(slug) => Some(Target::Presentation {
+            user: (*user).to_owned(),
+            slug: (*slug).to_owned(),
+        }),
         _ => None,
     }
 }
@@ -85,10 +86,7 @@ fn slide_media(html: &str) -> Vec<MediaItem> {
         let Some(ext) = name.rsplit_once('.').map(|(_, ext)| ext) else {
             continue;
         };
-        if ext.is_empty()
-            || ext.len() > 12
-            || !ext.bytes().all(|b| b.is_ascii_alphanumeric())
-        {
+        if ext.is_empty() || ext.len() > 12 || !ext.bytes().all(|b| b.is_ascii_alphanumeric()) {
             continue;
         }
         if seen.insert(url.to_string()) {
@@ -144,9 +142,8 @@ async fn resolve_at_base(
                 .and_then(Value::as_str)
                 .ok_or("Speaker Deck oEmbed missing player HTML")?;
             let id = player_id(html).ok_or("Speaker Deck oEmbed missing verified player ID")?;
-            let page = String::from_utf8(
-                read_bytes(client, base.join(&format!("player/{id}"))?).await?,
-            )?;
+            let page =
+                String::from_utf8(read_bytes(client, base.join(&format!("player/{id}"))?).await?)?;
             Ok(slide_media(&page))
         }
     }
