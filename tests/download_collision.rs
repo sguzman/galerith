@@ -48,8 +48,9 @@ async fn concurrent_same_filename_downloads_once_then_skips() {
     });
     let item = extract_direct_media(&format!("http://{addr}/parallel.jpg")).unwrap();
     let c = client();
-    let a = download(&c, &item, &options(path.clone(), false));
-    let b = download(&c, &item, &options(path.clone(), false));
+    let shared_options = options(path.clone(), false);
+    let a = download(&c, &item, &shared_options);
+    let b = download(&c, &item, &shared_options);
     let (a, b) = tokio::join!(a, b);
     let results = [a.unwrap(), b.unwrap()];
     assert_eq!(
