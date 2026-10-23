@@ -835,6 +835,70 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T410",
+              "emoji": "⏩",
+              "name": "Safe finite file-range pushdown and Wallhaven early API stop",
+              "checks": [
+                {
+                  "title": "Calculate conservative finite upper bounds for valid single, stepped and multi-clause file selectors",
+                  "passed": true,
+                  "evidence": "src/range.rs bounded/open-ended tests; CI 40039010520"
+                },
+                {
+                  "title": "Stop Wallhaven HTTP pagination once enough validated, unique media have been collected",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs resolve_at_base_limited and local request-count fixture; CI 40039010520"
+                },
+                {
+                  "title": "Push finite selected-file bounds from typed job dispatcher before parent and child Wallhaven API requests",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs resolve_messages_bounded and source-specific parser; CI 40039010520"
+                },
+                {
+                  "title": "Disable unsafe pushdown with directory-filtered or open-ended selection and preserve legacy extraction",
+                  "passed": true,
+                  "evidence": "src/message.rs scope-aware JobSelection early_file_ceiling, src/range.rs and local regression tests; CI 40039081132"
+                },
+                {
+                  "title": "Implement complete early termination across all upstream paginators with streaming, post and file filters plus live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T411",
+              "emoji": "🧵",
+              "name": "API-backed 4chan thread post grouping and distinct media identity",
+              "checks": [
+                {
+                  "title": "Emit typed directory events from actual 4chan API post numbers, preserving text-only posts",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs thread_messages, source_post_id and synthetic post fixture; CI 40039010520"
+                },
+                {
+                  "title": "Preserve existing tim-based native media identifiers distinct from source post numbers",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs media_from_post + thread_messages regression tests and unchanged legacy projection; CI 40039010520"
+                },
+                {
+                  "title": "Dispatch thread URLs through typed native extraction rather than synthetic per-file directories",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs resolve_messages for fourchan::match_url, CI 40039010520"
+                },
+                {
+                  "title": "Verify 4chan typed post scopes with one local HTTP thread request and malformed attachment handling",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchan.rs resolve_messages_at_base loopback and text/no-file fixtures; CI 40039010520"
+                },
+                {
+                  "title": "Reproduce full upstream thread/board post queue, comments, metadata, filename and archive semantics through reference differential testing",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
