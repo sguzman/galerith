@@ -849,9 +849,29 @@
                   "title": "Verify Danbooru single-artist to tag-query expansion",
                   "passed": true,
                   "evidence": "src/extractor/danbooru.rs two-request localhost artist fixture; CI 39984232755"
+                },
+                {
+                  "title": "Verify requested Danbooru tag-search starting page",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs synthetic page-2/3 API test and URL validation; CI 39987876846"
+                },
+                {
+                  "title": "Verify Danbooru 200-post API pages and short-page termination",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs full-page, tag and popular short-page fixtures; CI 39988426053"
+                },
+                {
+                  "title": "Verify Danbooru random-post JSON with optional tags",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs; src/extractor/mod.rs; two-response localhost fixtures; CI 39988542883"
+                },
+                {
+                  "title": "Recognize legacy Danbooru post, pool and favorite-group links",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs route fixtures; CI 39988716288"
                 }
               ],
-              "progress": 88
+              "progress": 92
             },
             {
               "id": "T506",

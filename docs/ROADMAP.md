@@ -173,7 +173,7 @@
   - [ ] Match upstream directlink URL matching
   - [ ] Generic gallery discovery and crawling
   - [ ] Full reference fixtures
-- 🖌️ **T505** First Danbooru API-backed post and tag extractor — `█████████░ 88%`
+- 🖌️ **T505** First Danbooru API-backed post and tag extractor — `█████████░ 92%`
   - [x] Match Danbooru post and tag search URLs — src/extractor/danbooru.rs; src/extractor/mod.rs
   - [x] Parse JSON media records with safe filenames — src/extractor/danbooru.rs
   - [x] Verify synthetic API parser and CLI tests in Linux CI — GitHub Actions 39898967165: test and release build passed
@@ -182,6 +182,10 @@
   - [x] Verify Danbooru original media-asset API variant selection — src/extractor/danbooru.rs synthetic media-asset fixture; CI 39981891550
   - [x] Verify bounded Danbooru popular feed JSON endpoints — src/extractor/danbooru.rs popular API fixture; CI 39981891550
   - [x] Verify Danbooru single-artist to tag-query expansion — src/extractor/danbooru.rs two-request localhost artist fixture; CI 39984232755
+  - [x] Verify requested Danbooru tag-search starting page — src/extractor/danbooru.rs synthetic page-2/3 API test and URL validation; CI 39987876846
+  - [x] Verify Danbooru 200-post API pages and short-page termination — src/extractor/danbooru.rs full-page, tag and popular short-page fixtures; CI 39988426053
+  - [x] Verify Danbooru random-post JSON with optional tags — src/extractor/danbooru.rs; src/extractor/mod.rs; two-response localhost fixtures; CI 39988542883
+  - [x] Recognize legacy Danbooru post, pool and favorite-group links — src/extractor/danbooru.rs route fixtures; CI 39988716288
 - 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `█████████░ 92%`
   - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
   - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
