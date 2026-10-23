@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███░░░░░░░ 31%` across 42 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███░░░░░░░ 32%` across 43 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -98,7 +98,7 @@
   - [ ] Dedup across URLs/sites
   - [x] Regression tests for parallel tasks — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 
-## 🧩 M2 — Extractor framework and site families — `██░░░░░░░░ 22%`
+## 🧩 M2 — Extractor framework and site families — `███░░░░░░░ 28%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███░░░░░░░ 25%`
@@ -124,7 +124,7 @@
   - [x] Per-site contract assertions — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] CI compatibility matrix
 
-### 🧱 P5 — Shared website families — `██░░░░░░░░ 20%`
+### 🧱 P5 — Shared website families — `███░░░░░░░ 29%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -151,6 +151,11 @@
   - [x] Parse JSON media records with safe filenames — src/extractor/danbooru.rs
   - [x] Verify synthetic API parser and CLI tests in Linux CI — GitHub Actions 39898967165: test and release build passed
   - [ ] Reproduce complete upstream Danbooru semantics and authentication
+- 🦊 **T506** Initial e621, e926 and e6ai JSON post and tag extraction — `████████░░ 75%`
+  - [x] Match only documented post and tag-search URL subsets — src/extractor/e621.rs; src/extractor/mod.rs
+  - [x] Parse media and skip unavailable URLs safely — src/extractor/e621.rs local JSON parser fixtures
+  - [x] Verify post and paginated tag-search API fixtures in Linux CI — GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)
+  - [ ] Implement upstream pools, artist, favorite, popular, account and metadata behavior
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

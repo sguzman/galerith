@@ -381,9 +381,14 @@
     {
       "path": "gallery_dl/extractor/e621.py",
       "module": "e621",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/e621.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Native posts and bounded tag search on e621/e926/e6ai, synthetic fixtures, CI 39949514147; full upstream classes and metadata remain unported"
+      ]
     },
     {
       "path": "gallery_dl/extractor/eporner.py",

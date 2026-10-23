@@ -690,6 +690,33 @@
                 }
               ],
               "progress": 75
+            },
+            {
+              "id": "T506",
+              "emoji": "🦊",
+              "name": "Initial e621, e926 and e6ai JSON post and tag extraction",
+              "checks": [
+                {
+                  "title": "Match only documented post and tag-search URL subsets",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs; src/extractor/mod.rs"
+                },
+                {
+                  "title": "Parse media and skip unavailable URLs safely",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs local JSON parser fixtures"
+                },
+                {
+                  "title": "Verify post and paginated tag-search API fixtures in Linux CI",
+                  "passed": true,
+                  "evidence": "GitHub Actions 39949514147 (format, Clippy, synthetic API tests, release build)"
+                },
+                {
+                  "title": "Implement upstream pools, artist, favorite, popular, account and metadata behavior",
+                  "passed": false
+                }
+              ],
+              "progress": 75
             }
           ]
         }

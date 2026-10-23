@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 2 · Not ported: 270.**
+**Complete: 0 · Partial: 3 · Not ported: 269.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -60,7 +60,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/directlink.py` | 🟡 Partial | `src/lib.rs` |
 | `gallery_dl/extractor/discord.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/dynastyscans.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/e621.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/e621.py` | 🟡 Partial | `src/extractor/e621.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/eporner.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/erome.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/everia.py` | ⚪ Not ported | — |
