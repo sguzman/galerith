@@ -705,6 +705,127 @@ mod tests {
         server.await.unwrap();
     }
 
+    #[tokio::test]
+    async fn finite_media_limit_avoids_fetching_later_search_pages() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = socket.read(&mut request).await.unwrap();
+            let request = String::from_utf8_lossy(&request[..n]);
+            assert!(request.starts_with("GET /api/v1/search?q=blue&page=1 HTTP/1.1"));
+            let body = serde_json::json!({
+                "data": [
+                    {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                    {"id":"ze1p56","path":"https://w.wallhaven.cc/full/ze/wallhaven-ze1p56.png"}
+                ],
+                "meta":{"current_page":1,"last_page":99}
+            })
+            .to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+            // Closing the listener forces an error if the extractor tries
+            // to request page two despite already having enough media.
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base_limited(
+            &Client::new(),
+            &base,
+            &Target::Search {
+                query: "blue".into(),
+            },
+            5,
+            1,
+        )
+        .await
+        .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].filename, "wallhaven-94x38z.jpg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn finite_media_limit_counts_only_valid_unique_wallpapers() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (page, body) in [
+                (
+                    1,
+                    serde_json::json!({
+                        "data": [
+                            {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                            {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                            {"id":"unsafe","path":"https://evil.example/full/unsafe.jpg"}
+                        ],
+                        "meta":{"current_page":1,"last_page":99}
+                    }),
+                ),
+                (
+                    2,
+                    serde_json::json!({
+                        "data": [
+                            {"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"},
+                            {"id":"ze1p56","path":"https://w.wallhaven.cc/full/ze/wallhaven-ze1p56.png"}
+                        ],
+                        "meta":{"current_page":2,"last_page":99}
+                    }),
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                let request = String::from_utf8_lossy(&request[..n]);
+                let url = Url::parse(&format!(
+                    "http://localhost{}",
+                    request.lines().next().unwrap().split_whitespace().nth(1).unwrap()
+                ))
+                .unwrap();
+                assert_eq!(url.path(), "/api/v1/search");
+                assert_eq!(
+                    url.query_pairs().find(|(key, _)| key == "page").unwrap().1,
+                    page.to_string()
+                );
+                let body = body.to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+            // No third page should ever be requested to satisfy two items.
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base_limited(
+            &Client::new(),
+            &base,
+            &Target::Search {
+                query: "blue".into(),
+            },
+            5,
+            2,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            items.iter().map(|item| item.filename.as_str()).collect::<Vec<_>>(),
+            ["wallhaven-94x38z.jpg", "wallhaven-ze1p56.png"]
+        );
+        server.await.unwrap();
+    }
+
     #[test]
     fn never_silently_truncates_valid_api_image_pages() {
         let many: Vec<_> = (0..65)
