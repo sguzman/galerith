@@ -17,6 +17,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
     if foolfuuka::match_url(input).is_some()
         || foolfuuka::match_board_url(input).is_some()
         || foolfuuka::match_gallery_url(input).is_some()
+        || foolfuuka::match_search_url(input).is_some()
     {
         Some("foolfuuka")
     } else if philomena::match_url(input).is_some() {
@@ -53,6 +54,9 @@ pub async fn resolve(
     }
     if let Some(target) = foolfuuka::match_gallery_url(input) {
         return foolfuuka::resolve_gallery(client, target, max_pages).await;
+    }
+    if let Some(target) = foolfuuka::match_search_url(input) {
+        return foolfuuka::resolve_search(client, target, max_pages).await;
     }
     if let Some(target) = philomena::match_url(input) {
         return philomena::resolve(client, target, max_pages).await;
