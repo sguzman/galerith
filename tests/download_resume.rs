@@ -1,0 +1,179 @@
+//! Resumable transfers are tested exclusively against synthetic localhost HTTP.
+use galerith::{
+    download::{download, DownloadOptions, DownloadOutcome},
+    extract_direct_media, MediaItem,
+};
+use std::{fs, path::PathBuf, time::Duration};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    time::timeout,
+};
+
+fn dir(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("galerith-resume-{label}-{}", std::process::id()))
+}
+fn client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap()
+}
+fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
+    DownloadOptions { destination, retries, no_skip: false }
+}
+async fn request(stream: &mut TcpStream) -> String {
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 1024];
+    loop {
+        let n = stream.read(&mut buffer).await.unwrap();
+        assert!(n > 0, "peer closed before request headers");
+        bytes.extend_from_slice(&buffer[..n]);
+        assert!(bytes.len() <= 16_384, "unexpected oversized request");
+        if bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+            return String::from_utf8(bytes).unwrap().to_ascii_lowercase();
+        }
+    }
+}
+async fn next(listener: &TcpListener) -> TcpStream {
+    let (stream, _) = timeout(Duration::from_secs(5), listener.accept())
+        .await.expect("HTTP request timeout").unwrap();
+    stream
+}
+fn clean(path: &PathBuf) {
+    let _ = fs::remove_dir_all(path);
+}
+
+#[tokio::test]
+async fn resumes_interrupted_http_body_with_matching_etag() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let req = request(&mut first).await;
+        assert!(!req.contains("\r\nrange:"));
+        first.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"same\"\r\nConnection: close\r\n\r\nABCD"
+        ).await.unwrap();
+        drop(first);
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: \"same\"\r\n"), "{req}");
+        second.write_all(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-9/10\r\nContent-Length: 6\r\nETag: \"same\"\r\nConnection: close\r\n\r\nEFGHIJ"
+        ).await.unwrap();
+    });
+    let path = dir("same-etag");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/a.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2)).await.unwrap(),
+        DownloadOutcome::Saved(path.join("a.jpg"))
+    );
+    assert_eq!(fs::read(path.join("a.jpg")).unwrap(), b"ABCDEFGHIJ");
+    assert!(!path.join("a.jpg.part").exists());
+    assert!(!path.join("a.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn persists_verified_partial_across_invocations() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        request(&mut first).await;
+        first.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nConnection: close\r\n\r\n12"
+        ).await.unwrap();
+        drop(first);
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(req.contains("\r\nrange: bytes=2-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: wed, 21 oct 2015 07:28:00 gmt\r\n"), "{req}");
+        second.write_all(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 2-7/8\r\nContent-Length: 6\r\nConnection: close\r\n\r\n345678"
+        ).await.unwrap();
+    });
+    let path = dir("cross-run");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/b.png")).unwrap();
+    assert!(download(&client(), &item, &settings(path.clone(), 0)).await.is_err());
+    assert_eq!(fs::read(path.join("b.png.part")).unwrap(), b"12");
+    assert!(path.join("b.png.part.json").exists());
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 0)).await.unwrap(),
+        DownloadOutcome::Saved(path.join("b.png"))
+    );
+    assert_eq!(fs::read(path.join("b.png")).unwrap(), b"12345678");
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn ignores_outdated_partial_when_server_sends_full_body() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        request(&mut first).await;
+        first.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nETag: \"old\"\r\nConnection: close\r\n\r\nAA"
+        ).await.unwrap();
+        drop(first);
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(req.contains("\r\nrange: bytes=2-\r\n"));
+        second.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nETag: \"new\"\r\nConnection: close\r\n\r\nZZZZZZ"
+        ).await.unwrap();
+    });
+    let path = dir("ifrange-fallback");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/c.webp")).unwrap();
+    download(&client(), &item, &settings(path.clone(), 2)).await.unwrap();
+    assert_eq!(fs::read(path.join("c.webp")).unwrap(), b"ZZZZZZ");
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn avoids_appending_unowned_partial_without_sidecar() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut stream = next(&listener).await;
+        let req = request(&mut stream).await;
+        assert!(!req.contains("\r\nrange:"));
+        stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD"
+        ).await.unwrap();
+    });
+    let path = dir("orphan");
+    clean(&path);
+    fs::create_dir_all(&path).unwrap();
+    fs::write(path.join("orphan.jpg.part"), b"OLD PARTIAL CONTENT").unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/orphan.jpg")).unwrap();
+    download(&client(), &item, &settings(path.clone(), 0)).await.unwrap();
+    assert_eq!(fs::read(path.join("orphan.jpg")).unwrap(), b"GOOD");
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn rejects_path_traversal_in_public_media_item() {
+    let path = dir("unsafe");
+    clean(&path);
+    let item = MediaItem {
+        url: "https://example.test/hello.jpg".into(),
+        filename: "../outside.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let err = download(&client(), &item, &settings(path.clone(), 0)).await
+        .unwrap_err().to_string();
+    assert!(err.contains("unsafe output filename"));
+    assert!(!path.exists());
+}
