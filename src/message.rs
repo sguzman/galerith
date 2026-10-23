@@ -692,15 +692,12 @@ mod tests {
             files: Some(IndexRange::parse("2").unwrap()),
             children: None,
         };
-        let output = traverse_queue_job_filtered_with(
-            from_media(media),
-            0,
-            0,
-            &selection,
-            |_| async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) },
-        )
-        .await
-        .unwrap();
+        let output =
+            traverse_queue_job_filtered_with(from_media(media), 0, 0, &selection, |_| async {
+                Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+            })
+            .await
+            .unwrap();
         assert_eq!(output.len(), 3);
         assert!(matches!(output[0], ExtractorMessage::Directory { .. }));
         assert!(matches!(output[1], ExtractorMessage::Directory { .. }));
