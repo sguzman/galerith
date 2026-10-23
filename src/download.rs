@@ -8,7 +8,12 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{error::Error, io, path::{Path, PathBuf}, time::Duration};
+use std::{
+    error::Error,
+    io,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tokio::{fs, io::AsyncWriteExt};
 
 #[derive(Debug, Clone)]
@@ -42,7 +47,9 @@ impl PartMetadata {
 
     fn validator(&self) -> Option<&str> {
         // Weak entity tags are unsuitable for If-Range.
-        self.etag.as_deref().filter(|tag| !tag.starts_with("W/"))
+        self.etag
+            .as_deref()
+            .filter(|tag| !tag.starts_with("W/"))
             .or(self.last_modified.as_deref())
     }
 }
@@ -53,7 +60,12 @@ fn fingerprint(source: &str) -> String {
 }
 
 fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Option<String> {
-    response.headers().get(name)?.to_str().ok().map(str::to_owned)
+    response
+        .headers()
+        .get(name)?
+        .to_str()
+        .ok()
+        .map(str::to_owned)
 }
 
 fn error(message: &str) -> Box<dyn Error + Send + Sync> {
@@ -75,9 +87,7 @@ fn resumed_length(raw: &str, offset: u64) -> Option<(u64, u64)> {
     Some((end.checked_sub(start)?.checked_add(1)?, total))
 }
 
-async fn partial_info(path: &Path, metadata_path: &Path, url: &str)
-    -> (u64, Option<PartMetadata>)
-{
+async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Option<PartMetadata>) {
     let size = match fs::metadata(path).await {
         Ok(info) if info.is_file() => info.len(),
         _ => return (0, None),
@@ -85,8 +95,11 @@ async fn partial_info(path: &Path, metadata_path: &Path, url: &str)
     if size == 0 {
         return (0, None);
     }
-    let meta = match fs::read(metadata_path).await
-        .ok().and_then(|bytes| serde_json::from_slice::<PartMetadata>(&bytes).ok()) {
+    let meta = match fs::read(metadata_path)
+        .await
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<PartMetadata>(&bytes).ok())
+    {
         Some(meta) => meta,
         None => return (0, None),
     };
@@ -137,16 +150,21 @@ pub async fn download(
         return Ok(DownloadOutcome::Skipped(target));
     }
     let part = options.destination.join(format!("{}.part", item.filename));
-    let metadata = options.destination.join(format!("{}.part.json", item.filename));
+    let metadata = options
+        .destination
+        .join(format!("{}.part.json", item.filename));
 
     for attempt in 0..=options.retries {
         let (offset, prior) = partial_info(&part, &metadata, &item.url).await;
         let mut request = client.get(&item.url);
         if offset > 0 {
-            request = request
-                .header(RANGE, format!("bytes={offset}-"))
-                .header(IF_RANGE, prior.as_ref().and_then(PartMetadata::validator)
-                    .ok_or_else(|| error("resume validator missing"))?);
+            request = request.header(RANGE, format!("bytes={offset}-")).header(
+                IF_RANGE,
+                prior
+                    .as_ref()
+                    .and_then(PartMetadata::validator)
+                    .ok_or_else(|| error("resume validator missing"))?,
+            );
         }
 
         let response = match request.send().await {
@@ -172,7 +190,9 @@ pub async fn download(
             if attempt < options.retries {
                 continue;
             }
-            return Err(error("range not satisfiable; partial reset, retries exhausted"));
+            return Err(error(
+                "range not satisfiable; partial reset, retries exhausted",
+            ));
         }
         let mut response = response.error_for_status()?;
         let append = offset > 0 && status == StatusCode::PARTIAL_CONTENT;
@@ -202,8 +222,15 @@ pub async fn download(
                 // accepted, but conflicting validators are never appended.
                 let new_etag = header(&response, ETAG);
                 let new_modified = header(&response, LAST_MODIFIED);
-                if old.etag.as_ref().zip(new_etag.as_ref()).is_some_and(|(a, b)| a != b)
-                    || old.last_modified.as_ref().zip(new_modified.as_ref())
+                if old
+                    .etag
+                    .as_ref()
+                    .zip(new_etag.as_ref())
+                    .is_some_and(|(a, b)| a != b)
+                    || old
+                        .last_modified
+                        .as_ref()
+                        .zip(new_modified.as_ref())
                         .is_some_and(|(a, b)| a != b)
                 {
                     invalidate(&part, &metadata).await?;
@@ -225,7 +252,8 @@ pub async fn download(
             fs::write(&metadata, serde_json::to_vec(&info)?).await?;
         }
 
-        let expected_body = resume_range.map(|(body, _)| body)
+        let expected_body = resume_range
+            .map(|(body, _)| body)
             .or_else(|| response.content_length());
         let mut received = 0_u64;
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;

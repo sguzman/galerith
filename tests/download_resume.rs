@@ -20,7 +20,11 @@ fn client() -> reqwest::Client {
         .unwrap()
 }
 fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
-    DownloadOptions { destination, retries, no_skip: false }
+    DownloadOptions {
+        destination,
+        retries,
+        no_skip: false,
+    }
 }
 async fn request(stream: &mut TcpStream) -> String {
     let mut bytes = Vec::new();
@@ -37,7 +41,9 @@ async fn request(stream: &mut TcpStream) -> String {
 }
 async fn next(listener: &TcpListener) -> TcpStream {
     let (stream, _) = timeout(Duration::from_secs(5), listener.accept())
-        .await.expect("HTTP request timeout").unwrap();
+        .await
+        .expect("HTTP request timeout")
+        .unwrap();
     stream
 }
 fn clean(path: &PathBuf) {
@@ -68,7 +74,9 @@ async fn resumes_interrupted_http_body_with_matching_etag() {
     clean(&path);
     let item = extract_direct_media(&format!("http://{addr}/a.jpg")).unwrap();
     assert_eq!(
-        download(&client(), &item, &settings(path.clone(), 2)).await.unwrap(),
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
         DownloadOutcome::Saved(path.join("a.jpg"))
     );
     assert_eq!(fs::read(path.join("a.jpg")).unwrap(), b"ABCDEFGHIJ");
@@ -92,7 +100,10 @@ async fn persists_verified_partial_across_invocations() {
         let mut second = next(&listener).await;
         let req = request(&mut second).await;
         assert!(req.contains("\r\nrange: bytes=2-\r\n"), "{req}");
-        assert!(req.contains("\r\nif-range: wed, 21 oct 2015 07:28:00 gmt\r\n"), "{req}");
+        assert!(
+            req.contains("\r\nif-range: wed, 21 oct 2015 07:28:00 gmt\r\n"),
+            "{req}"
+        );
         second.write_all(
             b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 2-7/8\r\nContent-Length: 6\r\nConnection: close\r\n\r\n345678"
         ).await.unwrap();
@@ -100,11 +111,15 @@ async fn persists_verified_partial_across_invocations() {
     let path = dir("cross-run");
     clean(&path);
     let item = extract_direct_media(&format!("http://{addr}/b.png")).unwrap();
-    assert!(download(&client(), &item, &settings(path.clone(), 0)).await.is_err());
+    assert!(download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .is_err());
     assert_eq!(fs::read(path.join("b.png.part")).unwrap(), b"12");
     assert!(path.join("b.png.part.json").exists());
     assert_eq!(
-        download(&client(), &item, &settings(path.clone(), 0)).await.unwrap(),
+        download(&client(), &item, &settings(path.clone(), 0))
+            .await
+            .unwrap(),
         DownloadOutcome::Saved(path.join("b.png"))
     );
     assert_eq!(fs::read(path.join("b.png")).unwrap(), b"12345678");
@@ -133,7 +148,9 @@ async fn ignores_outdated_partial_when_server_sends_full_body() {
     let path = dir("ifrange-fallback");
     clean(&path);
     let item = extract_direct_media(&format!("http://{addr}/c.webp")).unwrap();
-    download(&client(), &item, &settings(path.clone(), 2)).await.unwrap();
+    download(&client(), &item, &settings(path.clone(), 2))
+        .await
+        .unwrap();
     assert_eq!(fs::read(path.join("c.webp")).unwrap(), b"ZZZZZZ");
     server.await.unwrap();
     clean(&path);
@@ -147,16 +164,19 @@ async fn avoids_appending_unowned_partial_without_sidecar() {
         let mut stream = next(&listener).await;
         let req = request(&mut stream).await;
         assert!(!req.contains("\r\nrange:"));
-        stream.write_all(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD"
-        ).await.unwrap();
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD")
+            .await
+            .unwrap();
     });
     let path = dir("orphan");
     clean(&path);
     fs::create_dir_all(&path).unwrap();
     fs::write(path.join("orphan.jpg.part"), b"OLD PARTIAL CONTENT").unwrap();
     let item = extract_direct_media(&format!("http://{addr}/orphan.jpg")).unwrap();
-    download(&client(), &item, &settings(path.clone(), 0)).await.unwrap();
+    download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .unwrap();
     assert_eq!(fs::read(path.join("orphan.jpg")).unwrap(), b"GOOD");
     server.await.unwrap();
     clean(&path);
@@ -172,8 +192,10 @@ async fn rejects_path_traversal_in_public_media_item() {
         extractor: "directlink",
         post_id: None,
     };
-    let err = download(&client(), &item, &settings(path.clone(), 0)).await
-        .unwrap_err().to_string();
+    let err = download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("unsafe output filename"));
     assert!(!path.exists());
 }
