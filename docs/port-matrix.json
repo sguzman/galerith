@@ -1891,7 +1891,7 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent read-only Wallhaven v1 API preview for public wallpapers, q-only searches, and user uploads; approved CDN URL/filename checks, 2 MiB JSON limit, 1400ms paging, resource caps and offline tests; GitHub Actions 40026953430 passed. Full search options, collections, private/authenticated media, metadata/archive and live upstream behavior not accepted."
+        "Independent Wallhaven public wallpaper, q search, uploads and public favorites/{id} collection preview; official JSON API, safe media URL/ID validation, bounded response/pagination/pacing, duplicate suppression and synthetic HTTP fixtures; CI 40027542231 passed. Collection enumeration, advanced filtering, auth/private data, full metadata/archive and live parity outstanding."
       ]
     },
     {
