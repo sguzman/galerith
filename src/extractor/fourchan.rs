@@ -259,7 +259,11 @@ async fn resolve_messages_at_base(
     target: Thread,
     api: &Url,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    thread_messages(&thread_json(client, &target, api).await?, &target.board, target.id)
+    thread_messages(
+        &thread_json(client, &target, api).await?,
+        &target.board,
+        target.id,
+    )
 }
 
 /// Public typed 4chan thread preview with API-backed post grouping.
@@ -412,10 +416,8 @@ mod tests {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut buf = [0_u8; 4096];
             let count = socket.read(&mut buf).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&buf[..count])
-                    .starts_with("GET /g/thread/120.json HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&buf[..count])
+                .starts_with("GET /g/thread/120.json HTTP/1.1"));
             let body = json!({"posts":[
                 {"no":120,"tim":90001,"filename":"first","ext":".png"},
                 {"no":121,"com":"text only"}
