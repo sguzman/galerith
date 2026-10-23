@@ -102,7 +102,11 @@ fn error_output_never_prints_signed_query_parameters() {
 fn range_selection_is_one_based_and_rejects_zero() {
     let url = "https://example.org/media.jpg";
     let first = run(&["--range", "1", "--get-urls", url]);
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), url);
 
     let second = run(&["--range", "2", "--get-urls", url]);
