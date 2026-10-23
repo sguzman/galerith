@@ -284,6 +284,9 @@ pub async fn resolve_messages(
     if let Some(wallhaven::Target::Collections { user }) = wallhaven::match_url(input) {
         return wallhaven::queued_collections(client, &user, max_pages).await;
     }
+    if let Some(target) = fourchan::match_url(input) {
+        return fourchan::resolve_messages(client, target).await;
+    }
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
