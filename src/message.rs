@@ -495,4 +495,27 @@ mod tests {
         assert!(child["metadata"].get("extractor").is_none());
         assert!(child["metadata"].get("post_id").is_none());
     }
+
+    #[tokio::test]
+    async fn equivalent_queue_urls_share_one_cycle_identity() {
+        use std::cell::Cell;
+        let calls = Cell::new(0usize);
+        let inputs = vec![
+            queued_url("https://EXAMPLE.org/album?id=1#first".into(), Metadata::new()),
+            queued_url("https://example.org/album?id=1".into(), Metadata::new()),
+            queued_url("https://example.org/album?id=2".into(), Metadata::new()),
+        ];
+        let output = traverse_queue_job_with(inputs, 1, 16, |_| {
+            calls.set(calls.get() + 1);
+            async { Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new()) }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls.get(), 2);
+        assert_eq!(output.len(), 3);
+        assert_eq!(
+            serde_json::to_value(&output[0]).unwrap()["url"],
+            "https://EXAMPLE.org/album?id=1#first"
+        );
+    }
 }
