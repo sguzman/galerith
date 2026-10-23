@@ -58,7 +58,9 @@ pub fn match_url(input: &str) -> Option<Target> {
             Some(Target::Search { query, sort: None })
         }
         ["hashtag", raw] | ["hashtag", raw, "top"] | ["hashtag", raw, "latest"] => {
-            let hashtag = percent_encoding::percent_decode_str(raw).decode_utf8().ok()?;
+            let hashtag = percent_encoding::percent_decode_str(raw)
+                .decode_utf8()
+                .ok()?;
             if hashtag.is_empty()
                 || hashtag.len() > 128
                 || !hashtag
@@ -316,7 +318,7 @@ async fn resolve_at_base(
     target: Target,
     max_pages: u16,
     base: &Url,
- ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Target::Search { query, sort } = &target {
         return resolve_search(client, base, query, sort.as_deref(), max_pages).await;
     }
