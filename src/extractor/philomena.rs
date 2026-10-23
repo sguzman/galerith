@@ -39,6 +39,11 @@ pub fn match_url(input: &str) -> Option<Target> {
     let (host, category, filter_id) = host_info(url.host_str()?)?;
     let segments: Vec<_> = url.path_segments()?.filter(|x| !x.is_empty()).collect();
     let query = match segments.as_slice() {
+        ["search"] => Query::Search(
+            url.query_pairs()
+                .find(|(k, _)| k == "q")
+                .map(|(_, v)| v.into_owned())?,
+        ),
         ["images", id] | [id] => {
             let id = id.parse::<u64>().ok()?;
             if id == 0 {
@@ -46,11 +51,6 @@ pub fn match_url(input: &str) -> Option<Target> {
             }
             Query::Image(id)
         }
-        ["search"] => Query::Search(
-            url.query_pairs()
-                .find(|(k, _)| k == "q")
-                .map(|(_, v)| v.into_owned())?,
-        ),
         ["galleries", id] => {
             let id = id.parse::<u64>().ok()?;
             if id == 0 {
