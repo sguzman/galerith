@@ -19,7 +19,9 @@ pub enum Target {
 fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
-        && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
@@ -108,8 +110,7 @@ fn media_filename(url: &Url, id: &str, index: usize) -> Option<String> {
         return None;
     }
     let clean = safe_filename(id);
-    (!matches!(clean.as_str(), "" | "." | ".."))
-        .then(|| format!("{index:04}_{clean}.{extension}"))
+    (!matches!(clean.as_str(), "" | "." | "..")).then(|| format!("{index:04}_{clean}.{extension}"))
 }
 
 fn page_items(
@@ -184,8 +185,8 @@ async fn resolve_at_base(
         .pointer("/links/~1rels~1space_album_images_videos/href")
         .and_then(Value::as_str)
         .ok_or("Lightroom album missing images/videos API link")?;
-    let mut next = scoped_url(first, &base, root)
-        .ok_or("Lightroom image-list link has an unapproved host")?;
+    let mut next =
+        scoped_url(first, &base, root).ok_or("Lightroom image-list link has an unapproved host")?;
     let mut result = Vec::new();
     let mut seen_assets = HashSet::new();
     let mut visited = HashSet::new();
@@ -285,7 +286,10 @@ mod tests {
         let images = page_items(&page, &base, &base, 1, &mut seen);
         assert_eq!(images.len(), 2);
         assert_eq!(images[0].filename, "0001_image1.webp");
-        assert_eq!(images[0].url, "https://lightroom.adobe.com/image-large.webp");
+        assert_eq!(
+            images[0].url,
+            "https://lightroom.adobe.com/image-large.webp"
+        );
         assert_eq!(images[1].filename, "0002_image3.png");
     }
 
@@ -309,7 +313,10 @@ mod tests {
 {"resources":[{"asset":{"id":"second","links":{"/rels/rendition_type/800":{"href":"https://assets.adobe.io/second.webp"}}}}],"links":{}}"#;
             for (expected, body) in [
                 ("GET /shares/abcdef HTTP/1.1", album),
-                ("GET /album/page1 HTTP/1.1", first.replace("NEXT_PAGE_MARKER", &format!("{base}album/page2"))),
+                (
+                    "GET /album/page1 HTTP/1.1",
+                    first.replace("NEXT_PAGE_MARKER", &format!("{base}album/page2")),
+                ),
                 ("GET /album/page2 HTTP/1.1", second.to_owned()),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
@@ -328,7 +335,9 @@ mod tests {
         let result = resolve_at_base(
             &Client::new(),
             &root,
-            Target::Share { id: "abcdef".into() },
+            Target::Share {
+                id: "abcdef".into(),
+            },
             2,
         )
         .await
