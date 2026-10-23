@@ -977,4 +977,89 @@ mod tests {
         assert_eq!(items[0].filename, "wallhaven-94x38z.jpg");
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn collection_index_continuation_is_bounded_before_album_expansion() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let pages = [
+                (
+                    "/api/v1/collections/example-1",
+                    serde_json::json!({
+                        "data":[{"id":12345}],
+                        "meta":{"current_page":1,"last_page":2}
+                    }),
+                ),
+                (
+                    "/api/v1/collections/example-1?page=2",
+                    serde_json::json!({
+                        "data":[{"id":67890},{"id":12345}],
+                        "meta":{"current_page":2,"last_page":2}
+                    }),
+                ),
+                (
+                    "/api/v1/collections/example-1/12345?page=1",
+                    serde_json::json!({
+                        "data":[{"id":"94x38z","path":"https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg"}],
+                        "meta":{"current_page":1,"last_page":1}
+                    }),
+                ),
+                (
+                    "/api/v1/collections/example-1/67890?page=1",
+                    serde_json::json!({
+                        "data":[{"id":"a1b2c3","path":"https://w.wallhaven.cc/full/a1/wallhaven-a1b2c3.jpg"}],
+                        "meta":{"current_page":1,"last_page":1}
+                    }),
+                ),
+            ];
+            for (expected, data) in pages {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                loop {
+                    let mut bytes = [0_u8; 2048];
+                    let n = socket.read(&mut bytes).await.unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&bytes[..n]);
+                    assert!(request.len() <= 8192);
+                    if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let header = String::from_utf8(request).unwrap();
+                let first = header.lines().next().unwrap();
+                assert!(first.starts_with(&format!("GET {expected} HTTP/1.1")), "{first}");
+                let body = data.to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/api/")).unwrap();
+        let items = resolve_at_base(
+            &Client::new(),
+            &base,
+            &Target::Collections {
+                user: "example-1".into(),
+            },
+            3,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            items.iter().map(|x| x.filename.as_str()).collect::<Vec<_>>(),
+            ["wallhaven-94x38z.jpg", "wallhaven-a1b2c3.jpg"]
+        );
+        tokio::time::timeout(Duration::from_secs(15), server)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
 }
