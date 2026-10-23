@@ -894,9 +894,14 @@
     {
       "path": "gallery_dl/extractor/lexica.py",
       "module": "lexica",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/lexica.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Lexica query/POST cursor extractor preview and offline HTTP regression tests committed, awaiting push CI. Prompt metadata, complete filename/archive behavior and live upstream differential parity are not accepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/lightroom.py",
