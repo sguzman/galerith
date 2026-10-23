@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 50%` across 67 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 50%` across 68 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 69%`
+### 🧱 P5 — Shared website families — `███████░░░ 70%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -322,6 +322,12 @@
   - [x] Support public single-download and wallpaper-picture fallback — src/extractor/wallpapercave.rs tdownload and wallpaper-picture synthetic markup fixtures; CI 40008761943
   - [x] Read bounded public wallpaper HTML via local HTTP — src/extractor/wallpapercave.rs localhost image-link fixture, 2 MiB HTML guard; CI 40008761943
   - [ ] Match all upstream WallpaperCave URL/media and metadata/archive/live acceptance behaviors
+- 📷 **T524** Comedy Wildlife Photography gallery media preview — `████████░░ 80%`
+  - [x] Recognize supported public section/title PHP gallery routes and exact hosts — src/extractor/comedywildlifephoto.rs URL path rejection and src/extractor/mod.rs dispatcher tests; CI 40010682321
+  - [x] Extract ordered gallery image links with validated media origins and deduplication — src/extractor/comedywildlifephoto.rs figure parsing, off-site and duplicate media fixtures; CI 40010682321
+  - [x] Use numbered gallery image filenames in preview responses — src/extractor/comedywildlifephoto.rs three-digit indexing and filename regression fixtures; CI 40010682321
+  - [x] Verify bounded public gallery HTML reads with localhost HTTP — src/extractor/comedywildlifephoto.rs 2 MiB incremental HTML bound and local TCP gallery fixture; CI 40010682321
+  - [ ] Reproduce figure dimensions/captions, section/title metadata, archives, all upstream behavior and live differential tests
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

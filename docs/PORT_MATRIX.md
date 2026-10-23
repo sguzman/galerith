@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 20 · Not ported: 252.**
+**Complete: 0 · Partial: 21 · Not ported: 251.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -46,7 +46,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/chevereto.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/cien.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/civitai.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/comedywildlifephoto.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/comedywildlifephoto.py` | 🟡 Partial | `src/extractor/comedywildlifephoto.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/comick.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/comicvine.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/common.py` | ⚪ Not ported | — |

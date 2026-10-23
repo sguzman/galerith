@@ -289,9 +289,14 @@
     {
       "path": "gallery_dl/extractor/comedywildlifephoto.py",
       "module": "comedywildlifephoto",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/comedywildlifephoto.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Comedy Wildlife Photography section/title PHP gallery image preview, bounded HTML, strictly scoped media hosts, ordered deduplicated images and localhost synthetic HTTP tests; CI 40010682321 passed; full metadata/captions/dimensions, archive and live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/comick.py",
