@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `█████░░░░░ 49%` across 65 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `█████░░░░░ 49%` across 66 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `██████░░░░ 62%`
+## 🧩 M2 — Extractor framework and site families — `██████░░░░ 63%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `████░░░░░░ 37%`
@@ -152,7 +152,7 @@
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
 
-### 🧱 P5 — Shared website families — `███████░░░ 68%`
+### 🧱 P5 — Shared website families — `███████░░░ 69%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -310,6 +310,12 @@
   - [x] Validate slide hosts, preserve slide order and deduplicate — src/extractor/speakerdeck.rs strict CDN and ordered-slide HTML fixtures; CI 40007193042
   - [x] Bound metadata and player HTML transfer sizes and slide count — src/extractor/speakerdeck.rs 2 MiB buffered response limit and 2000-slide parsing bound; CI 40007193042
   - [ ] Port complete metadata, filename/archive behavior and live source parity
+- 🏞️ **T522** Imgth gallery originals and bounded pagination preview — `████████░░ 80%`
+  - [x] Recognize exact public Imgth gallery ID URL family — src/extractor/imgth.rs gallery numeric ID validation and host URL regression; src/extractor/mod.rs; CI 40008050952
+  - [x] Rewrite bounded safe thumbnail paths to Imgth original images — src/extractor/imgth.rs thumbnail-to-original and hostile URI fixture; CI 40008050952
+  - [x] Deduplicate and preserve gallery originals across public listing pages — src/extractor/imgth.rs two-page multi-request localhost HTML fixture; CI 40008050952
+  - [x] Apply page count and HTML response bounds — src/extractor/imgth.rs max_pages, per-page 2 MiB transfer and 2000 image bound; CI 40008050952
+  - [ ] Reproduce gallery metadata, title/date/archive and full upstream/live behavior
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

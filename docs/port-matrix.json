@@ -739,9 +739,14 @@
     {
       "path": "gallery_dl/extractor/imgth.py",
       "module": "imgth",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imgth.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Imgth gallery first and next-page thumbnail-to-original media extraction with 2 MiB page cap, dedup and localhost HTML pagination fixture; CI 40008050952 verified. Full metadata/archive/naming/live parity missing"
+      ]
     },
     {
       "path": "gallery_dl/extractor/imgur.py",

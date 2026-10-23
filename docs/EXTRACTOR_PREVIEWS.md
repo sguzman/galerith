@@ -15,6 +15,7 @@ Every row here represents **partial functionality**, not a fully ported upstream
 | `imgbb` | `ibb.co/ID` and `ibb.co/album/ID` | Public single-image og:image extraction and bounded first-page album image objects, strict CDN hosts and deduplication | Authenticated users, album pagination, user galleries, metadata, original naming and live conformance |
 | `imgbox` | `imgbox.com`, `www.imgbox.com`, `i.imgbox.com`, and canonical `imagesN.imgbox.com` image IDs, plus `/g/ID` galleries | Original image links parsed from public HTML with CDN checks, bounded page reads, deduplicated gallery image keys and local three-request extraction fixtures | Full metadata, archives, filenames, pagination/concurrency behavior and live acceptance |
 | `imgpile` | `imgpile.com`/`www.imgpile.com` posts (`/p/SLUG`) and public profiles (`/u/NAME`) | Checked media links/IDs, bounded post HTML, profile JSON pages (`--max-pages`), origin/actor/public-visibility guarded cursors and deduplicated media | Complete metadata, upstream archive/naming/filters, authentication and opt-in live reference acceptance |
+| `imgth` | `imgth.com/gallery/ID` and optional title slug | Bounded gallery page traversal, ordered thumbnail-to-original URL transformation and safe gallery-host verification | Complete gallery metadata, archive/filename parity and live-site conformance |
 | `speakerdeck` | `speakerdeck.com/USER/SLUG` public presentations | oEmbed JSON to player HTML and ordered, validated slide-image URLs with bounded extraction | Full metadata, archive/filename formatting, private/authenticated decks and live conformance |
 | `telegraph` | `telegra.ph/SLUG` and `www.telegra.ph/SLUG` | Public article images, bounded HTML responses, figure and bare-image parsing, canonical media validation and embed filtering | Article metadata, figure captions, archive and naming equivalence, live upstream acceptance |
 | `moebooru` | `yande.re`, `konachan.com`/`.net`, `sakugabooru.com`, `lolibooru.moe` | JSON single post, bounded tag search, pool posts and four popular-feed modes | Popular metadata, auth and complete upstream naming |
@@ -25,4 +26,4 @@ Every row here represents **partial functionality**, not a fully ported upstream
 
 `--max-pages` controls current bounded search/board traversal. Every extractor uses synthetic offline fixtures in CI; passing those fixtures is **not** live-site conformance.
 
-**Verified integration:** [CI 40007193042](https://github.com/sguzman/galerith/actions/runs/40007193042) (Speaker Deck public presentation synthetic HTTP fixtures and full Rust CI).
+**Verified integration:** [CI 40008050952](https://github.com/sguzman/galerith/actions/runs/40008050952) (Imgth gallery multi-page HTTP fixtures, full Rust formatting, Clippy, tests and release build).

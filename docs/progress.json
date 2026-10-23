@@ -1523,6 +1523,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T522",
+              "emoji": "🏞️",
+              "name": "Imgth gallery originals and bounded pagination preview",
+              "checks": [
+                {
+                  "title": "Recognize exact public Imgth gallery ID URL family",
+                  "passed": true,
+                  "evidence": "src/extractor/imgth.rs gallery numeric ID validation and host URL regression; src/extractor/mod.rs; CI 40008050952"
+                },
+                {
+                  "title": "Rewrite bounded safe thumbnail paths to Imgth original images",
+                  "passed": true,
+                  "evidence": "src/extractor/imgth.rs thumbnail-to-original and hostile URI fixture; CI 40008050952"
+                },
+                {
+                  "title": "Deduplicate and preserve gallery originals across public listing pages",
+                  "passed": true,
+                  "evidence": "src/extractor/imgth.rs two-page multi-request localhost HTML fixture; CI 40008050952"
+                },
+                {
+                  "title": "Apply page count and HTML response bounds",
+                  "passed": true,
+                  "evidence": "src/extractor/imgth.rs max_pages, per-page 2 MiB transfer and 2000 image bound; CI 40008050952"
+                },
+                {
+                  "title": "Reproduce gallery metadata, title/date/archive and full upstream/live behavior",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }
