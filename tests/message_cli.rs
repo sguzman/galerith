@@ -123,3 +123,54 @@ fn queue_controls_reject_missing_message_mode_and_unsafe_limits() {
         assert!(!response.status.success(), "{args:?} should be rejected");
     }
 }
+
+
+#[test]
+fn queue_depth_is_opt_in_bounded_and_has_no_effect_on_direct_media() {
+    let base = run(&[
+        "--dump-messages",
+        "--expand-queues",
+        "https://example.org/photo.png",
+    ]);
+    assert!(base.status.success());
+    for depth in ["1", "2", "4"] {
+        let result = run(&[
+            "--dump-messages",
+            "--expand-queues",
+            "--queue-depth",
+            depth,
+            "https://example.org/photo.png",
+        ]);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(result.stdout, base.stdout);
+    }
+    for options in [
+        vec![
+            "--dump-messages",
+            "--queue-depth",
+            "2",
+            "https://example.org/photo.png",
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--queue-depth",
+            "0",
+            "https://example.org/photo.png",
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--queue-depth",
+            "5",
+            "https://example.org/photo.png",
+        ],
+    ] {
+        let result = run(&options);
+        assert!(!result.status.success(), "{options:?}");
+    }
+}
