@@ -124,7 +124,6 @@ fn queue_controls_reject_missing_message_mode_and_unsafe_limits() {
     }
 }
 
-
 #[test]
 fn queue_depth_is_opt_in_bounded_and_has_no_effect_on_direct_media() {
     let base = run(&[
