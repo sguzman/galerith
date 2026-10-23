@@ -230,6 +230,20 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &base).await
 }
 
+/// Apply a finite file ceiling only to validated Danbooru tag searches.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let Target::Search { host, tags, page } = target else {
+        return resolve(client, target, max_pages).await;
+    };
+    let base = Url::parse(&format!("https://{host}/"))?;
+    resolve_tag_posts_limited(client, &base, &tags, page, max_pages, max_media).await
+}
+
 async fn resolve_collection(
     client: &Client,
     base: &Url,
@@ -396,7 +410,19 @@ async fn resolve_tag_posts(
     start_page: u16,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_tag_posts_limited(client, base, tags, start_page, max_pages, usize::MAX).await
+}
+
+async fn resolve_tag_posts_limited(
+    client: &Client,
+    base: &Url,
+    tags: &str,
+    start_page: u16,
+    max_pages: u16,
+    max_media: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let mut items = Vec::new();
+    let media_limit = max_media.max(1);
     for offset in 0..max_pages.max(1) {
         let Some(page) = start_page.checked_add(offset) else {
             break;
@@ -421,8 +447,9 @@ async fn resolve_tag_posts(
         if count == 0 {
             break;
         }
-        items.extend(post_items(&body, base)?);
-        if count < DANBOORU_PAGE_THRESHOLD {
+        let remaining = media_limit.saturating_sub(items.len());
+        items.extend(post_items(&body, base)?.into_iter().take(remaining));
+        if items.len() >= media_limit || count < DANBOORU_PAGE_THRESHOLD {
             break;
         }
         if offset + 1 < max_pages {
