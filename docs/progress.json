@@ -613,7 +613,8 @@
                 },
                 {
                   "title": "Directory metadata and file message variants",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/message.rs typed Directory/Url and metadata; tests/message_cli.rs and CI 40032410873 passed"
                 },
                 {
                   "title": "Deferred URL resolution and redirects",
@@ -624,7 +625,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             },
             {
               "id": "T403",
@@ -706,6 +707,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T406",
+              "emoji": "🪜",
+              "name": "Read-only extractor message inspection and deferred Wallhaven queues",
+              "checks": [
+                {
+                  "title": "Implement independent serialized directory, URL and child queue event types",
+                  "passed": true,
+                  "evidence": "src/message.rs typed event schema and unit fixtures; CI 40032410873"
+                },
+                {
+                  "title": "Expose read-only --dump-messages JSONL output without changing regular downloads or --dump-json",
+                  "passed": true,
+                  "evidence": "src/main.rs and tests/message_cli.rs CLI modes and regression fixtures; CI 40032410873"
+                },
+                {
+                  "title": "Emit deferred collection queue events from Wallhaven public collection lists, without fetching child galleries",
+                  "passed": true,
+                  "evidence": "src/extractor/wallhaven.rs queue_collections_at_base fixtures, src/extractor/mod.rs dispatch; CI 40032410873"
+                },
+                {
+                  "title": "Validate queue ID/dedup/page bounds, event serialization, legacy output and redacted diagnostics in offline tests",
+                  "passed": true,
+                  "evidence": "src/message.rs, src/extractor/wallhaven.rs and tests/message_cli.rs; CI 40032410873"
+                },
+                {
+                  "title": "Port complete upstream queue execution, recursive extraction, redirects, metadata scope propagation and reference differential tests",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
