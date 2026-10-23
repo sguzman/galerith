@@ -188,7 +188,10 @@ mod tests {
 
     #[tokio::test]
     async fn queue_expansion_zero_budget_leaves_all_events_untouched() {
-        let events = vec![queued_url("https://example.org/album/a".into(), Metadata::new())];
+        let events = vec![queued_url(
+            "https://example.org/album/a".into(),
+            Metadata::new(),
+        )];
         let expanded = expand_queues_with(events.clone(), 0, |_| async {
             panic!("zero child budget must not call resolver");
             #[allow(unreachable_code)]
@@ -198,5 +201,4 @@ mod tests {
         .unwrap();
         assert_eq!(expanded, events);
     }
-
 }
