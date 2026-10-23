@@ -24,8 +24,14 @@ fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
         let count = socket.read(&mut request).unwrap();
         let line = String::from_utf8_lossy(&request[..count]);
         let lower = line.to_ascii_lowercase();
-        assert!(line.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1"), "{line}");
-        assert!(lower.contains("user-agent: synthetic-galerith-agent/42"), "{line}");
+        assert!(
+            line.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1"),
+            "{line}"
+        );
+        assert!(
+            lower.contains("user-agent: synthetic-galerith-agent/42"),
+            "{line}"
+        );
         socket
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPROX")
             .unwrap();

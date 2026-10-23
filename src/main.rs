@@ -187,8 +187,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     }
     if let Some(ref proxy_url) = cli.proxy {
         // Never include proxy credentials in diagnostic output.
-        let proxy = reqwest::Proxy::all(proxy_url)
-            .map_err(|_| "invalid proxy configuration")?;
+        let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
         client_builder = client_builder.proxy(proxy);
     }
     let user_agent = cli.user_agent.unwrap_or_else(|| {
