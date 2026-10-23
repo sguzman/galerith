@@ -342,10 +342,7 @@ pub async fn resolve_messages_traversing_selected(
     depth: u8,
     selection: &JobSelection,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let file_bound = selection
-        .files
-        .as_ref()
-        .and_then(|range| range.finite_upper_bound());
+    let file_bound = selection.early_file_ceiling();
     let events = resolve_messages_bounded(client, input, max_pages, file_bound).await?;
     traverse_queue_job_filtered_with(
         events,
