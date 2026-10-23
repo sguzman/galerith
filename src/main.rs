@@ -132,6 +132,10 @@ struct Cli {
     )]
     job_child_range: Option<String>,
 
+    /// Select directory-scope ordinals before typed-job file/queue events
+    #[arg(long = "job-directory-range", value_name = "RANGE", requires = "follow_queues")]
+    job_directory_range: Option<String>,
+
     /// Select URL-event ordinals in the read-only recursive message stream
     #[arg(
         long = "message-file-range",
@@ -147,6 +151,10 @@ struct Cli {
         requires = "expand_queues"
     )]
     message_child_range: Option<String>,
+
+    /// Select directory-scope ordinals in read-only message inspection
+    #[arg(long = "message-directory-range", value_name = "RANGE", requires = "expand_queues")]
+    message_directory_range: Option<String>,
 
     /// Resolve URLs without downloading
     #[arg(long)]
@@ -216,10 +224,16 @@ async fn main() {
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Clap's presence constraints are not a substitute for validating these
     // typed-job selectors. Never silently ignore them in inspection mode.
-    if (cli.job_file_range.is_some() || cli.job_child_range.is_some()) && !cli.follow_queues {
+    if (cli.job_file_range.is_some()
+        || cli.job_child_range.is_some()
+        || cli.job_directory_range.is_some())
+        && !cli.follow_queues
+    {
         return Err("--job-file-range and --job-child-range require --follow-queues".into());
     }
-    if (cli.message_file_range.is_some() || cli.message_child_range.is_some())
+    if (cli.message_file_range.is_some()
+        || cli.message_child_range.is_some()
+        || cli.message_directory_range.is_some())
         && !(cli.dump_messages && cli.expand_queues)
     {
         return Err("--message-file-range and --message-child-range require --dump-messages --expand-queues".into());
@@ -333,6 +347,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .as_deref()
             .map(IndexRange::parse)
             .transpose()?,
+        directories: cli
+            .job_directory_range
+            .as_deref()
+            .map(IndexRange::parse)
+            .transpose()?,
     };
     let mut failed = 0usize;
     for url in urls {
@@ -346,6 +365,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         .transpose()?,
                     children: cli
                         .message_child_range
+                        .as_deref()
+                        .map(IndexRange::parse)
+                        .transpose()?,
+                    directories: cli
+                        .message_directory_range
                         .as_deref()
                         .map(IndexRange::parse)
                         .transpose()?,
