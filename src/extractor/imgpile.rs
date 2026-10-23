@@ -17,15 +17,12 @@ pub enum Target {
 fn valid_slug(slug: &str) -> bool {
     !slug.is_empty()
         && slug.len() <= 128
-        && slug
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        && slug.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
     let url = Url::parse(raw).ok()?;
-    if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("imgpile.com" | "www.imgpile.com"))
+    if url.scheme() != "https" || !matches!(url.host_str(), Some("imgpile.com" | "www.imgpile.com"))
     {
         return None;
     }
@@ -40,9 +37,7 @@ pub fn match_url(raw: &str) -> Option<Target> {
 fn supported_asset(raw: &str) -> Option<(Url, String)> {
     let url = Url::parse(raw).ok()?;
     let host = url.host_str()?;
-    if url.scheme() != "https"
-        || (host != "imgpile.com" && !host.ends_with(".imgpile.com"))
-    {
+    if url.scheme() != "https" || (host != "imgpile.com" && !host.ends_with(".imgpile.com")) {
         return None;
     }
     let filename = url.path_segments()?.next_back()?;
@@ -62,8 +57,15 @@ fn supported_asset(raw: &str) -> Option<(Url, String)> {
 fn post_media(html: &str) -> Vec<MediaItem> {
     let mut media = Vec::new();
     let mut seen = HashSet::new();
-    for section in html.split("class=\"post-media").skip(1).take(MAX_POST_MEDIA) {
-        let fragment = section.split_once("</div>").map(|(first, _)| first).unwrap_or(section);
+    for section in html
+        .split("class=\"post-media")
+        .skip(1)
+        .take(MAX_POST_MEDIA)
+    {
+        let fragment = section
+            .split_once("</div>")
+            .map(|(first, _)| first)
+            .unwrap_or(section);
         let Some(raw) = fragment
             .split_once("<a href=\"")
             .and_then(|(_, rest)| rest.split_once('"'))
