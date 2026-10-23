@@ -210,3 +210,75 @@ fn message_inspection_and_queue_download_modes_are_distinct() {
     ]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn typed_job_file_range_filters_before_the_downloader() {
+    let url = "https://example.org/item.png";
+    let first = run(&[
+        "--follow-queues",
+        "--job-file-range",
+        "1",
+        "--get-urls",
+        url,
+    ]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), url);
+
+    let second = run(&[
+        "--follow-queues",
+        "--job-file-range",
+        "2",
+        "--get-urls",
+        url,
+    ]);
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert!(second.stdout.is_empty());
+    let none = run(&[
+        "--follow-queues",
+        "--job-file-range",
+        "1",
+        "--job-child-range",
+        "2:9:2",
+        "--get-urls",
+        url,
+    ]);
+    assert!(none.status.success());
+    assert_eq!(none.stdout, first.stdout);
+}
+
+#[test]
+fn job_filters_are_opt_in_and_use_checked_positive_range_syntax() {
+    let url = "https://example.org/item.png";
+    for args in [
+        vec!["--job-file-range", "1", "--get-urls", url],
+        vec!["--job-child-range", "1", "--get-urls", url],
+        vec!["--follow-queues", "--job-file-range", "0", url],
+        vec!["--follow-queues", "--job-child-range", "2:4:0", url],
+        vec![
+            "--follow-queues",
+            "--job-file-range",
+            "1",
+            "--range",
+            "1",
+            url,
+        ],
+        vec![
+            "--dump-messages",
+            "--expand-queues",
+            "--job-child-range",
+            "1",
+            url,
+        ],
+    ] {
+        let response = run(&args);
+        assert!(!response.status.success(), "{args:?}");
+    }
+}
