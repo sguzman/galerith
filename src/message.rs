@@ -1102,4 +1102,38 @@ mod tests {
         assert_eq!(values[3]["url"], "https://example.org/new-post-file.jpg");
         assert_eq!(values[3]["metadata"]["source_post_id"], 120);
     }
+
+    #[tokio::test]
+    async fn source_post_filter_precedes_file_ordinal_selector() {
+        let directory = |id| ExtractorMessage::Directory {
+            metadata: serde_json::from_value(json!({"source_post_id":id})).unwrap(),
+        };
+        let media = |name: &str| ExtractorMessage::Url {
+            url: format!("https://example.org/{name}.jpg"),
+            metadata: Metadata::new(),
+        };
+        let events = vec![
+            directory(120),
+            media("unselected"),
+            directory(121),
+            media("first"),
+            media("second"),
+        ];
+        let filter = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("121").unwrap()),
+        };
+        let output = traverse_queue_job_filtered_with(events, 0, 0, &filter, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        assert_eq!(output.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&output[1]).unwrap()["url"],
+            "https://example.org/first.jpg"
+        );
+    }
 }
