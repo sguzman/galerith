@@ -173,3 +173,41 @@ fn queue_depth_is_opt_in_bounded_and_has_no_effect_on_direct_media() {
         assert!(!result.status.success(), "{options:?}");
     }
 }
+
+
+#[test]
+fn follow_queues_download_job_preview_preserves_direct_media_json() {
+    let plain = run(&["--dump-json", "https://example.org/photo.png"]);
+    let queued = run(&[
+        "--follow-queues",
+        "--dump-json",
+        "https://example.org/photo.png",
+    ]);
+    assert!(plain.status.success());
+    assert!(
+        queued.status.success(),
+        "{}",
+        String::from_utf8_lossy(&queued.stderr)
+    );
+    assert_eq!(plain.stdout, queued.stdout);
+    let url = run(&[
+        "--follow-queues",
+        "--get-urls",
+        "https://example.org/photo.png",
+    ]);
+    assert!(url.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&url.stdout).trim(),
+        "https://example.org/photo.png"
+    );
+}
+
+#[test]
+fn message_inspection_and_queue_download_modes_are_distinct() {
+    let output = run(&[
+        "--follow-queues",
+        "--dump-messages",
+        "https://example.org/photo.png",
+    ]);
+    assert!(!output.status.success());
+}
