@@ -361,11 +361,11 @@ async fn ajax_listing(
     page_base: &Url,
     scope: &str,
     mode: &str,
-    key: &str,
-    rating: &str,
+    source_params: (&str, &str),
     first_ids: Vec<String>,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let (key, rating) = source_params;
     let mut queue = Vec::new();
     let mut seen_ids = HashSet::new();
     let mut cursor = if mode == "genre" {
@@ -491,8 +491,7 @@ async fn at_base(
                 page_base,
                 &format!("user:{name}"),
                 "photoUser",
-                raw,
-                "50",
+                (raw, "50"),
                 Vec::new(),
                 max_pages,
             )
@@ -525,7 +524,7 @@ async fn at_base(
             };
             let rating = if recent { "0" } else { "50" };
             let queue = ajax_listing(
-                client, page_base, &scope, "genre", &id, rating, first, max_pages,
+                client, page_base, &scope, "genre", (&id, rating), first, max_pages,
             )
             .await?;
             Ok((Vec::new(), queue))
