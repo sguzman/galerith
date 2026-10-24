@@ -248,21 +248,37 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &base).await
 }
 
-/// The typed file-selector preview only pushes a finite ceiling into
-/// public tag-search API pagination. Pools, favorites, artists and popular
-/// routes keep their existing resolution behavior and ordering.
+/// The typed file-selector preview pushes a finite ceiling only into
+/// paginated result routes that retain native media order. Pools and artist
+/// searches may reorder/fan out results and keep their existing behavior.
 pub async fn resolve_limited(
     client: &Client,
     target: Target,
     max_pages: u16,
     max_items: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let host = match &target {
+        Target::Search { host, .. }
+        | Target::Popular { host, .. }
+        | Target::Favorites { host, .. } => host,
+        _ => return resolve(client, target, max_pages).await,
+    };
+    let base = Url::parse(&format!("https://{host}/"))?;
+    resolve_at_base_bounded(client, target, max_pages, max_items, &base).await
+}
+
+async fn resolve_at_base_bounded(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_items: usize,
+    base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
-        Target::Search { host, tags, page } => {
-            let base = Url::parse(&format!("https://{host}/"))?;
+        Target::Search { tags, page, .. } => {
             paginate_posts_bounded(
                 client,
-                &base,
+                base,
                 "posts.json",
                 &[("tags".into(), tags), ("page".into(), page.to_string())],
                 max_pages,
@@ -270,7 +286,15 @@ pub async fn resolve_limited(
             )
             .await
         }
-        other => resolve(client, other, max_pages).await,
+        Target::Popular { parameters, .. } => {
+            paginate_posts_bounded(client, base, "popular.json", &parameters, max_pages, max_items)
+                .await
+        }
+        Target::Favorites { parameters, .. } => {
+            paginate_posts_bounded(client, base, "favorites.json", &parameters, max_pages, max_items)
+                .await
+        }
+        other => resolve_at_base(client, other, max_pages, base).await,
     }
 }
 
@@ -1048,6 +1072,58 @@ mod tests {
         assert_eq!(result[0].post_id, Some(11));
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn finite_ceiling_also_stops_e621_popular_and_favorites_after_first_page() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, parameter) in [
+                ("/popular.json?", "scale=week"),
+                ("/favorites.json?", "user_id=42"),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let n = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..n]);
+                assert!(request.starts_with(&format!("GET {path}")), "{request}");
+                assert!(request.contains(parameter), "{request}");
+                let posts: Vec<_> = (1..=320)
+                    .map(|id| {
+                        json!({"id":id,"file":{"ext":"jpg","url":format!("https://static1.e621.net/{id}.jpg")}})
+                    })
+                    .collect();
+                let payload = json!({"posts":posts}).to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                    payload.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        for target in [
+            Target::Popular {
+                host: "e621.net".into(),
+                parameters: vec![("scale".into(), "week".into())],
+            },
+            Target::Favorites {
+                host: "e621.net".into(),
+                parameters: vec![("user_id".into(), "42".into())],
+            },
+        ] {
+            let selected = resolve_at_base_bounded(&Client::new(), target, 3, 1, &base)
+                .await
+                .unwrap();
+            assert_eq!(selected.len(), 1);
+            assert_eq!(selected[0].post_id, Some(1));
+        }
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn popular_and_favorites_use_documented_json_endpoints() {
         use tokio::{
