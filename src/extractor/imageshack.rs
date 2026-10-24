@@ -66,7 +66,10 @@ fn valid_username(value: &str) -> bool {
 pub fn match_listing_url(input: &str) -> Option<Listing> {
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("imageshack.com" | "www.imageshack.com"))
+        || !matches!(
+            url.host_str(),
+            Some("imageshack.com" | "www.imageshack.com")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -106,12 +109,9 @@ fn listed_images(
     if records.len() > PAGE_LIMIT {
         return Err("ImageShack listing exceeds the accepted page size".into());
     }
-    let album_title = result
-        .get("title")
-        .and_then(Value::as_str)
-        .filter(|title| !title.is_empty()
-            && title.len() <= 256
-            && !title.chars().any(char::is_control));
+    let album_title = result.get("title").and_then(Value::as_str).filter(|title| {
+        !title.is_empty() && title.len() <= 256 && !title.chars().any(char::is_control)
+    });
     for record in records {
         let Some(id) = record.get("id").and_then(Value::as_str) else {
             continue;
@@ -162,7 +162,8 @@ async fn listing_at_base(
         let mut endpoint = base.join(&route)?;
         {
             let mut pairs = endpoint.query_pairs_mut();
-            pairs.append_pair("limit", &PAGE_LIMIT.to_string())
+            pairs
+                .append_pair("limit", &PAGE_LIMIT.to_string())
                 .append_pair("offset", &offset.to_string())
                 .append_pair("hide_empty", "true");
             match listing {
@@ -198,8 +199,12 @@ pub async fn resolve_listing(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let files = listing_at_base(
-        client, &listing, max_pages, &Url::parse("https://imageshack.com/")?,
-    ).await?;
+        client,
+        &listing,
+        max_pages,
+        &Url::parse("https://imageshack.com/")?,
+    )
+    .await?;
     Ok(files.into_iter().map(|(item, _)| item).collect())
 }
 
@@ -209,8 +214,12 @@ pub async fn resolve_listing_messages(
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let files = listing_at_base(
-        client, &listing, max_pages, &Url::parse("https://imageshack.com/")?,
-    ).await?;
+        client,
+        &listing,
+        max_pages,
+        &Url::parse("https://imageshack.com/")?,
+    )
+    .await?;
     let mut events = Vec::with_capacity(files.len() * 2);
     for (item, metadata) in files {
         events.push(ExtractorMessage::Directory {
@@ -490,8 +499,12 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         let mut files = Vec::new();
         let (count, total) = listed_images(
-            &records, &Listing::Album("OGtz".into()), &mut seen, &mut files
-        ).unwrap();
+            &records,
+            &Listing::Album("OGtz".into()),
+            &mut seen,
+            &mut files,
+        )
+        .unwrap();
         assert_eq!(count, 4);
         assert_eq!(total, Some(4));
         assert_eq!(files.len(), 1);
@@ -503,40 +516,42 @@ mod tests {
     async fn user_index_paginates_40_plus_1_records_without_duplicate_downloads() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            for page in 0..2 {
-                let (mut socket, _) = listener.accept().await.unwrap();
-                let mut request = [0_u8; 4096];
-                let n = socket.read(&mut request).await.unwrap();
-                let req = String::from_utf8_lossy(&request[..n]);
-                assert!(req.starts_with("GET /rest_api/v2/images?limit=40"), "{req}");
-                assert!(req.contains(&format!("offset={}", page * 40)), "{req}");
-                assert!(req.contains("username=alice"), "{req}");
-                let images: Vec<Value> = if page == 0 {
-                    (0..40).map(|id| json!({
+        let server =
+            tokio::spawn(async move {
+                for page in 0..2 {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut request = [0_u8; 4096];
+                    let n = socket.read(&mut request).await.unwrap();
+                    let req = String::from_utf8_lossy(&request[..n]);
+                    assert!(req.starts_with("GET /rest_api/v2/images?limit=40"), "{req}");
+                    assert!(req.contains(&format!("offset={}", page * 40)), "{req}");
+                    assert!(req.contains("username=alice"), "{req}");
+                    let images: Vec<Value> =
+                        if page == 0 {
+                            (0..40).map(|id| json!({
                         "id":format!("file{id:03}"),
                         "public":true,
                         "direct_link":format!("imagizer.imageshack.com/img/{id:03}.jpg")
                     })).collect()
-                } else {
-                    vec![json!({
-                        "id":"file000",
-                        "public":true,
-                        "direct_link":"imagizer.imageshack.com/img/000.jpg"
-                    })]
-                };
-                let body = json!({"result":{"total":41,"images":images}}).to_string();
-                let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                    body.len()
-                );
-                socket.write_all(reply.as_bytes()).await.unwrap();
-            }
-        });
+                        } else {
+                            vec![json!({
+                                "id":"file000",
+                                "public":true,
+                                "direct_link":"imagizer.imageshack.com/img/000.jpg"
+                            })]
+                        };
+                    let body = json!({"result":{"total":41,"images":images}}).to_string();
+                    let reply = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    socket.write_all(reply.as_bytes()).await.unwrap();
+                }
+            });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let files = listing_at_base(
-            &Client::new(), &Listing::User("alice".into()), 3, &base
-        ).await.unwrap();
+        let files = listing_at_base(&Client::new(), &Listing::User("alice".into()), 3, &base)
+            .await
+            .unwrap();
         assert_eq!(files.len(), 40);
         assert_eq!(files[0].1["profile"], "alice");
         server.await.unwrap();
