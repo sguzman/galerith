@@ -150,13 +150,8 @@ async fn queue_user_at_base(
         if events.len() >= MAX_USER_INDEX_QUEUES || raw_count == 0 {
             break;
         }
-        match body.pointer("/links/next") {
-            Some(Value::Null) => break,
-            Some(Value::String(_)) => {}
-            Some(_) => return Err("ImageChest profile index has invalid continuation".into()),
-            None if raw_count < 15 => break,
-            None => {}
-        }
+        // Upstream paginates until the source returns an empty data array.
+        // A short nonempty page, or untrusted next-page URL, is not a stop.
         if page < max_pages.min(MAX_USER_INDEX_PAGES) {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -393,7 +388,11 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for (page, id) in [(1, "abc123xyz45"), (2, "def456uvw78")] {
+            for (page, id) in [
+                (1, Some("abc123xyz45")),
+                (2, Some("def456uvw78")),
+                (3, None),
+            ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut request = [0_u8; 4096];
                 let n = socket.read(&mut request).await.unwrap();
@@ -406,7 +405,10 @@ mod tests {
                 } else {
                     Value::Null
                 };
-                let body = json!({"data":[{"id":id}],"links":{"next":next}}).to_string();
+                let records: Vec<Value> = id
+                    .map(|id| vec![json!({"id":id})])
+                    .unwrap_or_default();
+                let body = json!({"data":records,"links":{"next":next}}).to_string();
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
