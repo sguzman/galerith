@@ -92,7 +92,10 @@ fn strip_html(input: &str) -> String {
 }
 
 fn first_party_path(root: &Url, raw: &str) -> Option<Url> {
-    if raw.len() > 1200 || raw.contains('%') || raw.contains('\\') {
+    if raw.len() > 1200 || !raw.starts_with('/')
+        || raw.contains('%') || raw.contains('\\')
+        || raw.split('/').any(|part| part == "." || part == "..")
+    {
         return None;
     }
     let url = root.join(raw).ok()?;
@@ -178,14 +181,22 @@ fn parse_thread(
             }
             if let Some(fields) = file.as_object() {
                 for (k, v) in fields {
-                    if !matches!(k.as_str(), "path" | "name" | "fullname") {
+                    if !matches!(k.as_str(), "path" | "name" | "fullname"
+                        | "filename" | "extractor" | "category" | "subcategory"
+                        | "post_id" | "board" | "thread" | "title" | "tim"
+                        | "extension" | "source_filename" | "post_name"
+                        | "url" | "timestamp") {
                         meta.insert(k.clone(), v.clone());
                     }
                 }
             }
             if let Some(fields) = post.as_object() {
                 for (k, v) in fields {
-                    if !matches!(k.as_str(), "files" | "name" | "comment") {
+                    if !matches!(k.as_str(), "files" | "name" | "comment"
+                        | "filename" | "extractor" | "category" | "subcategory"
+                        | "post_id" | "board" | "thread" | "title" | "tim"
+                        | "extension" | "source_filename" | "post_name"
+                        | "url" | "timestamp") {
                         meta.insert(k.clone(), v.clone());
                     }
                 }
@@ -361,6 +372,15 @@ mod tests {
         evil["threads"][0]["posts"][0]["files"][0]["path"] =
             "https://evil2ch.org/secret.jpg".into();
         assert!(parse_thread(&evil, "a", "12345", &base).is_err());
+        evil["threads"][0]["posts"][0]["files"][0]["path"] =
+            "/a/src/../../private.jpg".into();
+        assert!(parse_thread(&evil, "a", "12345", &base).is_err());
+        let mut forged = thread_fixture();
+        forged["threads"][0]["posts"][0]["filename"] = "../../secret.jpg".into();
+        forged["threads"][0]["posts"][0]["files"][0]["extractor"] = "directlink".into();
+        let (_, records) = parse_thread(&forged, "a", "12345", &base).unwrap();
+        assert_eq!(records[0].1["extractor"], "2ch");
+        assert_eq!(records[0].1["filename"], "157000001_original art.jpg");
     }
 
     #[test]
