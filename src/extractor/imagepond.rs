@@ -85,8 +85,9 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
     let root = Url::parse("https://www.imagepond.net/").expect("fixed public origin");
     let mut seen = HashSet::new();
     let mut messages = Vec::new();
-    for (_, suffix) in html.match_indices("href=\"") {
-        let Some(raw_href) = suffix["href=\"".len()..].split_once('"').map(|(href, _)| href) else {
+    for (position, _) in html.match_indices("href=\"") {
+        let suffix = &html[position + "href=\"".len()..];
+        let Some(raw_href) = suffix.split_once('"').map(|(href, _)| href) else {
             continue;
         };
         let Ok(url) = root.join(&raw_href.replace("&amp;", "&")) else {
