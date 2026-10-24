@@ -331,12 +331,17 @@ async fn resolve_messages_bounded(
             danbooru::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
-    if let (Some(limit), Some(target @ e621::Target::Search { .. })) =
-        (file_bound, e621::match_url(input))
-    {
-        return Ok(from_media(
-            e621::resolve_limited(client, target, max_pages, limit).await?,
-        ));
+    if let (Some(limit), Some(target)) = (file_bound, e621::match_url(input)) {
+        if matches!(
+            &target,
+            e621::Target::Search { .. }
+                | e621::Target::Popular { .. }
+                | e621::Target::Favorites { .. }
+        ) {
+            return Ok(from_media(
+                e621::resolve_limited(client, target, max_pages, limit).await?,
+            ));
+        }
     }
     if let (Some(limit), Some(target)) = (file_bound, philomena::match_url(input)) {
         return Ok(from_media(
