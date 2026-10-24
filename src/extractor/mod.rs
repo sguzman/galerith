@@ -16,6 +16,7 @@ pub mod imagebam;
 pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
+pub mod imxto;
 pub mod imageshack;
 pub mod imgbb;
 pub mod imgbox;
@@ -74,6 +75,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Pixhost image pages and safe gallery queues",
     ),
     ("imagepond", "public ImagePond single-file OG media pages"),
+    ("imxto", "pinned Imxto single images and guarded galleries"),
     ("imageshack", "public ImageShack individual image REST API"),
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
@@ -154,6 +156,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imagechest")
     } else if imagehosts::match_url(input).is_some() {
         Some("pixhost")
+    } else if imxto::match_url(input).is_some() {
+        Some("imxto")
     } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
     } else if imageshack::match_url(input).is_some()
@@ -259,6 +263,9 @@ pub async fn resolve(
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve(client, target).await;
     }
+    if let Some(target) = imxto::match_url(input) {
+        return imxto::resolve(client, target).await;
+    }
     if imagechest::match_user_url(input).is_some() {
         return Err(
             "ImageChest profile traversal requires --follow-queues or --dump-messages".into(),
@@ -360,6 +367,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imxto::match_url(input) {
+        return imxto::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = imagepond::match_url(input) {
         return imagepond::resolve_messages(client, target).await;
@@ -676,6 +686,8 @@ mod tests {
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
+            ("https://imx.to/i/1qdeva", "imxto"),
+            ("https://imx.to/g/ozdy", "imxto"),
             ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://www.imagepond.net/i/abc123", "imagepond"),
             ("https://www.imagepond.net/a/gallery123", "imagepond"),
