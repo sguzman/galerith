@@ -164,8 +164,17 @@ async fn resolve_at_base(
     target: &Target,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    // Pinned imagehosts.py uses the shared "complex" continue form for Imgclick.
+    // Build its fields from the validated token, never from the input URL's query.
     let mut response = client
-        .get(base.join(&target.token)?)
+        .post(base.join(&target.token)?)
+        .form(&[
+            ("op", "view"),
+            ("id", target.token.as_str()),
+            ("pre", "1"),
+            ("adb", "1"),
+            ("next", "Continue+to+image+...+"),
+        ])
         .send()
         .await?
         .error_for_status()?;
@@ -262,10 +271,44 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = [0u8; 4096];
-            let count = stream.read(&mut request).await.unwrap();
-            assert!(String::from_utf8_lossy(&request[..count])
-                .starts_with("GET /4tbrre1oxew9 HTTP/1.1"));
+            let mut request = Vec::new();
+            // Consume the complete form body rather than assuming it arrives with
+            // the HTTP headers in a single read.
+            loop {
+                let mut chunk = [0u8; 1024];
+                let count = stream.read(&mut chunk).await.unwrap();
+                assert!(count > 0, "request ended before form was complete");
+                request.extend_from_slice(&chunk[..count]);
+                assert!(request.len() < 16 * 1024, "unexpected oversized request");
+                let raw = String::from_utf8_lossy(&request);
+                if let Some((headers, body)) = raw.split_once("\r\n\r\n") {
+                    let length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.to_ascii_lowercase()
+                                .strip_prefix("content-length: ")
+                                .and_then(|value| value.parse::<usize>().ok())
+                        })
+                        .unwrap();
+                    if body.len() >= length {
+                        break;
+                    }
+                }
+            }
+            let raw = String::from_utf8_lossy(&request);
+            assert!(raw.starts_with("POST /4tbrre1oxew9 HTTP/1.1"));
+            assert!(raw.contains("application/x-www-form-urlencoded"));
+            let body = raw.split_once("\r\n\r\n").unwrap().1;
+            let params: std::collections::HashMap<String, String> =
+                url::form_urlencoded::parse(body.as_bytes())
+                    .into_owned()
+                    .collect();
+            assert_eq!(params.len(), 5);
+            assert_eq!(params["op"], "view");
+            assert_eq!(params["id"], "4tbrre1oxew9");
+            assert_eq!(params["pre"], "1");
+            assert_eq!(params["adb"], "1");
+            assert_eq!(params["next"], "Continue+to+image+...+");
             let html = r#"<br><img src="https://img1.imgclick.net/data/file.png" alt="Public">"#;
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
