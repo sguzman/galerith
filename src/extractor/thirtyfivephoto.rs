@@ -71,6 +71,8 @@ pub fn match_url(raw: &str) -> Option<Target> {
         }
         [user] | [user, ""]
             if slug(user)
+                && !user.starts_with("photo_")
+                && !user.starts_with("genre_")
                 && !matches!(*user, "rating" | "tags" | "genre" | "photo" | "photoUser") =>
         {
             Some(Target::User((*user).into()))
