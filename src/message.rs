@@ -47,6 +47,26 @@ pub fn from_media(items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
     result
 }
 
+/// Expose real native source-post IDs already captured by a site's media
+/// parser, without inventing inaccessible posts or full post grouping.
+pub fn from_source_post_media(items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
+    let mut events = Vec::with_capacity(items.len().saturating_mul(2));
+    for item in items {
+        let mut metadata = media_metadata(&item);
+        if let Some(id) = item.post_id {
+            metadata.insert("source_post_id".into(), id.into());
+        }
+        events.push(ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        });
+        events.push(ExtractorMessage::Url {
+            url: item.url,
+            metadata,
+        });
+    }
+    events
+}
+
 /// Create a deferred child extraction event without consuming child media.
 /// The caller is responsible for URL validation and for enforcing queue limits.
 pub fn queued_url(url: String, metadata: Metadata) -> ExtractorMessage {
@@ -336,6 +356,25 @@ mod tests {
                 "filename":"test.jpg","post_id":42
             }})
         );
+    }
+
+    #[test]
+    fn native_post_id_projection_is_opt_in_and_never_fabricates_missing_ids() {
+        let source = fixture();
+        let mut unknown = fixture();
+        unknown.post_id = None;
+        let events = from_source_post_media(vec![source, unknown]);
+        assert_eq!(events.len(), 4);
+        let projected = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(projected["metadata"]["source_post_id"], 42);
+        assert_eq!(projected["metadata"]["post_id"], 42);
+        assert!(serde_json::to_value(&events[2]).unwrap()["metadata"]
+            .get("source_post_id")
+            .is_none());
+        assert!(serde_json::to_value(&from_media(vec![fixture()])[0])
+            .unwrap()["metadata"]
+            .get("source_post_id")
+            .is_none());
     }
 
     #[test]
