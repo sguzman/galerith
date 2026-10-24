@@ -973,9 +973,15 @@
     {
       "path": "gallery_dl/extractor/lensdump.py",
       "module": "lensdump",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/lensdump.rs",
+        "src/extractor/lensdump/user.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded independent public Lensdump image, album and user-albums subset: validated /i/ID /a/ID and /USER URL patterns, trusted media source, parsed gallery JSON data-object originals, 2 MiB source HTML, 160 image/4 album page and 128 child/4 user-page limits, strict canonical first-party user album pagination and typed child queues, 1-second pacing. Offline gallery record and single-image plus two-page user HTTP fixtures; fully compiled and tested in Linux CI 40133703784. Full source query dialect, all metadata, naming/archive and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/lexica.py",

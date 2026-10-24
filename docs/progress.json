@@ -3440,6 +3440,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T566",
+              "emoji": "📷",
+              "name": "Lensdump public images, albums and user-album queue preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Integrate Lensdump public image and album URL matching into native dispatch with source host constraints",
+                  "passed": true,
+                  "evidence": "src/extractor/lensdump.rs source_matcher_accepts_pinned_public_images_and_albums_only; src/extractor/mod.rs routed fixtures; CI 40133703784"
+                },
+                {
+                  "title": "Decode source-backed original images and ordered album data-object media with trusted CDN and metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/lensdump.rs public_image_and_album_records_preserve_trusted_media_order_and_metadata; CI 40133703784"
+                },
+                {
+                  "title": "Bound original and album HTML, gallery enumeration and first-party pagination with offline original-image HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/lensdump.rs public_single_original_reads_one_bounded_html_page and bounded gallery parser; CI 40133703784"
+                },
+                {
+                  "title": "Queue public user albums with first-party IDs, deduplication, optional strict page/sort and two-page loopback regression",
+                  "passed": true,
+                  "evidence": "src/extractor/lensdump/user.rs recognizes_public_profile_and_bounded_sort_page_only, queues_only_scoped_unduplicated_public_album_identifiers, continuation_rejects_foreign_origins_and_nonsequential_pages, public_user_album_queue_uses_bounded_two_requests; CI 40133703784"
+                },
+                {
+                  "title": "Match complete upstream gallery query dialect, all image CDN and metadata/date fields, filename/archive, all publisher pagination, and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
