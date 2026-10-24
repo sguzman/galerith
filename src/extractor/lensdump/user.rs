@@ -40,7 +40,7 @@ pub fn match_url(raw: &str) -> Option<User> {
         return None;
     }
     let paths: Vec<_> = url.path_segments()?.collect();
-    let [user] | [user, ""] = paths.as_slice() else {
+    let ([user] | [user, ""]) = paths.as_slice() else {
         return None;
     };
     if !valid_user(user) {
@@ -77,7 +77,7 @@ fn album_link(raw: &str) -> Option<String> {
         return None;
     }
     let paths: Vec<_> = url.path_segments()?.collect();
-    let ["a", id] | ["a", id, ""] = paths.as_slice() else {
+    let (["a", id] | ["a", id, ""]) = paths.as_slice() else {
         return None;
     };
     if !super::safe_id(id) {
