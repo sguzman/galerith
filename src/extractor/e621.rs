@@ -829,6 +829,35 @@ mod tests {
         assert!(parse_posts(&json!({"posts":{}}), &base).is_err());
     }
 
+    #[tokio::test]
+    async fn native_post_ids_from_json_feed_source_post_selector() {
+        use crate::{
+            message::{from_source_post_media, traverse_queue_job_filtered_with, JobSelection},
+            range::IndexRange,
+        };
+        let base = Url::parse("https://e621.net/").unwrap();
+        let posts = json!({"posts":[
+            {"id":120,"file":{"ext":"jpg","url":"https://static1.e621.net/120.jpg"}},
+            {"id":121,"file":{"ext":"png","url":"https://static1.e621.net/121.png"}}
+        ]});
+        let events = from_source_post_media(parse_posts(&posts, &base).unwrap());
+        let selection = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("121").unwrap()),
+        };
+        let selected = traverse_queue_job_filtered_with(events, 0, 0, &selection, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        assert_eq!(selected.len(), 2);
+        let url = serde_json::to_value(&selected[1]).unwrap();
+        assert_eq!(url["url"], "https://static1.e621.net/121.png");
+        assert_eq!(url["metadata"]["source_post_id"], 121);
+    }
+
     #[test]
     fn supports_both_bare_arrays_and_post_wrappers() {
         let base = Url::parse("https://e621.net/").unwrap();
