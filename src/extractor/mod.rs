@@ -33,8 +33,8 @@ pub mod photovogue;
 pub mod picstate;
 pub mod pixeldrain;
 pub mod postimg;
-pub mod speakerdeck;
 pub mod silverpic;
+pub mod speakerdeck;
 pub mod telegraph;
 pub mod turboimagehost;
 pub mod unsplash;
@@ -761,7 +761,10 @@ mod tests {
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
-            ("https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html", "silverpic"),
+            (
+                "https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html",
+                "silverpic",
+            ),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
