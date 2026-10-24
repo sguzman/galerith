@@ -3166,6 +3166,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T559",
+              "emoji": "🖱️",
+              "name": "Imgclick guarded public single-original preview",
+              "checks": [
+                {
+                  "title": "Match pinned Imgclick token and optional safe HTML filename routes; reject forged origins and malformed paths",
+                  "passed": true,
+                  "evidence": "src/extractor/imgclick.rs pinned_imgclick_token_and_safe_source_names; CI 40119597122"
+                },
+                {
+                  "title": "Parse public original marker with validated HTTPS media origin, extension and sanitized alternate filename",
+                  "passed": true,
+                  "evidence": "src/extractor/imgclick.rs public_imgclick_image_marker_extracts_only_safe_originals; CI 40119597122"
+                },
+                {
+                  "title": "Bound source HTML to 2 MiB with a one-request local HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/imgclick.rs loopback_single_public_image_is_bounded; CI 40119597122"
+                },
+                {
+                  "title": "Dispatch flat public media and typed directory/URL events with actual source token metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/imgclick.rs resolve and resolve_messages; src/extractor/mod.rs; CI 40119597122"
+                },
+                {
+                  "title": "Reproduce pinned complex form submissions, all metadata/archive/filename semantics and live differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         }

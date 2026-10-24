@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 63%` across 116 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 63%` across 117 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 74%`
+## 🧩 M2 — Extractor framework and site families — `████████░░ 75%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
@@ -618,6 +618,12 @@
   - [x] Validate same-origin advancing continuation links while limiting pages and emitted children — src/extractor/imagetwist.rs next_gallery_url and gallery_next_page_rejects_external_and_nonadvancing_urls; CI 40119078981
   - [x] Verify two-page HTTP fixture with bounded response bodies, pacing and first-seen file ordering — src/extractor/imagetwist.rs bounded_two_page_gallery_preserves_first_seen_child_order; CI 40119078981
   - [ ] Match pinned root-query gallery URLs, arbitrary original pagination/metadata, private galleries and live upstream differential parity
+- 🖱️ **T559** Imgclick guarded public single-original preview — `████████░░ 80%`
+  - [x] Match pinned Imgclick token and optional safe HTML filename routes; reject forged origins and malformed paths — src/extractor/imgclick.rs pinned_imgclick_token_and_safe_source_names; CI 40119597122
+  - [x] Parse public original marker with validated HTTPS media origin, extension and sanitized alternate filename — src/extractor/imgclick.rs public_imgclick_image_marker_extracts_only_safe_originals; CI 40119597122
+  - [x] Bound source HTML to 2 MiB with a one-request local HTTP regression — src/extractor/imgclick.rs loopback_single_public_image_is_bounded; CI 40119597122
+  - [x] Dispatch flat public media and typed directory/URL events with actual source token metadata — src/extractor/imgclick.rs resolve and resolve_messages; src/extractor/mod.rs; CI 40119597122
+  - [ ] Reproduce pinned complex form submissions, all metadata/archive/filename semantics and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
