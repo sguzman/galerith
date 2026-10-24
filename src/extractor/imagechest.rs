@@ -332,7 +332,8 @@ fn gallery_messages_with_fields(
             if let Some(title) = safe_scalar(post.get("title"), 256) {
                 metadata.insert("title".into(), title.into());
             }
-            if let Some(username) = safe_scalar(post.get("username"), 40).filter(|u| valid_user(u)) {
+            if let Some(username) = safe_scalar(post.get("username"), 40).filter(|u| valid_user(u))
+            {
                 metadata.insert("username".into(), username.into());
             }
             if let Some(count) = post
@@ -347,7 +348,11 @@ fn gallery_messages_with_fields(
             all.iter()
                 .find(|row| row.get("link").and_then(Value::as_str) == Some(item.url.as_str()))
         }) {
-            if let Some(id) = file.get("id").and_then(Value::as_str).filter(|id| valid_id(id)) {
+            if let Some(id) = file
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| valid_id(id))
+            {
                 metadata.insert("file_id".into(), id.into());
             }
             if let Some(position) = file
@@ -634,7 +639,13 @@ mod tests {
         }}});
         let events = gallery_messages_with_fields(&gallery, gallery_files(&page).unwrap(), &page);
         let file = serde_json::to_value(&events[1]).unwrap();
-        for key in ["title","username","image_count","position","description"] {
+        for key in [
+            "title",
+            "username",
+            "image_count",
+            "position",
+            "description",
+        ] {
             assert!(file["metadata"].get(key).is_none(), "{key}");
         }
         assert_eq!(file["metadata"]["file_id"], "def456uvw78");
