@@ -76,3 +76,9 @@ Each source HTML response is capped at **2 MiB**, with both content-length and s
 The Rust `silverpic` adapter recognizes strict `silverpic.net` and `silverpic.com` source-page URLs of the form `/SLUG/NAME.EXT.html`. A bounded read finds the first original `<img src="/img/FILE">` element; the original file is resolved against the fixed `https://silverpic.net/` origin. Safe alternate image labels and bounded 1–32768 image dimensions are retained in typed messages. The original URL path and extension are validated; foreign origins, traversal, query tokens, unsupported formats and hostile names are excluded. It does not fabricate a numeric source-post ID or download the image for inspection.
 
 [Linux CI 40113694094](https://github.com/sguzman/galerith/actions/runs/40113694094) passed formatting, Clippy, offline tests, roadmap checks and release compilation. This is **not** live differential acceptance and does not complete all pinned `imagehosts.py` host families or filename/archive semantics.
+
+## Imgpv public original-image subset
+
+Imgpv public `imgpv.com/SLUG/NAME.EXT.html` pages are matched with strict safe source identifiers. The first `img-preview` source element supplies an original image from the validated Imgpv HTTPS domain. Optional alt names, user and upload date **text** are bounded typed metadata. Neither a parsed upstream date object nor numeric source-post ID is fabricated.
+
+Source HTML is limited to **2 MiB** including streamed responses. [CI 40114488724](https://github.com/sguzman/galerith/actions/runs/40114488724) passed offline source, hostile-media and one-request HTTP tests plus the full Linux workflow. Full metadata, archive/file naming and live upstream differential parity remain unaccepted.

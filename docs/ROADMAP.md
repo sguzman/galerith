@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 111 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 112 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -237,7 +237,7 @@
   - [x] Preserve unfiltered image/search/gallery resolution and existing page conventions — src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773
   - [ ] Complete upstream pagination, filters, site auth, metadata and live differential acceptance
 
-### 🧱 P5 — Shared website families — `████████░░ 75%`
+### 🧱 P5 — Shared website families — `████████░░ 76%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -588,6 +588,12 @@
   - [x] Carry bounded source token, dimensions and optional source alt in typed metadata without a fabricated numeric source post — src/extractor/silverpic.rs parse_page and typed resolve_messages, source-backed metadata tests; CI 40113694094
   - [x] Enforce declared and streamed 2 MiB HTML response byte ceilings and single-request loopback fetch — src/extractor/silverpic.rs at_base and fetches_only_one_bounded_html_page; CI 40113694094
   - [ ] Verify pinned complete Silverpic metadata, source filename/archive behavior, other live layouts and differential conformance
+- 🖼️ **T554** Imgpv public originals and typed upload-information subset — `████████░░ 80%`
+  - [x] Match pinned HTTPS Imgpv .com source with safe slug and no userinfo/queries/traversal — src/extractor/imgpv.rs pinned_urls_and_unsafe_source_shapes; CI 40114488724
+  - [x] Extract validated first-party img-preview original and safe optional alternate filename — src/extractor/imgpv.rs original_and_optional_source_upload_metadata, reject_unsafe_originals_and_untrusted_scalar_fields; CI 40114488724
+  - [x] Preserve bounded source token, optional upload-date text and username in typed messages — src/extractor/imgpv.rs parse_page and resolve_messages; CI 40114488724
+  - [x] Enforce 2 MiB HTML bounds and one-request local HTTP resolver fixture — src/extractor/imgpv.rs at_base, loopback_source_html_fetch_is_bounded_and_single_page; CI 40114488724
+  - [ ] Complete upstream date semantics, metadata, source aliases, filename/archive policy and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

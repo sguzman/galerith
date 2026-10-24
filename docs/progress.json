@@ -3006,6 +3006,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T554",
+              "emoji": "🖼️",
+              "name": "Imgpv public originals and typed upload-information subset",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned HTTPS Imgpv .com source with safe slug and no userinfo/queries/traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpv.rs pinned_urls_and_unsafe_source_shapes; CI 40114488724"
+                },
+                {
+                  "title": "Extract validated first-party img-preview original and safe optional alternate filename",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpv.rs original_and_optional_source_upload_metadata, reject_unsafe_originals_and_untrusted_scalar_fields; CI 40114488724"
+                },
+                {
+                  "title": "Preserve bounded source token, optional upload-date text and username in typed messages",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpv.rs parse_page and resolve_messages; CI 40114488724"
+                },
+                {
+                  "title": "Enforce 2 MiB HTML bounds and one-request local HTTP resolver fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/imgpv.rs at_base, loopback_source_html_fetch_is_bounded_and_single_page; CI 40114488724"
+                },
+                {
+                  "title": "Complete upstream date semantics, metadata, source aliases, filename/archive policy and live differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
