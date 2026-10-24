@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 126 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 127 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `████████░░ 75%`
+## 🧩 M2 — Extractor framework and site families — `████████░░ 76%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
@@ -690,6 +690,12 @@
   - [x] Decode bounded t.co browser HTML refresh when required, without evaluating script or following redirects — src/extractor/urlshortener.rs parses_bounded_tco_html_refresh_without_script_execution and tco_head_then_get_meta_refresh_is_a_bounded_two_request_flow; CI 40135949501
   - [x] Emit deferred typed queue events for safe destinations with first-party shortlink metadata and strict Rust suite — src/extractor/urlshortener.rs resolve_messages and src/extractor/mod.rs native dispatcher; complete Linux CI 40135949501
   - [ ] Match full pinned upstream shortlink resolution, alternate HTTP/UA/config modes, live bit.ly/t.co redirects and differential queue parity
+- 🧵 **T569** 2ch pinned JSON thread media and deferred board queues — `████████░░ 80%`
+  - [x] Recognize pinned .org/.su/.life/.hk public 2ch thread and board URLs with exact source aliases and hostile-input rejection — src/extractor/twoch.rs pinned_domain_mirrors_and_thread_board_paths_are_exact; src/extractor/mod.rs registry routing; CI 40138163930
+  - [x] Read ordered thread JSON attachments, source post identity, validated first-party originals, title and file metadata without override attacks — src/extractor/twoch.rs thread_json_preserves_order_source_title_and_file_post_fields; CI 40138163930
+  - [x] Emit deferred, first-seen 2ch board thread queues across bounded index and page JSON, rejecting malformed and duplicate IDs — src/extractor/twoch.rs board_queues_deduplicate_first_seen_numeric_thread_ids; CI 40138163930
+  - [x] Enforce bounded public JSON responses, thread media and board pagination with one-thread and two-page loopback HTTP regressions — src/extractor/twoch.rs thread_api_reads_single_bounded_json_request and board_index_and_page_follow_ordered_deferred_children; CI 40138163930
+  - [ ] Match every pinned date/filename/directory/archive metadata, unlimited board pages, alternative file formats and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -8,9 +8,14 @@
     {
       "path": "gallery_dl/extractor/2ch.py",
       "module": "2ch",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/twoch.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded pinned 2ch public thread/board subset: .org/.su/.life/.hk alias routing, exact numeric thread IDs, bounded JSON media, first-party URL and safe metadata safeguards, 2 MiB JSON per source page, 160 files per thread, 128 board child queues and four-page board cap with paced continuation. One-thread and index-plus-page HTTP fixtures; Rust format, Clippy, tests and release build passed CI 40138163930. Complete templates, timestamp semantics and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/2chan.py",

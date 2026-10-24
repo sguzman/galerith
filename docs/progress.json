@@ -3546,6 +3546,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T569",
+              "emoji": "🧵",
+              "name": "2ch pinned JSON thread media and deferred board queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned .org/.su/.life/.hk public 2ch thread and board URLs with exact source aliases and hostile-input rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/twoch.rs pinned_domain_mirrors_and_thread_board_paths_are_exact; src/extractor/mod.rs registry routing; CI 40138163930"
+                },
+                {
+                  "title": "Read ordered thread JSON attachments, source post identity, validated first-party originals, title and file metadata without override attacks",
+                  "passed": true,
+                  "evidence": "src/extractor/twoch.rs thread_json_preserves_order_source_title_and_file_post_fields; CI 40138163930"
+                },
+                {
+                  "title": "Emit deferred, first-seen 2ch board thread queues across bounded index and page JSON, rejecting malformed and duplicate IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/twoch.rs board_queues_deduplicate_first_seen_numeric_thread_ids; CI 40138163930"
+                },
+                {
+                  "title": "Enforce bounded public JSON responses, thread media and board pagination with one-thread and two-page loopback HTTP regressions",
+                  "passed": true,
+                  "evidence": "src/extractor/twoch.rs thread_api_reads_single_bounded_json_request and board_index_and_page_follow_ordered_deferred_children; CI 40138163930"
+                },
+                {
+                  "title": "Match every pinned date/filename/directory/archive metadata, unlimited board pages, alternative file formats and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
