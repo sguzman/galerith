@@ -109,9 +109,14 @@
     {
       "path": "gallery_dl/extractor/8muses.py",
       "module": "8muses",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/eightmuses.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded 8muses public album partial port: pinned printable-ASCII Ractive JSON rotation decoded safely without script execution, source metadata, trusted canonical image/fl/publicUri JPEG originals, 2 MiB HTML cap, 4-page/160-image/128-child bounds, first-seen public album queues, reject private and malformed permalinks, one-second pacing and typed CLI messages. Full CI 40141793059 passed format, Clippy, tests, ledger and release; synthetic deobfuscation and two-page loopback HTTP fixtures. Complete upstream query/metadata/archive, unlimited galleries and live source/CDN differential parity unverified."
+      ]
     },
     {
       "path": "gallery_dl/extractor/__init__.py",

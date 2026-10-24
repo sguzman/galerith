@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 131 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 132 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -720,6 +720,12 @@
   - [x] Build first-seen same-board typed child thread queues with trusted href and ID validation — src/extractor/fourchanarchives.rs board_queues_only_same_board_first_party_numeric_threads; CI 40141229791
   - [x] Limit source HTML, posts, media, board pages and children with local thread/board GET regressions and typed dispatcher — src/extractor/fourchanarchives.rs archived_thread_and_board_use_two_bounded_html_gets; src/extractor/mod.rs routing fixture; full CI 40141229791
   - [ ] Match all pinned non-media post directory events, exact original filename/archive, file dimensions/times, unlimited boards and live differential conformance
+- 🖼️ **T574** 8muses guarded encoded album images and public child queues — `████████░░ 80%`
+  - [x] Match canonical public 8muses album routes with safe slug, host, query and path validation — src/extractor/eightmuses.rs public_routes_reject_unsafe_album_slugs_and_lookalikes; full CI 40141793059
+  - [x] Deobfuscate pinned Ractive ASCII-rotated JSON as data and emit ordered source hash image originals with available album metadata — src/extractor/eightmuses.rs encoded_public_ractive_json_produces_source_backed_images_and_child_queues; full CI 40141793059
+  - [x] Generate first-seen public child-album queues without private/unverified permalinks — src/extractor/eightmuses.rs encoded_public_ractive_json_produces_source_backed_images_and_child_queues; full CI 40141793059
+  - [x] Bound source HTML, media, public queues and paging with two-page loopback HTTP regression and typed dispatch — src/extractor/eightmuses.rs two_bounded_encoded_album_pages_use_source_order_and_dedup; src/extractor/mod.rs registry fixture; full CI 40141793059
+  - [ ] Match upstream page/query options, complete album metadata/archive/filename semantics, unbounded galleries, live HTML and original-image differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -3706,6 +3706,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T574",
+              "emoji": "🖼️",
+              "name": "8muses guarded encoded album images and public child queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match canonical public 8muses album routes with safe slug, host, query and path validation",
+                  "passed": true,
+                  "evidence": "src/extractor/eightmuses.rs public_routes_reject_unsafe_album_slugs_and_lookalikes; full CI 40141793059"
+                },
+                {
+                  "title": "Deobfuscate pinned Ractive ASCII-rotated JSON as data and emit ordered source hash image originals with available album metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/eightmuses.rs encoded_public_ractive_json_produces_source_backed_images_and_child_queues; full CI 40141793059"
+                },
+                {
+                  "title": "Generate first-seen public child-album queues without private/unverified permalinks",
+                  "passed": true,
+                  "evidence": "src/extractor/eightmuses.rs encoded_public_ractive_json_produces_source_backed_images_and_child_queues; full CI 40141793059"
+                },
+                {
+                  "title": "Bound source HTML, media, public queues and paging with two-page loopback HTTP regression and typed dispatch",
+                  "passed": true,
+                  "evidence": "src/extractor/eightmuses.rs two_bounded_encoded_album_pages_use_source_order_and_dedup; src/extractor/mod.rs registry fixture; full CI 40141793059"
+                },
+                {
+                  "title": "Match upstream page/query options, complete album metadata/archive/filename semantics, unbounded galleries, live HTML and original-image differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

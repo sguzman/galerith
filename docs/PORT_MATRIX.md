@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 47 · Not ported: 225.**
+**Complete: 0 · Partial: 48 · Not ported: 224.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -18,7 +18,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/4chanarchives.py` | 🟡 Partial | `src/extractor/fourchanarchives.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/500px.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/8chan.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/8muses.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/8muses.py` | 🟡 Partial | `src/extractor/eightmuses.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/__init__.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/adultempire.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/agnph.py` | ⚪ Not ported | — |
