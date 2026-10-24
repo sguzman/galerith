@@ -309,9 +309,15 @@ pub async fn resolve_messages(
         ));
     }
     if let Some(target) = danbooru::match_url(input) {
-        return Ok(from_source_post_media(
-            danbooru::resolve(client, target, max_pages).await?,
-        ));
+        // An isolated media-asset identifier is not necessarily its post ID.
+        // Do not invent a source-post identity for this special endpoint.
+        let is_asset = matches!(&target, danbooru::Target::MediaAsset { .. });
+        let media = danbooru::resolve(client, target, max_pages).await?;
+        return Ok(if is_asset {
+            from_media(media)
+        } else {
+            from_source_post_media(media)
+        });
     }
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
