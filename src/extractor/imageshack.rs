@@ -77,7 +77,8 @@ fn safe_media(raw: &str) -> Option<(Url, String)> {
     {
         return None;
     }
-    Some((url, safe_filename(name)))
+    let filename = safe_filename(name);
+    Some((url, filename))
 }
 
 fn safe_original_name(value: &str) -> Option<String> {
@@ -143,7 +144,9 @@ fn parse_image(data: &Value, expected_id: &str) -> Result<(MediaItem, Metadata),
     {
         metadata.insert("title".into(), title.into());
     }
-    if let Some(owner) = image.pointer("/owner/username").and_then(Value::as_str)
+    if let Some(owner) = image.get("owner")
+        .and_then(|owner| owner.get("username"))
+        .and_then(Value::as_str)
         .filter(|v| !v.is_empty() && v.len() <= 80 && v.bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')))
     {
