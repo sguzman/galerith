@@ -199,7 +199,7 @@ fn list_ids(
         { continue; }
         let Some(paths) = url.path_segments() else { continue };
         let parts: Vec<_> = paths.collect();
-        let [route] | [route, ""] = parts.as_slice() else { continue };
+        let ([route] | [route, ""]) = parts.as_slice() else { continue };
         let Some(id) = route.strip_prefix("photo_") else { continue };
         if !numeric(id) || !seen.insert(id.into()) { continue; }
         let mut meta = Metadata::new();
