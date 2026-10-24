@@ -302,6 +302,9 @@ pub async fn resolve_messages(
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
     }
+    if let Some(gallery) = imagechest::match_url(input) {
+        return imagechest::resolve_messages(client, gallery).await;
+    }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
     }
