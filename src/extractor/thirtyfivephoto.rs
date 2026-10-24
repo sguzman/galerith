@@ -524,7 +524,13 @@ async fn at_base(
             };
             let rating = if recent { "0" } else { "50" };
             let queue = ajax_listing(
-                client, page_base, &scope, "genre", (&id, rating), first, max_pages,
+                client,
+                page_base,
+                &scope,
+                "genre",
+                (&id, rating),
+                first,
+                max_pages,
             )
             .await?;
             Ok((Vec::new(), queue))
