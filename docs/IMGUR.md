@@ -19,3 +19,5 @@ To bound public API traffic, list discovery is limited to **four pages**, **160 
 The strict source and search route test, deduplicated/ordered queue fixture, and three-page loopback API regression all passed [Linux CI 40122975656](https://github.com/sguzman/galerith/actions/runs/40122975656). No live Imgur account or search availability has been verified.
 
 **Still outstanding:** account authentication, private/hidden albums, unrestricted upstream paging and source query variants, rich metadata, configuration-dependent output names/archive behavior, redirects and live reference differential acceptance. The pinned `imgur.py` module remains **partial**.
+
+**Queue integration acceptance:** Offline two-request gallery-to-album traversal now confirms ordered original media URLs through the shared typed queue traverser. [CI 40126359460](https://github.com/sguzman/galerith/actions/runs/40126359460). This does not establish live Imgur conformance.

@@ -3213,7 +3213,7 @@
               "id": "T560",
               "emoji": "📷",
               "name": "Imgur public image, album, gallery and listing queue previews",
-              "progress": 83,
+              "progress": 86,
               "checks": [
                 {
                   "title": "Recognize pinned public image, album and gallery URL families with strict source ID validation",
@@ -3241,7 +3241,44 @@
                   "evidence": "src/extractor/imgur/listing.rs public_listing_routes_are_strict_and_scoped, queue_items_validate_ids_preserve_order_and_classification and bounded_public_listing_paginates_then_stops_at_empty_page; full Linux CI 40122975656"
                 },
                 {
-                  "title": "Match complete pinned authenticated account behavior, full listing modes, metadata/filename/archive rules and live differential parity",
+                  "title": "Verify deferred gallery-to-album traversal with two first-party public API HTTP fixture requests",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur.rs gallery_queue_traversal_fetches_public_album_and_preserves_media_order; full Linux CI 40126359460"
+                },
+                {
+                  "title": "Match full pinned authenticated account behavior, all listing modes, metadata/filename/archive rules and live differential parity",
+                  "passed": false
+                }
+              ]
+            },
+            {
+              "id": "T561",
+              "emoji": "📚",
+              "name": "IMHentai-family guarded public gallery originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned numeric public /gallery and /view routes on six mirror domains",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs pinned_public_gallery_routes_check_all_six_mirrors; CI 40126359460"
+                },
+                {
+                  "title": "Decode ordered source JSON image metadata and supported original media extensions",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs json_page_order_and_supported_media_types_are_source_backed; CI 40126359460"
+                },
+                {
+                  "title": "Reject hostile origins, malformed page shape or dimensions, and untrusted media roots",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs reject_foreign_media_roots_and_malformed_gallery_metadata; CI 40126359460"
+                },
+                {
+                  "title": "Bound public source page to 2 MiB with one-request HTTP fixture and typed registry dispatch",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs bounded_public_gallery_get_reads_one_source_page; src/extractor/mod.rs; CI 40126359460"
+                },
+                {
+                  "title": "Implement full fallback original media, tag/search feeds, gallery metadata, filename/archive conventions and live upstream parity",
                   "passed": false
                 }
               ]

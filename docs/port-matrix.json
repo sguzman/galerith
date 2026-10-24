@@ -822,15 +822,21 @@
       ],
       "evidence": [
         "Independent guarded public Imgur single-image, album and gallery deferred child queue preview with first-party source ID validation, canonical i.imgur.com originals, JPEG/animated GIF selection, bounded 2 MiB public Client-ID JSON and synthetic one-API-request HTTP fixture. Full Linux CI 40122108041 passed. User/favorites/search/auth, complete metadata/filename/archive, redirects and live upstream differential parity remain unaccepted.",
-        "Bounded 4-page/160-child public Imgur user-submissions, user-favorites, subreddit, tag and search listing-to-child queue subset, duplicate filtering, strict search-query and identity validation, 1-second request spacing and offline three-page Client-ID HTTP regression; full Linux CI 40122975656 passed. Authenticated modes, full metadata, unlimited pagination and live differential parity remain unaccepted."
+        "Bounded 4-page/160-child public Imgur user-submissions, user-favorites, subreddit, tag and search listing-to-child queue subset, duplicate filtering, strict search-query and identity validation, 1-second request spacing and offline three-page Client-ID HTTP regression; full Linux CI 40122975656 passed. Authenticated modes, full metadata, unlimited pagination and live differential parity remain unaccepted.",
+        "Deferred Imgur gallery-to-album queue integration with two mock API HTTP requests and ordered media URL assertions; full Linux CI 40126359460 passed. Not live-site parity."
       ]
     },
     {
       "path": "gallery_dl/extractor/imhentai.py",
       "module": "imhentai",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imhentai.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded public IMHentai, Hentaiera, Hentairox, Hentaifox, Hentaienvy, Hentaizap source galleries: validated numeric IDs, ordered 160-image JSON media table, source-backed dimensions/title, HTTPS-first-party media, 2 MiB bounded HTML and one-request offline loopback test. Full Linux CI 40126359460 passed. Tag/search, fallback formats, full archive/metadata and live parity remain open."
+      ]
     },
     {
       "path": "gallery_dl/extractor/inkbunny.py",

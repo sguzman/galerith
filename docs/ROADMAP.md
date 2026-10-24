@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 63%` across 118 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 63%` across 119 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -626,13 +626,20 @@
   - [x] Dispatch flat public media and typed directory/URL events with actual source token metadata — src/extractor/imgclick.rs resolve and resolve_messages; src/extractor/mod.rs; CI 40119597122
   - [x] Use pinned five-field complex continue POST, HTTP and schemeless public source aliases, and HTTPS-upgrade public media — src/extractor/imgclick.rs loopback_single_public_image_is_bounded, pinned_imgclick_token_and_safe_source_names and public_imgclick_image_marker_extracts_only_safe_originals; CI 40120708863, 40120836307, 40121092155
   - [ ] Match all upstream metadata/filename/archive fields, alternate site behavior and live differential parity
-- 📷 **T560** Imgur public image, album, gallery and listing queue previews — `████████░░ 83%`
+- 📷 **T560** Imgur public image, album, gallery and listing queue previews — `█████████░ 86%`
   - [x] Recognize pinned public image, album and gallery URL families with strict source ID validation — src/extractor/imgur.rs pinned_public_url_families_have_strict_origins; CI 40122108041
   - [x] Parse validated original media and ordered album metadata with JPEG and animated GIF normalization — src/extractor/imgur.rs pinned_public_images_and_albums_preserve_id_and_order; CI 40122108041
   - [x] Emit typed gallery child queue classification and ordered file and album directory/URL events — src/extractor/imgur.rs pinned_public_gallery_is_deferred_to_image_or_album and messages_from_records; src/extractor/mod.rs; CI 40122108041
   - [x] Bound authenticated public Client-ID API JSON to 2 MiB with offline HTTP request regression — src/extractor/imgur.rs bounded_single_image_makes_one_authenticated_public_api_request; CI 40122108041
   - [x] Discover bounded public user posts/favorites, subreddit, tag and search queues with validated identifiers and deduplication — src/extractor/imgur/listing.rs public_listing_routes_are_strict_and_scoped, queue_items_validate_ids_preserve_order_and_classification and bounded_public_listing_paginates_then_stops_at_empty_page; full Linux CI 40122975656
-  - [ ] Match complete pinned authenticated account behavior, full listing modes, metadata/filename/archive rules and live differential parity
+  - [x] Verify deferred gallery-to-album traversal with two first-party public API HTTP fixture requests — src/extractor/imgur.rs gallery_queue_traversal_fetches_public_album_and_preserves_media_order; full Linux CI 40126359460
+  - [ ] Match full pinned authenticated account behavior, all listing modes, metadata/filename/archive rules and live differential parity
+- 📚 **T561** IMHentai-family guarded public gallery originals — `████████░░ 80%`
+  - [x] Recognize pinned numeric public /gallery and /view routes on six mirror domains — src/extractor/imhentai.rs pinned_public_gallery_routes_check_all_six_mirrors; CI 40126359460
+  - [x] Decode ordered source JSON image metadata and supported original media extensions — src/extractor/imhentai.rs json_page_order_and_supported_media_types_are_source_backed; CI 40126359460
+  - [x] Reject hostile origins, malformed page shape or dimensions, and untrusted media roots — src/extractor/imhentai.rs reject_foreign_media_roots_and_malformed_gallery_metadata; CI 40126359460
+  - [x] Bound public source page to 2 MiB with one-request HTTP fixture and typed registry dispatch — src/extractor/imhentai.rs bounded_public_gallery_get_reads_one_source_page; src/extractor/mod.rs; CI 40126359460
+  - [ ] Implement full fallback original media, tag/search feeds, gallery metadata, filename/archive conventions and live upstream parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
