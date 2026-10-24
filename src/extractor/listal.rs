@@ -25,12 +25,16 @@ fn valid_id(s: &str) -> bool {
 
 fn valid_people(s: &str) -> bool {
     (1..=96).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|term| lower.contains(term)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|term| lower.contains(term))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
@@ -46,10 +50,12 @@ pub fn match_url(raw: &str) -> Option<Target> {
     }
     let segments: Vec<_> = url.path_segments()?.collect();
     match segments.as_slice() {
-        ["viewimage", id] | ["viewimage", id, ""] if valid_id(id) =>
-            Some(Target::Image((*id).to_owned())),
-        [person, "pictures"] | [person, "pictures", ""] if valid_people(person) =>
-            Some(Target::People((*person).to_owned())),
+        ["viewimage", id] | ["viewimage", id, ""] if valid_id(id) => {
+            Some(Target::Image((*id).to_owned()))
+        }
+        [person, "pictures"] | [person, "pictures", ""] if valid_people(person) => {
+            Some(Target::People((*person).to_owned()))
+        }
         _ => None,
     }
 }
@@ -67,7 +73,8 @@ fn media_url(source: &str) -> Option<(Url, String)> {
     let trusted = matches!(host, "listal.com" | "lisimg.com")
         || host.ends_with(".listal.com")
         || host.ends_with(".lisimg.com");
-    if !trusted || url.scheme() != "https"
+    if !trusted
+        || url.scheme() != "https"
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -79,7 +86,10 @@ fn media_url(source: &str) -> Option<(Url, String)> {
     }
     let basename = url.path_segments()?.next_back()?;
     let ext = basename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let filename = safe_filename(basename);
@@ -90,16 +100,21 @@ fn media_url(source: &str) -> Option<(Url, String)> {
 }
 
 fn capture<'a>(source: &'a str, start: &str, end: char) -> Option<&'a str> {
-    source.split_once(start)?.1.split_once(end).map(|(value, _)| value)
+    source
+        .split_once(start)?
+        .1
+        .split_once(end)
+        .map(|(value, _)| value)
 }
 
 fn parse_image(
-    html: &str, id: &str,
+    html: &str,
+    id: &str,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let source = capture(html, "<div><center><img src='", '\'')
         .ok_or("Listal public image page missing original media anchor")?;
-    let (url, source_name) = media_url(source)
-        .ok_or("Listal original media URL is not a trusted image")?;
+    let (url, source_name) =
+        media_url(source).ok_or("Listal original media URL is not a trusted image")?;
     let item = MediaItem {
         url: url.to_string(),
         filename: format!("{id}_{source_name}"),
@@ -109,7 +124,10 @@ fn parse_image(
     let mut metadata = media_metadata(&item);
     metadata.insert("subcategory".into(), "image".into());
     metadata.insert("image_id".into(), id.parse::<u64>()?.into());
-    metadata.insert("post_url".into(), format!("https://www.listal.com/viewimage/{id}h").into());
+    metadata.insert(
+        "post_url".into(),
+        format!("https://www.listal.com/viewimage/{id}h").into(),
+    );
     if let Some(title) = capture(html, "title=\"", '"')
         .filter(|text| text.len() <= 200 && !text.chars().any(char::is_control))
     {
@@ -125,12 +143,19 @@ fn parse_image(
         }
     }
     if let Some(author_part) = html.split_once("Added by <a href='").map(|(_, tail)| tail) {
-        if let Some(path) = author_part.split_once('\'').map(|(path, _)| path)
+        if let Some(path) = author_part
+            .split_once('\'')
+            .map(|(path, _)| path)
             .filter(|path| path.starts_with('/') && path.len() <= 100 && !path.contains(".."))
         {
-            metadata.insert("author_url".into(), format!("https://www.listal.com{path}").into());
+            metadata.insert(
+                "author_url".into(),
+                format!("https://www.listal.com{path}").into(),
+            );
         }
-        if let Some(name) = author_part.split_once('>').and_then(|(_, tail)| tail.split_once('<'))
+        if let Some(name) = author_part
+            .split_once('>')
+            .and_then(|(_, tail)| tail.split_once('<'))
             .map(|(text, _)| text)
             .filter(|text| text.len() <= 120 && !text.chars().any(char::is_control))
         {
@@ -145,11 +170,23 @@ fn parse_image(
     Ok((item, metadata))
 }
 
-fn listing_ids(html: &str, found: &mut HashSet<String>, out: &mut Vec<ExtractorMessage>, person: &str) {
+fn listing_ids(
+    html: &str,
+    found: &mut HashSet<String>,
+    out: &mut Vec<ExtractorMessage>,
+    person: &str,
+) {
     for segment in html.split("listal.com/viewimage/").skip(1).take(4000) {
-        if out.len() >= MAX_CHILDREN { break; }
-        let id = segment.bytes().take_while(u8::is_ascii_digit).collect::<Vec<_>>();
-        let Ok(id) = std::str::from_utf8(&id) else { continue };
+        if out.len() >= MAX_CHILDREN {
+            break;
+        }
+        let id = segment
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .collect::<Vec<_>>();
+        let Ok(id) = std::str::from_utf8(&id) else {
+            continue;
+        };
         if !valid_id(id) || !found.insert(id.to_owned()) {
             continue;
         }
@@ -158,7 +195,10 @@ fn listing_ids(html: &str, found: &mut HashSet<String>, out: &mut Vec<ExtractorM
         meta.insert("subcategory".into(), "people".into());
         meta.insert("person".into(), person.into());
         meta.insert("image_id".into(), id.parse::<u64>().unwrap().into());
-        out.push(queued_url(format!("https://www.listal.com/viewimage/{id}"), meta));
+        out.push(queued_url(
+            format!("https://www.listal.com/viewimage/{id}"),
+            meta,
+        ));
     }
 }
 
@@ -168,14 +208,19 @@ fn next_page(html: &str, person: &str, current: u16) -> bool {
         && (html.contains(">Next") || html.contains("nextprev"))
 }
 
-async fn read_html(
-    client: &Client, endpoint: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let mut response = client.get(endpoint.clone()).send().await?.error_for_status()?;
+async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let mut response = client
+        .get(endpoint.clone())
+        .send()
+        .await?
+        .error_for_status()?;
     if response.url().origin() != endpoint.origin() {
         return Err("Listal public page redirected outside its origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("Listal public HTML exceeds size bound".into());
     }
     let mut bytes = Vec::new();
@@ -189,19 +234,26 @@ async fn read_html(
 }
 
 async fn image_at_base(
-    client: &Client, base: &Url, id: &str,
+    client: &Client,
+    base: &Url,
+    id: &str,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let page = read_html(client, base.join(&format!("viewimage/{id}h"))?).await?;
     parse_image(&page, id)
 }
 
 async fn people_at_base(
-    client: &Client, base: &Url, person: &str, max_pages: u16,
+    client: &Client,
+    base: &Url,
+    person: &str,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut seen = HashSet::new();
     let mut result = Vec::new();
     for page in 1..=max_pages.clamp(1, MAX_PAGES) {
-        if page > 1 { tokio::time::sleep(Duration::from_secs(1)).await; }
+        if page > 1 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         let path = if page == 1 {
             format!("{person}/pictures")
         } else {
@@ -217,25 +269,35 @@ async fn people_at_base(
 }
 
 pub async fn resolve(
-    client: &Client, target: Target,
+    client: &Client,
+    target: Target,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://www.listal.com/")?;
     match target {
         Target::Image(id) => Ok(vec![image_at_base(client, &base, &id).await?.0]),
-        Target::People(_) => Err("Listal people collections require --dump-messages or --follow-queues".into()),
+        Target::People(_) => {
+            Err("Listal people collections require --dump-messages or --follow-queues".into())
+        }
     }
 }
 
 pub async fn resolve_messages(
-    client: &Client, target: Target, max_pages: u16,
+    client: &Client,
+    target: Target,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://www.listal.com/")?;
     match target {
         Target::Image(id) => {
             let (item, metadata) = image_at_base(client, &base, &id).await?;
             Ok(vec![
-                ExtractorMessage::Directory { metadata: metadata.clone() },
-                ExtractorMessage::Url { url: item.url, metadata },
+                ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                },
+                ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                },
             ])
         }
         Target::People(person) => people_at_base(client, &base, &person, max_pages).await,
@@ -245,12 +307,21 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_public_url_families_validate_id_and_people_slug() {
-        assert_eq!(match_url("https://www.listal.com/viewimage/12345678"), Some(Target::Image("12345678".into())));
-        assert_eq!(match_url("https://listal.com/alice/pictures"), Some(Target::People("alice".into())));
+        assert_eq!(
+            match_url("https://www.listal.com/viewimage/12345678"),
+            Some(Target::Image("12345678".into()))
+        );
+        assert_eq!(
+            match_url("https://listal.com/alice/pictures"),
+            Some(Target::People("alice".into()))
+        );
         for bad in [
             "https://evillistal.com/viewimage/12345678",
             "https://listal.com/viewimage/0",
@@ -260,54 +331,73 @@ mod tests {
             "https://listal.com/alice/../../private",
             "https://listal.com:8443/viewimage/123",
         ] {
-            assert!(match_url(bad).is_none(),"{bad}");
+            assert!(match_url(bad).is_none(), "{bad}");
         }
     }
 
     #[test]
     fn single_original_preserves_source_image_dimensions_and_author() {
         let html = r#"<div><center><img src='https://image.listal.com/pics/full.png' title="Portrait" width='800' height='1200'></center></div>Added by <a href='/authors/sam'>Sam</a> ago on 12 April 2020 16:30<"#;
-        let (media, meta) = parse_image(html,"12345678").unwrap();
-        assert_eq!(media.url,"https://image.listal.com/pics/full.png");
-        assert_eq!(media.filename,"12345678_full.png");
-        assert_eq!(meta["image_id"],12345678);
-        assert_eq!(meta["title"],"Portrait");
-        assert_eq!(meta["width"],800);
-        assert_eq!(meta["author"],"Sam");
-        assert_eq!(meta["date_source"],"12 April 2020 16:30");
+        let (media, meta) = parse_image(html, "12345678").unwrap();
+        assert_eq!(media.url, "https://image.listal.com/pics/full.png");
+        assert_eq!(media.filename, "12345678_full.png");
+        assert_eq!(meta["image_id"], 12345678);
+        assert_eq!(meta["title"], "Portrait");
+        assert_eq!(meta["width"], 800);
+        assert_eq!(meta["author"], "Sam");
+        assert_eq!(meta["date_source"], "12 April 2020 16:30");
         assert!(media.post_id.is_none());
-        let forged=html.replace("image.listal.com","evil-listal.com");
-        assert!(parse_image(&forged,"12345678").is_err());
+        let forged = html.replace("image.listal.com", "evil-listal.com");
+        assert!(parse_image(&forged, "12345678").is_err());
     }
 
     #[test]
     fn people_images_queue_first_seen_numeric_ids_without_external_links() {
-        let mut seen=HashSet::new();
-        let mut output=Vec::new();
-        listing_ids(r#"<a href='https://www.listal.com/viewimage/1234'>A</a><a href='https://www.listal.com/viewimage/1234'>Again</a><a href='http://www.listal.com/viewimage/5678'>B</a>"#,
-            &mut seen,&mut output,"alice");
-        assert_eq!(output.len(),2);
-        assert_eq!(serde_json::to_value(&output[1]).unwrap()["url"],"https://www.listal.com/viewimage/5678");
-        assert!(next_page("<a href='/alice/pictures/2'>Next</a>","alice",1));
-        assert!(!next_page("<a href='https://foreign.test/alice/pictures/2'>No</a>","alice",1));
+        let mut seen = HashSet::new();
+        let mut output = Vec::new();
+        listing_ids(
+            r#"<a href='https://www.listal.com/viewimage/1234'>A</a><a href='https://www.listal.com/viewimage/1234'>Again</a><a href='http://www.listal.com/viewimage/5678'>B</a>"#,
+            &mut seen,
+            &mut output,
+            "alice",
+        );
+        assert_eq!(output.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&output[1]).unwrap()["url"],
+            "https://www.listal.com/viewimage/5678"
+        );
+        assert!(next_page(
+            "<a href='/alice/pictures/2'>Next</a>",
+            "alice",
+            1
+        ));
+        assert!(!next_page(
+            "<a href='https://foreign.test/alice/pictures/2'>No</a>",
+            "alice",
+            1
+        ));
     }
 
     #[tokio::test]
     async fn bounded_public_image_get_uses_one_source_request() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            let (mut socket,_)=listener.accept().await.unwrap();
-            let mut buf=[0u8;4096];
-            let n=socket.read(&mut buf).await.unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 4096];
+            let n = socket.read(&mut buf).await.unwrap();
             assert!(String::from_utf8_lossy(&buf[..n]).starts_with("GET /viewimage/1234h HTTP/1.1"));
-            let html=r#"<div><center><img src='https://image.listal.com/pics/full.jpg'></center></div>"#;
-            let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",html.len());
+            let html =
+                r#"<div><center><img src='https://image.listal.com/pics/full.jpg'></center></div>"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                html.len()
+            );
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
-        let base=Url::parse(&format!("http://{addr}/")).unwrap();
-        let record=image_at_base(&Client::new(),&base,"1234").await.unwrap();
-        assert_eq!(record.0.filename,"1234_full.jpg");
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let record = image_at_base(&Client::new(), &base, "1234").await.unwrap();
+        assert_eq!(record.0.filename, "1234_full.jpg");
         server.await.unwrap();
     }
 }

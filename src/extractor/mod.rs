@@ -34,8 +34,8 @@ pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
 pub mod lexica;
-pub mod listal;
 pub mod lightroom;
+pub mod listal;
 pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
@@ -89,7 +89,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("imhentai", "pinned public IMHentai-family galleries"),
     ("issuu", "pinned public Issuu publication pages"),
-    ("listal", "pinned public Listal images and people-picture queues"),
+    (
+        "listal",
+        "pinned public Listal images and people-picture queues",
+    ),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
