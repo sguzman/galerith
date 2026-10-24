@@ -371,10 +371,11 @@ mod tests {
         assert!(serde_json::to_value(&events[2]).unwrap()["metadata"]
             .get("source_post_id")
             .is_none());
-        assert!(serde_json::to_value(&from_media(vec![fixture()])[0])
-            .unwrap()["metadata"]
-            .get("source_post_id")
-            .is_none());
+        assert!(
+            serde_json::to_value(&from_media(vec![fixture()])[0]).unwrap()["metadata"]
+                .get("source_post_id")
+                .is_none()
+        );
     }
 
     #[tokio::test]
