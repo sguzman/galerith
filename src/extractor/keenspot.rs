@@ -158,7 +158,7 @@ fn comic_start(html: &str, comic: &Comic) -> Option<(String, Navigation, &'stati
     None
 }
 
-fn comic_next<'a>(html: &'a str, mode: Navigation) -> Option<&'a str> {
+fn comic_next(html: &str, mode: Navigation) -> Option<&str> {
     match mode {
         Navigation::Linked => source_link(html, false),
         Navigation::NextId => href_before(html, "id=\"next_"),
