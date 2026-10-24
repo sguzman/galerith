@@ -25,6 +25,16 @@ fn valid_token(s: &str) -> bool {
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
+    // Url normalizes dot segments; reject them before parsing so a malformed
+    // gallery path can never be reclassified as a public single-file link.
+    let lower = input.to_ascii_lowercase();
+    if lower.contains("/../")
+        || lower.contains("/./")
+        || lower.contains("/%2e%2e/")
+        || lower.contains("/%2e/")
+    {
+        return None;
+    }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
         || !matches!(
@@ -49,7 +59,11 @@ pub fn match_url(input: &str) -> Option<Target> {
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
         ["gallery", id] if valid_token(id) => Some(Target::Gallery((*id).into())),
-        [id] | ["image", id] if valid_token(id) => Some(Target::File((*id).into())),
+        [id] | ["image", id]
+            if valid_token(id) && !matches!(*id, "gallery" | "json" | "image") =>
+        {
+            Some(Target::File((*id).into()))
+        }
         _ => None,
     }
 }
@@ -335,6 +349,8 @@ mod tests {
             "https://postimg.cc/Wtn2b3hC?token=secret",
             "https://postimg.cc/gallery/a%2Fb",
             "https://postimg.cc/gallery/../bad",
+            "https://postimg.cc/gallery/%2e%2e/bad",
+            "https://postimg.cc/json",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
