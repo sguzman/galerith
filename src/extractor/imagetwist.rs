@@ -68,6 +68,12 @@ fn safe_hint(value: &str) -> bool {
         && value.bytes().all(|b| {
             b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
         })
+        && value.rsplit_once('.').is_some_and(|(_, extension)| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+            )
+        })
 }
 
 fn media_url(raw: &str) -> Option<(Url, String)> {
