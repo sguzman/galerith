@@ -2600,22 +2600,22 @@
                 {
                   "title": "Recognize public album and explicit user-profile listing URLs while excluding foreign origins and query-token inputs",
                   "passed": true,
-                  "evidence": "src/extractor/imagepond.rs match_queue_url and album_user_routes_and_deferred_media_queues_are_bounded; CI 40052501580"
+                  "evidence": "src/extractor/imagepond.rs match_queue_url and album_user_routes_and_deferred_media_queues_are_bounded; CI 40052501580; bare-user path and reserved route regression CI 40053728460"
                 },
                 {
                   "title": "Project ordered, deduplicated image/video child URLs as deferred typed queues with parent scope metadata",
                   "passed": true,
-                  "evidence": "src/extractor/imagepond.rs collect_queue_messages and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580"
+                  "evidence": "src/extractor/imagepond.rs collect_queue_messages and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580; upstream album JS fallback safely canonicalized CI 40053615659; inherited album heading and cross-page scope CI 40053864707"
                 },
                 {
                   "title": "Enforce 4-page, 48-child and 2-MiB per-response caps with interpage pacing and safe typed dispatcher registration",
                   "passed": true,
-                  "evidence": "src/extractor/imagepond.rs queue_at_base, resolve_queue_messages, mod.rs registry; CI 40052501580"
+                  "evidence": "src/extractor/imagepond.rs queue_at_base, resolve_queue_messages, mod.rs registry; CI 40052501580; 4-page bounded parent title inheritance CI 40053864707"
                 },
                 {
                   "title": "Validate same-origin next links, advance monotonically and verify two-page loopback request ordering and deduplication",
                   "passed": true,
-                  "evidence": "src/extractor/imagepond.rs rejects_foreign_and_nonprogressing_listing_continuations and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580"
+                  "evidence": "src/extractor/imagepond.rs rejects_foreign_and_nonprogressing_listing_continuations and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580; canonical album fallback link ordering CI 40053615659; across-page heading fixture CI 40053864707"
                 },
                 {
                   "title": "Match pinned gallery-dl all album/user URL variants, metadata inheritance, continuation rules, filename/archive formatting and live site differential acceptance",

@@ -713,7 +713,8 @@
       "evidence": [
         "Independent Rust public ImagePond /i, /img, /image and /video OG media preview, strict site and HTTPS media-origin policy, safe filename projection, typed file messages and one-request/oversized-body local HTTP regressions; CI 40051989239 passed. Album/user traversal, all metadata, site variants, archive/filename parity and live upstream differential acceptance remain open.",
         "Conservative public /a, /album and explicit /user listing queues, bounded first-party same-origin monotonically advancing next pages, capped 4 pages/48 children/2 MiB responses, ordered cross-page dedup and synthetic two-page HTTP fixtures; CI 40052501580 passed. Full upstream URL aliases, page semantics and live parity remain unaccepted.",
-        "Validated typed OG image/video dimensions, safe MIME and thumbnail hints with hostile-value fixtures, plus safer canonical link-based queue extraction excluding foreign and script-only substrings; CI 40053074485 passed. This is not complete HTML parsing or live reference parity."
+        "Validated typed OG image/video dimensions, safe MIME and thumbnail hints with hostile-value fixtures, plus safer canonical link-based queue extraction excluding foreign and script-only substrings; CI 40053074485 passed. This is not complete HTML parsing or live reference parity.",
+        "Upstream-pinned literal JavaScript album fallback source links parsed without execution, strict first-party canonical child validation, bare user profile aliases (including ap000) with reserved-route guards, sanitized public album titles inherited across paginated queues; offline fixture CI 40053615659, 40053728460, 40053800312 and passing Linux build/test job in 40053864707. Live upstream conformance remains absent."
       ]
     },
     {

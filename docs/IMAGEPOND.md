@@ -22,3 +22,12 @@ For exact scope and acceptance status see the [full module matrix](port-matrix.j
 ## Additional typed file metadata and queue-origin safeguards
 
 A verified metadata subset preserves public OpenGraph image/video class and up to 32,768-pixel dimensions, and videos can carry allowlisted MIME type plus a same-site thumbnail URL. Missing, malformed, overflow and untrusted fields are excluded without changing the flattened media record. The deferred queue scanner only constructs links from recognized first-party anchor attributes, not naked `/i/` substrings inside scripts or foreign links. See [CI 40053074485](https://github.com/sguzman/galerith/actions/runs/40053074485). This is deliberately narrower than the upstream full file metadata and DOM/HTML compatibility contract.
+
+
+## Pinned upstream URL and album-title extensions
+
+The literal ImagePond/Chevereto album fallback representation `'javascript:void(0)' : 'URL'` is recognized as **data only**; scripts are not executed. The candidate is validated using the same strict first-party public-file URL matcher as normal child anchors, and original document order is preserved. Pinned reference example IDs include `chv_317512` and `1000423939.zb8Fxy`. The public username form `/dariusbbb24` (also `/ap000`) routes to the guarded user index just like `/user/USERNAME`, without treating reserved routes as usernames.
+
+Public album headings are carried as a sanitized optional `album` field in deferred typed events. The first valid heading can be inherited by children on later pages. The value does not silently rename files or change flat download behavior.
+
+Offline verification: [CI 40053615659](https://github.com/sguzman/galerith/actions/runs/40053615659) for pinned fallback, [CI 40053728460](https://github.com/sguzman/galerith/actions/runs/40053728460) for bare username routes, and [CI 40053800312](https://github.com/sguzman/galerith/actions/runs/40053800312) for headings. The multi-page inherited-title check is in [CI 40053864707](https://github.com/sguzman/galerith/actions/runs/40053864707). These remain offline previews, not complete upstream acceptance.
