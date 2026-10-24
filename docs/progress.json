@@ -2750,6 +2750,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T546",
+              "emoji": "🖼️",
+              "name": "Pinned imagehosts Postimages public files and bounded galleries",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned Postimages and Pixxxels aliases for public file/gallery pages while rejecting unsafe and reserved paths",
+                  "passed": true,
+                  "evidence": "src/extractor/postimg.rs file_and_gallery_routes_match_pinned_public_aliases; CI 40055715703"
+                },
+                {
+                  "title": "Resolve public Postimages download anchor into safe image URL and filename with source token metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/postimg.rs image_download_anchor_accepts_pinned_url_and_rejects_foreign_file and first_party_public_file_fetches_one_bounded_html_request; CI 40055715703"
+                },
+                {
+                  "title": "Traverse gallery JSON read-only under 2 MiB body, 4-page, 128-file limits with valid source tokens and one-second pacing",
+                  "passed": true,
+                  "evidence": "src/extractor/postimg.rs gallery_at_base and parse_gallery_page; CI 40055715703"
+                },
+                {
+                  "title": "Emit ordered deduplicated typed gallery queues with scalar width/height/name hints and test two local JSON pages",
+                  "passed": true,
+                  "evidence": "src/extractor/postimg.rs gallery_queue_validates_tokens_deduplicates_and_bounds_records and gallery_follows_two_bounded_api_pages_and_deduplicates; CI 40055715703"
+                },
+                {
+                  "title": "Complete Postimages gallery title, full metadata and filename policy, all original aliases, paging/range behavior and live reference parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

@@ -701,10 +701,12 @@
       "status": "partial",
       "rust_paths": [
         "src/extractor/imagehosts.rs",
-        "src/extractor/mod.rs"
+        "src/extractor/mod.rs",
+        "src/extractor/postimg.rs"
       ],
       "evidence": [
-        "Independent Pixhost file/gallery subset of pinned imagehosts.py: public /show and /gallery routes, bounded HTML, pinned cookies, strict first-party links and typed child queues, dedup and synthetic loopback tests; CI 40055130109 passed. Other host families and full upstream parity remain open."
+        "Independent Pixhost file/gallery subset of pinned imagehosts.py: public /show and /gallery routes, bounded HTML, pinned cookies, strict first-party links and typed child queues, dedup and synthetic loopback tests; CI 40055130109 passed. Other host families and full upstream parity remain open.",
+        "Independent Postimages single-file and JSON gallery subset: pinned public aliases, safe CDN media, bounded 2 MiB responses, at most 4 pages/128 deferred children, deduplication and offline two-page JSON test; CI 40055715703 passed. Full per-host metadata, all site families and live upstream parity remain unaccepted."
       ]
     },
     {

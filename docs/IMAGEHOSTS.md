@@ -9,3 +9,12 @@ Each HTML response has a strict **2 MiB** body limit, and gallery children are d
 [Linux CI 40055130109](https://github.com/sguzman/galerith/actions/runs/40055130109) passed formatting, Clippy, tests, roadmap/module consistency and release build. Tests are synthetic/offline, not live differential evidence.
 
 Outstanding: all other pinned `imagehosts.py` extractors, full gallery pagination, POST sites, cookies/encoding variants, rich metadata, filename/archive rules and proven live site parity. Module status remains **partial**.
+
+
+## Postimages public file and bounded gallery subset
+
+Added `postimg.cc/ID`, `postimages.org/ID`, `pixxxels.cc/ID` and the corresponding public `/gallery/ID` aliases (including recognized `/image/ID` file routes). Individual public file pages read one 2 MiB-bounded HTML response and require a download anchor with a trusted `https://i.postimg.cc/` media URL, optionally with its known public `?dl=1` flag. Image naming uses bounded and sanitized visible alt text when present, falling back to the safe source filename. File typed messages retain the canonical token and post URL.
+
+Public galleries use up to four read-only JSON `/json?action=list&page=N&album=ID` requests, limited to 2 MiB each and 128 unique queued image tokens overall, with one-second pacing and original order preserved. Queue metadata can include bounded width, height and filename hints. Foreign and malformed tokens are discarded, and URL normalization of dot segments cannot reclassify malformed galleries as files.
+
+Verified with [CI 40055715703](https://github.com/sguzman/galerith/actions/runs/40055715703). The full upstream module and complete Postimages gallery title, metadata, filename/archive, aliases and live-site parity are still unaccepted.

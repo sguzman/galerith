@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 103 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 104 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -540,6 +540,12 @@
   - [x] Honor pinned public cookies and validate canonical or relative gallery hrefs without reading script strings and data-href — src/extractor/imagehosts.rs gallery_only_enqueues_first_party_public_file_urls_and_deduplicates, bounded read_public_html and public cookie loopback assertion; CI 40055130109
   - [x] Emit typed gallery queues with image token/directory/gallery IDs and preserve safe flat single media items — src/extractor/imagehosts.rs gallery_queue, resolve_messages and resolve, ordered deduplication and typed events; CI 40055130109
   - [ ] Port full pinned imagehosts module: all host families, gallery pagination, POST/cookie/filename/archive metadata behavior and live upstream differential acceptance
+- 🖼️ **T546** Pinned imagehosts Postimages public files and bounded galleries — `████████░░ 80%`
+  - [x] Recognize pinned Postimages and Pixxxels aliases for public file/gallery pages while rejecting unsafe and reserved paths — src/extractor/postimg.rs file_and_gallery_routes_match_pinned_public_aliases; CI 40055715703
+  - [x] Resolve public Postimages download anchor into safe image URL and filename with source token metadata — src/extractor/postimg.rs image_download_anchor_accepts_pinned_url_and_rejects_foreign_file and first_party_public_file_fetches_one_bounded_html_request; CI 40055715703
+  - [x] Traverse gallery JSON read-only under 2 MiB body, 4-page, 128-file limits with valid source tokens and one-second pacing — src/extractor/postimg.rs gallery_at_base and parse_gallery_page; CI 40055715703
+  - [x] Emit ordered deduplicated typed gallery queues with scalar width/height/name hints and test two local JSON pages — src/extractor/postimg.rs gallery_queue_validates_tokens_deduplicates_and_bounds_records and gallery_follows_two_bounded_api_pages_and_deduplicates; CI 40055715703
+  - [ ] Complete Postimages gallery title, full metadata and filename policy, all original aliases, paging/range behavior and live reference parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
