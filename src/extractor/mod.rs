@@ -35,8 +35,8 @@ pub mod imxto;
 pub mod issuu;
 pub mod keenspot;
 pub mod khinsider;
-pub mod lexica;
 pub mod lensdump;
+pub mod lexica;
 pub mod lightroom;
 pub mod listal;
 pub mod moebooru;
@@ -101,7 +101,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "listal",
         "pinned public Listal images and people-picture queues",
     ),
-    ("lensdump", "pinned Lensdump public image and album originals"),
+    (
+        "lensdump",
+        "pinned Lensdump public image and album originals",
+    ),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",

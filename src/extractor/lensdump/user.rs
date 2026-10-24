@@ -16,7 +16,8 @@ pub struct User {
 
 fn valid_user(s: &str) -> bool {
     (1..=80).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
         && s != "a"
         && s != "i"
 }
@@ -86,7 +87,12 @@ fn album_link(raw: &str) -> Option<String> {
     Some(format!("https://lensdump.com/a/{id}"))
 }
 
-fn decode_page(html: &str, user: &User, seen: &mut HashSet<String>, result: &mut Vec<ExtractorMessage>) {
+fn decode_page(
+    html: &str,
+    user: &User,
+    seen: &mut HashSet<String>,
+    result: &mut Vec<ExtractorMessage>,
+) {
     for chunk in html.split("data-url-short=\"").skip(1).take(3200) {
         if result.len() >= MAX_CHILDREN {
             break;
@@ -112,12 +118,10 @@ fn decode_page(html: &str, user: &User, seen: &mut HashSet<String>, result: &mut
 fn next_page(html: &str, base: &Url, user: &User, current: u16) -> Option<Url> {
     let next = html
         .split_once(" data-pagination=\"next\"")?
-        .1.split_once('>')?
+        .1
+        .split_once('>')?
         .0;
-    let raw = next
-        .split_once("href=\"")?
-        .1.split_once('"')?
-        .0;
+    let raw = next.split_once("href=\"")?.1.split_once('"')?.0;
     let href = base.join(raw).ok()?;
     if href.origin() != base.origin()
         || href.path() != format!("/{}/", user.name)
@@ -128,10 +132,7 @@ fn next_page(html: &str, base: &Url, user: &User, current: u16) -> Option<Url> {
         return None;
     }
     let pairs: Vec<_> = href.query_pairs().collect();
-    if pairs.len() != 2
-        || pairs[0].0 != "sort"
-        || pairs[0].1 != "date_asc"
-        || pairs[1].0 != "page"
+    if pairs.len() != 2 || pairs[0].0 != "sort" || pairs[0].1 != "date_asc" || pairs[1].0 != "page"
     {
         return None;
     }
@@ -139,15 +140,15 @@ fn next_page(html: &str, base: &Url, user: &User, current: u16) -> Option<Url> {
     (ordinal == current + 1 && ordinal <= MAX_PAGES).then_some(href)
 }
 
-async fn read_html(
-    client: &Client,
-    url: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut resp = client.get(url.clone()).send().await?.error_for_status()?;
     if resp.url().origin() != url.origin() {
         return Err("Lensdump user page redirected outside first-party origin".into());
     }
-    if resp.content_length().is_some_and(|n| n > MAX_HTML_BYTES as u64) {
+    if resp
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
+    {
         return Err("Lensdump user HTML exceeds response byte cap".into());
     }
     let mut body = Vec::new();
@@ -198,18 +199,32 @@ pub async fn resolve_messages(
     user: User,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    at_base(client, &Url::parse("https://lensdump.com/")?, &user, max_pages).await
+    at_base(
+        client,
+        &Url::parse("https://lensdump.com/")?,
+        &user,
+        max_pages,
+    )
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn recognizes_public_profile_and_bounded_sort_page_only() {
         assert_eq!(match_url("https://lensdump.com/author").unwrap().start, 1);
-        assert_eq!(match_url("https://lensdump.com/author/?sort=date_asc&page=2").unwrap().start, 2);
+        assert_eq!(
+            match_url("https://lensdump.com/author/?sort=date_asc&page=2")
+                .unwrap()
+                .start,
+            2
+        );
         for bad in [
             "https://lensdump.com/i",
             "https://lensdump.com/a",
@@ -225,50 +240,66 @@ mod tests {
 
     #[test]
     fn queues_only_scoped_unduplicated_public_album_identifiers() {
-        let user=match_url("https://lensdump.com/author").unwrap();
-        let html=r#"<div data-url-short="/a/Album1"></div><div data-url-short="/a/Album1"></div><div data-url-short="https://lensdump.com/a/Album2"></div><div data-url-short="https://evil-lensdump.com/a/Forged"></div><div data-url-short="/a/../secret"></div>"#;
-        let mut out=Vec::new();
-        decode_page(html,&user,&mut HashSet::new(),&mut out);
-        assert_eq!(out.len(),2);
-        let first=serde_json::to_value(&out[0]).unwrap();
-        assert_eq!(first["url"],"https://lensdump.com/a/Album1");
-        assert_eq!(first["metadata"]["subcategory"],"albums");
+        let user = match_url("https://lensdump.com/author").unwrap();
+        let html = r#"<div data-url-short="/a/Album1"></div><div data-url-short="/a/Album1"></div><div data-url-short="https://lensdump.com/a/Album2"></div><div data-url-short="https://evil-lensdump.com/a/Forged"></div><div data-url-short="/a/../secret"></div>"#;
+        let mut out = Vec::new();
+        decode_page(html, &user, &mut HashSet::new(), &mut out);
+        assert_eq!(out.len(), 2);
+        let first = serde_json::to_value(&out[0]).unwrap();
+        assert_eq!(first["url"], "https://lensdump.com/a/Album1");
+        assert_eq!(first["metadata"]["subcategory"], "albums");
     }
 
     #[test]
     fn continuation_rejects_foreign_origins_and_nonsequential_pages() {
-        let user=match_url("https://lensdump.com/author").unwrap();
-        let base=Url::parse("https://lensdump.com/author/?sort=date_asc&page=1").unwrap();
-        let good=r#"<a data-pagination="next" href="/author/?sort=date_asc&page=2">Next</a>"#;
-        assert_eq!(next_page(good,&base,&user,1).unwrap().query(),Some("sort=date_asc&page=2"));
-        let bad=r#"<a data-pagination="next" href="https://evil-lensdump.com/author/?sort=date_asc&page=2">Next</a>"#;
-        assert!(next_page(bad,&base,&user,1).is_none());
-        let skipped=r#"<a data-pagination="next" href="/author/?sort=date_asc&page=3">Next</a>"#;
-        assert!(next_page(skipped,&base,&user,1).is_none());
+        let user = match_url("https://lensdump.com/author").unwrap();
+        let base = Url::parse("https://lensdump.com/author/?sort=date_asc&page=1").unwrap();
+        let good = r#"<a data-pagination="next" href="/author/?sort=date_asc&page=2">Next</a>"#;
+        assert_eq!(
+            next_page(good, &base, &user, 1).unwrap().query(),
+            Some("sort=date_asc&page=2")
+        );
+        let bad = r#"<a data-pagination="next" href="https://evil-lensdump.com/author/?sort=date_asc&page=2">Next</a>"#;
+        assert!(next_page(bad, &base, &user, 1).is_none());
+        let skipped = r#"<a data-pagination="next" href="/author/?sort=date_asc&page=3">Next</a>"#;
+        assert!(next_page(skipped, &base, &user, 1).is_none());
     }
 
     #[tokio::test]
     async fn public_user_album_queue_uses_bounded_two_requests() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            for (path,html) in [
-                ("/author/?sort=date_asc&page=1",r#"<div data-url-short="/a/Album1"></div><a data-pagination="next" href="/author/?sort=date_asc&page=2">Next</a>"#),
-                ("/author/?sort=date_asc&page=2",r#"<div data-url-short="/a/Album1"></div><div data-url-short="/a/Album2"></div>"#),
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, html) in [
+                (
+                    "/author/?sort=date_asc&page=1",
+                    r#"<div data-url-short="/a/Album1"></div><a data-pagination="next" href="/author/?sort=date_asc&page=2">Next</a>"#,
+                ),
+                (
+                    "/author/?sort=date_asc&page=2",
+                    r#"<div data-url-short="/a/Album1"></div><div data-url-short="/a/Album2"></div>"#,
+                ),
             ] {
-                let (mut stream,_)=listener.accept().await.unwrap();
-                let mut buf=[0u8;4096];
-                let size=stream.read(&mut buf).await.unwrap();
-                assert!(String::from_utf8_lossy(&buf[..size]).starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",html.len());
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let size = stream.read(&mut buf).await.unwrap();
+                assert!(String::from_utf8_lossy(&buf[..size])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                    html.len()
+                );
                 stream.write_all(reply.as_bytes()).await.unwrap();
             }
         });
-        let base=Url::parse(&format!("http://{address}/")).unwrap();
-        let user=match_url("https://lensdump.com/author").unwrap();
-        let children=at_base(&Client::new(),&base,&user,4).await.unwrap();
-        assert_eq!(children.len(),2);
-        assert_eq!(serde_json::to_value(&children[1]).unwrap()["url"],"https://lensdump.com/a/Album2");
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let user = match_url("https://lensdump.com/author").unwrap();
+        let children = at_base(&Client::new(), &base, &user, 4).await.unwrap();
+        assert_eq!(children.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&children[1]).unwrap()["url"],
+            "https://lensdump.com/a/Album2"
+        );
         server.await.unwrap();
     }
 }
