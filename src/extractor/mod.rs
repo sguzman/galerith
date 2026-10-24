@@ -849,6 +849,7 @@ mod tests {
                 "https://imgclick.net/4tbrre1oxew9/test-_-_.png.html",
                 "imgclick",
             ),
+            ("https://imgur.com/abcdefg", "imgur"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
             (
                 "https://imagetwist.com/p/gdldev/747223/digits",
