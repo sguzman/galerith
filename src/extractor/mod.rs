@@ -13,6 +13,7 @@ pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
 pub mod imagebam;
+pub mod imagechest;
 pub mod imgbb;
 pub mod imgbox;
 pub mod imgpile;
@@ -63,6 +64,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("gelbooru", "public Gelbooru post and tag APIs"),
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
     ("imagebam", "public image pages and bounded galleries"),
+    ("imagechest", "public ImageChest gallery page media"),
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("imgpile", "public post media and multiple-image pages"),
@@ -133,6 +135,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("comedywildlifephoto")
     } else if imagebam::match_url(input).is_some() {
         Some("imagebam")
+    } else if imagechest::match_url(input).is_some() {
+        Some("imagechest")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
     } else if imgbox::match_url(input).is_some() {
@@ -223,6 +227,9 @@ pub async fn resolve(
     }
     if let Some(target) = imagebam::match_url(input) {
         return imagebam::resolve(client, target, max_pages).await;
+    }
+    if let Some(target) = imagechest::match_url(input) {
+        return imagechest::resolve(client, target).await;
     }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
