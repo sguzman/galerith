@@ -122,8 +122,16 @@ fn comic_start(html: &str, comic: &Comic) -> Option<(String, Navigation, &'stati
         let special = comic.comic == "lastblood";
         return Some((
             first.to_owned(),
-            if special { Navigation::Lastblood } else { Navigation::NextId },
-            if special { "<div id=\"comic\">" } else { "class=\"ksc\"" },
+            if special {
+                Navigation::Lastblood
+            } else {
+                Navigation::NextId
+            },
+            if special {
+                "<div id=\"comic\">"
+            } else {
+                "class=\"ksc\""
+            },
         ));
     }
     if let Some(first) = href_after(html, "<div id=\"kscomicpart\"") {
@@ -158,9 +166,10 @@ fn comic_next<'a>(html: &'a str, mode: Navigation) -> Option<&'a str> {
         Navigation::Lastblood => {
             let (_, tail) = html.split_once("link rel='next'")?;
             snippet(tail, "href='", "'")
-        },
-        Navigation::Brawl => href_before(html, "comic-nav-next")
-            .filter(|href| !href.contains("?random")),
+        }
+        Navigation::Brawl => {
+            href_before(html, "comic-nav-next").filter(|href| !href.contains("?random"))
+        }
     }
 }
 
@@ -296,11 +305,8 @@ async fn at_base(
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let initial = html(client, base.clone(), base).await?;
     let choice = comic_start(&initial, comic);
-    let (first, navigator, marker) = choice.unwrap_or((
-        String::new(),
-        Navigation::Linked,
-        "class=\"ksc\"",
-    ));
+    let (first, navigator, marker) =
+        choice.unwrap_or((String::new(), Navigation::Linked, "class=\"ksc\""));
     let start = if let Some(path) = &comic.path {
         scoped_page(base, path)
     } else {
@@ -425,7 +431,8 @@ mod tests {
         let (first, mode, marker) = comic_start(
             r#"<a href="/comic/first/" id="first_day1">First</a>"#,
             &sample,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(first, "/comic/first/");
         assert_eq!(mode, Navigation::NextId);
         assert_eq!(marker, "class=\"ksc\"");
@@ -434,20 +441,19 @@ mod tests {
             Some("/comic/second/")
         );
         let porcelain = match_url("https://porcelain.keenspot.com/").unwrap();
-        let (_, mode, _) = comic_start(
-            r#"<link rel="first" href="/comic/first/">"#,
-            &porcelain,
-        ).unwrap();
+        let (_, mode, _) =
+            comic_start(r#"<link rel="first" href="/comic/first/">"#, &porcelain).unwrap();
         assert_eq!(mode, Navigation::Needle("id=\"porArchivetop_\""));
         assert_eq!(
-            comic_next(r#"<div id="porArchivetop_"><a href="/comic/next/">More</a>"#, mode),
+            comic_next(
+                r#"<div id="porArchivetop_"><a href="/comic/next/">More</a>"#,
+                mode
+            ),
             Some("/comic/next/")
         );
         let lastblood = match_url("https://lastblood.keenspot.com/").unwrap();
-        let (_, mode, marker) = comic_start(
-            r#"<a href="/comic/first/">FIRST PAGE</a>"#,
-            &lastblood,
-        ).unwrap();
+        let (_, mode, marker) =
+            comic_start(r#"<a href="/comic/first/">FIRST PAGE</a>"#, &lastblood).unwrap();
         assert_eq!(mode, Navigation::Lastblood);
         assert_eq!(marker, "<div id=\"comic\">");
         assert_eq!(
@@ -461,13 +467,22 @@ mod tests {
             comic_next(r#"<a href="/comic/next/" class="comic-nav-next">"#, mode),
             Some("/comic/next/")
         );
-        assert!(comic_next(r#"<a href="/comic/next/?random" class="comic-nav-next">"#, mode).is_none());
+        assert!(comic_next(
+            r#"<a href="/comic/next/?random" class="comic-nav-next">"#,
+            mode
+        )
+        .is_none());
         let twokinds = match_url("https://twokinds.keenspot.com/").unwrap();
-        let (_, nav, marker) = comic_start(r#"<a href="/comic/first/">First Comic</a>"#, &twokinds).unwrap();
+        let (_, nav, marker) =
+            comic_start(r#"<a href="/comic/first/">First Comic</a>"#, &twokinds).unwrap();
         assert_eq!(nav, Navigation::Needle("class=\"navarchive\""));
         assert_eq!(marker, "</header>");
         let flip = match_url("https://flipside.keenspot.com/").unwrap();
-        let (_, nav, marker) = comic_start(r#"<a href="/comic/first/" id="flip_FirstDay">First</a>"#, &flip).unwrap();
+        let (_, nav, marker) = comic_start(
+            r#"<a href="/comic/first/" id="flip_FirstDay">First</a>"#,
+            &flip,
+        )
+        .unwrap();
         assert_eq!(nav, Navigation::Needle("id=\"flip_ArcButton\""));
         assert_eq!(marker, "class=\"flip_Pages ksc\"");
     }
