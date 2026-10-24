@@ -237,7 +237,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("issuu")
     } else if listal::match_url(input).is_some() {
         Some("listal")
-    } else if lensdump::match_url(input).is_some() {
+    } else if lensdump::match_url(input).is_some() || lensdump::user::match_url(input).is_some() {
         Some("lensdump")
     } else if khinsider::match_url(input).is_some() {
         Some("khinsider")
@@ -397,6 +397,9 @@ pub async fn resolve(
     }
     if let Some(target) = lensdump::match_url(input) {
         return lensdump::resolve(client, target, 4).await;
+    }
+    if lensdump::user::match_url(input).is_some() {
+        return Err("Lensdump user albums require --dump-messages or --follow-queues".into());
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve(client, album).await;
@@ -570,6 +573,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = lensdump::match_url(input) {
         return lensdump::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(user) = lensdump::user::match_url(input) {
+        return lensdump::user::resolve_messages(client, user, max_pages).await;
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve_messages(client, album).await;
@@ -934,6 +940,7 @@ mod tests {
             ("https://www.listal.com/viewimage/12345678", "listal"),
             ("https://lensdump.com/i/Abc12", "lensdump"),
             ("https://lensdump.com/a/Abc12", "lensdump"),
+            ("https://lensdump.com/author", "lensdump"),
             ("https://story.keenspot.com/comic/one/", "keenspot"),
             (
                 "https://downloads.khinsider.com/game-soundtracks/album/game-ost",

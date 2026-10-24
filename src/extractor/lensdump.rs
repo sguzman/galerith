@@ -1,3 +1,4 @@
+pub mod user;
 //! Independent guarded public Lensdump image and album subset of pinned lensdump.py.
 use crate::{
     message::{media_metadata, ExtractorMessage, Metadata},
