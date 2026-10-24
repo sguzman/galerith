@@ -354,7 +354,8 @@ mod tests {
         let redirect = tokio::spawn(async move {
             let (mut socket, _) = source.accept().await.unwrap();
             let mut bytes = [0u8; 2048];
-            socket.read(&mut bytes).await.unwrap();
+            let bytes_read = socket.read(&mut bytes).await.unwrap();
+            assert!(bytes_read > 0);
             let reply = format!(
                 "HTTP/1.1 302 Found\r\nLocation: http://{foreign_addr}/elsewhere\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             );
@@ -363,7 +364,8 @@ mod tests {
         let destination = tokio::spawn(async move {
             let (mut socket, _) = foreign.accept().await.unwrap();
             let mut bytes = [0u8; 2048];
-            socket.read(&mut bytes).await.unwrap();
+            let bytes_read = socket.read(&mut bytes).await.unwrap();
+            assert!(bytes_read > 0);
             socket
                 .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 .await
