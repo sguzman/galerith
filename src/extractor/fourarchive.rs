@@ -188,7 +188,11 @@ fn thread_records(
         if !block.contains("class=\"file\"") {
             continue;
         }
-        let Some(raw) = extract(block, "class=\"fileText\"", "class=\"") else {
+        let Some(raw) = block
+            .split_once("class=\"fileText\"")
+            .and_then(|(_, tail)| tail.split_once("</span>").or_else(|| tail.split_once("</div>")))
+            .map(|(raw, _)| raw)
+        else {
             continue;
         };
         let Some(link) = extract(raw, "href=\"", "\"") else {
