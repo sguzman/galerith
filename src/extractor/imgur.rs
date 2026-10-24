@@ -423,7 +423,9 @@ mod tests {
                 let request = String::from_utf8_lossy(&buffer[..count]);
                 assert!(request.starts_with(&format!("GET {path}")), "{request}");
                 assert!(
-                    request.to_ascii_lowercase().contains("authorization: client-id "),
+                    request
+                        .to_ascii_lowercase()
+                        .contains("authorization: client-id "),
                     "{request}"
                 );
                 let response = format!(
@@ -436,14 +438,9 @@ mod tests {
 
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let client = Client::new();
-        let parent = resolve_messages_at_base(
-            &client,
-            Target::Gallery("abcdefg".into()),
-            1,
-            &base,
-        )
-        .await
-        .unwrap();
+        let parent = resolve_messages_at_base(&client, Target::Gallery("abcdefg".into()), 1, &base)
+            .await
+            .unwrap();
         assert!(matches!(&parent[0], ExtractorMessage::Queue { .. }));
         let expanded = traverse_queue_job_with(parent, 1, 4, |url| {
             let target = match_url(&url).expect("validated gallery child");
@@ -463,7 +460,10 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             urls,
-            ["https://i.imgur.com/abcde.jpg", "https://i.imgur.com/xyz12.png"]
+            [
+                "https://i.imgur.com/abcde.jpg",
+                "https://i.imgur.com/xyz12.png"
+            ]
         );
         assert_eq!(expanded.len(), 5);
         server.await.unwrap();
