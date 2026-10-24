@@ -123,7 +123,7 @@ fn user_gallery_queues(
         metadata.insert("category".into(), "imagechest".into());
         metadata.insert("subcategory".into(), "gallery".into());
         metadata.insert("username".into(), username.into());
-        metadata.insert("gallery_id".into(), id.into());
+        metadata.insert("gallery_id".into(), id.clone().into());
         if let Some(title) = post.get("title").and_then(Value::as_str) {
             if !title.is_empty() && title.len() <= 256 && !title.chars().any(char::is_control) {
                 metadata.insert("title".into(), title.into());
