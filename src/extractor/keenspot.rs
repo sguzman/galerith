@@ -155,8 +155,10 @@ fn comic_next<'a>(html: &'a str, mode: Navigation) -> Option<&'a str> {
         Navigation::Linked => source_link(html, false),
         Navigation::NextId => href_before(html, "id=\"next_"),
         Navigation::Needle(needle) => href_after(html, needle),
-        Navigation::Lastblood => snippet(html, "link rel='next'", "href='")
-            .and_then(|_| snippet(html, "href='", "'")),
+        Navigation::Lastblood => {
+            let (_, tail) = html.split_once("link rel='next'")?;
+            snippet(tail, "href='", "'")
+        },
         Navigation::Brawl => href_before(html, "comic-nav-next")
             .filter(|href| !href.contains("?random")),
     }
