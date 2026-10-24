@@ -84,7 +84,6 @@ fn scoped_url(root: &Url, raw: &str) -> Option<Url> {
     if url.origin() != root.origin()
         || !url.username().is_empty()
         || url.password().is_some()
-        || url.port().is_some()
         || url.fragment().is_some()
     {
         return None;
