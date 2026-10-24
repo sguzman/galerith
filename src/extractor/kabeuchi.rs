@@ -362,6 +362,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bounded_upload_posts_follow_two_cursor_pages_in_order() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (method_path, body) in [
+                (
+                    "GET /mypage/?id=12345",
+                    r#"<script>user_friend_id = "999"</script>"#,
+                ),
+                (
+                    "POST /get_posts.php",
+                    r#"{"datas":[{"id":1001,"image1":"first.jpg"}],"last_data":1002}"#,
+                ),
+                (
+                    "POST /get_posts.php",
+                    r#"{"datas":[{"id":1002,"image1":"second.png"}],"last_data":1002}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 8192];
+                let count = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..count]).starts_with(method_path)
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let user = match_url("https://kabe-uchiroom.com/mypage/?id=12345").unwrap();
+        let media = at_base(&Client::new(), &base, &user, 3).await.unwrap();
+        assert_eq!(media.len(), 2);
+        assert_eq!(media[0].0.filename, "1001_01_first.jpg");
+        assert_eq!(media[1].0.filename, "1002_01_second.png");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn public_profile_plus_form_post_are_bounded_local_requests() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
