@@ -262,7 +262,10 @@ fn parse_page(html: &str) -> Result<(MediaItem, Metadata), Box<dyn Error + Send 
     };
     let mut metadata = media_metadata(&item);
     metadata.insert("subcategory".into(), "file".into());
-    metadata.insert("media_type".into(), if is_image { "image" } else { "video" }.into());
+    metadata.insert(
+        "media_type".into(),
+        if is_image { "image" } else { "video" }.into(),
+    );
     if let Some(title) = property(html, "title").filter(|v| !v.is_empty() && v.len() <= 256) {
         metadata.insert("title".into(), title.into());
     }
@@ -276,9 +279,9 @@ fn parse_page(html: &str) -> Result<(MediaItem, Metadata), Box<dyn Error + Send 
         }
     }
     if !is_image {
-        if let Some(mime) = property(html, "video:type").filter(|v| {
-            matches!(v.as_str(), "video/mp4" | "video/webm" | "video/ogg")
-        }) {
+        if let Some(mime) = property(html, "video:type")
+            .filter(|v| matches!(v.as_str(), "video/mp4" | "video/webm" | "video/ogg"))
+        {
             metadata.insert("mime".into(), mime.into());
         }
         if let Some(thumbnail) = property(html, "image")
@@ -531,7 +534,10 @@ mod tests {
         assert_eq!(file.url, "https://cdn.imagepond.net/media/public.jpg");
         assert_eq!(file.filename, "public.jpg");
         assert_eq!(file.post_id, None);
-        assert_eq!(title.get("title").and_then(serde_json::Value::as_str), Some("Public image"));
+        assert_eq!(
+            title.get("title").and_then(serde_json::Value::as_str),
+            Some("Public image")
+        );
     }
 
     #[test]
@@ -541,7 +547,10 @@ mod tests {
         assert_eq!(media.url, "https://cdn.imagepond.net/media/clip.mp4");
         assert_eq!(media.filename, "clip.mp4");
         assert_eq!(media.extractor, "imagepond");
-        assert_eq!(title.get("title").and_then(serde_json::Value::as_str), Some("Public clip"));
+        assert_eq!(
+            title.get("title").and_then(serde_json::Value::as_str),
+            Some("Public clip")
+        );
         for bad in [
             "http://cdn.imagepond.net/media/clip.mp4",
             "https://cdn.imagepond.net/media/clip.mp4?token=secret",
