@@ -405,9 +405,7 @@ mod tests {
                 } else {
                     Value::Null
                 };
-                let records: Vec<Value> = id
-                    .map(|id| vec![json!({"id":id})])
-                    .unwrap_or_default();
+                let records: Vec<Value> = id.map(|id| vec![json!({"id":id})]).unwrap_or_default();
                 let body = json!({"data":records,"links":{"next":next}}).to_string();
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
