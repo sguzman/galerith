@@ -362,7 +362,9 @@ mod tests {
             let request = String::from_utf8_lossy(&bytes[..n]);
             assert!(request.starts_with("GET /show/190/130327671_test-.png HTTP/1.1"));
             assert!(
-                request.to_ascii_lowercase().contains("cookie: pixhostads=1; pixhosttest=1"),
+                request
+                    .to_ascii_lowercase()
+                    .contains("cookie: pixhostads=1; pixhosttest=1"),
                 "{request}"
             );
             let body =
