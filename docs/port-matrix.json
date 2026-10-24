@@ -934,9 +934,14 @@
     {
       "path": "gallery_dl/extractor/khinsider.py",
       "module": "khinsider",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/khinsider.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public KHInsider album and soundtrack track parser. Bounds: 2 MiB response HTML, 128 tracks, 12 format links per track, 200 ms request pacing. Validated album slug and track page ownership, MP3-first with fallback, source metadata, strict approved media hostnames, safe percent-decoded UTF-8 paths, and real offline 3-request HTTP regression. Full CI 40131835976 passed format/Clippy/tests/roadmap/release build. Covers, format config/all, complete album metadata, archive/filename templates, source variations and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/komikcast.py",

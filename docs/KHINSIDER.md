@@ -1,0 +1,11 @@
+# 🎵 KHInsider guarded public soundtrack preview
+
+Pinned source: [gallery-dl khinsider.py](https://github.com/mikf/gallery-dl/blob/7f226f74108501c8ac3120548370f68f19e6f9b3/gallery_dl/extractor/khinsider.py). **Independent partial Rust port; not full upstream compatibility.**
+
+The public album matcher accepts only `downloads.khinsider.com/game-soundtracks/album/SLUG` with a validated ASCII album slug. First-party album metadata is read from the song table and visible title/year/catalog/type/count/date fields, never inferred from filenames. Every selected song page must belong to the exact same album. A bounded HTML reader caps each source response at **2 MiB** and rejects foreign-origin redirects. The public album is limited to **128 source track pages** and **12 format candidates per track**, with **200 ms** pacing between track requests.
+
+The pinned default MP3-first behavior is implemented: accepted MP3 originals are preferred, or the first available permitted format when MP3 is missing. Direct audio originals are accepted only on `khinsider.com`, `vgmsite.com` or `vgmtreasurechest.com` hosts/subdomains, via HTTPS and without untrusted credentials, query fields or unsafe decoded path segments. Percent-encoded spaces and valid UTF-8 names are decoded for safe filenames; encoded traversal and invalid UTF-8 are rejected. URL messages preserve source album identifier, bounded album metadata, track ordinal, extension, and final resolved media URL.
+
+[Full CI 40131835976](https://github.com/sguzman/galerith/actions/runs/40131835976) passed URL/album tracking tests, media-format and percent-decoding rejection regressions, a local three-request album-to-two-track HTTP fixture, strict Rust Clippy, formatting, roadmap consistency and release build. **Live source and CDN success were not tested.**
+
+**Unaccepted:** optional cover art, user-configured format priority and `format=all`, complete upstream album metadata and filename/archive templates, all source-site/album/CDN variants, concurrency/performance differential testing, media response verification and live upstream parity. Unsupported forms should not be silently treated as successful full-port behavior.

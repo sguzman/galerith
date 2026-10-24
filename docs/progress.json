@@ -3371,6 +3371,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T564",
+              "emoji": "🎵",
+              "name": "KHInsider bounded soundtrack albums and original track media",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned KHInsider album URLs, rejecting untrusted hosts, credentials and traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/khinsider.rs matches_only_pinned_album_origins_and_validated_slugs; CI 40131835976"
+                },
+                {
+                  "title": "Read bounded public album song rows and preserve ordered first-party track page routes and available source metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/khinsider.rs preserves_album_song_order_and_rejects_out_of_album_tracks; CI 40131835976"
+                },
+                {
+                  "title": "Choose trusted original MP3 media or available first format fallback with safe Unicode/percent-decoded filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/khinsider.rs default_mp3_selects_mp3_then_first_fallback_with_trusted_media and percent_encoded_song_names_are_decoded_without_path_escape; CI 40131835976"
+                },
+                {
+                  "title": "Bound source HTML, track/format count and request pacing with real three-request HTTP album-to-track regression and typed dispatcher",
+                  "passed": true,
+                  "evidence": "src/extractor/khinsider.rs bounded_album_and_two_track_pages_resolve_three_local_http_requests; src/extractor/mod.rs routed registry; CI 40131835976"
+                },
+                {
+                  "title": "Match pinned optional covers and format-all selection, complete album metadata/archive/filenames, async performance, all track site variations and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
