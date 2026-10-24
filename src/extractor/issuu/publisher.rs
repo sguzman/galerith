@@ -76,6 +76,7 @@ fn parse_docs(html: &str) -> Option<Vec<Value>> {
                 if let Some(docs) = docs_node(&value, 0) {
                     return Some(docs.clone());
                 }
+            }
             // The pinned Issuu user page can embed an escaped docs array
             // inside script serialization rather than a JSON root.
             if let Some(marker) = decoded.find("\"docs\":") {
@@ -110,7 +111,6 @@ fn parse_docs(html: &str) -> Option<Vec<Value>> {
                         }
                     }
                 }
-            }
             }
         }
     }
