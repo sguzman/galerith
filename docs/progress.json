@@ -3255,7 +3255,7 @@
               "id": "T561",
               "emoji": "📚",
               "name": "IMHentai-family guarded public gallery originals",
-              "progress": 80,
+              "progress": 88,
               "checks": [
                 {
                   "title": "Recognize pinned numeric public /gallery and /view routes on six mirror domains",
@@ -3278,7 +3278,22 @@
                   "evidence": "src/extractor/imhentai.rs bounded_public_gallery_get_reads_one_source_page; src/extractor/mod.rs; CI 40126359460"
                 },
                 {
-                  "title": "Implement full fallback original media, tag/search feeds, gallery metadata, filename/archive conventions and live upstream parity",
+                  "title": "Discover bounded public artist/category/tag/language and search listing child queues with deduplicated first-party gallery IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai/listing.rs pinned_tag_and_search_routes_reject_private_or_ambiguous_queries, listing_discards_rankings_duplicates_and_non_gallery_links and two_public_listing_pages_keep_first_seen_children; CI 40127448827"
+                },
+                {
+                  "title": "Preserve visible gallery subtitle, category, ordered artist/tag/language metadata without inventing unavailable fields",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs visible_gallery_descriptors_keep_source_supported_lists_and_subtitle; CI 40127448827"
+                },
+                {
+                  "title": "Reject cross-origin page redirects for original galleries and bounded public listings with adversarial loopback regressions",
+                  "passed": true,
+                  "evidence": "src/extractor/imhentai.rs rejects_cross_origin_gallery_redirect_after_http_follow; src/extractor/imhentai/listing.rs rejects_cross_origin_listing_redirect_after_http_follow; CI 40127743477"
+                },
+                {
+                  "title": "Reach complete pinned missing-JSON media fallback, all gallery metadata, pagination, rich filename/archive and live differential parity",
                   "passed": false
                 }
               ]

@@ -634,12 +634,15 @@
   - [x] Discover bounded public user posts/favorites, subreddit, tag and search queues with validated identifiers and deduplication — src/extractor/imgur/listing.rs public_listing_routes_are_strict_and_scoped, queue_items_validate_ids_preserve_order_and_classification and bounded_public_listing_paginates_then_stops_at_empty_page; full Linux CI 40122975656
   - [x] Verify deferred gallery-to-album traversal with two first-party public API HTTP fixture requests — src/extractor/imgur.rs gallery_queue_traversal_fetches_public_album_and_preserves_media_order; full Linux CI 40126359460
   - [ ] Match full pinned authenticated account behavior, all listing modes, metadata/filename/archive rules and live differential parity
-- 📚 **T561** IMHentai-family guarded public gallery originals — `████████░░ 80%`
+- 📚 **T561** IMHentai-family guarded public gallery originals — `█████████░ 88%`
   - [x] Recognize pinned numeric public /gallery and /view routes on six mirror domains — src/extractor/imhentai.rs pinned_public_gallery_routes_check_all_six_mirrors; CI 40126359460
   - [x] Decode ordered source JSON image metadata and supported original media extensions — src/extractor/imhentai.rs json_page_order_and_supported_media_types_are_source_backed; CI 40126359460
   - [x] Reject hostile origins, malformed page shape or dimensions, and untrusted media roots — src/extractor/imhentai.rs reject_foreign_media_roots_and_malformed_gallery_metadata; CI 40126359460
   - [x] Bound public source page to 2 MiB with one-request HTTP fixture and typed registry dispatch — src/extractor/imhentai.rs bounded_public_gallery_get_reads_one_source_page; src/extractor/mod.rs; CI 40126359460
-  - [ ] Implement full fallback original media, tag/search feeds, gallery metadata, filename/archive conventions and live upstream parity
+  - [x] Discover bounded public artist/category/tag/language and search listing child queues with deduplicated first-party gallery IDs — src/extractor/imhentai/listing.rs pinned_tag_and_search_routes_reject_private_or_ambiguous_queries, listing_discards_rankings_duplicates_and_non_gallery_links and two_public_listing_pages_keep_first_seen_children; CI 40127448827
+  - [x] Preserve visible gallery subtitle, category, ordered artist/tag/language metadata without inventing unavailable fields — src/extractor/imhentai.rs visible_gallery_descriptors_keep_source_supported_lists_and_subtitle; CI 40127448827
+  - [x] Reject cross-origin page redirects for original galleries and bounded public listings with adversarial loopback regressions — src/extractor/imhentai.rs rejects_cross_origin_gallery_redirect_after_http_follow; src/extractor/imhentai/listing.rs rejects_cross_origin_listing_redirect_after_http_follow; CI 40127743477
+  - [ ] Reach complete pinned missing-JSON media fallback, all gallery metadata, pagination, rich filename/archive and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

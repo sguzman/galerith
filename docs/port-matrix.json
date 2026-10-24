@@ -832,10 +832,12 @@
       "status": "partial",
       "rust_paths": [
         "src/extractor/imhentai.rs",
+        "src/extractor/imhentai/listing.rs",
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Guarded public IMHentai, Hentaiera, Hentairox, Hentaifox, Hentaienvy, Hentaizap source galleries: validated numeric IDs, ordered 160-image JSON media table, source-backed dimensions/title, HTTPS-first-party media, 2 MiB bounded HTML and one-request offline loopback test. Full Linux CI 40126359460 passed. Tag/search, fallback formats, full archive/metadata and live parity remain open."
+        "Guarded public IMHentai, Hentaiera, Hentairox, Hentaifox, Hentaienvy, Hentaizap source galleries: validated numeric IDs, ordered 160-image JSON media table, source-backed dimensions/title, HTTPS-first-party media, 2 MiB bounded HTML and one-request offline loopback test. Full Linux CI 40126359460 passed. Tag/search, fallback formats, full archive/metadata and live parity remain open.",
+        "Public six-mirror tag/category/artist/language and search-to-gallery deferred queue discovery, bounded 4 pages/128 children with 1-second pacing, strict continuation origins/monotonic page IDs and two-page loopback regression; rich visible subtitle/type and sorted tag/artist/language metadata. CI 40127448827 passed. Cross-origin redirect rejection in gallery/listing HTTP fixture CI 40127743477 passed. Full pinned module still partial."
       ]
     },
     {
