@@ -251,7 +251,7 @@ mod tests {
     use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
 
     fn source_fixture() -> &'static str {
-        r#"<span class="board">/a/<h3>Gallery &amp; discussion</h3><article class="glass media a"><span>Author</span><time>14 Oct 2026 (Wed) 22:33:44</time><a href="#p12345">Post</a><a download="drawing one.png">Download</a><figure><a href="/files/12345.png?thumb=1">Media</a></figure><a data-hash="abc123">Hash</a></article><article class="glass media b"><span>Other</span><a href="#p12346">Post</a><a download="sketch.jpg">Download</a><figure><a href="/files/12346.jpg">Media</a></figure></article>"#
+        r##"<span class="board">/a/<h3>Gallery &amp; discussion</h3><article class="glass media a"><span>Author</span><time>14 Oct 2026 (Wed) 22:33:44</time><a href="#p12345">Post</a><a download="drawing one.png">Download</a><figure><a href="/files/12345.png?thumb=1">Media</a></figure><a data-hash="abc123">Hash</a></article><article class="glass media b"><span>Other</span><a href="#p12346">Post</a><a download="sketch.jpg">Download</a><figure><a href="/files/12346.jpg">Media</a></figure></article>"##
     }
 
     #[test]
