@@ -541,16 +541,22 @@ async fn resolve_at_base(
             if !tags.is_empty() {
                 endpoint.query_pairs_mut().append_pair("tags", &tags);
             }
-            let body: Value =
-                super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
-                    .await?;
+            let body: Value = super::http_json::fetch_json_limited(
+                client,
+                endpoint,
+                DANBOORU_JSON_RESPONSE_LIMIT,
+            )
+            .await?;
             post_items(&body, base)
         }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
-            let body: Value =
-                super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
-                    .await?;
+            let body: Value = super::http_json::fetch_json_limited(
+                client,
+                endpoint,
+                DANBOORU_JSON_RESPONSE_LIMIT,
+            )
+            .await?;
             post_items(&body, base)
         }
         Target::Search { tags, page, .. } => {
