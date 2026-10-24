@@ -214,7 +214,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgclick")
     } else if imgur::match_url(input).is_some() {
         Some("imgur")
-    } else if imhentai::match_url(input).is_some() {
+    } else if imhentai::match_url(input).is_some()
+        || imhentai::listing::match_url(input).is_some()
+    {
         Some("imhentai")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
@@ -361,6 +363,9 @@ pub async fn resolve(
     }
     if let Some(gallery) = imhentai::match_url(input) {
         return imhentai::resolve(client, gallery).await;
+    }
+    if imhentai::listing::match_url(input).is_some() {
+        return Err("IMHentai public listings require --dump-messages or --follow-queues".into());
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve(client, target).await;
@@ -513,6 +518,9 @@ pub async fn resolve_messages(
     }
     if let Some(gallery) = imhentai::match_url(input) {
         return imhentai::resolve_messages(client, gallery).await;
+    }
+    if let Some(listing) = imhentai::listing::match_url(input) {
+        return imhentai::listing::resolve_messages(client, listing, max_pages).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
@@ -861,6 +869,7 @@ mod tests {
             ),
             ("https://imgur.com/abcdefg", "imgur"),
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
+            ("https://imhentai.xxx/tag/art/", "imhentai"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
             (
                 "https://imagetwist.com/p/gdldev/747223/digits",
