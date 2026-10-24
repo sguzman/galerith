@@ -287,12 +287,26 @@ async fn resolve_at_base_bounded(
             .await
         }
         Target::Popular { parameters, .. } => {
-            paginate_posts_bounded(client, base, "popular.json", &parameters, max_pages, max_items)
-                .await
+            paginate_posts_bounded(
+                client,
+                base,
+                "popular.json",
+                &parameters,
+                max_pages,
+                max_items,
+            )
+            .await
         }
         Target::Favorites { parameters, .. } => {
-            paginate_posts_bounded(client, base, "favorites.json", &parameters, max_pages, max_items)
-                .await
+            paginate_posts_bounded(
+                client,
+                base,
+                "favorites.json",
+                &parameters,
+                max_pages,
+                max_items,
+            )
+            .await
         }
         other => resolve_at_base(client, other, max_pages, base).await,
     }
