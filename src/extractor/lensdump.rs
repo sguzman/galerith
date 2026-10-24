@@ -1,5 +1,5 @@
-pub mod user;
 //! Independent guarded public Lensdump image and album subset of pinned lensdump.py.
+pub mod user;
 use crate::{
     message::{media_metadata, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
