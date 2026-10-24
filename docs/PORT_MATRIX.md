@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 36 · Not ported: 236.**
+**Complete: 0 · Partial: 37 · Not ported: 235.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -125,7 +125,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/lensdump.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/lexica.py` | 🟡 Partial | `src/extractor/lexica.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/lightroom.py` | 🟡 Partial | `src/extractor/lightroom.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/listal.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/listal.py` | 🟡 Partial | `src/extractor/listal.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/livedoor.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/lofter.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/lolisafe.py` | ⚪ Not ported | — |

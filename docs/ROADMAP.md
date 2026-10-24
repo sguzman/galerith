@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 64%` across 120 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 64%` across 121 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -650,6 +650,12 @@
   - [x] Enumerate validated publisher document queues with deduplication and bounded 4-page pagination, without eager child downloads — src/extractor/issuu/publisher.rs publisher_deduplicates_scoped_public_documents_and_preserves_queue_metadata and publisher_stops_after_a_short_public_document_page; src/extractor/mod.rs dispatcher; CI 40129349191
   - [x] Parse pinned escaped hydration publication data and embedded publisher document arrays without executing page scripts — src/extractor/issuu.rs pinned_escaped_hydration_inside_script_wrapper_is_parsed_as_data; src/extractor/issuu/publisher.rs pinned_escaped_publisher_docs_array_is_decoded_without_script_execution; full Linux CI 40129891194
   - [ ] Reproduce every site-specific hydration/pagination variant, full metadata/filename/archive and optional auth, and live upstream differential parity
+- 🖼️ **T563** Listal guarded public images and people-picture queues — `████████░░ 80%`
+  - [x] Recognize pinned public Listal image and people-picture URL routes with strict origins and numeric identities — src/extractor/listal.rs pinned_public_url_families_validate_id_and_people_slug; full Linux CI 40130699655
+  - [x] Parse validated trusted image original, filename, source ID and visible attribution/dimension metadata — src/extractor/listal.rs single_original_preserves_source_image_dimensions_and_author; full Linux CI 40130699655
+  - [x] Bound public source HTML to 2 MiB with one-request offline original-image HTTP regression — src/extractor/listal.rs bounded_public_image_get_uses_one_source_request; full Linux CI 40130699655
+  - [x] Enforce first-party people-picture child URLs, deduplication and bounded multi-page traversal with HTTP fixture — src/extractor/listal.rs people_images_queue_first_seen_numeric_ids_without_external_links and bounded_people_listing_follows_valid_next_page_and_deduplicates_ids; src/extractor/mod.rs routed fixture; full Linux CI 40130699655
+  - [ ] Match complete upstream date/name/archive metadata, all listing pagination behavior, other source/CDN variants and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
