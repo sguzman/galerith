@@ -162,7 +162,8 @@ fn trusted_audio_filename(url: &Url) -> Option<(String, String)> {
     let mut basename = None;
     for segment in url.path_segments()? {
         let decoded = percent_decode_str(segment).decode_utf8().ok()?;
-        if decoded == "." || decoded == ".."
+        if decoded == "."
+            || decoded == ".."
             || decoded.contains('/')
             || decoded.contains('\\')
             || decoded.chars().any(char::is_control)
@@ -394,10 +395,9 @@ mod tests {
 
     #[test]
     fn percent_encoded_song_names_are_decoded_without_path_escape() {
-        let source = Url::parse(
-            "https://dl.vgmsite.com/music/01%20Opening%20%E9%9F%B3%E6%A5%BD.mp3",
-        )
-        .unwrap();
+        let source =
+            Url::parse("https://dl.vgmsite.com/music/01%20Opening%20%E9%9F%B3%E6%A5%BD.mp3")
+                .unwrap();
         assert_eq!(
             trusted_audio_filename(&source),
             Some(("01 Opening 音楽.mp3".into(), "mp3".into()))
