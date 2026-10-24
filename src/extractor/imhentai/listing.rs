@@ -93,16 +93,32 @@ fn gallery_id(value: &str) -> Option<&str> {
     Some(id)
 }
 
-fn gallery_events(html: &str, listing: &Listing, seen: &mut HashSet<String>, events: &mut Vec<ExtractorMessage>) {
-    let before_ranking = html.split_once("class=\"ranking_list\"").map(|(before, _)| before).unwrap_or(html);
+fn gallery_events(
+    html: &str,
+    listing: &Listing,
+    seen: &mut HashSet<String>,
+    events: &mut Vec<ExtractorMessage>,
+) {
+    let before_ranking = html
+        .split_once("class=\"ranking_list\"")
+        .map(|(before, _)| before)
+        .unwrap_or(html);
     for element in before_ranking.split("<a ").skip(1).take(5000) {
         if events.len() >= MAX_CHILDREN {
             break;
         }
-        let attrs = element.split_once('>').map(|(attributes, _)| attributes).unwrap_or("");
+        let attrs = element
+            .split_once('>')
+            .map(|(attributes, _)| attributes)
+            .unwrap_or("");
         let raw = attrs
-            .split_once("href=\"").and_then(|(_, after)| after.split_once('"'))
-            .or_else(|| attrs.split_once("href='").and_then(|(_, after)| after.split_once('\'')))
+            .split_once("href=\"")
+            .and_then(|(_, after)| after.split_once('"'))
+            .or_else(|| {
+                attrs
+                    .split_once("href='")
+                    .and_then(|(_, after)| after.split_once('\''))
+            })
             .map(|(href, _)| href);
         let Some(id) = raw.and_then(gallery_id) else {
             continue;
@@ -122,11 +138,19 @@ fn gallery_events(html: &str, listing: &Listing, seen: &mut HashSet<String>, eve
     }
 }
 
-fn next_page(html: &str, current: &Url, listing: &Listing, current_page: u16) -> Result<Option<Url>, Box<dyn Error + Send + Sync>> {
-    let raw = html.rsplit_once("class='page-link' href='")
+fn next_page(
+    html: &str,
+    current: &Url,
+    listing: &Listing,
+    current_page: u16,
+) -> Result<Option<Url>, Box<dyn Error + Send + Sync>> {
+    let raw = html
+        .rsplit_once("class='page-link' href='")
         .and_then(|(_, after)| after.split_once('\''))
-        .or_else(|| html.rsplit_once("class=\"page-link\" href=\"")
-            .and_then(|(_, after)| after.split_once('"')))
+        .or_else(|| {
+            html.rsplit_once("class=\"page-link\" href=\"")
+                .and_then(|(_, after)| after.split_once('"'))
+        })
         .map(|(href, _)| href);
     let Some(raw) = raw else { return Ok(None) };
     if raw == "#" {
@@ -145,16 +169,26 @@ fn next_page(html: &str, current: &Url, listing: &Listing, current_page: u16) ->
     }
     let params: Vec<_> = next.query_pairs().collect();
     if params.len() > (if listing.search { 2 } else { 1 })
-        || params.iter().any(|(key, _)| !matches!(key.as_ref(), "page" | "key"))
+        || params
+            .iter()
+            .any(|(key, _)| !matches!(key.as_ref(), "page" | "key"))
     {
         return Err("IMHentai next page has unknown query parameters".into());
     }
-    let page_values: Vec<_> = params.iter().filter(|(k, _)| k == "page").map(|(_, v)| v.as_ref()).collect();
+    let page_values: Vec<_> = params
+        .iter()
+        .filter(|(k, _)| k == "page")
+        .map(|(_, v)| v.as_ref())
+        .collect();
     if page_values.len() != 1 {
         return Err("IMHentai listing next page lacks a unique ordinal".into());
     }
     if listing.search {
-        let keys: Vec<_> = params.iter().filter(|(k, _)| k == "key").map(|(_, v)| v.as_ref()).collect();
+        let keys: Vec<_> = params
+            .iter()
+            .filter(|(k, _)| k == "key")
+            .map(|(_, v)| v.as_ref())
+            .collect();
         if keys != [listing.key.as_str()] {
             return Err("IMHentai search continuation changed its query".into());
         }
@@ -173,7 +207,10 @@ fn next_page(html: &str, current: &Url, listing: &Listing, current_page: u16) ->
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(url).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("IMHentai listing source exceeds HTML size limit".into());
     }
     let mut bytes = Vec::new();
@@ -233,12 +270,23 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_tag_and_search_routes_reject_private_or_ambiguous_queries() {
-        assert_eq!(match_url("https://imhentai.xxx/tag/art/").unwrap().key, "art");
-        assert_eq!(match_url("https://hentaifox.com/search/?key=blue+sky").unwrap().key, "blue sky");
+        assert_eq!(
+            match_url("https://imhentai.xxx/tag/art/").unwrap().key,
+            "art"
+        );
+        assert_eq!(
+            match_url("https://hentaifox.com/search/?key=blue+sky")
+                .unwrap()
+                .key,
+            "blue sky"
+        );
         for bad in [
             "https://imhentai.xxx/tag/art?secret=x",
             "https://imhentai.xxx/tag/a%2fb",
@@ -253,55 +301,76 @@ mod tests {
 
     #[test]
     fn listing_discards_rankings_duplicates_and_non_gallery_links() {
-        let listing=match_url("https://imhentai.xxx/tag/art/").unwrap();
-        let page=r#"<a href="/gallery/12345/">A</a><a href="/gallery/12345/">Again</a><a href="/gallery/12346/">B</a><a href="https://bad.example/gallery/1">Bad</a><div class="ranking_list"><a href="/gallery/99999/">Rank</a>"#;
-        let mut seen=HashSet::new();
-        let mut events=Vec::new();
-        gallery_events(page,&listing,&mut seen,&mut events);
-        assert_eq!(events.len(),2);
-        let first=serde_json::to_value(&events[0]).unwrap();
-        assert_eq!(first["url"],"https://imhentai.xxx/gallery/12345/");
-        assert_eq!(first["metadata"]["gallery_id"],12345);
+        let listing = match_url("https://imhentai.xxx/tag/art/").unwrap();
+        let page = r#"<a href="/gallery/12345/">A</a><a href="/gallery/12345/">Again</a><a href="/gallery/12346/">B</a><a href="https://bad.example/gallery/1">Bad</a><div class="ranking_list"><a href="/gallery/99999/">Rank</a>"#;
+        let mut seen = HashSet::new();
+        let mut events = Vec::new();
+        gallery_events(page, &listing, &mut seen, &mut events);
+        assert_eq!(events.len(), 2);
+        let first = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(first["url"], "https://imhentai.xxx/gallery/12345/");
+        assert_eq!(first["metadata"]["gallery_id"], 12345);
     }
 
     #[test]
     fn pagination_preserves_origin_path_and_monotonic_page_numbers() {
-        let listing=match_url("https://imhentai.xxx/tag/art/").unwrap();
-        let current=Url::parse("https://imhentai.xxx/tag/art/").unwrap();
-        let good="<a class='page-link' href='/tag/art/?page=2'>More</a>";
-        assert_eq!(next_page(good,&current,&listing,1).unwrap().unwrap().as_str(),"https://imhentai.xxx/tag/art/?page=2");
+        let listing = match_url("https://imhentai.xxx/tag/art/").unwrap();
+        let current = Url::parse("https://imhentai.xxx/tag/art/").unwrap();
+        let good = "<a class='page-link' href='/tag/art/?page=2'>More</a>";
+        assert_eq!(
+            next_page(good, &current, &listing, 1)
+                .unwrap()
+                .unwrap()
+                .as_str(),
+            "https://imhentai.xxx/tag/art/?page=2"
+        );
         for bad in [
             "<a class='page-link' href='https://evil.example/tag/art/?page=2'>More</a>",
             "<a class='page-link' href='/tag/other/?page=2'>More</a>",
             "<a class='page-link' href='/tag/art/?page=1'>More</a>",
             "<a class='page-link' href='/tag/art/?page=2&token=secret'>More</a>",
         ] {
-            assert!(next_page(bad,&current,&listing,1).is_err(),"{bad}");
+            assert!(next_page(bad, &current, &listing, 1).is_err(), "{bad}");
         }
     }
 
     #[tokio::test]
     async fn two_public_listing_pages_keep_first_seen_children() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            for (path,html) in [
-                ("/tag/art/",r#"<a href="/gallery/12345/">A</a><a class='page-link' href='/tag/art/?page=2'>Next</a>"#),
-                ("/tag/art/?page=2",r#"<a href="/gallery/12345/">A</a><a href="/gallery/12346/">B</a>"#)
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, html) in [
+                (
+                    "/tag/art/",
+                    r#"<a href="/gallery/12345/">A</a><a class='page-link' href='/tag/art/?page=2'>Next</a>"#,
+                ),
+                (
+                    "/tag/art/?page=2",
+                    r#"<a href="/gallery/12345/">A</a><a href="/gallery/12346/">B</a>"#,
+                ),
             ] {
-                let (mut socket,_)=listener.accept().await.unwrap();
-                let mut request=[0u8;4096];
-                let n=socket.read(&mut request).await.unwrap();
-                assert!(String::from_utf8_lossy(&request[..n]).starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",html.len());
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                    html.len()
+                );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
-        let listing=match_url("https://imhentai.xxx/tag/art/").unwrap();
-        let base=Url::parse(&format!("http://{addr}/")).unwrap();
-        let results=resolve_at_base(&Client::new(),&listing,&base,4).await.unwrap();
-        assert_eq!(results.len(),2);
-        assert_eq!(serde_json::to_value(&results[1]).unwrap()["url"],"https://imhentai.xxx/gallery/12346/");
+        let listing = match_url("https://imhentai.xxx/tag/art/").unwrap();
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let results = resolve_at_base(&Client::new(), &listing, &base, 4)
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&results[1]).unwrap()["url"],
+            "https://imhentai.xxx/gallery/12346/"
+        );
         server.await.unwrap();
     }
 }

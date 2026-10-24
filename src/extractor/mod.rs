@@ -214,8 +214,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgclick")
     } else if imgur::match_url(input).is_some() {
         Some("imgur")
-    } else if imhentai::match_url(input).is_some()
-        || imhentai::listing::match_url(input).is_some()
+    } else if imhentai::match_url(input).is_some() || imhentai::listing::match_url(input).is_some()
     {
         Some("imhentai")
     } else if imagetwist::match_url(input).is_some()
