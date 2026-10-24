@@ -251,6 +251,7 @@ async fn queue_at_base(
     let mut endpoint = base.join(&route)?;
     let mut seen = HashSet::new();
     let mut messages = Vec::new();
+    let mut inherited_album_title = None;
     for page in 0..max_pages.clamp(1, MAX_QUEUE_PAGES) {
         let mut response = client
             .get(endpoint.clone())
@@ -271,10 +272,20 @@ async fn queue_at_base(
             body.extend_from_slice(&chunk);
         }
         let html = std::str::from_utf8(&body)?;
-        for event in collect_queue_messages(html, target) {
-            let ExtractorMessage::Queue { url, .. } = &event else {
+        if matches!(target, QueueTarget::Album(_)) {
+            if let Some(title) = public_album_title(html) {
+                inherited_album_title = Some(title);
+            }
+        }
+        for mut event in collect_queue_messages(html, target) {
+            let ExtractorMessage::Queue { url, metadata } = &mut event else {
                 continue;
             };
+            if let Some(title) = &inherited_album_title {
+                metadata
+                    .entry("album")
+                    .or_insert_with(|| title.clone().into());
+            }
             if seen.insert(url.clone()) {
                 messages.push(event);
             }
@@ -645,7 +656,7 @@ mod tests {
             for (page, body) in [
                 (
                     1,
-                    r#"<a href="/i/one123">Image</a><a href="?page=2" rel="next">Next</a>"#,
+                    r#"<h1>Public Album</h1><a href="/i/one123">Image</a><a href="?page=2" rel="next">Next</a>"#,
                 ),
                 (
                     2,
@@ -684,6 +695,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&events[1]).unwrap()["url"],
             "https://www.imagepond.net/video/two456"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["metadata"]["album"],
+            "Public Album"
         );
         server.await.unwrap();
     }
