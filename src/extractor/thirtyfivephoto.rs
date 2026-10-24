@@ -178,19 +178,36 @@ fn photo_records(
 }
 
 fn list_ids(
-    html: &str, found: &mut HashSet<String>, result: &mut Vec<ExtractorMessage>,
+    html: &str, seen: &mut HashSet<String>, out: &mut Vec<ExtractorMessage>,
     scope: &str,
 ) {
-    for item in html.split("35photo.pro/photo_").skip(1).take(4000) {
-        if result.len() >= MAX_CHILDREN {break;}
-        let id: String = item.chars().take_while(char::is_ascii_digit).collect();
-        if !numeric(&id) || !found.insert(id.clone()) {continue;}
+    let base = Url::parse("https://35photo.pro/").unwrap();
+    for link in html.split("<a ").skip(1).take(4000) {
+        if out.len() >= MAX_CHILDREN { break; }
+        let Some((attrs, _)) = link.split_once('>') else { continue };
+        let href = attrs.split_once("href=\"")
+            .and_then(|(_, after)| after.split_once('"').map(|(value, _)| value))
+            .or_else(|| attrs.split_once("href='")
+                .and_then(|(_, after)| after.split_once('\'').map(|(value, _)| value)));
+        let Some(href) = href else { continue };
+        let Ok(url) = base.join(href) else { continue };
+        let Some(host) = url.host_str() else { continue };
+        if !matches!(url.scheme(), "https" | "http")
+            || !(host == "35photo.pro" || host.ends_with(".35photo.pro"))
+            || !url.username().is_empty() || url.password().is_some()
+            || url.port().is_some() || url.query().is_some() || url.fragment().is_some()
+        { continue; }
+        let Some(paths) = url.path_segments() else { continue };
+        let parts: Vec<_> = paths.collect();
+        let [route] | [route, ""] = parts.as_slice() else { continue };
+        let Some(id) = route.strip_prefix("photo_") else { continue };
+        if !numeric(id) || !seen.insert(id.into()) { continue; }
         let mut meta = Metadata::new();
         meta.insert("category".into(), "35photo".into());
         meta.insert("subcategory".into(), "listing".into());
         meta.insert("source_scope".into(), scope.into());
         meta.insert("id".into(), id.parse::<u64>().unwrap().into());
-        result.push(queued_url(format!("https://35photo.pro/photo_{id}/"), meta));
+        out.push(queued_url(format!("https://35photo.pro/photo_{id}/"), meta));
     }
 }
 
@@ -208,7 +225,7 @@ async fn at_base(
         listing => {
             let (scope, base_path) = match listing {
                 Target::Tag(name) => (format!("tag:{name}"), format!("tags/{name}/list")),
-                Target::Genre(id) => (format!("genre:{id}"), format!("genre_{id}/list")),
+                Target::Genre(id) => (format!("genre:{id}"), format!("genre_{id}")),
                 Target::User(name) => (format!("user:{name}"), name),
                 Target::Image(_) => unreachable!(),
             };
@@ -306,7 +323,8 @@ mod tests {
     #[test]
     fn tag_page_queues_first_seen_numeric_public_photos() {
         let mut seen=HashSet::new();let mut output=Vec::new();
-        list_ids("https://35photo.pro/photo_10/ X https://35photo.pro/photo_10/ X https://35photo.pro/photo_20/",&mut seen,&mut output,"tag:sunset");
+        list_ids(r#"<a href="https://35photo.pro/photo_10/">One</a><a href="https://35photo.pro/photo_10/">Duplicate</a><a href="https://35photo.pro/photo_20/">Two</a><a href="https://evil35photo.pro/photo_30/">Forged</a>"#,
+            &mut seen, &mut output, "tag:sunset");
         assert_eq!(output.len(),2);
         assert_eq!(serde_json::to_value(&output[1]).unwrap()["url"],
             "https://35photo.pro/photo_20/");
