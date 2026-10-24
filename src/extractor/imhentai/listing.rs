@@ -128,7 +128,11 @@ fn gallery_events(
         }
         let mut meta = Metadata::new();
         meta.insert("category".into(), "imhentai".into());
-        meta.insert("subcategory".into(), listing.kind.clone().into());
+        meta.insert(
+            "subcategory".into(),
+            (if listing.search { "search" } else { "tag" }).into(),
+        );
+        meta.insert("listing_type".into(), listing.kind.clone().into());
         meta.insert("listing_value".into(), listing.key.clone().into());
         meta.insert("gallery_id".into(), id.parse::<u64>().unwrap().into());
         events.push(queued_url(
@@ -312,6 +316,8 @@ mod tests {
         let first = serde_json::to_value(&events[0]).unwrap();
         assert_eq!(first["url"], "https://imhentai.xxx/gallery/12345/");
         assert_eq!(first["metadata"]["gallery_id"], 12345);
+        assert_eq!(first["metadata"]["subcategory"], "tag");
+        assert_eq!(first["metadata"]["listing_type"], "tag");
     }
 
     #[test]
