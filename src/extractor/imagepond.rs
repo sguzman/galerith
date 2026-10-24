@@ -208,6 +208,25 @@ mod tests {
         assert_eq!(title.as_deref(), Some("Public image"));
     }
 
+    #[test]
+    fn public_video_og_link_is_preferred_over_thumbnail() {
+        let html = r#"<meta property="og:type" content="video"><meta property="og:video" content="https://cdn.imagepond.net/media/clip.mp4"><meta property="og:image" content="https://cdn.imagepond.net/thumb/clip.jpg"><meta property="og:title" content="Public clip">"#;
+        let (media, title) = parse_page(html).unwrap();
+        assert_eq!(media.url, "https://cdn.imagepond.net/media/clip.mp4");
+        assert_eq!(media.filename, "clip.mp4");
+        assert_eq!(media.extractor, "imagepond");
+        assert_eq!(title.as_deref(), Some("Public clip"));
+        for bad in [
+            "http://cdn.imagepond.net/media/clip.mp4",
+            "https://cdn.imagepond.net/media/clip.mp4?token=secret",
+            "https://user:password@cdn.imagepond.net/media/clip.mp4",
+            "https://evilimagepond.net/media/clip.mp4",
+            "https://cdn.imagepond.net/media/clip.exe",
+        ] {
+            assert!(valid_media_link(bad).is_none(), "{bad}");
+        }
+    }
+
     #[tokio::test]
     async fn bounded_single_public_image_page_uses_only_one_request() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
