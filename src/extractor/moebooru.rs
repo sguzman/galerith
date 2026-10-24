@@ -63,6 +63,13 @@ pub fn match_url(input: &str) -> Option<Target> {
             }
             Query::Pool(id)
         }
+        ("post", Some("index"), None, None) if category == "3dbooru" => {
+            let tags = url
+                .query_pairs()
+                .find(|(k, _)| k == "tags")
+                .map(|(_, v)| v.into_owned())?;
+            Query::Tags(tags)
+        }
         ("post", Some(feed), None, None) => {
             let feed = match feed {
                 "popular_by_day" => "popular_by_day",
@@ -88,13 +95,6 @@ pub fn match_url(input: &str) -> Option<Target> {
                 return None;
             }
             Query::Popular { feed, parameters }
-        }
-        ("post", Some("index"), None, None) if category == "3dbooru" => {
-            let tags = url
-                .query_pairs()
-                .find(|(k, _)| k == "tags")
-                .map(|(_, v)| v.into_owned())?;
-            Query::Tags(tags)
         }
         ("post", None, None, None) => {
             let tags = url
