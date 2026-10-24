@@ -2718,6 +2718,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T545",
+              "emoji": "🧩",
+              "name": "Pinned imagehosts Pixhost public image and gallery subset",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned Pixhost public file and gallery URL families without accepting untrusted hosts or path identifiers",
+                  "passed": true,
+                  "evidence": "src/extractor/imagehosts.rs matches_pinned_pixhost_file_and_gallery_urls_strictly and mod.rs preview registry; CI 40055130109"
+                },
+                {
+                  "title": "Read public image pages with 2 MiB body limits and strict first-party original image selection",
+                  "passed": true,
+                  "evidence": "src/extractor/imagehosts.rs media_from_html and file_page_uses_bounded_single_public_html_request; CI 40055130109"
+                },
+                {
+                  "title": "Honor pinned public cookies and validate canonical or relative gallery hrefs without reading script strings and data-href",
+                  "passed": true,
+                  "evidence": "src/extractor/imagehosts.rs gallery_only_enqueues_first_party_public_file_urls_and_deduplicates, bounded read_public_html and public cookie loopback assertion; CI 40055130109"
+                },
+                {
+                  "title": "Emit typed gallery queues with image token/directory/gallery IDs and preserve safe flat single media items",
+                  "passed": true,
+                  "evidence": "src/extractor/imagehosts.rs gallery_queue, resolve_messages and resolve, ordered deduplication and typed events; CI 40055130109"
+                },
+                {
+                  "title": "Port full pinned imagehosts module: all host families, gallery pagination, POST/cookie/filename/archive metadata behavior and live upstream differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

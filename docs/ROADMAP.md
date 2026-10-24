@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 102 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 103 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -534,6 +534,12 @@
   - [x] Filter private or unsafe media, preserve first-seen order and reject excessive/malformed result pages — src/extractor/imageshack.rs listed_images, list_projects_safe_unique_public_records_and_gallery_title; CI 40054413824
   - [x] Preserve scalar parent album/user identity and verify two-page 40-plus-1 HTTP pagination/deduplication — src/extractor/imageshack.rs user_index_paginates_40_plus_1_records_without_duplicate_downloads; typed resolve_listing_messages and flat resolve_listing; CI 40054413824
   - [ ] Reproduce upstream complete galleries, advanced offset/skip behavior, private/authenticated feeds, rich metadata/naming and live differential acceptance
+- 🧩 **T545** Pinned imagehosts Pixhost public image and gallery subset — `████████░░ 80%`
+  - [x] Recognize pinned Pixhost public file and gallery URL families without accepting untrusted hosts or path identifiers — src/extractor/imagehosts.rs matches_pinned_pixhost_file_and_gallery_urls_strictly and mod.rs preview registry; CI 40055130109
+  - [x] Read public image pages with 2 MiB body limits and strict first-party original image selection — src/extractor/imagehosts.rs media_from_html and file_page_uses_bounded_single_public_html_request; CI 40055130109
+  - [x] Honor pinned public cookies and validate canonical or relative gallery hrefs without reading script strings and data-href — src/extractor/imagehosts.rs gallery_only_enqueues_first_party_public_file_urls_and_deduplicates, bounded read_public_html and public cookie loopback assertion; CI 40055130109
+  - [x] Emit typed gallery queues with image token/directory/gallery IDs and preserve safe flat single media items — src/extractor/imagehosts.rs gallery_queue, resolve_messages and resolve, ordered deduplication and typed events; CI 40055130109
+  - [ ] Port full pinned imagehosts module: all host families, gallery pagination, POST/cookie/filename/archive metadata behavior and live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 32 · Not ported: 240.**
+**Complete: 0 · Partial: 33 · Not ported: 239.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -97,7 +97,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/imagebam.py` | 🟡 Partial | `src/extractor/imagebam.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagechest.py` | 🟡 Partial | `src/extractor/imagechest.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagefap.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/imagehosts.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/imagehosts.py` | 🟡 Partial | `src/extractor/imagehosts.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagepond.py` | 🟡 Partial | `src/extractor/imagepond.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imageshack.py` | 🟡 Partial | `src/extractor/imageshack.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgbb.py` | 🟡 Partial | `src/extractor/imgbb.rs`, `src/extractor/mod.rs` |

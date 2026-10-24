@@ -698,9 +698,14 @@
     {
       "path": "gallery_dl/extractor/imagehosts.py",
       "module": "imagehosts",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imagehosts.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent Pixhost file/gallery subset of pinned imagehosts.py: public /show and /gallery routes, bounded HTML, pinned cookies, strict first-party links and typed child queues, dedup and synthetic loopback tests; CI 40055130109 passed. Other host families and full upstream parity remain open."
+      ]
     },
     {
       "path": "gallery_dl/extractor/imagepond.py",
