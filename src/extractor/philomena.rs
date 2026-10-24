@@ -174,7 +174,9 @@ async fn resolve_at_base_limited(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Query::Image(id) = &target.query {
         let endpoint = base.join(&format!("images/{id}"))?;
-        let body: Value = super::http_json::fetch_json_limited(client, endpoint, PHILOMENA_JSON_RESPONSE_LIMIT).await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, PHILOMENA_JSON_RESPONSE_LIMIT)
+                .await?;
         let image = body
             .get("image")
             .ok_or("Philomena API did not return an image")?;
@@ -194,7 +196,9 @@ async fn resolve_at_base_limited(
             .append_pair("filter_id", target.filter_id)
             .append_pair("per_page", "50")
             .append_pair("page", &page.to_string());
-        let body: Value = super::http_json::fetch_json_limited(client, endpoint, PHILOMENA_JSON_RESPONSE_LIMIT).await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, PHILOMENA_JSON_RESPONSE_LIMIT)
+                .await?;
         let (fresh, count) = images(&body, target.category)?;
         for item in fresh {
             results.push(item);
