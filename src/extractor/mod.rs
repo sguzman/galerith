@@ -50,8 +50,8 @@ pub mod silverpic;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod turboimagehost;
-pub mod urlshortener;
 pub mod unsplash;
+pub mod urlshortener;
 pub mod wallhaven;
 pub mod wallpapercave;
 pub mod webmshare;
@@ -72,7 +72,10 @@ use std::error::Error;
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("directlink", "direct HTTP(S) media URL subset"),
-    ("urlshortener", "bounded bit.ly and t.co safe public link queues"),
+    (
+        "urlshortener",
+        "bounded bit.ly and t.co safe public link queues",
+    ),
     ("4chan", "4chan/4channel threads and bounded boards"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
