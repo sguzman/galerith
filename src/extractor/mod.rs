@@ -135,8 +135,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("comedywildlifephoto")
     } else if imagebam::match_url(input).is_some() {
         Some("imagebam")
-    } else if imagechest::match_url(input).is_some()
-        || imagechest::match_user_url(input).is_some()
+    } else if imagechest::match_url(input).is_some() || imagechest::match_user_url(input).is_some()
     {
         Some("imagechest")
     } else if imgbb::match_url(input).is_some() {
@@ -234,7 +233,9 @@ pub async fn resolve(
         return imagechest::resolve(client, target).await;
     }
     if imagechest::match_user_url(input).is_some() {
-        return Err("ImageChest profile traversal requires --follow-queues or --dump-messages".into());
+        return Err(
+            "ImageChest profile traversal requires --follow-queues or --dump-messages".into(),
+        );
     }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
