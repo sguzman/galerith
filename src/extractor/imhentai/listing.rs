@@ -67,7 +67,11 @@ pub fn match_url(raw: &str) -> Option<Listing> {
         }
         _ => return None,
     };
-    let path = format!("/{kind}/{}", if search { "" } else { &key });
+    let path = if search {
+        format!("/{kind}/")
+    } else {
+        format!("/{kind}/{key}/")
+    };
     Some(Listing {
         host: host.to_owned(),
         kind,
@@ -130,7 +134,7 @@ fn next_page(html: &str, current: &Url, listing: &Listing, current_page: u16) ->
     }
     let next = current.join(raw)?;
     if next.scheme() != "https"
-        || next.host_str() != Some(listing.host.as_str())
+        || next.host_str() != current.host_str()
         || !next.username().is_empty()
         || next.password().is_some()
         || next.port().is_some()
