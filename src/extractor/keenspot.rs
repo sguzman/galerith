@@ -43,14 +43,15 @@ pub fn match_url(raw: &str) -> Option<Comic> {
     let comic = host.strip_suffix(".keenspot.com")?;
     if matches!(comic, "www" | "forums")
         || !(1..=64).contains(&comic.len())
-        || !comic.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        || !comic
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
     {
         return None;
     }
     let path = match url.path() {
         "/" => None,
-        value if value.len() <= 240 && value.starts_with('/') =>
-            Some(value.to_owned()),
+        value if value.len() <= 240 && value.starts_with('/') => Some(value.to_owned()),
         _ => return None,
     };
     Some(Comic {
@@ -61,7 +62,10 @@ pub fn match_url(raw: &str) -> Option<Comic> {
 }
 
 fn snippet<'a>(text: &'a str, before: &str, after: &str) -> Option<&'a str> {
-    text.split_once(before)?.1.split_once(after).map(|(found, _)| found)
+    text.split_once(before)?
+        .1
+        .split_once(after)
+        .map(|(found, _)| found)
 }
 
 fn source_link(html: &str, first: bool) -> Option<&str> {
@@ -80,7 +84,9 @@ fn scoped_page(base: &Url, raw: &str) -> Option<Url> {
         || url.query().is_some()
         || url.fragment().is_some()
         || url.path().contains('%')
-        || url.path_segments()?.any(|piece| piece == "." || piece == "..")
+        || url
+            .path_segments()?
+            .any(|piece| piece == "." || piece == "..")
     {
         return None;
     }
@@ -106,7 +112,8 @@ fn original_image(page_url: &Url, raw: &str) -> Option<(Url, String)> {
     let mut basename = None;
     for part in url.path_segments()? {
         let decoded = percent_decode_str(part).decode_utf8().ok()?;
-        if decoded == "." || decoded == ".."
+        if decoded == "."
+            || decoded == ".."
             || decoded.contains('/')
             || decoded.contains('\\')
             || decoded.chars().any(char::is_control)
@@ -117,7 +124,10 @@ fn original_image(page_url: &Url, raw: &str) -> Option<(Url, String)> {
     }
     let filename = basename?;
     let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(extension.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let name = safe_filename(&filename);
@@ -132,11 +142,15 @@ fn page_records(
     result: &mut Vec<(MediaItem, Metadata)>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     for image in html.split("class=\"ksc\"").skip(1).take(500) {
-        let Some(src) = snippet(image, "src=\"", "\"") else { continue };
+        let Some(src) = snippet(image, "src=\"", "\"") else {
+            continue;
+        };
         if src.ends_with(".js") {
             continue;
         }
-        let Some((url, name)) = original_image(page, src) else { continue };
+        let Some((url, name)) = original_image(page, src) else {
+            continue;
+        };
         let canonical = url.to_string();
         if !seen.insert(canonical.clone()) {
             continue;
@@ -161,12 +175,19 @@ fn page_records(
     Ok(())
 }
 
-async fn html(client: &Client, page: Url, base: &Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn html(
+    client: &Client,
+    page: Url,
+    base: &Url,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(page).send().await?.error_for_status()?;
     if response.url().origin() != base.origin() {
         return Err("Keenspot page redirected outside the comic origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("Keenspot source HTML exceeds bounded response".into());
     }
     let mut body = Vec::new();
@@ -189,7 +210,8 @@ async fn at_base(
         scoped_page(base, path)
     } else {
         source_link(&initial, true).and_then(|href| scoped_page(base, href))
-    }.ok_or("Keenspot root lacks a supported public first-comic link")?;
+    }
+    .ok_or("Keenspot root lacks a supported public first-comic link")?;
     let mut current = Some(start);
     let mut pages = HashSet::new();
     let mut originals = HashSet::new();
@@ -223,23 +245,31 @@ async fn at_base(
 }
 
 pub async fn resolve(
-    client: &Client, comic: Comic,
+    client: &Client,
+    comic: Comic,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", comic.host))?;
-    Ok(at_base(client, &comic, &base).await?
+    Ok(at_base(client, &comic, &base)
+        .await?
         .into_iter()
         .map(|(item, _)| item)
         .collect())
 }
 
 pub async fn resolve_messages(
-    client: &Client, comic: Comic,
+    client: &Client,
+    comic: Comic,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}/", comic.host))?;
     let mut events = Vec::new();
     for (item, metadata) in at_base(client, &comic, &base).await? {
-        events.push(ExtractorMessage::Directory { metadata: metadata.clone() });
-        events.push(ExtractorMessage::Url { url: item.url, metadata });
+        events.push(ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        });
+        events.push(ExtractorMessage::Url {
+            url: item.url,
+            metadata,
+        });
     }
     Ok(events)
 }
@@ -247,7 +277,10 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn sample_comic() -> Comic {
         match_url("https://story.keenspot.com/").unwrap()
@@ -256,7 +289,10 @@ mod tests {
     #[test]
     fn recognized_subdomains_exclude_forums_and_untrusted_paths() {
         assert_eq!(sample_comic().comic, "story");
-        assert!(match_url("https://story.keenspot.com/comic/1/").unwrap().path.is_some());
+        assert!(match_url("https://story.keenspot.com/comic/1/")
+            .unwrap()
+            .path
+            .is_some());
         for bad in [
             "https://www.keenspot.com/",
             "https://forums.keenspot.com/",
@@ -281,32 +317,47 @@ mod tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0.filename, "story_001_page one.png");
         assert_eq!(result[1].1["comic"], "story");
-        assert_eq!(result[0].1["page_url"], "https://story.keenspot.com/comic/one/");
+        assert_eq!(
+            result[0].1["page_url"],
+            "https://story.keenspot.com/comic/one/"
+        );
     }
 
     #[tokio::test]
     async fn bounded_two_comic_page_traversal_stays_on_origin_and_keeps_order() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            for (path,body) in [
-                ("/",r#"<link rel="first" href="/comic/one/">"#),
-                ("/comic/one/",r#"<img class="ksc" src="https://images.keenspot.com/1.png"><link rel="next" href="/comic/two/">"#),
-                ("/comic/two/",r#"<img class="ksc" src="https://images.keenspot.com/2.png">"#),
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                ("/", r#"<link rel="first" href="/comic/one/">"#),
+                (
+                    "/comic/one/",
+                    r#"<img class="ksc" src="https://images.keenspot.com/1.png"><link rel="next" href="/comic/two/">"#,
+                ),
+                (
+                    "/comic/two/",
+                    r#"<img class="ksc" src="https://images.keenspot.com/2.png">"#,
+                ),
             ] {
-                let (mut socket,_)=listener.accept().await.unwrap();
-                let mut request=[0u8;4096];
-                let n=socket.read(&mut request).await.unwrap();
-                assert!(String::from_utf8_lossy(&request[..n]).starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
-        let base=Url::parse(&format!("http://{addr}/")).unwrap();
-        let results=at_base(&Client::new(),&sample_comic(),&base).await.unwrap();
-        assert_eq!(results.len(),2);
-        assert_eq!(results[0].0.url,"https://images.keenspot.com/1.png");
-        assert_eq!(results[1].0.filename,"story_002_2.png");
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let results = at_base(&Client::new(), &sample_comic(), &base)
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].0.url, "https://images.keenspot.com/1.png");
+        assert_eq!(results[1].0.filename, "story_002_2.png");
         server.await.unwrap();
     }
 
