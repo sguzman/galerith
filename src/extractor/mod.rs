@@ -33,6 +33,7 @@ pub mod imgur;
 pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
+pub mod khinsider;
 pub mod lexica;
 pub mod lightroom;
 pub mod listal;
@@ -89,6 +90,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("imhentai", "pinned public IMHentai-family galleries"),
     ("issuu", "pinned public Issuu publication pages"),
+    ("khinsider", "public soundtrack albums with bounded track formats"),
     (
         "listal",
         "pinned public Listal images and people-picture queues",
@@ -228,6 +230,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("issuu")
     } else if listal::match_url(input).is_some() {
         Some("listal")
+    } else if khinsider::match_url(input).is_some() {
+        Some("khinsider")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -379,6 +383,9 @@ pub async fn resolve(
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve(client, target).await;
+    }
+    if let Some(album) = khinsider::match_url(input) {
+        return khinsider::resolve(client, album).await;
     }
     if issuu::publisher::match_url(input).is_some() {
         return Err("Issuu publisher feeds require --dump-messages or --follow-queues".into());
@@ -543,6 +550,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(album) = khinsider::match_url(input) {
+        return khinsider::resolve_messages(client, album).await;
     }
     if let Some(publisher) = issuu::publisher::match_url(input) {
         return issuu::publisher::resolve_messages(client, publisher, max_pages).await;
@@ -899,6 +909,7 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
+            ("https://downloads.khinsider.com/game-soundtracks/album/game-ost", "khinsider"),
             ("https://issuu.com/press", "issuu"),
             ("https://imhentai.xxx/tag/art/", "imhentai"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
