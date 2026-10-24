@@ -513,16 +513,21 @@ async fn at_base(
             let url = page_base.join(&path)?;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
-            let markup = html.split_once(" class=\"photo")
+            let markup = html
+                .split_once(" class=\"photo")
                 .map(|(_, text)| text)
                 .unwrap_or("");
             let first = parse_ajax_ids(markup);
-            let scope = if recent { format!("genre_new:{id}") } else { format!("genre:{id}") };
+            let scope = if recent {
+                format!("genre_new:{id}")
+            } else {
+                format!("genre:{id}")
+            };
             let rating = if recent { "0" } else { "50" };
             let queue = ajax_listing(
-                client, page_base, &scope,
-                "genre", &id, rating, first, max_pages,
-            ).await?;
+                client, page_base, &scope, "genre", &id, rating, first, max_pages,
+            )
+            .await?;
             Ok((Vec::new(), queue))
         }
     }
@@ -732,8 +737,14 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let (_, queue) = at_base(
-            &Client::new(), &base, &base, Target::GenreNew("12".into()), 2,
-        ).await.unwrap();
+            &Client::new(),
+            &base,
+            &base,
+            Target::GenreNew("12".into()),
+            2,
+        )
+        .await
+        .unwrap();
         assert_eq!(queue.len(), 2);
         assert_eq!(
             serde_json::to_value(&queue[0]).unwrap()["metadata"]["source_scope"],
