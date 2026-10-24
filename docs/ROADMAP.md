@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 60%` across 100 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 102 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -237,7 +237,7 @@
   - [x] Preserve unfiltered image/search/gallery resolution and existing page conventions — src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773
   - [ ] Complete upstream pagination, filters, site auth, metadata and live differential acceptance
 
-### 🧱 P5 — Shared website families — `███████░░░ 74%`
+### 🧱 P5 — Shared website families — `████████░░ 75%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -522,6 +522,18 @@
   - [x] Avoid constructing deferred child URL from external hrefs, query-bearing links or script-only path substrings — src/extractor/imagepond.rs queue_scanner_never_rewrites_foreign_link_or_plain_text_into_child; CI 40053074485
   - [x] Preserve first-party album/user scoped queue ordering and existing bounded HTTP behavior — src/extractor/imagepond.rs album_pagination_preserves_first_seen_media_and_caps_pages and local_first_page_user_listing_emits_safe_deferred_queues; CI 40053074485
   - [ ] Match upstream OG metadata, canonical IDs, trusted host variants and complete HTML/link parsing with live differential fixtures
+- 🖼️ **T543** ImageShack guarded public single-image API extraction — `████████░░ 80%`
+  - [x] Recognize canonical ImageShack single-image URLs while denying unsafe credentials, queries and foreign hostnames — src/extractor/imageshack.rs public_image_urls_require_supported_host_and_safe_id; mod.rs dispatch fixture; CI 40054227077
+  - [x] Parse public pinned ImageShack REST result with verified image ID, HTTPS media host and safe filename — src/extractor/imageshack.rs image_api_parses_pinned_public_image_shape_and_optional_metadata; CI 40054227077
+  - [x] Carry validated scalar metadata in typed events while retaining flattened file shape and alphanumeric source IDs — src/extractor/imageshack.rs parse_image and resolve_messages with title, creation_date, dimensions, username, file_id; CI 40054227077
+  - [x] Bound API JSON responses, reject mismatched/private results and test one loopback public-image request — src/extractor/http_json.rs 2 MiB fetch_json_limited; src/extractor/imageshack.rs rejects_private_mismatched_and_untrusted_media_records and loopback_public_image_api_uses_bounded_read_and_validates_identity; CI 40054227077
+  - [ ] Implement all ImageShack file auth, metadata, timestamp/file/archive format semantics, variant hosts and live upstream differential parity
+- 🗂️ **T544** ImageShack bounded public album and user API listings — `████████░░ 80%`
+  - [x] Route public ImageShack album and dotted-username profile URLs without broadening unsafe URL variants — src/extractor/imageshack.rs public_album_and_user_routes_are_strict_and_follow_pinned_shapes; mod.rs registry; CI 40054413824
+  - [x] Enforce source API paging with 40 records/page, at most four pages and 160 images, request pacing and 2 MiB JSON bounds — src/extractor/imageshack.rs listing_at_base, PAGE_LIMIT, MAX_LIST_PAGES, MAX_LIST_IMAGES and shared fetch_json_limited; CI 40054413824
+  - [x] Filter private or unsafe media, preserve first-seen order and reject excessive/malformed result pages — src/extractor/imageshack.rs listed_images, list_projects_safe_unique_public_records_and_gallery_title; CI 40054413824
+  - [x] Preserve scalar parent album/user identity and verify two-page 40-plus-1 HTTP pagination/deduplication — src/extractor/imageshack.rs user_index_paginates_40_plus_1_records_without_duplicate_downloads; typed resolve_listing_messages and flat resolve_listing; CI 40054413824
+  - [ ] Reproduce upstream complete galleries, advanced offset/skip behavior, private/authenticated feeds, rich metadata/naming and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

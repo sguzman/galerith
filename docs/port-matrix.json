@@ -720,9 +720,15 @@
     {
       "path": "gallery_dl/extractor/imageshack.py",
       "module": "imageshack",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imageshack.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public ImageShack single-image REST reader with canonical route/ID, selected scalar metadata, safe HTTPS imagizer URLs and 2 MiB JSON limits; CI 40054227077 passed.",
+        "Public album and user listing with 40-record pages, max four pages/160 images, 1s interpage pacing, cross-page media dedup, safe public media and local HTTP pagination fixtures; CI 40054413824 passed. Complete metadata, private/auth, upstream filenames and live differential conformance remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/imgbb.py",
