@@ -3339,7 +3339,7 @@
               "id": "T563",
               "emoji": "🖼️",
               "name": "Listal guarded public images and people-picture queues",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned public Listal image and people-picture URL routes with strict origins and numeric identities",
@@ -3362,7 +3362,12 @@
                   "evidence": "src/extractor/listal.rs people_images_queue_first_seen_numeric_ids_without_external_links and bounded_people_listing_follows_valid_next_page_and_deduplicates_ids; src/extractor/mod.rs routed fixture; full Linux CI 40130699655"
                 },
                 {
-                  "title": "Match complete upstream date/name/archive metadata, all listing pagination behavior, other source/CDN variants and live differential parity",
+                  "title": "Parse visible source timestamps with Gregorian leap-year validation and no fabricated timezone",
+                  "passed": true,
+                  "evidence": "src/extractor/listal.rs source_date_parser_rejects_impossible_calendar_dates_and_offsets and single_original_preserves_source_image_dimensions_and_author; Linux CI 40131128031"
+                },
+                {
+                  "title": "Match complete pinned filename/directory/archive metadata, all people listing and image variants, and live differential parity",
                   "passed": false
                 }
               ]

@@ -999,7 +999,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent guarded Listal public viewimage and people/pictures subset with validated numeric IDs, trusted first-party listal/lisimg media origins, visible title/dimensions/author, 2 MiB HTML cap, 4-page/128-child picture discovery, parsed first-party URL link filtering and deduplication, one-request image and two-page people loopback HTTP fixtures. Full Linux CI 40130699655 passed. Date parsing, full output naming/archive, other gallery layouts and live upstream differential parity unaccepted."
+        "Independent guarded Listal public viewimage and people/pictures subset with validated numeric IDs, trusted first-party listal/lisimg media origins, visible title/dimensions/author, 2 MiB HTML cap, 4-page/128-child picture discovery, parsed first-party URL link filtering and deduplication, one-request image and two-page people loopback HTTP fixtures. Full Linux CI 40130699655 passed. Date parsing, full output naming/archive, other gallery layouts and live upstream differential parity unaccepted.",
+        "Optional Listal 'ago on' timestamp now normalized to a timezone-free ISO local date after strict Gregorian calendar validation, with unmodified date_source also retained; full Linux CI 40131128031 passed."
       ]
     },
     {

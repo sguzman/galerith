@@ -11,3 +11,5 @@ The public people-picture reader emits **deferred** first-party image queues fro
 Source-route, media metadata, hostile-host and one-request image fixtures plus a two-page deduplication loopback HTTP test passed [Linux CI 40130699655](https://github.com/sguzman/galerith/actions/runs/40130699655), including formatter, Clippy, tests, roadmap consistency and release build.
 
 **Unaccepted:** full date parsing, upstream filename/directory/archive templates, all media/CDN formats and publisher layouts, unrestricted pagination, media response verification, cookies/authentication variations and live differential reference tests. This remains a partial upstream module.
+
+**Source dates:** The visible `D Month YYYY HH:MM` source timestamp is now preserved as `date_source` and, when a valid Gregorian date, normalized into a timezone-free local `date` string (e.g. `2020-04-12T16:30:00`). Impossible dates are not normalized, and no source timezone is invented. Leap-year and invalid-date regressions passed [CI 40131128031](https://github.com/sguzman/galerith/actions/runs/40131128031).
