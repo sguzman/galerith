@@ -14,6 +14,7 @@ pub mod gelbooru_v02;
 pub mod http_json;
 pub mod imagebam;
 pub mod imagechest;
+pub mod imagehosts;
 pub mod imagepond;
 pub mod imageshack;
 pub mod imgbb;
@@ -67,6 +68,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
     ("imagebam", "public image pages and bounded galleries"),
     ("imagechest", "public ImageChest gallery page media"),
+    ("pixhost", "public Pixhost image pages and safe gallery queues"),
     ("imagepond", "public ImagePond single-file OG media pages"),
     ("imageshack", "public ImageShack individual image REST API"),
     ("imgbb", "public image pages and first-page albums"),
@@ -142,6 +144,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
     } else if imagechest::match_url(input).is_some() || imagechest::match_user_url(input).is_some()
     {
         Some("imagechest")
+    } else if imagehosts::match_url(input).is_some() {
+        Some("pixhost")
     } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
     } else if imageshack::match_url(input).is_some()
@@ -242,6 +246,9 @@ pub async fn resolve(
     if let Some(target) = imagechest::match_url(input) {
         return imagechest::resolve(client, target).await;
     }
+    if let Some(target) = imagehosts::match_url(input) {
+        return imagehosts::resolve(client, target).await;
+    }
     if imagechest::match_user_url(input).is_some() {
         return Err(
             "ImageChest profile traversal requires --follow-queues or --dump-messages".into(),
@@ -337,6 +344,9 @@ pub async fn resolve_messages(
     }
     if let Some(gallery) = imagechest::match_url(input) {
         return imagechest::resolve_messages(client, gallery).await;
+    }
+    if let Some(target) = imagehosts::match_url(input) {
+        return imagehosts::resolve_messages(client, target).await;
     }
     if let Some(target) = imagepond::match_url(input) {
         return imagepond::resolve_messages(client, target).await;
@@ -648,6 +658,8 @@ mod tests {
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
+            ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
+            ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://www.imagepond.net/i/abc123", "imagepond"),
             ("https://www.imagepond.net/a/gallery123", "imagepond"),
