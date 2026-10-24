@@ -26,6 +26,7 @@ pub mod imgdrive;
 pub mod imgpile;
 pub mod imgpv;
 pub mod imgth;
+pub mod imagevenue;
 pub mod imxto;
 pub mod lexica;
 pub mod lightroom;
@@ -71,6 +72,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     ("fappic", "pinned public Fappic original-image preview"),
+    ("imagevenue", "pinned public ImageVenue single-image preview"),
     (
         "foolfuuka",
         "archive threads, boards, galleries and searches",
@@ -189,6 +191,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgpv")
     } else if fappic::match_url(input).is_some() {
         Some("fappic")
+    } else if imagevenue::match_url(input).is_some() {
+        Some("imagevenue")
     } else if let Some(target) = imgdrive::match_url(input) {
         Some(target.family.category())
     } else if imxto::match_url(input).is_some() {
@@ -318,6 +322,9 @@ pub async fn resolve(
     }
     if let Some(target) = fappic::match_url(input) {
         return fappic::resolve(client, target).await;
+    }
+    if let Some(target) = imagevenue::match_url(input) {
+        return imagevenue::resolve(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve(client, target).await;
@@ -452,6 +459,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fappic::match_url(input) {
         return fappic::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imagevenue::match_url(input) {
+        return imagevenue::resolve_messages(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve_messages(client, target).await;
@@ -787,6 +797,7 @@ mod tests {
             ),
             ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
+            ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
