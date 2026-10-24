@@ -25,14 +25,20 @@ pub struct Album {
 
 pub fn match_album_url(input: &str) -> Option<Album> {
     let lower = input.to_ascii_lowercase();
-    if lower.contains("/../") || lower.contains("/./") || lower.contains("/%2e")
-        || lower.contains("%2f") || lower.contains("%5c")
+    if lower.contains("/../")
+        || lower.contains("/./")
+        || lower.contains("/%2e")
+        || lower.contains("%2f")
+        || lower.contains("%5c")
     {
         return None;
     }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("turboimagehost.com" | "www.turboimagehost.com"))
+        || !matches!(
+            url.host_str(),
+            Some("turboimagehost.com" | "www.turboimagehost.com")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -42,27 +48,41 @@ pub fn match_album_url(input: &str) -> Option<Album> {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
-    let ["album", id, name] = parts.as_slice() else { return None };
+    let ["album", id, name] = parts.as_slice() else {
+        return None;
+    };
     if !(1..=24).contains(&id.len())
         || !id.bytes().all(|b| b.is_ascii_digit())
-        || name.is_empty() || name.len() > 180
-        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+        || name.is_empty()
+        || name.len() > 180
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
     {
         return None;
     }
-    Some(Album { id: (*id).into(), path: format!("album/{id}/{name}") })
+    Some(Album {
+        id: (*id).into(),
+        path: format!("album/{id}/{name}"),
+    })
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
     let raw = input.to_ascii_lowercase();
-    if raw.contains("/../") || raw.contains("/./") || raw.contains("/%2e")
-        || raw.contains("%2f") || raw.contains("%5c")
+    if raw.contains("/../")
+        || raw.contains("/./")
+        || raw.contains("/%2e")
+        || raw.contains("%2f")
+        || raw.contains("%5c")
     {
         return None;
     }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("turboimagehost.com" | "www.turboimagehost.com"))
+        || !matches!(
+            url.host_str(),
+            Some("turboimagehost.com" | "www.turboimagehost.com")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -79,8 +99,11 @@ pub fn match_url(input: &str) -> Option<Target> {
         return None;
     }
     let name = file.strip_suffix(".html")?;
-    if name.is_empty() || name.len() > 180
-        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    if name.is_empty()
+        || name.len() > 180
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
     {
         return None;
     }
@@ -105,8 +128,13 @@ fn trusted_media(raw: &str) -> Option<(Url, String)> {
     }
     let name = url.path_segments()?.next_back()?.to_owned();
     let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-    if name.is_empty() || name.len() > 240 || name.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    if name.is_empty()
+        || name.len() > 240
+        || name.contains('%')
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -114,17 +142,26 @@ fn trusted_media(raw: &str) -> Option<(Url, String)> {
     Some((url, filename))
 }
 
-fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    let tag = html.split_once("<img ").map(|(_, v)| v)
+fn parse_page(
+    html: &str,
+    target: &Target,
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    let tag = html
+        .split_once("<img ")
+        .map(|(_, v)| v)
         .and_then(|v| v.split_once('>').map(|(tag, _)| tag))
         .ok_or("Turboimagehost public image is absent")?;
-    let link = tag.split_once("src=\"")
+    let link = tag
+        .split_once("src=\"")
         .and_then(|(_, v)| v.split_once('"').map(|(url, _)| url))
         .ok_or("Turboimagehost image has no src")?;
-    let (url, filename) = trusted_media(link)
-        .ok_or("Turboimagehost media origin is unsupported")?;
+    let (url, filename) =
+        trusted_media(link).ok_or("Turboimagehost media origin is unsupported")?;
     let item = MediaItem {
-        url: url.to_string(), filename, extractor: "turboimagehost", post_id: None,
+        url: url.to_string(),
+        filename,
+        extractor: "turboimagehost",
+        post_id: None,
     };
     let mut metadata = media_metadata(&item);
     metadata.insert("subcategory".into(), "image".into());
@@ -136,12 +173,12 @@ fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<
     Ok((item, metadata))
 }
 
-async fn read_html(
-    client: &Client,
-    url: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(url).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
+    {
         return Err("Turboimagehost public HTML exceeds response cap".into());
     }
     let mut body = Vec::new();
@@ -155,7 +192,9 @@ async fn read_html(
 }
 
 async fn at_base(
-    client: &Client, target: &Target, base: &Url,
+    client: &Client,
+    target: &Target,
+    base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     parse_page(&read_html(client, base.join(&target.path)?).await?, target)
 }
@@ -170,34 +209,55 @@ fn album_links(
     let before = out.len();
     for (position, _) in html.match_indices("<a ") {
         let suffix = &html[position + "<a ".len()..];
-        let Some((attrs, _)) = suffix.split_once('>') else { continue };
-        let Some((prefix, rest)) = attrs.split_once("href=\"") else { continue };
-        if !prefix.is_empty() && !prefix.ends_with(char::is_whitespace) { continue; }
-        let Some((href, _)) = rest.split_once('"') else { continue };
-        if href.len() > 2048 { continue; }
+        let Some((attrs, _)) = suffix.split_once('>') else {
+            continue;
+        };
+        let Some((prefix, rest)) = attrs.split_once("href=\"") else {
+            continue;
+        };
+        if !prefix.is_empty() && !prefix.ends_with(char::is_whitespace) {
+            continue;
+        }
+        let Some((href, _)) = rest.split_once('"') else {
+            continue;
+        };
+        if href.len() > 2048 {
+            continue;
+        }
         let Ok(url) = origin.join(href) else { continue };
-        let Some(child) = match_url(url.as_str()) else { continue };
+        let Some(child) = match_url(url.as_str()) else {
+            continue;
+        };
         let canonical = format!("https://www.turboimagehost.com/{}", child.path);
-        if !seen.insert(canonical.clone()) { continue; }
+        if !seen.insert(canonical.clone()) {
+            continue;
+        }
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "turboimagehost".into());
         metadata.insert("subcategory".into(), "image".into());
         metadata.insert("album_id".into(), album_id.into());
         metadata.insert("token".into(), child.id.into());
         out.push(queued_url(canonical, metadata));
-        if out.len() >= MAX_CHILDREN { break; }
+        if out.len() >= MAX_CHILDREN {
+            break;
+        }
     }
     out.len() - before
 }
 
 async fn album_at_base(
-    client: &Client, album: &Album, base: &Url, max_pages: u16,
+    client: &Client,
+    album: &Album,
+    base: &Url,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut seen = HashSet::new();
     let mut result = Vec::new();
     for page in 1..=max_pages.clamp(1, MAX_PAGES) {
         let mut endpoint = base.join(&album.path)?;
-        endpoint.query_pairs_mut().append_pair("p", &page.to_string());
+        endpoint
+            .query_pairs_mut()
+            .append_pair("p", &page.to_string());
         let html = read_html(client, endpoint).await?;
         if page == 1 && html.contains("Requested gallery don") {
             return Err("Turboimagehost public gallery not found".into());
@@ -215,37 +275,60 @@ async fn album_at_base(
 }
 
 pub async fn resolve_album_messages(
-    client: &Client, album: Album, max_pages: u16,
+    client: &Client,
+    album: Album,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    album_at_base(client, &album, &Url::parse("https://www.turboimagehost.com/")?, max_pages).await
+    album_at_base(
+        client,
+        &album,
+        &Url::parse("https://www.turboimagehost.com/")?,
+        max_pages,
+    )
+    .await
 }
 
-
 pub async fn resolve(
-    client: &Client, target: Target,
+    client: &Client,
+    target: Target,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let (item, _) = at_base(
-        client, &target, &Url::parse("https://www.turboimagehost.com/")?,
-    ).await?;
+        client,
+        &target,
+        &Url::parse("https://www.turboimagehost.com/")?,
+    )
+    .await?;
     Ok(vec![item])
 }
 
 pub async fn resolve_messages(
-    client: &Client, target: Target,
+    client: &Client,
+    target: Target,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let (item, metadata) = at_base(
-        client, &target, &Url::parse("https://www.turboimagehost.com/")?,
-    ).await?;
+        client,
+        &target,
+        &Url::parse("https://www.turboimagehost.com/")?,
+    )
+    .await?;
     Ok(vec![
-        ExtractorMessage::Directory { metadata: metadata.clone() },
-        ExtractorMessage::Url { url: item.url, metadata },
+        ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        },
+        ExtractorMessage::Url {
+            url: item.url,
+            metadata,
+        },
     ])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn matches_only_public_image_url_shapes() {
@@ -269,7 +352,9 @@ mod tests {
 
     #[test]
     fn album_urls_and_deferred_children_are_strict_and_ordered() {
-        let target = match_album_url("https://www.turboimagehost.com/album/344597/testimagegallery").unwrap();
+        let target =
+            match_album_url("https://www.turboimagehost.com/album/344597/testimagegallery")
+                .unwrap();
         assert_eq!(target.id, "344597");
         for bad in [
             "http://www.turboimagehost.com/album/344597/testimagegallery",
@@ -283,8 +368,14 @@ mod tests {
         let mut seen = HashSet::new();
         let mut queue = Vec::new();
         assert_eq!(album_links(html, "344597", &mut seen, &mut queue), 2);
-        assert_eq!(serde_json::to_value(&queue[0]).unwrap()["url"], "https://www.turboimagehost.com/p/1/one.jpg.html");
-        assert_eq!(serde_json::to_value(&queue[1]).unwrap()["metadata"]["album_id"], "344597");
+        assert_eq!(
+            serde_json::to_value(&queue[0]).unwrap()["url"],
+            "https://www.turboimagehost.com/p/1/one.jpg.html"
+        );
+        assert_eq!(
+            serde_json::to_value(&queue[1]).unwrap()["metadata"]["album_id"],
+            "344597"
+        );
     }
 
     #[tokio::test]
@@ -294,14 +385,20 @@ mod tests {
         let server = tokio::spawn(async move {
             for (page, html) in [
                 (1, r#"<a href="/p/1/one.jpg.html">One</a>"#),
-                (2, r#"<a href="/p/1/one.jpg.html">Dup</a><a href="/p/2/two.png.html">Two</a>"#),
+                (
+                    2,
+                    r#"<a href="/p/1/one.jpg.html">Dup</a><a href="/p/2/two.png.html">Two</a>"#,
+                ),
                 (3, "<div>Empty</div>"),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buf = [0_u8; 4096];
                 let len = socket.read(&mut buf).await.unwrap();
                 let request = String::from_utf8_lossy(&buf[..len]);
-                assert!(request.starts_with("GET /album/344597/gallery?p="), "{request}");
+                assert!(
+                    request.starts_with("GET /album/344597/gallery?p="),
+                    "{request}"
+                );
                 assert!(request.contains(&format!("p={page}")), "{request}");
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
@@ -312,7 +409,9 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let album = match_album_url("https://www.turboimagehost.com/album/344597/gallery").unwrap();
-        let events = album_at_base(&Client::new(), &album, &base, 4).await.unwrap();
+        let events = album_at_base(&Client::new(), &album, &base, 4)
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
     }
@@ -324,7 +423,10 @@ mod tests {
         let (item, metadata) = parse_page(html, &target).unwrap();
         assert_eq!(item.filename, "photo.png");
         assert_eq!(metadata["token"], "39078423");
-        assert_eq!(metadata["post_url"], "https://www.turboimagehost.com/p/39078423/test--.png.html");
+        assert_eq!(
+            metadata["post_url"],
+            "https://www.turboimagehost.com/p/39078423/test--.png.html"
+        );
         for bad in [
             "http://i1.turboimagehost.com/files/photo.jpg",
             "https://evil.example/photo.jpg",
@@ -353,7 +455,8 @@ mod tests {
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let target = match_url("https://www.turboimagehost.com/p/39078423/test--.png.html").unwrap();
+        let target =
+            match_url("https://www.turboimagehost.com/p/39078423/test--.png.html").unwrap();
         let (item, _) = at_base(&Client::new(), &target, &base).await.unwrap();
         assert_eq!(item.filename, "photo.png");
         server.await.unwrap();

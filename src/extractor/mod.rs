@@ -350,7 +350,9 @@ pub async fn resolve(
         return turboimagehost::resolve(client, target).await;
     }
     if turboimagehost::match_album_url(input).is_some() {
-        return Err("Turboimagehost album traversal requires --follow-queues or --dump-messages".into());
+        return Err(
+            "Turboimagehost album traversal requires --follow-queues or --dump-messages".into(),
+        );
     }
     if let Some(target) = postimg::match_url(input) {
         return postimg::resolve(client, target).await;
@@ -758,8 +760,14 @@ mod tests {
             ("https://imageshack.com/user/Ezekiel.Gonzalez", "imageshack"),
             ("https://postimg.cc/Wtn2b3hC", "postimg"),
             ("https://postimg.cc/gallery/wxpDLgX", "postimg"),
-            ("https://www.turboimagehost.com/p/39078423/test--.png.html", "turboimagehost"),
-            ("https://www.turboimagehost.com/album/344597/testimagegallery", "turboimagehost"),
+            (
+                "https://www.turboimagehost.com/p/39078423/test--.png.html",
+                "turboimagehost",
+            ),
+            (
+                "https://www.turboimagehost.com/album/344597/testimagegallery",
+                "turboimagehost",
+            ),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
