@@ -283,29 +283,60 @@ fn valid_media_link(link: &str) -> Option<(Url, String)> {
     Some((url, safe_name))
 }
 
-fn parse_page(html: &str) -> Result<(MediaItem, Option<String>), Box<dyn Error + Send + Sync>> {
+fn parse_page(html: &str) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let kind = property(html, "type").unwrap_or_default();
-    let field = if kind == "image" { "image" } else { "video" };
+    let is_image = kind == "image";
+    let field = if is_image { "image" } else { "video" };
     let media = property(html, field).ok_or("ImagePond page has no public media OG link")?;
     let (url, filename) =
         valid_media_link(&media).ok_or("ImagePond page media link has an unsupported origin")?;
-    let title = property(html, "title").filter(|v| !v.is_empty() && v.len() <= 256);
-    Ok((
-        MediaItem {
-            url: url.to_string(),
-            filename,
-            extractor: "imagepond",
-            post_id: None,
-        },
-        title,
-    ))
+    let item = MediaItem {
+        url: url.to_string(),
+        filename,
+        extractor: "imagepond",
+        post_id: None,
+    };
+    let mut metadata = media_metadata(&item);
+    metadata.insert("subcategory".into(), "file".into());
+    metadata.insert("media_type".into(), if is_image { "image" } else { "video" }.into());
+    if let Some(title) = property(html, "title").filter(|v| !v.is_empty() && v.len() <= 256) {
+        metadata.insert("title".into(), title.into());
+    }
+    for axis in ["width", "height"] {
+        let source = format!("{field}:{axis}");
+        let value = property(html, &source)
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| (1..=32_768).contains(value));
+        if let Some(value) = value {
+            metadata.insert(axis.into(), value.into());
+        }
+    }
+    if !is_image {
+        if let Some(mime) = property(html, "video:type").filter(|v| {
+            matches!(v.as_str(), "video/mp4" | "video/webm" | "video/ogg")
+        }) {
+            metadata.insert("mime".into(), mime.into());
+        }
+        if let Some(thumbnail) = property(html, "image")
+            .and_then(|link| valid_media_link(&link).map(|(url, _)| url.to_string()))
+            .filter(|link| {
+                link.ends_with(".jpg")
+                    || link.ends_with(".jpeg")
+                    || link.ends_with(".png")
+                    || link.ends_with(".webp")
+            })
+        {
+            metadata.insert("thumbnail".into(), thumbnail.into());
+        }
+    }
+    Ok((item, metadata))
 }
 
 async fn resolve_at_base(
     client: &Client,
     target: &Target,
     base: &Url,
-) -> Result<(MediaItem, Option<String>), Box<dyn Error + Send + Sync>> {
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&target.path)?;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
@@ -337,14 +368,9 @@ pub async fn resolve_messages(
     client: &Client,
     target: Target,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let (item, title) =
+    let (item, mut metadata) =
         resolve_at_base(client, &target, &Url::parse("https://www.imagepond.net/")?).await?;
-    let mut metadata = media_metadata(&item);
-    metadata.insert("subcategory".into(), "file".into());
     metadata.insert("file_id".into(), target.id.into());
-    if let Some(title) = title {
-        metadata.insert("title".into(), title.into());
-    }
     Ok(vec![
         ExtractorMessage::Directory {
             metadata: metadata.clone(),
@@ -524,7 +550,7 @@ mod tests {
         assert_eq!(file.url, "https://cdn.imagepond.net/media/public.jpg");
         assert_eq!(file.filename, "public.jpg");
         assert_eq!(file.post_id, None);
-        assert_eq!(title.as_deref(), Some("Public image"));
+        assert_eq!(title.get("title").and_then(serde_json::Value::as_str), Some("Public image"));
     }
 
     #[test]
@@ -534,7 +560,7 @@ mod tests {
         assert_eq!(media.url, "https://cdn.imagepond.net/media/clip.mp4");
         assert_eq!(media.filename, "clip.mp4");
         assert_eq!(media.extractor, "imagepond");
-        assert_eq!(title.as_deref(), Some("Public clip"));
+        assert_eq!(title.get("title").and_then(serde_json::Value::as_str), Some("Public clip"));
         for bad in [
             "http://cdn.imagepond.net/media/clip.mp4",
             "https://cdn.imagepond.net/media/clip.mp4?token=secret",
@@ -543,6 +569,30 @@ mod tests {
             "https://cdn.imagepond.net/media/clip.exe",
         ] {
             assert!(valid_media_link(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn typed_og_details_preserve_numeric_dimensions_and_safe_mime_thumbnail() {
+        let page = r#"<meta property="og:type" content="video"><meta property="og:video" content="https://cdn.imagepond.net/media/clip.mp4"><meta property="og:video:width" content="1920"><meta property="og:video:height" content="1080"><meta property="og:video:type" content="video/mp4"><meta property="og:image" content="https://cdn.imagepond.net/thumb/clip.jpg">"#;
+        let (file, meta) = parse_page(page).unwrap();
+        assert_eq!(file.filename, "clip.mp4");
+        assert_eq!(meta["media_type"], "video");
+        assert_eq!(meta["width"], 1920);
+        assert_eq!(meta["height"], 1080);
+        assert_eq!(meta["mime"], "video/mp4");
+        assert_eq!(
+            meta["thumbnail"],
+            "https://cdn.imagepond.net/thumb/clip.jpg"
+        );
+    }
+
+    #[test]
+    fn typed_og_details_drop_overflow_dimensions_and_untrusted_thumbnail() {
+        let page = r#"<meta property="og:type" content="video"><meta property="og:video" content="https://cdn.imagepond.net/media/clip.webm"><meta property="og:video:width" content="99999999999"><meta property="og:video:height" content="-22"><meta property="og:video:type" content="application/octet-stream"><meta property="og:image" content="https://evil.example/thumb.jpg">"#;
+        let (_, meta) = parse_page(page).unwrap();
+        for key in ["width", "height", "mime", "thumbnail"] {
+            assert!(meta.get(key).is_none(), "{key}");
         }
     }
 
