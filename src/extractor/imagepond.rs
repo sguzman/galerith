@@ -457,7 +457,10 @@ mod tests {
         }
         let good = r#"<a href="?page=2" rel="next">Next</a>"#;
         let second = next_listing_page(good, &current, 4).unwrap().unwrap();
-        assert_eq!(second.as_str(), "https://www.imagepond.net/a/gallery123?page=2");
+        assert_eq!(
+            second.as_str(),
+            "https://www.imagepond.net/a/gallery123?page=2"
+        );
         assert!(next_listing_page(good, &current, 1).unwrap().is_none());
     }
 
@@ -467,8 +470,14 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (page, body) in [
-                (1, r#"<a href="/i/one123">Image</a><a href="?page=2" rel="next">Next</a>"#),
-                (2, r#"<a href="/i/one123">Duplicate</a><a href="/video/two456">Video</a>"#),
+                (
+                    1,
+                    r#"<a href="/i/one123">Image</a><a href="?page=2" rel="next">Next</a>"#,
+                ),
+                (
+                    2,
+                    r#"<a href="/i/one123">Duplicate</a><a href="/video/two456">Video</a>"#,
+                ),
             ] {
                 let (mut stream, _) = listener.accept().await.unwrap();
                 let mut buffer = [0_u8; 4096];
