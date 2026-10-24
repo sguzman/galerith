@@ -244,6 +244,7 @@ fn gallery_files(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + 
     Ok(output)
 }
 
+#[cfg(test)]
 fn parse_html(body: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     gallery_files(&parse_page_payload(body)?)
 }
@@ -311,6 +312,7 @@ fn safe_scalar(value: Option<&Value>, max_bytes: usize) -> Option<&str> {
     })
 }
 
+#[cfg(test)]
 fn gallery_messages(gallery: &Gallery, items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
     gallery_messages_with_fields(gallery, items, &Value::Null)
 }
