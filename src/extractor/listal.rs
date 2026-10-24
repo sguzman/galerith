@@ -176,10 +176,17 @@ fn public_anchor(attrs: &str) -> Option<Url> {
     let raw = attrs
         .split_once("href='")
         .and_then(|(_, suffix)| suffix.split_once('\''))
-        .or_else(|| attrs.split_once("href=\"").and_then(|(_, suffix)| suffix.split_once('"')))
+        .or_else(|| {
+            attrs
+                .split_once("href=\"")
+                .and_then(|(_, suffix)| suffix.split_once('"'))
+        })
         .map(|(href, _)| href)?;
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c"].iter().any(|needle| lower.contains(needle)) {
+    if ["%2e", "%2f", "%5c"]
+        .iter()
+        .any(|needle| lower.contains(needle))
+    {
         return None;
     }
     let base = Url::parse("https://www.listal.com/").ok()?;
@@ -204,13 +211,25 @@ fn listing_ids(
     person: &str,
 ) {
     for anchor in html.split("<a ").skip(1).take(4000) {
-        if out.len() >= MAX_CHILDREN { break; }
-        let Some((attrs, _)) = anchor.split_once('>') else { continue };
-        let Some(url) = public_anchor(attrs) else { continue };
-        let Some(parts) = url.path_segments() else { continue };
+        if out.len() >= MAX_CHILDREN {
+            break;
+        }
+        let Some((attrs, _)) = anchor.split_once('>') else {
+            continue;
+        };
+        let Some(url) = public_anchor(attrs) else {
+            continue;
+        };
+        let Some(parts) = url.path_segments() else {
+            continue;
+        };
         let segments: Vec<_> = parts.collect();
-        let ["viewimage", id] = segments.as_slice() else { continue };
-        if !valid_id(id) || !found.insert((*id).to_owned()) { continue }
+        let ["viewimage", id] = segments.as_slice() else {
+            continue;
+        };
+        if !valid_id(id) || !found.insert((*id).to_owned()) {
+            continue;
+        }
         let mut meta = Metadata::new();
         meta.insert("category".into(), "listal".into());
         meta.insert("subcategory".into(), "people".into());
@@ -226,7 +245,9 @@ fn listing_ids(
 fn next_page(html: &str, person: &str, current: u16) -> bool {
     let expected_path = format!("/{person}/pictures/{}", current + 1);
     for anchor in html.split("<a ").skip(1).take(4000) {
-        let Some((attrs, body)) = anchor.split_once('>') else { continue };
+        let Some((attrs, body)) = anchor.split_once('>') else {
+            continue;
+        };
         if !(attrs.contains("nextprev") || body.trim_start().starts_with("Next")) {
             continue;
         }
