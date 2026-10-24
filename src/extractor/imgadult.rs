@@ -97,18 +97,19 @@ fn parse_page(
     html: &str,
     target: &Target,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    let after = html
-        .split_once("' src='")
-        .map(|(_, text)| text)
-        .ok_or("Imgadult public original img source is absent")?;
-    let raw = after
-        .split_once('\'')
-        .map(|(url, _)| url)
+    let image_tag = html
+        .split_once("<img ")
+        .map(|(_, rest)| rest)
+        .and_then(|rest| rest.split_once('>').map(|(tag, _)| tag))
+        .ok_or("Imgadult public image element is absent")?;
+    let raw = image_tag
+        .split_once(" src='")
+        .and_then(|(_, rest)| rest.split_once('\'').map(|(value, _)| value))
         .ok_or("Imgadult original image URL is malformed")?;
     let (url, fallback) =
         safe_media(raw).ok_or("Imgadult public media origin is unsafe")?;
     let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
-    let alt = after
+    let alt = image_tag
         .split_once("alt='")
         .and_then(|(_, text)| text.split_once('\''))
         .map(|(name, _)| name);
