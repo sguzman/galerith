@@ -144,7 +144,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imagechest")
     } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
-    } else if imageshack::match_url(input).is_some() {
+    } else if imageshack::match_url(input).is_some()
+        || imageshack::match_listing_url(input).is_some()
+    {
         Some("imageshack")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
@@ -256,6 +258,9 @@ pub async fn resolve(
     if let Some(image) = imageshack::match_url(input) {
         return imageshack::resolve(client, image).await;
     }
+    if let Some(listing) = imageshack::match_listing_url(input) {
+        return imageshack::resolve_listing(client, listing, max_pages).await;
+    }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
     }
@@ -341,6 +346,9 @@ pub async fn resolve_messages(
     }
     if let Some(image) = imageshack::match_url(input) {
         return imageshack::resolve_messages(client, image).await;
+    }
+    if let Some(listing) = imageshack::match_listing_url(input) {
+        return imageshack::resolve_listing_messages(client, listing, max_pages).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
@@ -644,6 +652,8 @@ mod tests {
             ("https://www.imagepond.net/i/abc123", "imagepond"),
             ("https://www.imagepond.net/a/gallery123", "imagepond"),
             ("https://imageshack.com/i/iq8ac04fj", "imageshack"),
+            ("https://imageshack.com/a/OGtz/1", "imageshack"),
+            ("https://imageshack.com/user/Ezekiel.Gonzalez", "imageshack"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
