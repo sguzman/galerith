@@ -23,6 +23,7 @@ pub mod imgbb;
 pub mod imgbox;
 pub mod imgdrive;
 pub mod imgpile;
+pub mod imgpv;
 pub mod imgth;
 pub mod imxto;
 pub mod lexica;
@@ -97,6 +98,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("imgpile", "public post media and multiple-image pages"),
+    ("imgpv", "pinned public Imgpv original-image subset"),
     (
         "imgth",
         "public gallery originals and bounded page traversal",
@@ -181,6 +183,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgadult")
     } else if silverpic::match_url(input).is_some() {
         Some("silverpic")
+    } else if imgpv::match_url(input).is_some() {
+        Some("imgpv")
     } else if let Some(target) = imgdrive::match_url(input) {
         Some(target.family.category())
     } else if imxto::match_url(input).is_some() {
@@ -304,6 +308,9 @@ pub async fn resolve(
     }
     if let Some(target) = silverpic::match_url(input) {
         return silverpic::resolve(client, target).await;
+    }
+    if let Some(target) = imgpv::match_url(input) {
+        return imgpv::resolve(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve(client, target).await;
@@ -432,6 +439,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = silverpic::match_url(input) {
         return silverpic::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imgpv::match_url(input) {
+        return imgpv::resolve_messages(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve_messages(client, target).await;
@@ -764,6 +774,10 @@ mod tests {
             (
                 "https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html",
                 "silverpic",
+            ),
+            (
+                "https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html",
+                "imgpv",
             ),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
