@@ -237,7 +237,7 @@
   - [x] Preserve unfiltered image/search/gallery resolution and existing page conventions — src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773
   - [ ] Complete upstream pagination, filters, site auth, metadata and live differential acceptance
 
-### 🧱 P5 — Shared website families — `████████░░ 76%`
+### 🧱 P5 — Shared website families — `████████░░ 77%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -643,12 +643,13 @@
   - [x] Preserve visible gallery subtitle, category, ordered artist/tag/language metadata without inventing unavailable fields — src/extractor/imhentai.rs visible_gallery_descriptors_keep_source_supported_lists_and_subtitle; CI 40127448827
   - [x] Reject cross-origin page redirects for original galleries and bounded public listings with adversarial loopback regressions — src/extractor/imhentai.rs rejects_cross_origin_gallery_redirect_after_http_follow; src/extractor/imhentai/listing.rs rejects_cross_origin_listing_redirect_after_http_follow; CI 40127743477
   - [ ] Reach complete pinned missing-JSON media fallback, all gallery metadata, pagination, rich filename/archive and live differential parity
-- 📖 **T562** Issuu public publications and publisher queue preview — `████████░░ 80%`
+- 📖 **T562** Issuu public publications and publisher queue preview — `████████░░ 83%`
   - [x] Route pinned public Issuu publication and publisher paths with validated usernames, slugs, page ordinals and origin — src/extractor/issuu.rs pinned_publication_routes_reject_unsafe_inputs; src/extractor/issuu/publisher.rs publisher_routes_reject_credentials_unsafe_slugs_and_unbounded_pages; CI 40129349191
   - [x] Read source hydration document ID, revision ID, page count and supported publication metadata into ordered canonical CDN pages — src/extractor/issuu.rs validated_hydration_creates_canonical_media_pages_with_source_metadata; CI 40129349191
   - [x] Limit source HTML and publication count with a one-request offline public document HTTP regression — src/extractor/issuu.rs bounded_public_html_uses_one_get_for_document; CI 40129349191
   - [x] Enumerate validated publisher document queues with deduplication and bounded 4-page pagination, without eager child downloads — src/extractor/issuu/publisher.rs publisher_deduplicates_scoped_public_documents_and_preserves_queue_metadata and publisher_stops_after_a_short_public_document_page; src/extractor/mod.rs dispatcher; CI 40129349191
-  - [ ] Match pinned escaped hydration and publisher script variants, full metadata/filename/archive semantics, unrestricted pagination, media response verification and live differential parity
+  - [x] Parse pinned escaped hydration publication data and embedded publisher document arrays without executing page scripts — src/extractor/issuu.rs pinned_escaped_hydration_inside_script_wrapper_is_parsed_as_data; src/extractor/issuu/publisher.rs pinned_escaped_publisher_docs_array_is_decoded_without_script_execution; full Linux CI 40129891194
+  - [ ] Reproduce every site-specific hydration/pagination variant, full metadata/filename/archive and optional auth, and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

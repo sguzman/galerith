@@ -3302,7 +3302,7 @@
               "id": "T562",
               "emoji": "📖",
               "name": "Issuu public publications and publisher queue preview",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Route pinned public Issuu publication and publisher paths with validated usernames, slugs, page ordinals and origin",
@@ -3325,7 +3325,12 @@
                   "evidence": "src/extractor/issuu/publisher.rs publisher_deduplicates_scoped_public_documents_and_preserves_queue_metadata and publisher_stops_after_a_short_public_document_page; src/extractor/mod.rs dispatcher; CI 40129349191"
                 },
                 {
-                  "title": "Match pinned escaped hydration and publisher script variants, full metadata/filename/archive semantics, unrestricted pagination, media response verification and live differential parity",
+                  "title": "Parse pinned escaped hydration publication data and embedded publisher document arrays without executing page scripts",
+                  "passed": true,
+                  "evidence": "src/extractor/issuu.rs pinned_escaped_hydration_inside_script_wrapper_is_parsed_as_data; src/extractor/issuu/publisher.rs pinned_escaped_publisher_docs_array_is_decoded_without_script_execution; full Linux CI 40129891194"
+                },
+                {
+                  "title": "Reproduce every site-specific hydration/pagination variant, full metadata/filename/archive and optional auth, and live upstream differential parity",
                   "passed": false
                 }
               ]

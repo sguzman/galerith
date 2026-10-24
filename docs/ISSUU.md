@@ -10,4 +10,6 @@ Public `issuu.com/USER` and `/USER/PAGE` publisher URLs emit deferred child publ
 
 Routes, hydration mapping, page count/owner rejection, public HTTP requests and bounded publisher queues passed full [Linux CI 40129349191](https://github.com/sguzman/galerith/actions/runs/40129349191). This verifies synthetic, offline fixtures only; live Issuu markup and CDN behavior are not yet validated.
 
-**Remaining parity:** exact pinned escaped hydration variants, complex publisher page/script shapes, unrestricted page counts, richer publication metadata, filename/directory/archive templates, media-response verification, optional authentication and live differential conformance. No claim of complete upstream module support.
+**Remaining parity:** all additional hydration variants beyond the tested escaped shapes, unrestricted pagination, richer publication metadata, filename/directory/archive templates, media-response verification, optional authentication and live differential conformance. No claim of complete upstream module support.
+
+**Escaped source hydration acceptance:** Source-script wrappers with escaped publication state and publisher `docs` arrays now have dedicated offline regression fixtures in [CI 40129891194](https://github.com/sguzman/galerith/actions/runs/40129891194). This does not verify the live site's current markup.

@@ -864,7 +864,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Guarded public Issuu publication and publisher preview: canonical revision/publication CDN JPEG pages with source-backed metadata, 2 MiB HTML limit, 240-page publication cap, source owner validation, 4 publisher pages with 144 child cap and 48 per response, strict public-origin routing, offline publication GET and scoped publisher queue tests. Full Linux CI 40129349191 passed. Exact complex upstream escaped hydration, comprehensive filename/archive formatting, all user modes, live site parity remain unaccepted."
+        "Guarded public Issuu publication and publisher preview: canonical revision/publication CDN JPEG pages with source-backed metadata, 2 MiB HTML limit, 240-page publication cap, source owner validation, 4 publisher pages with 144 child cap and 48 per response, strict public-origin routing, offline publication GET and scoped publisher queue tests. Full Linux CI 40129349191 passed. Exact complex upstream escaped hydration, comprehensive filename/archive formatting, all user modes, live site parity remain unaccepted.",
+        "Escaped pinned-style publication document hydration and public publisher docs-array extraction from bounded script content, parsed without JavaScript execution; both offline regression fixtures and full Linux CI 40129891194 passed. Live markup and full output/auth modes unaccepted."
       ]
     },
     {
