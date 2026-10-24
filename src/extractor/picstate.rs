@@ -22,6 +22,14 @@ fn valid_id(value: &str) -> bool {
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
+    let lower = input.to_ascii_lowercase();
+    if lower.contains("/../")
+        || lower.contains("/./")
+        || lower.contains("/%2e%2e/")
+        || lower.contains("/%2e/")
+    {
+        return None;
+    }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
         || !matches!(url.host_str(), Some("picstate.com" | "www.picstate.com"))
@@ -209,6 +217,8 @@ mod tests {
             "https://picstate.com/view/full/23416694_sfyue?private=1",
             "https://picstate.com/view/full/a%2Fb",
             "https://picstate.com/view/full/a/other",
+            "https://picstate.com/view/full/x/../23416694_sfyue",
+            "https://picstate.com/view/full/x/%2e%2e/23416694_sfyue",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
