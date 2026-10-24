@@ -50,6 +50,7 @@ pub mod silverpic;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod turboimagehost;
+pub mod urlshortener;
 pub mod unsplash;
 pub mod wallhaven;
 pub mod wallpapercave;
@@ -71,6 +72,7 @@ use std::error::Error;
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("directlink", "direct HTTP(S) media URL subset"),
+    ("urlshortener", "bounded bit.ly and t.co safe public link queues"),
     ("4chan", "4chan/4channel threads and bounded boards"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
@@ -191,7 +193,9 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if foolfuuka::match_url(input).is_some()
+    if urlshortener::match_url(input).is_some() {
+        Some("urlshortener")
+    } else if foolfuuka::match_url(input).is_some()
         || foolfuuka::match_board_url(input).is_some()
         || foolfuuka::match_gallery_url(input).is_some()
         || foolfuuka::match_search_url(input).is_some()
@@ -321,6 +325,9 @@ pub async fn resolve(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if urlshortener::match_url(input).is_some() {
+        return Err("Shortened public links require --dump-messages or --follow-queues".into());
+    }
     if let Some(target) = foolfuuka::match_url(input) {
         return foolfuuka::resolve(client, target).await;
     }
@@ -535,6 +542,9 @@ pub async fn resolve_messages(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     if let Some(wallhaven::Target::Collections { user }) = wallhaven::match_url(input) {
         return wallhaven::queued_collections(client, &user, max_pages).await;
+    }
+    if let Some(short) = urlshortener::match_url(input) {
+        return urlshortener::resolve_messages(short).await;
     }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve_messages(client, target).await;
@@ -955,6 +965,8 @@ mod tests {
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
             ("https://kabe-uchiroom.com/mypage/?id=12345", "kabeuchi"),
+            ("https://bit.ly/abc_12", "urlshortener"),
+            ("https://t.co/abc123", "urlshortener"),
             ("https://lensdump.com/i/Abc12", "lensdump"),
             ("https://lensdump.com/a/Abc12", "lensdump"),
             ("https://lensdump.com/author", "lensdump"),
