@@ -93,7 +93,10 @@ fn safe_media(raw: &str) -> Option<(Url, String)> {
     if filename.len() > 240
         || filename.is_empty()
         || filename.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -148,7 +151,10 @@ fn parse_page(
         .split_once('>')
         .map(|(attrs, _)| attrs)
         .ok_or("Fappic original image element is incomplete")?;
-    let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+    let ext = fallback
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or("jpg");
     let filename = attrs
         .split_once(" alt=\"")
         .and_then(|(_, suffix)| suffix.split_once('"'))
@@ -289,10 +295,8 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0_u8; 4096];
             let length = stream.read(&mut request).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&request[..length])
-                    .starts_with("GET /abcde12345/pic.jpg HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&request[..length])
+                .starts_with("GET /abcde12345/pic.jpg HTTP/1.1"));
             let html = r##"<a href="#"><img src="https://img3.fappic.com/original/file.webp" alt="Picture">"##;
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
