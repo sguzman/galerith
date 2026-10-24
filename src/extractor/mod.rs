@@ -52,6 +52,7 @@ pub mod telegraph;
 pub mod turboimagehost;
 pub mod twoch;
 pub mod twochen;
+pub mod twochan;
 pub mod unsplash;
 pub mod urlshortener;
 pub mod wallhaven;
@@ -84,6 +85,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "2chen",
         "pinned 2chen public thread HTML and catalog queues",
     ),
+    ("2chan", "pinned 2chan public Futaba thread originals"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
@@ -225,6 +227,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("2ch")
     } else if twochen::match_url(input).is_some() {
         Some("2chen")
+    } else if twochan::match_url(input).is_some() {
+        Some("2chan")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
@@ -374,6 +378,9 @@ pub async fn resolve(
     }
     if let Some(target) = twochen::match_url(input) {
         return twochen::resolve(client, target).await;
+    }
+    if let Some(target) = twochan::match_url(input) {
+        return twochan::resolve(client, target).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board(client, &board, max_pages).await;
@@ -574,6 +581,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = twochen::match_url(input) {
         return twochen::resolve_messages(client, target).await;
+    }
+    if let Some(target) = twochan::match_url(input) {
+        return twochan::resolve_messages(client, target).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
@@ -953,6 +963,7 @@ mod tests {
             ("https://2ch.org/a/", "2ch"),
             ("https://sturdychan.help/a/12345", "2chen"),
             ("https://sturdychan.help/a/catalog", "2chen"),
+            ("https://dec.2chan.net/12/res/12345.htm", "2chan"),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
