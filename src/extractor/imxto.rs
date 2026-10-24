@@ -23,6 +23,14 @@ fn safe_token(value: &str) -> bool {
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
+    let lower = raw.to_ascii_lowercase();
+    if lower.contains("/../")
+        || lower.contains("/./")
+        || lower.contains("/%2e%2e/")
+        || lower.contains("/%2e/")
+    {
+        return None;
+    }
     let url = Url::parse(raw).ok()?;
     if url.scheme() != "https"
         || !matches!(url.host_str(), Some("imx.to" | "www.imx.to" | "img.yt" | "www.img.yt"))
