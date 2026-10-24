@@ -346,6 +346,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rejects_cross_origin_listing_redirect_after_http_follow() {
+        let foreign = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let foreign_addr = foreign.local_addr().unwrap();
+        let source = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let source_addr = source.local_addr().unwrap();
+        let redirect = tokio::spawn(async move {
+            let (mut socket, _) = source.accept().await.unwrap();
+            let mut bytes = [0u8; 2048];
+            socket.read(&mut bytes).await.unwrap();
+            let reply = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{foreign_addr}/elsewhere\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let destination = tokio::spawn(async move {
+            let (mut socket, _) = foreign.accept().await.unwrap();
+            let mut bytes = [0u8; 2048];
+            socket.read(&mut bytes).await.unwrap();
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let result = read_html(&Client::new(), Url::parse(&format!("http://{source_addr}/")).unwrap()).await;
+        assert!(result.is_err());
+        redirect.await.unwrap();
+        destination.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn two_public_listing_pages_keep_first_seen_children() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
