@@ -1843,9 +1843,14 @@
     {
       "path": "gallery_dl/extractor/urlshortener.py",
       "module": "urlshortener",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/urlshortener.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public bit.ly and t.co short-link queue subset: strict source URL/codes and optional schemeless forms, no-follow HEAD / bounded 32 KiB GET fallback, 3xx header and browser-style HTML refresh, rejects IP literals including bracketed IPv6, local/internal names, non-HTTP destinations, credentials and port overrides. Typed deferred child queue; local HEAD-redirect and two-request t.co HTML-refresh HTTP fixtures. Full CI 40135949501 passed. Live shortener behavior and complete pinned variant/config parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/utils/500px_graphql.py",

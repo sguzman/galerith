@@ -3514,6 +3514,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T568",
+              "emoji": "🔗",
+              "name": "General-purpose bit.ly/t.co safe public shortlink queue",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned bit.ly and t.co path codes with exact host, schemeless aliases and hostile-input rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/urlshortener.rs pinned_hosts_accept_only_public_short_codes; src/extractor/mod.rs; CI 40135949501"
+                },
+                {
+                  "title": "Resolve header-based public targets without following network redirects, and reject private IP/IPv6, credentials, unsafe schemes and local names",
+                  "passed": true,
+                  "evidence": "src/extractor/urlshortener.rs destination_rejects_private_origins_and_non_http_schemes and shortened_head_redirect_returns_target_without_following_it; CI 40135949501"
+                },
+                {
+                  "title": "Decode bounded t.co browser HTML refresh when required, without evaluating script or following redirects",
+                  "passed": true,
+                  "evidence": "src/extractor/urlshortener.rs parses_bounded_tco_html_refresh_without_script_execution and tco_head_then_get_meta_refresh_is_a_bounded_two_request_flow; CI 40135949501"
+                },
+                {
+                  "title": "Emit deferred typed queue events for safe destinations with first-party shortlink metadata and strict Rust suite",
+                  "passed": true,
+                  "evidence": "src/extractor/urlshortener.rs resolve_messages and src/extractor/mod.rs native dispatcher; complete Linux CI 40135949501"
+                },
+                {
+                  "title": "Match full pinned upstream shortlink resolution, alternate HTTP/UA/config modes, live bit.ly/t.co redirects and differential queue parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

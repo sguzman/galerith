@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 64%` across 125 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 126 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -684,6 +684,12 @@
   - [x] Skip no-image and ad posts across truthy JSON boolean, numeric and text flags and reject unsafe image paths — src/extractor/kabeuchi.rs validated_public_posts_emit_ordered_media_and_skip_ads; full CI 40135167658
   - [x] Bound profile HTML, POST JSON, pagination and media counts with one- and two-page real loopback form-post regressions — src/extractor/kabeuchi.rs public_profile_plus_form_post_are_bounded_local_requests and bounded_upload_posts_follow_two_cursor_pages_in_order; src/extractor/mod.rs routed fixture; full CI 40135167658
   - [ ] Match unlimited pinned public user history, full ISO date/metadata, filename/directory/archive templates, all API modes and live differential parity
+- 🔗 **T568** General-purpose bit.ly/t.co safe public shortlink queue — `████████░░ 80%`
+  - [x] Recognize pinned bit.ly and t.co path codes with exact host, schemeless aliases and hostile-input rejection — src/extractor/urlshortener.rs pinned_hosts_accept_only_public_short_codes; src/extractor/mod.rs; CI 40135949501
+  - [x] Resolve header-based public targets without following network redirects, and reject private IP/IPv6, credentials, unsafe schemes and local names — src/extractor/urlshortener.rs destination_rejects_private_origins_and_non_http_schemes and shortened_head_redirect_returns_target_without_following_it; CI 40135949501
+  - [x] Decode bounded t.co browser HTML refresh when required, without evaluating script or following redirects — src/extractor/urlshortener.rs parses_bounded_tco_html_refresh_without_script_execution and tco_head_then_get_meta_refresh_is_a_bounded_two_request_flow; CI 40135949501
+  - [x] Emit deferred typed queue events for safe destinations with first-party shortlink metadata and strict Rust suite — src/extractor/urlshortener.rs resolve_messages and src/extractor/mod.rs native dispatcher; complete Linux CI 40135949501
+  - [ ] Match full pinned upstream shortlink resolution, alternate HTTP/UA/config modes, live bit.ly/t.co redirects and differential queue parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

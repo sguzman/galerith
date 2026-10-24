@@ -1,0 +1,11 @@
+# 🔗 Guarded public bit.ly / t.co link queues
+
+Pinned source: [gallery-dl urlshortener.py](https://github.com/mikf/gallery-dl/blob/7f226f74108501c8ac3120548370f68f19e6f9b3/gallery_dl/extractor/urlshortener.py). **Partial independent Rust parity**, not the entire pinned shortlink feature.
+
+The native extractor dispatcher recognizes first-party `bit.ly/CODE` and `t.co/CODE` public shortener links with or without `http(s)://` scheme, requiring one validated alphanumeric, hyphen or underscore path segment. Credentials, encoded traversal, query fields, alternate ports and lookalike hostnames are rejected. The resolver requests only the initial first-party shortlink, using a separate no-redirect HTTP client. It prefers a public HTTP 3xx `Location` from a `HEAD` request; if the source does not provide that form, the bounded fallback `GET` can recognize a `t.co` browser `http-equiv="refresh"` target from at most **32 KiB** of source HTML, without script execution.
+
+Destination URLs must use HTTP(S), contain no credentials, have no explicit nonstandard port and must not target IP literals (including bracketed IPv6), localhost, local/internal/test domains or the exact original shortlink. Extraction emits a **typed deferred queue event**; it never eagerly contacts the destination. The caller must request message/queue processing. This conservative validation is stricter than the pinned source in order to avoid arbitrary private-network resolution in the initial extractor. **Queue traversal and later network DNS rebinding remain separate downloader security concerns**, not a verified end-to-end SSRF guarantee.
+
+[CI 40135949501](https://github.com/sguzman/galerith/actions/runs/40135949501) passed formatting, strict Clippy, full Rust tests, machine roadmap checks and release build. Its offline regressions include first-party hostname rejection, HTTP private/IPv6 restrictions, one-request 302/no-follow handling and two-request t.co refresh handling.
+
+**Unaccepted:** live bit.ly and t.co compatibility, upstream optional header/request modes, redirects requiring alternative HEAD/GET policies, all HTML refresh forms, every supported code dialect and full pinned differential parity.
