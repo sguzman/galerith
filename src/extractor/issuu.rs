@@ -1,4 +1,5 @@
 //! Guarded public Issuu publication preview against the pinned issuu.py.
+pub mod publisher;
 use crate::{
     message::{media_metadata, ExtractorMessage, Metadata},
     MediaItem,
