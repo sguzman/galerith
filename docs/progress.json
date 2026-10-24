@@ -3743,7 +3743,7 @@
               "id": "T575",
               "emoji": "📸",
               "name": "35photo guarded public originals and listing queues",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Route bounded first-party public individual photos, tag, genre, and user paths and reject hostile path, query and credential forms",
@@ -3766,7 +3766,12 @@
                   "evidence": "src/extractor/thirtyfivephoto.rs api_and_two_tag_pages_resolve_public_source_requests; full Linux CI 40142431871"
                 },
                 {
-                  "title": "Reproduce pinned user and genre AJAX pagination, complex metadata/filename/archive semantics, all listing variants and live upstream differential parity",
+                  "title": "Follow pinned user photoUser and genre AJAX show_block.php numeric descending cursor pages, deduped in stable source order",
+                  "passed": true,
+                  "evidence": "src/extractor/thirtyfivephoto.rs user_and_genre_ajax_queues_follow_pinned_numeric_cursors and ajax_photo_identifiers_sort_numerically_and_reject_truncated_paths; full CI 40143033517"
+                },
+                {
+                  "title": "Match genre new/rating variants, comprehensive metadata and filename/archive templates, unrestricted pagination and live pinned differential parity",
                   "passed": false
                 }
               ]
