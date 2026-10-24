@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
+const DANBOORU_JSON_RESPONSE_LIMIT: usize = 8 * 1024 * 1024;
 const DANBOORU_PER_PAGE: usize = 200;
 const DANBOORU_PAGE_THRESHOLD: usize = DANBOORU_PER_PAGE - 20;
 
@@ -252,13 +253,9 @@ async fn resolve_collection(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/{id}.json", kind.api_path()))?;
-    let metadata: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let metadata: Value =
+        super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+            .await?;
     let ordered_ids = metadata
         .get("post_ids")
         .and_then(Value::as_array)
@@ -279,13 +276,9 @@ async fn resolve_collection(
             .append_pair("tags", &format!("{}:{id}", kind.ordered_tag()))
             .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
             .append_pair("page", &page.to_string());
-        let response: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let response: Value =
+            super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let posts = response
             .as_array()
             .ok_or("invalid Danbooru collection posts")?;
@@ -313,13 +306,9 @@ async fn resolve_media_asset(
     id: u64,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("media_assets/{id}.json"))?;
-    let body: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let body: Value =
+        super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+            .await?;
     let variants = body
         .get("variants")
         .and_then(Value::as_array)
@@ -378,13 +367,9 @@ async fn resolve_popular(
                 .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
                 .append_pair("page", &page.to_string());
         }
-        let body: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let count = body
             .as_array()
             .ok_or("invalid Danbooru popular posts response")?
@@ -433,13 +418,9 @@ async fn resolve_tag_posts_limited(
             .append_pair("tags", tags)
             .append_pair("limit", &DANBOORU_PER_PAGE.to_string())
             .append_pair("page", &page.to_string());
-        let body: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let count = body
             .as_array()
             .ok_or("unexpected Danbooru posts response")?
@@ -466,13 +447,9 @@ async fn resolve_artist(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("artists/{id}.json"))?;
-    let artist: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let artist: Value =
+        super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+            .await?;
     let name = artist
         .get("name")
         .and_then(Value::as_str)
@@ -512,13 +489,9 @@ async fn resolve_artist_search(
             }
             query.append_pair("page", &page.to_string());
         }
-        let data: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let data: Value =
+            super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let artists = data
             .as_array()
             .ok_or("Danbooru artist search response must be an array")?;
@@ -568,19 +541,16 @@ async fn resolve_at_base(
             if !tags.is_empty() {
                 endpoint.query_pairs_mut().append_pair("tags", &tags);
             }
-            let body: Value = client
-                .get(endpoint)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            let body: Value =
+                super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                    .await?;
             post_items(&body, base)
         }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
-            let response = client.get(endpoint).send().await?.error_for_status()?;
-            let body: Value = response.json().await?;
+            let body: Value =
+                super::http_json::fetch_json_limited(client, endpoint, DANBOORU_JSON_RESPONSE_LIMIT)
+                    .await?;
             post_items(&body, base)
         }
         Target::Search { tags, page, .. } => {
