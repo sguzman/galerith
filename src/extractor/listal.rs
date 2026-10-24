@@ -472,15 +472,25 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = people_at_base(&Client::new(), &base, "alice", 4).await.unwrap();
+        let events = people_at_base(&Client::new(), &base, "alice", 4)
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         let urls = events
             .iter()
-            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .map(|event| {
+                serde_json::to_value(event).unwrap()["url"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             urls,
-            ["https://www.listal.com/viewimage/1234", "https://www.listal.com/viewimage/5678"]
+            [
+                "https://www.listal.com/viewimage/1234",
+                "https://www.listal.com/viewimage/5678"
+            ]
         );
         server.await.unwrap();
     }
