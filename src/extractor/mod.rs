@@ -33,7 +33,10 @@ pub mod wikimedia;
 
 use crate::{
     extract_direct_media,
-    message::{from_media, traverse_queue_job_filtered_with, ExtractorMessage, JobSelection},
+    message::{
+        from_media, from_source_post_media, traverse_queue_job_filtered_with, ExtractorMessage,
+        JobSelection,
+    },
     MediaItem,
 };
 use reqwest::Client;
@@ -295,6 +298,21 @@ pub async fn resolve_messages(
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
     }
+    if let Some(target) = philomena::match_url(input) {
+        return Ok(from_source_post_media(
+            philomena::resolve(client, target, max_pages).await?,
+        ));
+    }
+    if let Some(target) = e621::match_url(input) {
+        return Ok(from_source_post_media(
+            e621::resolve(client, target, max_pages).await?,
+        ));
+    }
+    if let Some(target) = danbooru::match_url(input) {
+        return Ok(from_source_post_media(
+            danbooru::resolve(client, target, max_pages).await?,
+        ));
+    }
     Ok(from_media(resolve(client, input, max_pages).await?))
 }
 
@@ -332,7 +350,7 @@ async fn resolve_messages_bounded(
     if let (Some(limit), Some(target @ danbooru::Target::Search { .. })) =
         (file_bound, danbooru::match_url(input))
     {
-        return Ok(from_media(
+        return Ok(from_source_post_media(
             danbooru::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
@@ -343,13 +361,13 @@ async fn resolve_messages_bounded(
                 | e621::Target::Popular { .. }
                 | e621::Target::Favorites { .. }
         ) {
-            return Ok(from_media(
+            return Ok(from_source_post_media(
                 e621::resolve_limited(client, target, max_pages, limit).await?,
             ));
         }
     }
     if let (Some(limit), Some(target)) = (file_bound, philomena::match_url(input)) {
-        return Ok(from_media(
+        return Ok(from_source_post_media(
             philomena::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
