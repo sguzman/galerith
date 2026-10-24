@@ -11,6 +11,7 @@ pub mod e621;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourarchive;
+pub mod fourchanarchives;
 pub mod fourchan;
 pub mod gelbooru;
 pub mod gelbooru_v02;
@@ -85,6 +86,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "4archive",
         "public archived thread originals and bounded board queues",
     ),
+    ("4chanarchives", "public archived thread originals and bounded board queues"),
     ("2ch", "pinned 2ch public threads and bounded board queues"),
     (
         "2chen",
@@ -236,6 +238,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("2chan")
     } else if fourarchive::match_url(input).is_some() {
         Some("4archive")
+    } else if fourchanarchives::match_url(input).is_some() {
+        Some("4chanarchives")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
@@ -391,6 +395,9 @@ pub async fn resolve(
     }
     if let Some(target) = fourarchive::match_url(input) {
         return fourarchive::resolve(client, target).await;
+    }
+    if let Some(target) = fourchanarchives::match_url(input) {
+        return fourchanarchives::resolve(client, target).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board(client, &board, max_pages).await;
@@ -597,6 +604,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fourarchive::match_url(input) {
         return fourarchive::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = fourchanarchives::match_url(input) {
+        return fourchanarchives::resolve_messages(client, target, max_pages).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
@@ -979,6 +989,8 @@ mod tests {
             ("https://dec.2chan.net/12/res/12345.htm", "2chan"),
             ("https://4archive.org/board/a/thread/12345", "4archive"),
             ("https://4archive.org/board/a/", "4archive"),
+            ("https://4chanarchives.com/board/a/thread/12345", "4chanarchives"),
+            ("https://4chanarchives.com/board/a/", "4chanarchives"),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
