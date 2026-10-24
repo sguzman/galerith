@@ -168,7 +168,7 @@ fn parse_catalog(
         let Some(url) = scoped_url(base, raw) else { continue };
         let segments: Vec<_> = url.path_segments()
             .ok_or("2chen catalog URL missing path")?.collect();
-        let [source_board, thread_id] | [source_board, thread_id, ""] =
+        let ([source_board, thread_id] | [source_board, thread_id, ""]) =
             segments.as_slice() else { continue };
         if *source_board != board || !valid_id(thread_id) || !seen.insert((*thread_id).to_owned()) {
             continue;
