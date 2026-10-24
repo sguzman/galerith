@@ -1,18 +1,56 @@
 //! Pinned Turboimagehost public single-image preview (imagehosts.py).
 use crate::{
-    message::{media_metadata, ExtractorMessage, Metadata},
+    message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
 };
 use reqwest::Client;
-use std::error::Error;
+use std::{collections::HashSet, error::Error, time::Duration};
 use url::Url;
 
 const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_PAGES: u16 = 4;
+const MAX_CHILDREN: usize = 160;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     id: String,
     path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Album {
+    id: String,
+    path: String,
+}
+
+pub fn match_album_url(input: &str) -> Option<Album> {
+    let lower = input.to_ascii_lowercase();
+    if lower.contains("/../") || lower.contains("/./") || lower.contains("/%2e")
+        || lower.contains("%2f") || lower.contains("%5c")
+    {
+        return None;
+    }
+    let url = Url::parse(input).ok()?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("turboimagehost.com" | "www.turboimagehost.com"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = url.path_segments()?.collect();
+    let ["album", id, name] = parts.as_slice() else { return None };
+    if !(1..=24).contains(&id.len())
+        || !id.bytes().all(|b| b.is_ascii_digit())
+        || name.is_empty() || name.len() > 180
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+    {
+        return None;
+    }
+    Some(Album { id: (*id).into(), path: format!("album/{id}/{name}") })
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -98,10 +136,11 @@ fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<
     Ok((item, metadata))
 }
 
-async fn at_base(
-    client: &Client, target: &Target, base: &Url,
-) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    let mut response = client.get(base.join(&target.path)?).send().await?.error_for_status()?;
+async fn read_html(
+    client: &Client,
+    url: Url,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let mut response = client.get(url).send().await?.error_for_status()?;
     if response.content_length().is_some_and(|n| n > MAX_HTML_BYTES as u64) {
         return Err("Turboimagehost public HTML exceeds response cap".into());
     }
@@ -112,8 +151,74 @@ async fn at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    parse_page(std::str::from_utf8(&body)?, target)
+    Ok(String::from_utf8(body)?)
 }
+
+async fn at_base(
+    client: &Client, target: &Target, base: &Url,
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    parse_page(&read_html(client, base.join(&target.path)?).await?, target)
+}
+
+fn album_links(
+    html: &str,
+    album_id: &str,
+    seen: &mut HashSet<String>,
+    out: &mut Vec<ExtractorMessage>,
+) -> usize {
+    let origin = Url::parse("https://www.turboimagehost.com/").expect("constant root");
+    let before = out.len();
+    for (_, after) in html.match_indices("<a ") {
+        let Some((attrs, _)) = after["<a ".len()..].split_once('>') else { continue };
+        let Some((prefix, rest)) = attrs.split_once("href=\\\"") else { continue };
+        if !prefix.is_empty() && !prefix.ends_with(char::is_whitespace) { continue; }
+        let Some((href, _)) = rest.split_once('\\\"') else { continue };
+        if href.len() > 2048 { continue; }
+        let Ok(url) = origin.join(href) else { continue };
+        let Some(child) = match_url(url.as_str()) else { continue };
+        let canonical = format!("https://www.turboimagehost.com/{}", child.path);
+        if !seen.insert(canonical.clone()) { continue; }
+        let mut metadata = Metadata::new();
+        metadata.insert("category".into(), "turboimagehost".into());
+        metadata.insert("subcategory".into(), "image".into());
+        metadata.insert("album_id".into(), album_id.into());
+        metadata.insert("token".into(), child.id.into());
+        out.push(queued_url(canonical, metadata));
+        if out.len() >= MAX_CHILDREN { break; }
+    }
+    out.len() - before
+}
+
+async fn album_at_base(
+    client: &Client, album: &Album, base: &Url, max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+    for page in 1..=max_pages.clamp(1, MAX_PAGES) {
+        let mut endpoint = base.join(&album.path)?;
+        endpoint.query_pairs_mut().append_pair("p", &page.to_string());
+        let html = read_html(client, endpoint).await?;
+        if page == 1 && html.contains("Requested gallery don") {
+            return Err("Turboimagehost public gallery not found".into());
+        }
+        if album_links(&html, &album.id, &mut seen, &mut result) == 0
+            || result.len() >= MAX_CHILDREN
+        {
+            break;
+        }
+        if page < max_pages.min(MAX_PAGES) {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+    Ok(result)
+}
+
+pub async fn resolve_album_messages(
+    client: &Client, album: Album, max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    album_at_base(client, &album, &Url::parse("https://www.turboimagehost.com/")?, max_pages).await
+}
+
 
 pub async fn resolve(
     client: &Client, target: Target,
@@ -159,6 +264,56 @@ mod tests {
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
+    }
+
+    #[test]
+    fn album_urls_and_deferred_children_are_strict_and_ordered() {
+        let target = match_album_url("https://www.turboimagehost.com/album/344597/testimagegallery").unwrap();
+        assert_eq!(target.id, "344597");
+        for bad in [
+            "http://www.turboimagehost.com/album/344597/testimagegallery",
+            "https://evilturboimagehost.com/album/344597/gallery",
+            "https://www.turboimagehost.com/album/344597/test?token=x",
+            "https://www.turboimagehost.com/album/bad/gallery",
+        ] {
+            assert!(match_album_url(bad).is_none(), "{bad}");
+        }
+        let html = r#"<a href="/p/1/one.jpg.html">First</a><a href="/p/1/one.jpg.html">Duplicate</a><a href="https://www.turboimagehost.com/p/2/two.png.html">Second</a><a data-href="/p/3/forged.jpg.html">No</a><script>const x='href="/p/4/script.png.html"';</script><a href="https://evil.example/p/5/evil.jpg.html">Bad</a>"#;
+        let mut seen = HashSet::new();
+        let mut queue = Vec::new();
+        assert_eq!(album_links(html, "344597", &mut seen, &mut queue), 2);
+        assert_eq!(serde_json::to_value(&queue[0]).unwrap()["url"], "https://www.turboimagehost.com/p/1/one.jpg.html");
+        assert_eq!(serde_json::to_value(&queue[1]).unwrap()["metadata"]["album_id"], "344597");
+    }
+
+    #[tokio::test]
+    async fn bounded_album_pages_deduplicate_and_stop_on_empty_page() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (page, html) in [
+                (1, r#"<a href="/p/1/one.jpg.html">One</a>"#),
+                (2, r#"<a href="/p/1/one.jpg.html">Dup</a><a href="/p/2/two.png.html">Two</a>"#),
+                (3, "<div>Empty</div>"),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0_u8; 4096];
+                let len = socket.read(&mut buf).await.unwrap();
+                let request = String::from_utf8_lossy(&buf[..len]);
+                assert!(request.starts_with("GET /album/344597/gallery?p="), "{request}");
+                assert!(request.contains(&format!("p={page}")), "{request}");
+                let response = format!(
+                    "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{html}",
+                    html.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let album = match_album_url("https://www.turboimagehost.com/album/344597/gallery").unwrap();
+        let events = album_at_base(&Client::new(), &album, &base, 4).await.unwrap();
+        assert_eq!(events.len(), 2);
+        server.await.unwrap();
     }
 
     #[test]

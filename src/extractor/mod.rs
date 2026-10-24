@@ -202,7 +202,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("desktopography")
     } else if pixeldrain::match_url(input).is_some() {
         Some("pixeldrain")
-    } else if turboimagehost::match_url(input).is_some() {
+    } else if turboimagehost::match_url(input).is_some()
+        || turboimagehost::match_album_url(input).is_some()
+    {
         Some("turboimagehost")
     } else if postimg::match_url(input).is_some() {
         Some("postimg")
@@ -347,6 +349,9 @@ pub async fn resolve(
     if let Some(target) = turboimagehost::match_url(input) {
         return turboimagehost::resolve(client, target).await;
     }
+    if turboimagehost::match_album_url(input).is_some() {
+        return Err("Turboimagehost album traversal requires --follow-queues or --dump-messages".into());
+    }
     if let Some(target) = postimg::match_url(input) {
         return postimg::resolve(client, target).await;
     }
@@ -423,6 +428,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = turboimagehost::match_url(input) {
         return turboimagehost::resolve_messages(client, target).await;
+    }
+    if let Some(album) = turboimagehost::match_album_url(input) {
+        return turboimagehost::resolve_album_messages(client, album, max_pages).await;
     }
     if let Some(target) = postimg::match_url(input) {
         return postimg::resolve_messages(client, target, max_pages).await;
@@ -751,6 +759,7 @@ mod tests {
             ("https://postimg.cc/Wtn2b3hC", "postimg"),
             ("https://postimg.cc/gallery/wxpDLgX", "postimg"),
             ("https://www.turboimagehost.com/p/39078423/test--.png.html", "turboimagehost"),
+            ("https://www.turboimagehost.com/album/344597/testimagegallery", "turboimagehost"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
