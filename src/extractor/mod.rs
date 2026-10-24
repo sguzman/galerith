@@ -775,10 +775,7 @@ mod tests {
                 "https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html",
                 "silverpic",
             ),
-            (
-                "https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html",
-                "imgpv",
-            ),
+            ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),

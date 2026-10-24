@@ -59,7 +59,10 @@ pub fn match_url(input: &str) -> Option<Target> {
 
 fn attribute<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
     let marker = format!(" {name}=\"");
-    tag.split_once(&marker)?.1.split_once('"').map(|(value, _)| value)
+    tag.split_once(&marker)?
+        .1
+        .split_once('"')
+        .map(|(value, _)| value)
 }
 
 fn trusted_media(raw: &str) -> Option<(Url, String)> {
@@ -80,7 +83,10 @@ fn trusted_media(raw: &str) -> Option<(Url, String)> {
     if filename.is_empty()
         || filename.len() > 240
         || filename.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -158,9 +164,9 @@ fn parse_page(
             if let Some((raw_date, after_by)) = content.split_once("by") {
                 let date = raw_date.trim();
                 if (10..=32).contains(&date.len())
-                    && date
-                        .bytes()
-                        .all(|b| b.is_ascii_digit() || matches!(b, b'-' | b':' | b' ' | b'T' | b'Z'))
+                    && date.bytes().all(|b| {
+                        b.is_ascii_digit() || matches!(b, b'-' | b':' | b' ' | b'T' | b'Z')
+                    })
                 {
                     metadata.insert("upload_date_text".into(), date.into());
                 }
@@ -298,10 +304,8 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0_u8; 4096];
             let size = stream.read(&mut request).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&request[..size])
-                    .starts_with("GET /a1b2c3d4e5f6/NAME.EXT.html HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&request[..size])
+                .starts_with("GET /a1b2c3d4e5f6/NAME.EXT.html HTTP/1.1"));
             let html = r#"<img id="img-preview" src="https://imgpv.com/media/original.webp" alt="Public">"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
