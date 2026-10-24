@@ -341,7 +341,7 @@ mod tests {
             "https://imgur.com/abcdefg?token=x",
             "https://user:pass@imgur.com/abcdefg",
             "https://imgur.com/a/abcd",
-            "https://imgur.com/user/abcdefg",
+            "https://imgur.com/user/me",
             "https://i.imgur.com/abcdefg.exe",
         ] {
             assert!(match_url(invalid).is_none(), "{invalid}");

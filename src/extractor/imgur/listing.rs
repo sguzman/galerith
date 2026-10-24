@@ -82,8 +82,9 @@ impl Listing {
             Self::Subreddit(sub) => format!("3/gallery/r/{sub}/{page}"),
             Self::Tag(tag) => format!("3/gallery/t/{tag}/{page}"),
             Self::Search(query) => {
-                let pairs = url::form_urlencoded::Serializer::new(String::new())
-                    .append_pair("q", query).finish();
+                let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+                serializer.append_pair("q", query);
+                let pairs = serializer.finish();
                 format!("3/gallery/search/{page}?{pairs}")
             },
         }
