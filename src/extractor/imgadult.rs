@@ -16,8 +16,11 @@ pub struct Target {
 
 pub fn match_url(input: &str) -> Option<Target> {
     let lower = input.to_ascii_lowercase();
-    if lower.contains("/../") || lower.contains("/./") || lower.contains("/%2e")
-        || lower.contains("%2f") || lower.contains("%5c")
+    if lower.contains("/../")
+        || lower.contains("/./")
+        || lower.contains("/%2e")
+        || lower.contains("%2f")
+        || lower.contains("%5c")
     {
         return None;
     }
@@ -38,11 +41,15 @@ pub fn match_url(input: &str) -> Option<Target> {
     };
     let token = name.strip_prefix("img-")?.strip_suffix(".html")?;
     if !(1..=80).contains(&token.len())
-        || !token.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || !token
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     {
         return None;
     }
-    Some(Target { token: token.into() })
+    Some(Target {
+        token: token.into(),
+    })
 }
 
 fn safe_media(raw: &str) -> Option<(Url, String)> {
@@ -59,8 +66,13 @@ fn safe_media(raw: &str) -> Option<(Url, String)> {
     }
     let filename = url.path_segments()?.next_back()?.to_owned();
     let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if filename.is_empty() || filename.len() > 240 || filename.contains('%')
-        || !matches!(extension.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    if filename.is_empty()
+        || filename.len() > 240
+        || filename.contains('%')
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -84,7 +96,10 @@ fn safe_alt(raw: &str, extension: &str) -> Option<String> {
         return None;
     }
     let final_name = if name.rsplit_once('.').is_some_and(|(_, ext)| {
-        matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        matches!(
+            ext.to_ascii_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     }) {
         name
     } else {
@@ -106,9 +121,11 @@ fn parse_page(
         .split_once(" src='")
         .and_then(|(_, rest)| rest.split_once('\'').map(|(value, _)| value))
         .ok_or("Imgadult original image URL is malformed")?;
-    let (url, fallback) =
-        safe_media(raw).ok_or("Imgadult public media origin is unsafe")?;
-    let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+    let (url, fallback) = safe_media(raw).ok_or("Imgadult public media origin is unsafe")?;
+    let ext = fallback
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or("jpg");
     let alt = image_tag
         .split_once("alt='")
         .and_then(|(_, text)| text.split_once('\''))
@@ -193,7 +210,9 @@ mod tests {
     fn pinned_public_imgadult_url_and_safe_media_shapes() {
         assert_eq!(
             match_url("https://imgadult.com/img-686b4f451af05.html"),
-            Some(Target { token: "686b4f451af05".into() })
+            Some(Target {
+                token: "686b4f451af05".into()
+            })
         );
         for bad in [
             "http://imgadult.com/img-686b4f451af05.html",
@@ -217,8 +236,17 @@ mod tests {
     #[test]
     fn original_media_and_site_suffix_are_safely_decoded() {
         let html = "<a href='#'><img alt='1612 image hosted at ImgAdult.com' src='https://imgadult.com/upload/big/2025/07/07/686b4f451af04.jpg'></a>";
-        let (file, meta) = parse_page(html, &Target { token: "686b4f451af05".into() }).unwrap();
-        assert_eq!(file.url, "https://imgadult.com/upload/big/2025/07/07/686b4f451af04.jpg");
+        let (file, meta) = parse_page(
+            html,
+            &Target {
+                token: "686b4f451af05".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            file.url,
+            "https://imgadult.com/upload/big/2025/07/07/686b4f451af04.jpg"
+        );
         assert_eq!(file.filename, "1612.jpg");
         assert_eq!(meta["token"], "686b4f451af05");
         assert!(safe_alt("../bad image hosted at ImgAdult.com", "jpg").is_none());
@@ -233,8 +261,14 @@ mod tests {
             let mut request = [0_u8; 4096];
             let n = socket.read(&mut request).await.unwrap();
             let text = String::from_utf8_lossy(&request[..n]);
-            assert!(text.starts_with("GET /img-686b4f451af05.html HTTP/1.1"), "{text}");
-            assert!(text.to_ascii_lowercase().contains("cookie: img_i_d=1"), "{text}");
+            assert!(
+                text.starts_with("GET /img-686b4f451af05.html HTTP/1.1"),
+                "{text}"
+            );
+            assert!(
+                text.to_ascii_lowercase().contains("cookie: img_i_d=1"),
+                "{text}"
+            );
             let html = "<img alt='1612 image hosted at ImgAdult.com' src='https://imgadult.com/upload/big/2025/07/07/a.jpg'>";
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",

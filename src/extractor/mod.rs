@@ -18,9 +18,9 @@ pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
 pub mod imageshack;
+pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
-pub mod imgadult;
 pub mod imgdrive;
 pub mod imgpile;
 pub mod imgth;
@@ -84,7 +84,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgspice", "pinned public Imgspice image preview"),
     ("imagepond", "public ImagePond single-file OG media pages"),
     ("picstate", "public Picstate original image pages"),
-    ("imgadult", "pinned public Imgadult cookie-based image preview"),
+    (
+        "imgadult",
+        "pinned public Imgadult cookie-based image preview",
+    ),
     ("imgdrive", "pinned public Imgdrive OG image preview"),
     ("imgtaxi", "pinned public Imgtaxi OG image preview"),
     ("imgwallet", "pinned public Imgwallet OG image preview"),
