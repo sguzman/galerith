@@ -168,8 +168,9 @@ fn album_links(
 ) -> usize {
     let origin = Url::parse("https://www.turboimagehost.com/").expect("constant root");
     let before = out.len();
-    for (_, after) in html.match_indices("<a ") {
-        let Some((attrs, _)) = after["<a ".len()..].split_once('>') else { continue };
+    for (position, _) in html.match_indices("<a ") {
+        let suffix = &html[position + "<a ".len()..];
+        let Some((attrs, _)) = suffix.split_once('>') else { continue };
         let Some((prefix, rest)) = attrs.split_once("href=\"") else { continue };
         if !prefix.is_empty() && !prefix.ends_with(char::is_whitespace) { continue; }
         let Some((href, _)) = rest.split_once('"') else { continue };
