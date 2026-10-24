@@ -31,9 +31,9 @@ fn digits(value: &str) -> bool {
 fn valid_legacy_file(value: &str) -> bool {
     (5..=220).contains(&value.len())
         && !value.contains("..")
-        && value.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.')
-        })
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
         && value.rsplit_once('.').is_some_and(|(_, ext)| {
             matches!(
                 ext.to_ascii_lowercase().as_str(),
@@ -295,16 +295,14 @@ mod tests {
 
     #[test]
     fn pinned_legacy_view_and_img_php_routes_allow_only_safe_query_fields() {
-        let view = match_url(
-            "https://www.imagevenue.com/view/o?i=92518_13732377lo.jpg&h=img150&l=loc486",
-        )
-        .unwrap();
+        let view =
+            match_url("https://www.imagevenue.com/view/o?i=92518_13732377lo.jpg&h=img150&l=loc486")
+                .unwrap();
         assert_eq!(view.id, "92518_13732377lo.jpg");
         assert!(view.request_path.starts_with("view/o?i="));
-        let image = match_url(
-            "https://img28116.imagevenue.com/img.php?image=th_52709_test_122_64lo.jpg",
-        )
-        .unwrap();
+        let image =
+            match_url("https://img28116.imagevenue.com/img.php?image=th_52709_test_122_64lo.jpg")
+                .unwrap();
         assert_eq!(image.id, "th_52709_test_122_64lo.jpg");
         for bad in [
             "https://www.imagevenue.com/view/o?i=foo.jpg&h=img150",
