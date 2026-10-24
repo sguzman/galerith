@@ -245,6 +245,10 @@ fn gallery_files(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + 
 }
 
 fn parse_html(body: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    gallery_files(&parse_page_payload(body)?)
+}
+
+fn parse_page_payload(body: &str) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let start = body
         .find("data-page=\"")
         .ok_or("ImageChest gallery has no public page payload")?;
@@ -258,8 +262,7 @@ fn parse_html(body: &str) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>
         .replace("&#34;", "\"")
         .replace("&#x22;", "\"")
         .replace("&amp;", "&");
-    let value: Value = serde_json::from_str(&decoded)?;
-    gallery_files(&value)
+    Ok(serde_json::from_str(&decoded)?)
 }
 
 /// Only the registered public gallery URL is accepted in normal dispatch.
@@ -269,6 +272,14 @@ async fn resolve_at_base(
     gallery: Gallery,
     base: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    gallery_files(&gallery_page_at_base(client, &gallery, base).await?)
+}
+
+async fn gallery_page_at_base(
+    client: &Client,
+    gallery: &Gallery,
+    base: &Url,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("p/{}", gallery.id))?;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
@@ -284,7 +295,7 @@ async fn resolve_at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    parse_html(std::str::from_utf8(&body)?)
+    parse_page_payload(std::str::from_utf8(&body)?)
 }
 
 pub async fn resolve(
@@ -294,11 +305,60 @@ pub async fn resolve(
     resolve_at_base(client, gallery, &Url::parse("https://imgchest.com/")?).await
 }
 
+fn safe_scalar(value: Option<&Value>, max_bytes: usize) -> Option<&str> {
+    value.and_then(Value::as_str).filter(|text| {
+        !text.is_empty() && text.len() <= max_bytes && !text.chars().any(char::is_control)
+    })
+}
+
 fn gallery_messages(gallery: &Gallery, items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
+    gallery_messages_with_fields(gallery, items, &Value::Null)
+}
+
+fn gallery_messages_with_fields(
+    gallery: &Gallery,
+    items: Vec<MediaItem>,
+    page: &Value,
+) -> Vec<ExtractorMessage> {
+    let post = page.pointer("/props/post");
+    let files = page.pointer("/props/post/files").and_then(Value::as_array);
     let mut events = Vec::with_capacity(items.len().saturating_mul(2));
     for item in items {
         let mut metadata = media_metadata(&item);
         metadata.insert("gallery_id".into(), gallery.id.clone().into());
+        if let Some(post) = post {
+            if let Some(title) = safe_scalar(post.get("title"), 256) {
+                metadata.insert("title".into(), title.into());
+            }
+            if let Some(username) = safe_scalar(post.get("username"), 40).filter(|u| valid_user(u)) {
+                metadata.insert("username".into(), username.into());
+            }
+            if let Some(count) = post
+                .get("image_count")
+                .and_then(Value::as_u64)
+                .filter(|count| *count <= MAX_GALLERY_FILES as u64)
+            {
+                metadata.insert("image_count".into(), count.into());
+            }
+        }
+        if let Some(file) = files.and_then(|all| {
+            all.iter()
+                .find(|row| row.get("link").and_then(Value::as_str) == Some(item.url.as_str()))
+        }) {
+            if let Some(id) = file.get("id").and_then(Value::as_str).filter(|id| valid_id(id)) {
+                metadata.insert("file_id".into(), id.into());
+            }
+            if let Some(position) = file
+                .get("position")
+                .and_then(Value::as_u64)
+                .filter(|position| (1..=MAX_GALLERY_FILES as u64).contains(position))
+            {
+                metadata.insert("position".into(), position.into());
+            }
+            if let Some(description) = safe_scalar(file.get("description"), 1024) {
+                metadata.insert("description".into(), description.into());
+            }
+        }
         events.push(ExtractorMessage::Directory {
             metadata: metadata.clone(),
         });
@@ -310,13 +370,15 @@ fn gallery_messages(gallery: &Gallery, items: Vec<MediaItem>) -> Vec<ExtractorMe
     events
 }
 
-/// Native message inspection retains the real alphanumeric gallery identity.
+/// Native message inspection preserves bounded gallery/file metadata from
+/// the same public page request, not a second API fetch.
 pub async fn resolve_messages(
     client: &Client,
     gallery: Gallery,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let media = resolve(client, gallery.clone()).await?;
-    Ok(gallery_messages(&gallery, media))
+    let page = gallery_page_at_base(client, &gallery, &Url::parse("https://imgchest.com/")?).await?;
+    let media = gallery_files(&page)?;
+    Ok(gallery_messages_with_fields(&gallery, media, &page))
 }
 
 #[cfg(test)]
@@ -516,6 +578,56 @@ mod tests {
             serde_json::to_value(&events[1]).unwrap()["metadata"],
             meta["metadata"]
         );
+    }
+
+    #[test]
+    fn typed_gallery_messages_preserve_validated_page_and_file_metadata() {
+        let gallery = Gallery {
+            id: "abc123xyz45".into(),
+        };
+        let url = "https://cdn.imgchest.com/files/def456uvw78.webp";
+        let page = json!({"props":{"post":{
+            "title":"Public gallery",
+            "username":"alice",
+            "image_count":1,
+            "files":[{"id":"def456uvw78", "link":url, "position":1, "description":"Public image"}]
+        }}});
+        let media = gallery_files(&page).unwrap();
+        let events = gallery_messages_with_fields(&gallery, media, &page);
+        assert_eq!(events.len(), 2);
+        let directory = serde_json::to_value(&events[0]).unwrap();
+        let file = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(file["url"], url);
+        assert_eq!(directory["metadata"], file["metadata"]);
+        let metadata = &file["metadata"];
+        assert_eq!(metadata["title"], "Public gallery");
+        assert_eq!(metadata["username"], "alice");
+        assert_eq!(metadata["gallery_id"], "abc123xyz45");
+        assert_eq!(metadata["file_id"], "def456uvw78");
+        assert_eq!(metadata["position"], 1);
+        assert_eq!(metadata["image_count"], 1);
+        assert_eq!(metadata["description"], "Public image");
+        assert!(metadata.get("source_post_id").is_none());
+    }
+
+    #[test]
+    fn typed_gallery_drops_invalid_untrusted_scalar_metadata() {
+        let gallery = Gallery {
+            id: "abc123xyz45".into(),
+        };
+        let url = "https://cdn.imgchest.com/files/def456uvw78.webp";
+        let page = json!({"props":{"post":{
+            "title":"\u{0000}unsafe",
+            "username":"name/invalid",
+            "image_count":99999,
+            "files":[{"id":"def456uvw78", "link":url, "position":99999, "description":"\u{0001}bad"}]
+        }}});
+        let events = gallery_messages_with_fields(&gallery, gallery_files(&page).unwrap(), &page);
+        let file = serde_json::to_value(&events[1]).unwrap();
+        for key in ["title","username","image_count","position","description"] {
+            assert!(file["metadata"].get(key).is_none(), "{key}");
+        }
+        assert_eq!(file["metadata"]["file_id"], "def456uvw78");
     }
 
     #[test]
