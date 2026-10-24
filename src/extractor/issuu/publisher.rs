@@ -267,7 +267,10 @@ mod tests {
         let html = r#"<script>window.__STATE__ = "{\"docs\":[{\"uri\":\"press/docs/a\"},{\"uri\":\"press/docs/b\"}]}";</script>"#;
         let mut seen = HashSet::new();
         let mut result = Vec::new();
-        assert_eq!(decode_user_page(html, &publisher, &mut seen, &mut result).unwrap(), 2);
+        assert_eq!(
+            decode_user_page(html, &publisher, &mut seen, &mut result).unwrap(),
+            2
+        );
         assert_eq!(result.len(), 2);
     }
 

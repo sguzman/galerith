@@ -325,7 +325,10 @@ mod tests {
         let html = r#"<script>window.__STATE__ = "{\"documentTextVersion\":1,\"initialDocumentData\":{\"document\":{\"revisionId\":\"rev12\",\"publicationId\":\"pub34\",\"pageCount\":2,\"username\":\"press\"}}}";</script>"#;
         let pages = records(html, &publication).unwrap();
         assert_eq!(pages.len(), 2);
-        assert_eq!(pages[0].0.url, "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg");
+        assert_eq!(
+            pages[0].0.url,
+            "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg"
+        );
         assert_eq!(pages[1].1["num"], 2);
     }
 
