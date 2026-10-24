@@ -170,9 +170,9 @@ fn album_links(
     let before = out.len();
     for (_, after) in html.match_indices("<a ") {
         let Some((attrs, _)) = after["<a ".len()..].split_once('>') else { continue };
-        let Some((prefix, rest)) = attrs.split_once("href=\\\"") else { continue };
+        let Some((prefix, rest)) = attrs.split_once("href=\"") else { continue };
         if !prefix.is_empty() && !prefix.ends_with(char::is_whitespace) { continue; }
-        let Some((href, _)) = rest.split_once('\\\"') else { continue };
+        let Some((href, _)) = rest.split_once('"') else { continue };
         if href.len() > 2048 { continue; }
         let Ok(url) = origin.join(href) else { continue };
         let Some(child) = match_url(url.as_str()) else { continue };
@@ -303,7 +303,7 @@ mod tests {
                 assert!(request.starts_with("GET /album/344597/gallery?p="), "{request}");
                 assert!(request.contains(&format!("p={page}")), "{request}");
                 let response = format!(
-                    "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{html}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
                     html.len()
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
