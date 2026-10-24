@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 60%` across 97 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 60%` across 98 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -504,6 +504,12 @@
   - [x] Emit alphanumeric gallery identity in typed file messages and valid deferred profile-gallery queues — src/extractor/imagechest.rs typed_gallery_messages_preserve_alphanumeric_gallery_identity and profile_routes_and_gallery_queue_ids_are_strictly_validated; CI 40047578834
   - [x] Enforce public profile pagination, request caps and response guards with loopback fixtures — src/extractor/imagechest.rs profile_queue_paginates_locally_without_following_server_urls, rejects_declared_oversized_gallery_before_reading_body; CI 40047578834
   - [ ] Reproduce authenticated access, complete gallery/user metadata and filename/archive settings with live upstream differential acceptance
+- 🪷 **T540** ImagePond guarded public image/video single-file previews — `████████░░ 80%`
+  - [x] Recognize pinned public ImagePond file URL shapes without accepting gallery, foreign or credentialed URLs — src/extractor/imagepond.rs matches_exact_single_file_routes and mod.rs preview registry; CI 40051989239
+  - [x] Extract image and video OpenGraph media and reject untrusted, unsafe or unsupported media URLs — src/extractor/imagepond.rs rejects_untrusted_og_media_and_keeps_safe_filename and public_video_og_link_is_preferred_over_thumbnail; CI 40051989239
+  - [x] Bound public file HTML response bodies and verify exactly one source-page HTTP request — src/extractor/imagepond.rs bounded_single_public_image_page_uses_only_one_request and rejects_declared_oversized_html_before_reading_body; CI 40051989239
+  - [x] Expose safe native URL events and optional title/id in typed extraction, preserving ordinary flat media behavior — src/extractor/imagepond.rs resolve_messages and resolve, mod.rs typed/flat dispatch; CI 40051989239
+  - [ ] Complete ImagePond albums, user queues, rich file/video metadata, filename/archive templates, media hosts and live pinned upstream differential conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

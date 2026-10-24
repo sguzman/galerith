@@ -705,9 +705,14 @@
     {
       "path": "gallery_dl/extractor/imagepond.py",
       "module": "imagepond",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imagepond.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent Rust public ImagePond /i, /img, /image and /video OG media preview, strict site and HTTPS media-origin policy, safe filename projection, typed file messages and one-request/oversized-body local HTTP regressions; CI 40051989239 passed. Album/user traversal, all metadata, site variants, archive/filename parity and live upstream differential acceptance remain open."
+      ]
     },
     {
       "path": "gallery_dl/extractor/imageshack.py",

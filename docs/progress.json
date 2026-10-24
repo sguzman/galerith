@@ -2558,6 +2558,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T540",
+              "emoji": "🪷",
+              "name": "ImagePond guarded public image/video single-file previews",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned public ImagePond file URL shapes without accepting gallery, foreign or credentialed URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs matches_exact_single_file_routes and mod.rs preview registry; CI 40051989239"
+                },
+                {
+                  "title": "Extract image and video OpenGraph media and reject untrusted, unsafe or unsupported media URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs rejects_untrusted_og_media_and_keeps_safe_filename and public_video_og_link_is_preferred_over_thumbnail; CI 40051989239"
+                },
+                {
+                  "title": "Bound public file HTML response bodies and verify exactly one source-page HTTP request",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs bounded_single_public_image_page_uses_only_one_request and rejects_declared_oversized_html_before_reading_body; CI 40051989239"
+                },
+                {
+                  "title": "Expose safe native URL events and optional title/id in typed extraction, preserving ordinary flat media behavior",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs resolve_messages and resolve, mod.rs typed/flat dispatch; CI 40051989239"
+                },
+                {
+                  "title": "Complete ImagePond albums, user queues, rich file/video metadata, filename/archive templates, media hosts and live pinned upstream differential conformance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
