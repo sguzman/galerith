@@ -35,6 +35,7 @@ pub mod imxto;
 pub mod issuu;
 pub mod keenspot;
 pub mod khinsider;
+pub mod kabeuchi;
 pub mod lensdump;
 pub mod lexica;
 pub mod lightroom;
@@ -96,6 +97,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "khinsider",
         "public soundtrack albums with bounded track formats",
     ),
+    ("kabeuchi", "public image-post user feeds with bounded pagination"),
     ("keenspot", "public subdomain webcomic page originals"),
     (
         "listal",
@@ -244,6 +246,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("lensdump")
     } else if khinsider::match_url(input).is_some() {
         Some("khinsider")
+    } else if kabeuchi::match_url(input).is_some() {
+        Some("kabeuchi")
     } else if keenspot::match_url(input).is_some() {
         Some("keenspot")
     } else if imagetwist::match_url(input).is_some()
@@ -406,6 +410,9 @@ pub async fn resolve(
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve(client, album).await;
+    }
+    if let Some(user) = kabeuchi::match_url(input) {
+        return kabeuchi::resolve(client, user, 4).await;
     }
     if let Some(comic) = keenspot::match_url(input) {
         return keenspot::resolve(client, comic).await;
@@ -582,6 +589,9 @@ pub async fn resolve_messages(
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve_messages(client, album).await;
+    }
+    if let Some(user) = kabeuchi::match_url(input) {
+        return kabeuchi::resolve_messages(client, user, max_pages).await;
     }
     if let Some(comic) = keenspot::match_url(input) {
         return keenspot::resolve_messages(client, comic).await;
@@ -941,6 +951,7 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
+            ("https://kabe-uchiroom.com/mypage/?id=12345", "kabeuchi"),
             ("https://lensdump.com/i/Abc12", "lensdump"),
             ("https://lensdump.com/a/Abc12", "lensdump"),
             ("https://lensdump.com/author", "lensdump"),
