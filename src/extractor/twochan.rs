@@ -133,7 +133,8 @@ fn original(root: &Url, board: &str, source: &str) -> Option<(Url, String, Strin
     {
         return None;
     }
-    Some((url, tim.into(), ext))
+    let tim = tim.to_owned();
+    Some((url, tim, ext))
 }
 
 fn parse(html: &str, target: &Thread, root: &Url) -> Result<Records, Box<dyn Error + Send + Sync>> {
