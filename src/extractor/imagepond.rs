@@ -92,14 +92,13 @@ fn valid_media_link(link: &str) -> Option<(Url, String)> {
     Some((url, safe_filename(filename)))
 }
 
-fn parse_page(target: &Target, html: &str) -> Result<(MediaItem, Option<String>), Box<dyn Error + Send + Sync>> {
+fn parse_page(html: &str) -> Result<(MediaItem, Option<String>), Box<dyn Error + Send + Sync>> {
     let kind = property(html, "type").unwrap_or_default();
     let field = if kind == "image" { "image" } else { "video" };
     let media = property(html, field).ok_or("ImagePond page has no public media OG link")?;
     let (url, filename) =
         valid_media_link(&media).ok_or("ImagePond page media link has an unsupported origin")?;
     let title = property(html, "title").filter(|v| !v.is_empty() && v.len() <= 256);
-    let _ = target;
     Ok((
         MediaItem {
             url: url.to_string(),
@@ -131,7 +130,7 @@ async fn resolve_at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    parse_page(target, std::str::from_utf8(&body)?)
+    parse_page(std::str::from_utf8(&body)?)
 }
 
 pub async fn resolve(
@@ -176,7 +175,12 @@ mod tests {
 
     #[test]
     fn matches_exact_single_file_routes() {
-        for path in ["i/abc123", "img/abc123", "image/abc123", "video/some-video.abc123"] {
+        for path in [
+            "i/abc123",
+            "img/abc123",
+            "image/abc123",
+            "video/some-video.abc123",
+        ] {
             assert!(match_url(&format!("https://imagepond.net/{path}")).is_some());
         }
         for url in [
@@ -194,11 +198,10 @@ mod tests {
 
     #[test]
     fn rejects_untrusted_og_media_and_keeps_safe_filename() {
-        let target = match_url("https://imagepond.net/i/abc123").unwrap();
         let evil = r#"<meta property="og:type" content="image"><meta property="og:image" content="https://evil.example/p.jpg">"#;
-        assert!(parse_page(&target, evil).is_err());
+        assert!(parse_page(evil).is_err());
         let good = r#"<meta property="og:type" content="image"><meta property="og:image" content="https://cdn.imagepond.net/media/public.jpg"><meta property="og:title" content="Public image">"#;
-        let (file, title) = parse_page(&target, good).unwrap();
+        let (file, title) = parse_page(good).unwrap();
         assert_eq!(file.url, "https://cdn.imagepond.net/media/public.jpg");
         assert_eq!(file.filename, "public.jpg");
         assert_eq!(file.post_id, None);
@@ -223,7 +226,9 @@ mod tests {
         });
         let target = match_url("https://imagepond.net/i/abc123").unwrap();
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = resolve_at_base(&Client::new(), &target, &base).await.unwrap();
+        let (file, _) = resolve_at_base(&Client::new(), &target, &base)
+            .await
+            .unwrap();
         assert_eq!(file.filename, "example.webp");
         server.await.unwrap();
     }
