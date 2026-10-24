@@ -31,6 +31,32 @@ fn direct_media_message_dump_is_ordered_json_lines_without_network() {
 }
 
 #[test]
+fn directlink_message_dump_preserves_native_source_fields_without_changing_flat_json() {
+    let input = "https://cdn.example.org/archive/cover%20art.jpe?size=original#image";
+    let response = run(&["--dump-messages", input]);
+    assert!(response.status.success());
+    let events: Vec<serde_json::Value> = String::from_utf8(response.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0]["metadata"]["domain"], "cdn.example.org");
+    assert_eq!(events[0]["metadata"]["subcategory"], "example.org");
+    assert_eq!(events[0]["metadata"]["path"], "archive");
+    assert_eq!(events[0]["metadata"]["stem"], "cover art");
+    assert_eq!(events[0]["metadata"]["extension"], "jpe");
+    assert_eq!(events[0]["metadata"]["filename"], "cover art.jpe");
+    assert_eq!(events[1]["metadata"], events[0]["metadata"]);
+
+    let legacy = run(&["--dump-json", input]);
+    assert!(legacy.status.success());
+    let item: serde_json::Value = serde_json::from_slice(&legacy.stdout).unwrap();
+    assert_eq!(item["filename"], "cover art.jpe");
+    assert!(item.get("domain").is_none());
+}
+
+#[test]
 fn message_mode_rejects_modes_that_would_have_ambiguous_output() {
     for forbidden in ["--dump-json", "--get-urls", "--simulate", "--no-download"] {
         let response = run(&[

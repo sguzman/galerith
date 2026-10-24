@@ -5,6 +5,7 @@ pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod danbooru;
 pub mod desktopography;
+pub mod directlink;
 pub mod e621;
 pub mod foolfuuka;
 pub mod fourchan;
@@ -289,6 +290,9 @@ pub async fn resolve_messages(
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
+    }
+    if extractor_name(input) == Some("directlink") {
+        return Ok(directlink::resolve_messages(input)?);
     }
     Ok(from_media(resolve(client, input, max_pages).await?))
 }

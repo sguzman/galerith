@@ -60,6 +60,9 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
         extension.to_ascii_lowercase().as_str(),
         "jpg"
             | "jpeg"
+            | "jpe"
+            | "heic"
+            | "psd"
             | "png"
             | "gif"
             | "webp"
@@ -70,17 +73,23 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "svg"
             | "jxl"
             | "mp4"
+            | "mkv"
             | "webm"
             | "mov"
             | "m4v"
             | "mp3"
             | "ogg"
+            | "ogm"
+            | "ogv"
             | "opus"
             | "flac"
             | "wav"
             | "pdf"
             | "cbz"
             | "zip"
+            | "rar"
+            | "7z"
+            | "swf"
     ) {
         return Err(ExtractError::UnsupportedUrl);
     }
@@ -119,6 +128,15 @@ mod tests {
         let item = extract_direct_media("https://example.org/picture%20one.JPG?size=full").unwrap();
         assert_eq!(item.filename, "picture one.JPG");
         assert_eq!(item.extractor, "directlink");
+    }
+
+    #[test]
+    fn recognizes_additional_pinned_directlink_media_extensions() {
+        for extension in ["jpe", "heic", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf"] {
+            let url = format!("https://assets.example.org/downloads/file.{extension}");
+            let item = extract_direct_media(&url).unwrap();
+            assert_eq!(item.filename, format!("file.{extension}"));
+        }
     }
 
     #[test]
