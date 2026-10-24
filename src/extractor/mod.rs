@@ -330,7 +330,7 @@ pub async fn resolve_messages(
         return imagepond::resolve_messages(client, target).await;
     }
     if let Some(target) = imagepond::match_queue_url(input) {
-        return imagepond::resolve_queue_messages(client, target).await;
+        return imagepond::resolve_queue_messages(client, target, max_pages).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);

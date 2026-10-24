@@ -10,6 +10,7 @@ use url::Url;
 
 const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_QUEUE_CHILDREN: usize = 48;
+const MAX_QUEUE_PAGES: u16 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
@@ -57,8 +58,8 @@ pub enum QueueTarget {
     User(String),
 }
 
-/// Public first-page album and explicit /user/ profile routes. Upstream
-/// supports more aliases and pagination; those remain future work.
+/// Bounded public album and explicit /user/ profile routes. Upstream
+/// supports more aliases, auth and metadata than this conservative preview.
 pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
@@ -122,38 +123,121 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
     messages
 }
 
+fn next_listing_page(
+    html: &str,
+    current: &Url,
+    max_pages: u16,
+) -> Result<Option<Url>, Box<dyn Error + Send + Sync>> {
+    for part in html.split("<a").skip(1) {
+        let Some((attributes, _)) = part.split_once('>') else {
+            continue;
+        };
+        if !attributes.contains("rel=\"next\"") {
+            continue;
+        }
+        let href = attributes
+            .split_once("href=\"")
+            .and_then(|(_, suffix)| suffix.split_once('"'))
+            .map(|(href, _)| href)
+            .ok_or("ImagePond next page has no safe href")?;
+        let next = current.join(href)?;
+        if next.origin() != current.origin()
+            || next.path() != current.path()
+            || next.username() != current.username()
+            || next.password().is_some()
+            || next.fragment().is_some()
+        {
+            return Err("ImagePond next page has an unsafe origin or path".into());
+        }
+        let query: Vec<_> = next.query_pairs().collect();
+        if query.len() != 1 || query[0].0 != "page" {
+            return Err("ImagePond next page has unsupported query parameters".into());
+        }
+        let number = query[0].1.parse::<u16>()?;
+        let current_page = current
+            .query_pairs()
+            .find(|(key, _)| key == "page")
+            .map(|(_, value)| value.parse::<u16>())
+            .transpose()?
+            .unwrap_or(1);
+        if number <= current_page {
+            return Err("ImagePond next page must advance monotonically".into());
+        }
+        if number > max_pages.clamp(1, MAX_QUEUE_PAGES) {
+            return Ok(None);
+        }
+        return Ok(Some(next));
+    }
+    Ok(None)
+}
+
 async fn queue_at_base(
     client: &Client,
     target: &QueueTarget,
+    max_pages: u16,
     base: &Url,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let route = match target {
         QueueTarget::Album(id) => format!("a/{id}"),
         QueueTarget::User(name) => format!("user/{name}"),
     };
-    let endpoint = base.join(&route)?;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
-    {
-        return Err("ImagePond listing HTML exceeds byte limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
+    let mut endpoint = base.join(&route)?;
+    let mut seen = HashSet::new();
+    let mut messages = Vec::new();
+    for page in 0..max_pages.clamp(1, MAX_QUEUE_PAGES) {
+        let mut response = client
+            .get(endpoint.clone())
+            .send()
+            .await?
+            .error_for_status()?;
+        if response
+            .content_length()
+            .is_some_and(|size| size > MAX_HTML_BYTES as u64)
+        {
             return Err("ImagePond listing HTML exceeds byte limit".into());
         }
-        body.extend_from_slice(&chunk);
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
+                return Err("ImagePond listing HTML exceeds byte limit".into());
+            }
+            body.extend_from_slice(&chunk);
+        }
+        let html = std::str::from_utf8(&body)?;
+        for event in collect_queue_messages(html, target) {
+            let ExtractorMessage::Queue { url, .. } = &event else {
+                continue;
+            };
+            if seen.insert(url.clone()) {
+                messages.push(event);
+            }
+            if messages.len() >= MAX_QUEUE_CHILDREN {
+                return Ok(messages);
+            }
+        }
+        let Some(next) = next_listing_page(html, &endpoint, max_pages)? else {
+            break;
+        };
+        endpoint = next;
+        if page + 1 < max_pages.min(MAX_QUEUE_PAGES) {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
     }
-    Ok(collect_queue_messages(std::str::from_utf8(&body)?, target))
+    Ok(messages)
 }
 
 pub async fn resolve_queue_messages(
     client: &Client,
     target: QueueTarget,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    queue_at_base(client, &target, &Url::parse("https://www.imagepond.net/")?).await
+    queue_at_base(
+        client,
+        &target,
+        max_pages,
+        &Url::parse("https://www.imagepond.net/")?,
+    )
+    .await
 }
 
 fn property(html: &str, name: &str) -> Option<String> {
@@ -349,13 +433,75 @@ mod tests {
             stream.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = queue_at_base(&Client::new(), &QueueTarget::User("alice".into()), &base)
+        let events = queue_at_base(&Client::new(), &QueueTarget::User("alice".into()), 3, &base)
             .await
             .unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(
             serde_json::to_value(&events[0]).unwrap()["metadata"]["username"],
             "alice"
+        );
+        server.await.unwrap();
+    }
+
+    #[test]
+    fn rejects_foreign_and_nonprogressing_listing_continuations() {
+        let current = Url::parse("https://www.imagepond.net/a/gallery123").unwrap();
+        for bad in [
+            r#"<a href="https://untrusted.example/a/gallery123?page=2" rel="next">"#,
+            r#"<a href="/a/other?page=2" rel="next">"#,
+            r#"<a href="/a/gallery123?page=1" rel="next">"#,
+            r#"<a href="/a/gallery123?page=2&token=secret" rel="next">"#,
+        ] {
+            assert!(next_listing_page(bad, &current, 4).is_err(), "{bad}");
+        }
+        let good = r#"<a href="?page=2" rel="next">Next</a>"#;
+        let second = next_listing_page(good, &current, 4).unwrap().unwrap();
+        assert_eq!(second.as_str(), "https://www.imagepond.net/a/gallery123?page=2");
+        assert!(next_listing_page(good, &current, 1).unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn album_pagination_preserves_first_seen_media_and_caps_pages() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (page, body) in [
+                (1, r#"<a href="/i/one123">Image</a><a href="?page=2" rel="next">Next</a>"#),
+                (2, r#"<a href="/i/one123">Duplicate</a><a href="/video/two456">Video</a>"#),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buffer = [0_u8; 4096];
+                let n = stream.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..n]);
+                assert!(request.starts_with("GET /a/gallery123"), "{request}");
+                if page == 2 {
+                    assert!(request.contains("page=2"), "{request}");
+                }
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let events = queue_at_base(
+            &Client::new(),
+            &QueueTarget::Album("gallery123".into()),
+            3,
+            &base,
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["url"],
+            "https://www.imagepond.net/i/one123"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["url"],
+            "https://www.imagepond.net/video/two456"
         );
         server.await.unwrap();
     }
