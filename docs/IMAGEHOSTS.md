@@ -43,3 +43,12 @@ A shared Rust adapter in `src/extractor/basic_hosts.rs` now handles strict publi
 Each response is capped at **2 MiB** through declared content-length and streamed-body enforcement. Resulting media must use HTTPS and the corresponding domain (or its subdomains), with safe supported image extensions and no credentialed, query-bearing or fragment media links. Typed events carry the original alphanumeric token and public source URL; no numeric post identity is invented.
 
 [Linux CI 40057318396](https://github.com/sguzman/galerith/actions/runs/40057318396) verifies source URL matching, host-specific HTML fixtures, foreign-origin rejection, Acidimg POST and oversized-response handling. This is entirely **offline/synthetic** evidence, not live differential conformance. Per-host metadata/filename/archive semantics, configurable request options and remaining `imagehosts.py` families are still unaccepted.
+
+
+## Imgdrive, Imgtaxi and Imgwallet OpenGraph originals
+
+An additional independently authored Rust adapter now recognizes pinned `imgdrive`, `imgtaxi`, and `imgwallet` public `/img-TOKEN.html` routes on the original `.com` and `.net` domains. It reads bounded OpenGraph `og:title` and `og:image` values, converts a same-site preview `/small/` path segment to the `/big/` original, and preserves a sanitized optional source title as a safe local filename. Typed messages carry the genuine alphanumeric token and canonical public page URL, without inventing a numeric post ID.
+
+The HTML cap is **2 MiB** per response, checked against both declared and actual downloaded bytes. Foreign/credentialed origins, unsafe filename segments and query/fragment-bearing direct media are rejected.
+
+[CI 40057685467](https://github.com/sguzman/galerith/actions/runs/40057685467) passed the pinned-source examples, unsafe input rejections, local one-request HTTP fixture, oversized content-length rejection, formatting, Clippy and release build. Full upstream metadata/date, all site-specific variants and live differential parity remain open.

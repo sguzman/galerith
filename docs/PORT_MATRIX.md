@@ -97,7 +97,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/imagebam.py` | 🟡 Partial | `src/extractor/imagebam.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagechest.py` | 🟡 Partial | `src/extractor/imagechest.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imagefap.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/imagehosts.py` | 🟡 Partial | `src/extractor/imagehosts.rs`, `src/extractor/mod.rs`, `src/extractor/postimg.rs`, `src/extractor/imxto.rs`, `src/extractor/picstate.rs`, `src/extractor/basic_hosts.rs` |
+| `gallery_dl/extractor/imagehosts.py` | 🟡 Partial | `src/extractor/imagehosts.rs`, `src/extractor/mod.rs`, `src/extractor/postimg.rs`, `src/extractor/imxto.rs`, `src/extractor/picstate.rs`, `src/extractor/basic_hosts.rs`, `src/extractor/imgdrive.rs` |
 | `gallery_dl/extractor/imagepond.py` | 🟡 Partial | `src/extractor/imagepond.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imageshack.py` | 🟡 Partial | `src/extractor/imageshack.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgbb.py` | 🟡 Partial | `src/extractor/imgbb.rs`, `src/extractor/mod.rs` |

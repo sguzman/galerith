@@ -2878,6 +2878,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T550",
+              "emoji": "🛻",
+              "name": "Imgdrive Imgtaxi Imgwallet guarded OpenGraph originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned Imgdrive, Imgtaxi and Imgwallet public img-token HTML URLs without ambiguous or unsafe routes",
+                  "passed": true,
+                  "evidence": "src/extractor/imgdrive.rs pinned_imgdrive_imgtaxi_and_imgwallet_routes_match, src/extractor/mod.rs preview registry; CI 40057685467"
+                },
+                {
+                  "title": "Parse first-party OG title/image, transform preview /small/ into public /big/ originals and preserve safe names",
+                  "passed": true,
+                  "evidence": "src/extractor/imgdrive.rs og_images_upgrade_small_to_big_and_retain_safe_names; CI 40057685467"
+                },
+                {
+                  "title": "Reject foreign, credentialed, non-HTTPS, query-bearing or unsafe media and filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/imgdrive.rs unsafe_media_urls_and_original_names_are_excluded; CI 40057685467"
+                },
+                {
+                  "title": "Enforce a 2 MiB HTML response bound, retain genuine alphanumeric source token in typed/flat extraction, test single-request HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/imgdrive.rs public_page_reads_one_request_and_rejects_oversized_response_header and rejects_large_declared_response_without_parsing_body; CI 40057685467"
+                },
+                {
+                  "title": "Reproduce complete upstream site variations, original filename/date metadata, archive naming, response errors and live differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

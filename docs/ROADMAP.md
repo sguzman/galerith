@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 107 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 108 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -564,6 +564,12 @@
   - [x] Reproduce Acidimg's pinned public POST continuation and keep all public HTML reads bounded to 2 MiB — src/extractor/basic_hosts.rs acidimg_uses_pinned_post_continuation_and_one_bounded_page and declared_oversized_public_body_is_rejected_before_parsing; CI 40057318396
   - [x] Dispatch flat and native typed image records with genuine alphanumeric source-token metadata and no invented numeric post IDs — src/extractor/basic_hosts.rs resolve, resolve_messages and media_metadata plus mod.rs typed/flat dispatch; CI 40057318396
   - [ ] Complete pinned per-host names, rich metadata, custom request options, live site differential parity and all remaining multi-host imagehosts.py families
+- 🛻 **T550** Imgdrive Imgtaxi Imgwallet guarded OpenGraph originals — `████████░░ 80%`
+  - [x] Match pinned Imgdrive, Imgtaxi and Imgwallet public img-token HTML URLs without ambiguous or unsafe routes — src/extractor/imgdrive.rs pinned_imgdrive_imgtaxi_and_imgwallet_routes_match, src/extractor/mod.rs preview registry; CI 40057685467
+  - [x] Parse first-party OG title/image, transform preview /small/ into public /big/ originals and preserve safe names — src/extractor/imgdrive.rs og_images_upgrade_small_to_big_and_retain_safe_names; CI 40057685467
+  - [x] Reject foreign, credentialed, non-HTTPS, query-bearing or unsafe media and filenames — src/extractor/imgdrive.rs unsafe_media_urls_and_original_names_are_excluded; CI 40057685467
+  - [x] Enforce a 2 MiB HTML response bound, retain genuine alphanumeric source token in typed/flat extraction, test single-request HTTP — src/extractor/imgdrive.rs public_page_reads_one_request_and_rejects_oversized_response_header and rejects_large_declared_response_without_parsing_body; CI 40057685467
+  - [ ] Reproduce complete upstream site variations, original filename/date metadata, archive naming, response errors and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
