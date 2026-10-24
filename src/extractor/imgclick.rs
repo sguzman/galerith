@@ -42,9 +42,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     // The pinned route accepts an omitted scheme. Canonicalize only the
     // literal Imgclick host forms before applying strict URL validation.
-    let source = if input.starts_with("imgclick.net/")
-        || input.starts_with("www.imgclick.net/")
-    {
+    let source = if input.starts_with("imgclick.net/") || input.starts_with("www.imgclick.net/") {
         format!("https://{input}")
     } else {
         input.to_owned()
