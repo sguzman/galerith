@@ -33,7 +33,6 @@ pub fn match_url(raw: &str) -> Option<Target> {
     }
     let url = Url::parse(raw).ok()?;
     if !matches!(url.scheme(), "http" | "https")
-        || url.host_str() != Some("lensdump.com")
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -42,10 +41,30 @@ pub fn match_url(raw: &str) -> Option<Target> {
     {
         return None;
     }
+    let host = url.host_str()?;
     let parts: Vec<_> = url.path_segments()?.collect();
+    if host == "lensdump.com" {
+        return match parts.as_slice() {
+            ["i", id] | ["i", id, ""] if safe_id(id) => Some(Target::Image((*id).into())),
+            ["a", id] | ["a", id, ""] if safe_id(id) => Some(Target::Album((*id).into())),
+            _ => None,
+        };
+    }
+    let cdn_image = host
+        .strip_suffix(".lensdump.com")
+        .is_some_and(|sub| sub == "i" || (
+            sub.len() == 2
+                && sub.starts_with('i')
+                && sub.as_bytes()[1].is_ascii_digit()
+        ));
+    let cdn_short = host
+        .strip_suffix(".l3n.co")
+        .is_some_and(|sub| sub.len() == 1 && sub.as_bytes()[0].is_ascii_alphanumeric());
+    if !(cdn_image || cdn_short) {
+        return None;
+    }
     match parts.as_slice() {
-        ["i", id] | ["i", id, ""] if safe_id(id) => Some(Target::Image((*id).into())),
-        ["a", id] | ["a", id, ""] if safe_id(id) => Some(Target::Album((*id).into())),
+        [id] | ["i", id] | [id, ""] if safe_id(id) => Some(Target::Image((*id).into())),
         _ => None,
     }
 }
@@ -352,8 +371,19 @@ mod tests {
             match_url("https://lensdump.com/a/Abc12/"),
             Some(Target::Album("Abc12".into()))
         );
+        assert_eq!(
+            match_url("https://i1.lensdump.com/Abc12"),
+            Some(Target::Image("Abc12".into()))
+        );
+        assert_eq!(
+            match_url("https://x.l3n.co/Abc12"),
+            Some(Target::Image("Abc12".into()))
+        );
         for bad in [
             "https://evil-lensdump.com/i/Abc12",
+            "https://i10.lensdump.com/Abc12",
+            "https://xx.l3n.co/Abc12",
+            "https://i1.lensdump.com/Abc12?private=1",
             "https://lensdump.com/i/../../private",
             "https://lensdump.com/i/Abc12?secret=1",
             "https://lensdump.com/i/unsafe-123",
