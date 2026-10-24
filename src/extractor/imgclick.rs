@@ -42,7 +42,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     }
     let url = Url::parse(input).ok()?;
     let host = url.host_str()?;
-    if url.scheme() != "https"
+    if !matches!(url.scheme(), "https" | "http")
         || !matches!(host, "imgclick.net" | "www.imgclick.net")
         || !url.username().is_empty()
         || url.password().is_some()
@@ -65,7 +65,12 @@ pub fn match_url(input: &str) -> Option<Target> {
 }
 
 fn media_url(raw: &str) -> Option<(Url, String)> {
-    let url = Url::parse(raw).ok()?;
+    let mut url = Url::parse(raw).ok()?;
+    // The pinned host normalizes public HTTP image links to HTTPS before
+    // downloading. Never permit cleartext media retrieval.
+    if url.scheme() == "http" {
+        url.set_scheme("https").ok()?;
+    }
     let host = url.host_str()?;
     if url.scheme() != "https"
         || !(host == "imgclick.net" || host.ends_with(".imgclick.net"))
@@ -233,8 +238,8 @@ mod tests {
         let source = match_url("https://imgclick.net/4tbrre1oxew9/test-_-_.png.html").unwrap();
         assert_eq!(source.token, "4tbrre1oxew9");
         assert!(match_url("https://www.imgclick.net/4tbrre1oxew9").is_some());
+        assert!(match_url("http://imgclick.net/4tbrre1oxew9").is_some());
         for bad in [
-            "http://imgclick.net/4tbrre1oxew9",
             "https://evilimgclick.net/4tbrre1oxew9",
             "https://imgclick.net/4tbrre1oxew9?token=private",
             "https://imgclick.net/4tbrre1oxew9/test.exe",
@@ -254,8 +259,10 @@ mod tests {
         assert_eq!(metadata["token"], "4tbrre1oxew9");
         assert_eq!(file.post_id, None);
         assert!(parse_page("<html>missing</html>", &target).is_err());
+        let (upgraded, _) = media_url("http://img1.imgclick.net/file.jpg").unwrap();
+        assert_eq!(upgraded.as_str(), "https://img1.imgclick.net/file.jpg");
         for bad in [
-            "http://img1.imgclick.net/file.jpg",
+            "http://evilimgclick.net/file.jpg",
             "https://evilimgclick.net/file.jpg",
             "https://user:secret@img1.imgclick.net/file.jpg",
             "https://img1.imgclick.net/file.jpg?secret=1",
