@@ -823,7 +823,10 @@ mod tests {
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
-            ("https://imagetwist.com/p/gdldev/747223/digits", "imagetwist"),
+            (
+                "https://imagetwist.com/p/gdldev/747223/digits",
+                "imagetwist",
+            ),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),

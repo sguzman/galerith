@@ -266,7 +266,10 @@ fn gallery_id(value: &str) -> bool {
 
 pub fn match_gallery_url(input: &str) -> Option<Gallery> {
     let lower = input.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|p| lower.contains(p)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|p| lower.contains(p))
+    {
         return None;
     }
     let url = Url::parse(input).ok()?;
@@ -283,12 +286,8 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
     }
     let parts: Vec<_> = url.path_segments()?.collect();
     let (user, id, title) = match parts.as_slice() {
-        ["p", user, id] if safe_segment(user) && gallery_id(id) => {
-            (*user, *id, None)
-        }
-        ["p", user, id, title]
-            if safe_segment(user) && gallery_id(id) && safe_segment(title) =>
-        {
+        ["p", user, id] if safe_segment(user) && gallery_id(id) => (*user, *id, None),
+        ["p", user, id, title] if safe_segment(user) && gallery_id(id) && safe_segment(title) => {
             (*user, *id, Some((*title).to_owned()))
         }
         _ => return None,
@@ -328,7 +327,10 @@ fn gallery_child_events(
     let Some(section) = html.split_once("class=\"gallerys").map(|(_, rest)| rest) else {
         return;
     };
-    let section = section.split_once("</div").map(|(part, _)| part).unwrap_or(section);
+    let section = section
+        .split_once("</div")
+        .map(|(part, _)| part)
+        .unwrap_or(section);
     for part in section.split("<a").skip(1) {
         let Some((attrs, _)) = part.split_once('>') else {
             continue;
@@ -345,8 +347,8 @@ fn gallery_child_events(
         let Some((raw, _)) = rest.split_once('"') else {
             continue;
         };
-        let Ok(link) = Url::parse(&format!("https://{}/", gallery.host))
-            .and_then(|root| root.join(raw))
+        let Ok(link) =
+            Url::parse(&format!("https://{}/", gallery.host)).and_then(|root| root.join(raw))
         else {
             continue;
         };
@@ -394,7 +396,7 @@ fn next_gallery_url(
         let decoded = raw.replace("&amp;", "&");
         let next = current.join(&decoded)?;
         if next.origin() != current.origin()
-            || !matches!(next.path(), "/" | "" ) && next.path() != current.path()
+            || !matches!(next.path(), "/" | "") && next.path() != current.path()
             || !next.username().is_empty()
             || next.password().is_some()
             || next.fragment().is_some()
@@ -402,12 +404,23 @@ fn next_gallery_url(
             return Err("Imagetwist gallery next page escaped its source".into());
         }
         let pairs: Vec<_> = next.query_pairs().collect();
-        if pairs.len() > 5 || pairs.iter().any(|(key, _)| {
-            !matches!(key.as_ref(), "op" | "fld_id" | "page" | "per_page" | "usr_login")
-        }) {
+        if pairs.len() > 5
+            || pairs.iter().any(|(key, _)| {
+                !matches!(
+                    key.as_ref(),
+                    "op" | "fld_id" | "page" | "per_page" | "usr_login"
+                )
+            })
+        {
             return Err("Imagetwist gallery next URL has unsupported query fields".into());
         }
-        let values = |key: &str| pairs.iter().filter(|(k, _)| k == key).map(|(_, v)| v.as_ref()).collect::<Vec<_>>();
+        let values = |key: &str| {
+            pairs
+                .iter()
+                .filter(|(k, _)| k == key)
+                .map(|(_, v)| v.as_ref())
+                .collect::<Vec<_>>()
+        };
         let page = values("page");
         if page.len() != 1
             || values("fld_id") != [gallery.id.as_str()]
@@ -440,8 +453,15 @@ async fn gallery_at_base(
     let mut inherited_title = gallery.title.clone();
     let mut last_page = 1u16;
     for page in 0..max_pages.clamp(1, MAX_GALLERY_PAGES) {
-        let mut response = client.get(current.clone()).send().await?.error_for_status()?;
-        if response.content_length().is_some_and(|n| n > MAX_HTML_BYTES as u64) {
+        let mut response = client
+            .get(current.clone())
+            .send()
+            .await?
+            .error_for_status()?;
+        if response
+            .content_length()
+            .is_some_and(|n| n > MAX_HTML_BYTES as u64)
+        {
             return Err("Imagetwist gallery exceeds HTML byte limit".into());
         }
         let mut bytes = Vec::new();
@@ -455,7 +475,13 @@ async fn gallery_at_base(
         if let Some(title) = gallery_title(html, inherited_title.as_deref()) {
             inherited_title = Some(title);
         }
-        gallery_child_events(html, gallery, inherited_title.as_deref(), &mut seen, &mut events);
+        gallery_child_events(
+            html,
+            gallery,
+            inherited_title.as_deref(),
+            &mut seen,
+            &mut events,
+        );
         if events.len() >= MAX_GALLERY_CHILDREN {
             break;
         }
@@ -516,8 +542,7 @@ mod tests {
 
     #[test]
     fn pinned_gallery_routes_and_ordered_child_queue_filter() {
-        let gallery =
-            match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
+        let gallery = match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
         assert_eq!(gallery.id, "747223");
         for bad in [
             "http://imagetwist.com/p/gdldev/747223/digits",
@@ -540,8 +565,7 @@ mod tests {
 
     #[test]
     fn gallery_next_page_rejects_external_and_nonadvancing_urls() {
-        let gallery =
-            match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
+        let gallery = match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
         let current = Url::parse("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
         let good = r#"<a href='/?op=user_public&fld_id=747223&usr_login=gdldev&page=2'>&#187;</a>"#;
         assert_eq!(
@@ -560,7 +584,10 @@ mod tests {
             r#"<a href='/?op=user_public&fld_id=1&page=2'>&#187;</a>"#,
             r#"<a href='/?op=user_public&fld_id=747223&page=2&token=secret'>&#187;</a>"#,
         ] {
-            assert!(next_gallery_url(bad, &current, &gallery, 1, 4).is_err(), "{bad}");
+            assert!(
+                next_gallery_url(bad, &current, &gallery, 1, 4).is_err(),
+                "{bad}"
+            );
         }
     }
 
@@ -570,8 +597,14 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (number, html) in [
-                (1, r#"<div class="page_main_title">digits</div><div class="gallerys"><a href="/j6eu91sbl9bs">One</a></div><a href='/?op=user_public&fld_id=747223&usr_login=gdldev&page=2'>&#187;</a>"#),
-                (2, r#"<div class="gallerys"><a href="/j6eu91sbl9bs">Again</a><a href="/vx4oh119izyr">Two</a></div>"#),
+                (
+                    1,
+                    r#"<div class="page_main_title">digits</div><div class="gallerys"><a href="/j6eu91sbl9bs">One</a></div><a href='/?op=user_public&fld_id=747223&usr_login=gdldev&page=2'>&#187;</a>"#,
+                ),
+                (
+                    2,
+                    r#"<div class="gallerys"><a href="/j6eu91sbl9bs">Again</a><a href="/vx4oh119izyr">Two</a></div>"#,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buffer = [0u8; 4096];
