@@ -3038,6 +3038,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T555",
+              "emoji": "🖼️",
+              "name": "Fappic public original and thumbnail-token source preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned Fappic root and numeric thumbnail-host source patterns with strict untrusted input rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/fappic.rs pinned_fappic_url_aliases_and_safe_thumbnail_token; CI 40115128753"
+                },
+                {
+                  "title": "Rewrite source thumbnail token to canonical Fappic page without following user-specified foreign destinations",
+                  "passed": true,
+                  "evidence": "src/extractor/fappic.rs at_base, pinned_thumbnail_rewrite_uses_one_bounded_canonical_fetch; CI 40115128753"
+                },
+                {
+                  "title": "Parse first-party original image marker and sanitise boilerplate filename and real page token",
+                  "passed": true,
+                  "evidence": "src/extractor/fappic.rs pinned_original_selector_and_sanitized_filename_prefix and rejects_unsupported_origins_and_disallowed_names; CI 40115128753"
+                },
+                {
+                  "title": "Bound public HTML to 2 MiB, preserve typed URL/directory metadata and verify one HTTP source request",
+                  "passed": true,
+                  "evidence": "src/extractor/fappic.rs at_base, resolve_messages and one-request loopback fixture; CI 40115128753"
+                },
+                {
+                  "title": "Reproduce complete Fappic original media hosts, filenames/archive templates, redirects and live upstream differential behavior",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 112 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 113 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -594,6 +594,12 @@
   - [x] Preserve bounded source token, optional upload-date text and username in typed messages — src/extractor/imgpv.rs parse_page and resolve_messages; CI 40114488724
   - [x] Enforce 2 MiB HTML bounds and one-request local HTTP resolver fixture — src/extractor/imgpv.rs at_base, loopback_source_html_fetch_is_bounded_and_single_page; CI 40114488724
   - [ ] Complete upstream date semantics, metadata, source aliases, filename/archive policy and live differential acceptance
+- 🖼️ **T555** Fappic public original and thumbnail-token source preview — `████████░░ 80%`
+  - [x] Recognize pinned Fappic root and numeric thumbnail-host source patterns with strict untrusted input rejection — src/extractor/fappic.rs pinned_fappic_url_aliases_and_safe_thumbnail_token; CI 40115128753
+  - [x] Rewrite source thumbnail token to canonical Fappic page without following user-specified foreign destinations — src/extractor/fappic.rs at_base, pinned_thumbnail_rewrite_uses_one_bounded_canonical_fetch; CI 40115128753
+  - [x] Parse first-party original image marker and sanitise boilerplate filename and real page token — src/extractor/fappic.rs pinned_original_selector_and_sanitized_filename_prefix and rejects_unsupported_origins_and_disallowed_names; CI 40115128753
+  - [x] Bound public HTML to 2 MiB, preserve typed URL/directory metadata and verify one HTTP source request — src/extractor/fappic.rs at_base, resolve_messages and one-request loopback fixture; CI 40115128753
+  - [ ] Reproduce complete Fappic original media hosts, filenames/archive templates, redirects and live upstream differential behavior
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

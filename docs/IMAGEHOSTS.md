@@ -82,3 +82,9 @@ The Rust `silverpic` adapter recognizes strict `silverpic.net` and `silverpic.co
 Imgpv public `imgpv.com/SLUG/NAME.EXT.html` pages are matched with strict safe source identifiers. The first `img-preview` source element supplies an original image from the validated Imgpv HTTPS domain. Optional alt names, user and upload date **text** are bounded typed metadata. Neither a parsed upstream date object nor numeric source-post ID is fabricated.
 
 Source HTML is limited to **2 MiB** including streamed responses. [CI 40114488724](https://github.com/sguzman/galerith/actions/runs/40114488724) passed offline source, hostile-media and one-request HTTP tests plus the full Linux workflow. Full metadata, archive/file naming and live upstream differential parity remain unaccepted.
+
+## Fappic public originals and thumbnail-token rewrites
+
+The independently implemented Rust `fappic` adapter supports the public `fappic.com/TOKEN/FILE` and numbered thumbnail host `imgN.fappic.com/i/FOLDER/TOKEN_t/FILE` URL families. It validates the source token and constructs the canonical `https://fappic.com/TOKEN/pic.jpg` source page, then accepts only a supported first-party HTTPS original. Public alternate filename text is safely bounded and known display prefixes are removed. Source records retain the true alphanumeric token, without creating a numeric post ID.
+
+The public HTML response is limited to **2 MiB**, even when streamed. [Linux CI 40115128753](https://github.com/sguzman/galerith/actions/runs/40115128753) passed source matching, hostile-link tests, thumbnail canonicalization and loopback verification. Full metadata, filenames/archive policies, redirects and live upstream differential equivalence are still open.
