@@ -5,6 +5,7 @@ use crate::{
     message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     MediaItem,
 };
+mod listing;
 use reqwest::Client;
 use serde_json::Value;
 use std::error::Error;
@@ -19,6 +20,7 @@ pub enum Target {
     Image(String),
     Album(String),
     Gallery(String),
+    Listing(listing::Listing),
 }
 
 fn valid_id(s: &str) -> bool {
@@ -55,9 +57,14 @@ pub fn match_url(raw: &str) -> Option<Target> {
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
-        || url.query().is_some()
         || url.fragment().is_some()
     {
+        return None;
+    }
+    if let Some(listing) = listing::match_url(&url) {
+        return Some(Target::Listing(listing));
+    }
+    if url.query().is_some() {
         return None;
     }
     let segments: Vec<_> = url.path_segments()?.collect();
@@ -250,6 +257,7 @@ async fn records_at_base(
             decode_album(&value, id)
         }
         Target::Gallery(_) => Err("Imgur gallery requires deferred typed child queue".into()),
+        Target::Listing(_) => Err("Imgur public listing requires deferred typed child queues".into()),
     }
 }
 
@@ -282,6 +290,7 @@ pub async fn resolve(
 pub async fn resolve_messages(
     client: &Client,
     target: Target,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.imgur.com/")?;
     match target {
@@ -289,6 +298,7 @@ pub async fn resolve_messages(
             let value = public_json(client, &base, &format!("post/v1/posts/{id}"), false).await?;
             decode_gallery(&value, &id)
         }
+        Target::Listing(listing) => listing::resolve_messages(client, &base, listing, max_pages).await,
         other => Ok(messages_from_records(
             records_at_base(client, &other, &base).await?,
         )),

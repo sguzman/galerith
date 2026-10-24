@@ -502,7 +502,7 @@ pub async fn resolve_messages(
         return imgclick::resolve_messages(client, target).await;
     }
     if let Some(target) = imgur::match_url(input) {
-        return imgur::resolve_messages(client, target).await;
+        return imgur::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
