@@ -459,10 +459,12 @@ mod tests {
                     let path = line.split_whitespace().nth(1).unwrap();
                     let body = match path {
                         "/game-soundtracks/album/game-ost" => album_html(),
-                        "/game-soundtracks/album/game-ost/track-1" =>
-                            r#"<p><a href="https://dl.vgmsite.com/first.mp3">First</a></p>"#,
-                        "/game-soundtracks/album/game-ost/track-2" =>
-                            r#"<p><a href="https://dl.vgmsite.com/second.mp3">Second</a></p>"#,
+                        "/game-soundtracks/album/game-ost/track-1" => {
+                            r#"<p><a href="https://dl.vgmsite.com/first.mp3">First</a></p>"#
+                        }
+                        "/game-soundtracks/album/game-ost/track-2" => {
+                            r#"<p><a href="https://dl.vgmsite.com/second.mp3">Second</a></p>"#
+                        }
                         _ => panic!("unrecognized KHInsider fixture route: {path}"),
                     };
                     if path.ends_with("track-1") {
@@ -480,8 +482,11 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let album = match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
-        let result = records_at_base(&Client::new(), &album, &base).await.unwrap();
+        let album =
+            match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
+        let result = records_at_base(&Client::new(), &album, &base)
+            .await
+            .unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0.filename, "game-ost_001_first.mp3");
         assert_eq!(result[1].0.filename, "game-ost_002_second.mp3");
