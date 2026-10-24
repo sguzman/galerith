@@ -186,4 +186,84 @@ mod tests {
         assert_eq!(files[0].filename, "abc123xyz45.jpg");
         assert_eq!(files[0].post_id, None);
     }
+    #[test]
+    fn rejects_invalid_page_shapes_and_excessive_gallery_records() {
+        assert!(parse_html("<html>No public page JSON</html>").is_err());
+        assert!(parse_html("<div data-page=\"{}\"></div>").is_err());
+        let oversized = json!({"props":{"post":{
+            "files": vec![json!({"id":"abc123xyz45"}); MAX_GALLERY_FILES + 1]
+        }}});
+        assert!(gallery_files(&oversized).is_err());
+    }
+
+    #[tokio::test]
+    async fn local_public_gallery_fetches_one_page_without_media_downloads() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut headers = [0_u8; 4096];
+            let n = socket.read(&mut headers).await.unwrap();
+            let request = String::from_utf8_lossy(&headers[..n]);
+            assert!(request.starts_with("GET /p/abc123xyz45 HTTP/1.1"), "{request}");
+            let page = json!({"props":{"post":{"files":[
+                {"id":"abc123xyz45","link":"https://cdn.imgchest.com/files/abc123xyz45.png"},
+                {"id":"def456uvw78","link":"https://cdn.imgchest.com/files/def456uvw78.webp"}
+            ]}}});
+            let escaped = page.to_string().replace('"', "&quot;");
+            let body = format!("<section data-page=\"{escaped}\"></section>");
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let files = resolve_at_base(
+            &Client::new(),
+            Gallery { id: "abc123xyz45".into() },
+            &base,
+        )
+        .await
+        .unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].filename, "abc123xyz45.png");
+        assert_eq!(files[1].filename, "def456uvw78.webp");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_declared_oversized_gallery_before_reading_body() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let _ = socket.read(&mut request).await.unwrap();
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_GALLERY_HTML_BYTES + 1
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let error = resolve_at_base(
+            &Client::new(),
+            Gallery { id: "abc123xyz45".into() },
+            &base,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("response limit"));
+        server.await.unwrap();
+    }
+
 }
