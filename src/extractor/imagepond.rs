@@ -139,6 +139,54 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
     messages
 }
 
+fn next_listing_page(
+    html: &str,
+    current: &Url,
+    max_pages: u16,
+) -> Result<Option<Url>, Box<dyn Error + Send + Sync>> {
+    for part in html.split("<a").skip(1) {
+        let Some((attributes, _)) = part.split_once('>') else {
+            continue;
+        };
+        if !attributes.contains("rel=\"next\"") {
+            continue;
+        }
+        let href = attributes
+            .split_once("href=\"")
+            .and_then(|(_, suffix)| suffix.split_once('"'))
+            .map(|(href, _)| href)
+            .ok_or("ImagePond next page has no safe href")?;
+        let next = current.join(href)?;
+        if next.origin() != current.origin()
+            || next.path() != current.path()
+            || next.username() != current.username()
+            || next.password().is_some()
+            || next.fragment().is_some()
+        {
+            return Err("ImagePond next page has an unsafe origin or path".into());
+        }
+        let query: Vec<_> = next.query_pairs().collect();
+        if query.len() != 1 || query[0].0 != "page" {
+            return Err("ImagePond next page has unsupported query parameters".into());
+        }
+        let number = query[0].1.parse::<u16>()?;
+        let current_page = current
+            .query_pairs()
+            .find(|(key, _)| key == "page")
+            .map(|(_, value)| value.parse::<u16>())
+            .transpose()?
+            .unwrap_or(1);
+        if number <= current_page {
+            return Err("ImagePond next page must advance monotonically".into());
+        }
+        if number > max_pages.clamp(1, MAX_QUEUE_PAGES) {
+            return Ok(None);
+        }
+        return Ok(Some(next));
+    }
+    Ok(None)
+}
+
 async fn queue_at_base(
     client: &Client,
     target: &QueueTarget,
