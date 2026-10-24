@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 64%` across 122 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 64%` across 123 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -664,6 +664,12 @@
   - [x] Bound source HTML, track/format count and request pacing with real three-request HTTP album-to-track regression and typed dispatcher — src/extractor/khinsider.rs bounded_album_and_two_track_pages_resolve_three_local_http_requests; src/extractor/mod.rs routed registry; CI 40131835976
   - [x] Bound concurrent soundtrack track-page requests to four in-flight, preserve pacing and source order when responses finish out of order — src/extractor/khinsider.rs concurrent_song_pages_reassemble_in_source_order_when_second_finishes_first and bounded_album_and_two_track_pages_resolve_three_local_http_requests; full CI 40132207607
   - [ ] Match configurable format/cover outputs, all album metadata/filename/archive options, complete track variants and live pinned upstream differential parity
+- 📚 **T565** Keenspot guarded standard webcomic navigation and originals — `████████░░ 80%`
+  - [x] Recognize pinned public comic subdomains and explicit comic page URLs with trusted host validation — src/extractor/keenspot.rs recognized_subdomains_exclude_forums_and_untrusted_paths; full CI 40132748097
+  - [x] Extract guarded first-party comic image originals with stable filenames and source-backed page/comic identifiers — src/extractor/keenspot.rs comic_page_extracts_first_party_originals_and_source_metadata; full CI 40132748097
+  - [x] Follow bounded standard first/next comic page links, refusing foreign origins and query contamination — src/extractor/keenspot.rs next_comic_urls_reject_outside_origins_and_bad_queries; full CI 40132748097
+  - [x] Preserve ordered public comic originals through 3-request loopback HTTP fixture and typed routed messages — src/extractor/keenspot.rs bounded_two_comic_page_traversal_stays_on_origin_and_keeps_order; src/extractor/mod.rs routed fixture; full CI 40132748097
+  - [ ] Reproduce all pinned special comic navigation layouts, external embedded media, output/archive formats, unbounded archive paging and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

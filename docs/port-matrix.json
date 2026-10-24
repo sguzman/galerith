@@ -920,9 +920,14 @@
     {
       "path": "gallery_dl/extractor/keenspot.py",
       "module": "keenspot",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/keenspot.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Keenspot public comic subset: strict subdomain route validation, source first/next webcomic links and first-party images, 2 MiB HTML cap, 32-page/128-media bounded traversal, duplicate-suppressed originals, trusted decoded filenames and typed directory/URL messages. Offline three-request root/two-page HTTP regression, hostile-origin tests and full Linux CI 40132748097 passed. Pinned special site-specific navigation, video delegation and complete metadata/filename/archive and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/kemono.py",

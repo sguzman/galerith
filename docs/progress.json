@@ -3408,6 +3408,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T565",
+              "emoji": "📚",
+              "name": "Keenspot guarded standard webcomic navigation and originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned public comic subdomains and explicit comic page URLs with trusted host validation",
+                  "passed": true,
+                  "evidence": "src/extractor/keenspot.rs recognized_subdomains_exclude_forums_and_untrusted_paths; full CI 40132748097"
+                },
+                {
+                  "title": "Extract guarded first-party comic image originals with stable filenames and source-backed page/comic identifiers",
+                  "passed": true,
+                  "evidence": "src/extractor/keenspot.rs comic_page_extracts_first_party_originals_and_source_metadata; full CI 40132748097"
+                },
+                {
+                  "title": "Follow bounded standard first/next comic page links, refusing foreign origins and query contamination",
+                  "passed": true,
+                  "evidence": "src/extractor/keenspot.rs next_comic_urls_reject_outside_origins_and_bad_queries; full CI 40132748097"
+                },
+                {
+                  "title": "Preserve ordered public comic originals through 3-request loopback HTTP fixture and typed routed messages",
+                  "passed": true,
+                  "evidence": "src/extractor/keenspot.rs bounded_two_comic_page_traversal_stays_on_origin_and_keeps_order; src/extractor/mod.rs routed fixture; full CI 40132748097"
+                },
+                {
+                  "title": "Reproduce all pinned special comic navigation layouts, external embedded media, output/archive formats, unbounded archive paging and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
