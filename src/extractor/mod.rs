@@ -18,6 +18,7 @@ pub mod imagebam;
 pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
+pub mod imgclick;
 pub mod imageshack;
 pub mod imagetwist;
 pub mod imagevenue;
@@ -77,6 +78,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "imagevenue",
         "pinned public ImageVenue single-image preview",
     ),
+    ("imgclick", "pinned public Imgclick original-image preview"),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
@@ -201,6 +203,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("fappic")
     } else if imagevenue::match_url(input).is_some() {
         Some("imagevenue")
+    } else if imgclick::match_url(input).is_some() {
+        Some("imgclick")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -337,6 +341,9 @@ pub async fn resolve(
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve(client, target).await;
+    }
+    if let Some(target) = imgclick::match_url(input) {
+        return imgclick::resolve(client, target).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve(client, target).await;
@@ -480,6 +487,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imgclick::match_url(input) {
+        return imgclick::resolve_messages(client, target).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
@@ -822,6 +832,7 @@ mod tests {
             ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
+            ("https://imgclick.net/4tbrre1oxew9/test-_-_.png.html", "imgclick"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
             (
                 "https://imagetwist.com/p/gdldev/747223/digits",
