@@ -212,7 +212,10 @@ fn next_page(
 }
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
+    if response.url().origin() != url.origin() {
+        return Err("IMHentai listing redirected outside its source origin".into());
+    }
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)

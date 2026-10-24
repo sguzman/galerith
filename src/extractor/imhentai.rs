@@ -271,11 +271,15 @@ async fn records(
     gallery: &Gallery,
     base: &Url,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
+    let endpoint = base.join(&format!("gallery/{}/", gallery.id))?;
     let mut response = client
-        .get(base.join(&format!("gallery/{}/", gallery.id))?)
+        .get(endpoint.clone())
         .send()
         .await?
         .error_for_status()?;
+    if response.url().origin() != endpoint.origin() {
+        return Err("IMHentai gallery redirected outside its source origin".into());
+    }
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
