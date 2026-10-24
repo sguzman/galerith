@@ -1032,6 +1032,134 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T416",
+              "emoji": "🧬",
+              "name": "Native numeric source-post ID projection for booru media",
+              "checks": [
+                {
+                  "title": "Project only real native numeric API post IDs into typed directory and URL metadata",
+                  "passed": true,
+                  "evidence": "src/message.rs from_source_post_media and src/extractor/mod.rs; CI 40046170576"
+                },
+                {
+                  "title": "Keep Danbooru media-asset identifiers distinct from genuine source-post numbers",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs Danbooru MediaAsset exclusion; CI 40046170576"
+                },
+                {
+                  "title": "Apply source-post filtering before typed file ordinal selection",
+                  "passed": true,
+                  "evidence": "src/message.rs source_post_selector_matches_projected_native_post_before_file_ordinals; CI 40046170576"
+                },
+                {
+                  "title": "Verify e621 JSON post identities flow into source-post filtering",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs native_post_ids_from_json_feed_source_post_selector; CI 40046429653"
+                },
+                {
+                  "title": "Recover missing or text-only posts, native grouped post scopes and live upstream differential parity",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T417",
+              "emoji": "🛡️",
+              "name": "Shared bounded JSON public API response reader",
+              "checks": [
+                {
+                  "title": "Reject declared oversized JSON bodies before reading them",
+                  "passed": true,
+                  "evidence": "src/extractor/http_json.rs rejects_oversized_content_length_without_body; CI 40045987953"
+                },
+                {
+                  "title": "Enforce response byte caps for chunked/streamed bodies and malformed JSON",
+                  "passed": true,
+                  "evidence": "src/extractor/http_json.rs rejects_oversized_chunked_body_and_malformed_json; CI 40045987953"
+                },
+                {
+                  "title": "Integrate bounded JSON into e621 and Philomena without changing public extractors",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs and philomena.rs; CI 40045987953"
+                },
+                {
+                  "title": "Integrate bounded JSON into Danbooru, Gelbooru and Moebooru and preserve existing fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/danbooru.rs, gelbooru.rs, moebooru.rs; CI 40046320687"
+                },
+                {
+                  "title": "Extend reviewed response guards across all API-backed upstream extractors with live differential and security tests",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T418",
+              "emoji": "⏩",
+              "name": "e621-family popular and favorites finite API stopping",
+              "checks": [
+                {
+                  "title": "Reuse validated-media page ceiling for e621 popular and favorites endpoints",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs resolve_at_base_bounded; CI 40042896536"
+                },
+                {
+                  "title": "Propagate finite file ordinal bounds through native typed dispatcher only for order-safe routes",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs e621 Target::Popular and Target::Favorites; CI 40042896536"
+                },
+                {
+                  "title": "Prevent extra HTTP pages after valid first-page media is collected",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs finite_ceiling_also_stops_e621_popular_and_favorites_after_first_page; CI 40042896536"
+                },
+                {
+                  "title": "Keep pool, artist and ordinary unfiltered resolver routes unchanged",
+                  "passed": true,
+                  "evidence": "src/extractor/e621.rs resolve_limited fallback and existing offline tests; CI 40042896536"
+                },
+                {
+                  "title": "Match full upstream selected-media, post and child predicate and streaming stop semantics",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T419",
+              "emoji": "🦄",
+              "name": "Philomena search/gallery selected-media API page minimization",
+              "checks": [
+                {
+                  "title": "Push finite typed file ordinals into Philomena public search and gallery resolvers",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs and philomena.rs resolve_limited; CI 40042877773"
+                },
+                {
+                  "title": "Avoid second HTTP pages when the first full response contains enough valid files",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs finite_gallery_limit_skips_later_full_api_pages; CI 40042877773"
+                },
+                {
+                  "title": "Keep source image counts independent of valid media when pagination requires additional pages",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs finite_search_limit_counts_only_usable_media_across_full_pages; CI 40042877773"
+                },
+                {
+                  "title": "Preserve unfiltered image/search/gallery resolution and existing page conventions",
+                  "passed": true,
+                  "evidence": "src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773"
+                },
+                {
+                  "title": "Complete upstream pagination, filters, site auth, metadata and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
             }
           ]
         },
@@ -2362,6 +2490,38 @@
                 },
                 {
                   "title": "Reproduce all pinned upstream collection metadata, inherited queue job semantics and live differential acceptance",
+                  "passed": false
+                }
+              ],
+              "progress": 80
+            },
+            {
+              "id": "T538",
+              "emoji": "🌐",
+              "name": "Directlink typed source metadata and upstream extension subset",
+              "checks": [
+                {
+                  "title": "Recognize additional pinned upstream directlink media/archive extensions",
+                  "passed": true,
+                  "evidence": "src/lib.rs recognizes_additional_pinned_directlink_media_extensions; CI 40043179773"
+                },
+                {
+                  "title": "Emit typed direct URL domain/subcategory/path/stem/extension/optional query and fragment fields",
+                  "passed": true,
+                  "evidence": "src/extractor/directlink.rs directory_and_url_keep_direct_link_identity_and_optional_fields; CI 40043179773"
+                },
+                {
+                  "title": "Preserve safe flattened filename and existing untyped JSON format",
+                  "passed": true,
+                  "evidence": "tests/message_cli.rs directlink_message_dump_preserves_native_source_fields_without_changing_flat_json; CI 40043179773"
+                },
+                {
+                  "title": "Verify typed metadata does not turn encoded path data into filesystem traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/directlink.rs root_directory_and_path_separators_remain_data_only; CI 40043179773"
+                },
+                {
+                  "title": "Reproduce complete upstream directlink matching, referrer headers, filename/archive templates and differential behavior",
                   "passed": false
                 }
               ],

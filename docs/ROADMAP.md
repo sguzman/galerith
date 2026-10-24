@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 58%` across 91 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 59%` across 96 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,10 +119,10 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 72%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 73%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 68%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -212,6 +212,30 @@
   - [x] Count source posts separately from downloadable media so a full page with missing files still continues — src/extractor/e621.rs bounded_tag_search_ignores_missing_media_before_stopping_page_requests; CI 40042426957
   - [x] Preserve existing unfiltered e621 pagination and avoid finite pushdown on unsupported pool, artist and feed routes — src/extractor/e621.rs paginate_posts wrapper, resolve_limited Search gate; existing tests and CI 40042426957
   - [ ] Match complete upstream post/file/child selector and streaming early-stop semantics with live differential parity
+- 🧬 **T416** Native numeric source-post ID projection for booru media — `████████░░ 80%`
+  - [x] Project only real native numeric API post IDs into typed directory and URL metadata — src/message.rs from_source_post_media and src/extractor/mod.rs; CI 40046170576
+  - [x] Keep Danbooru media-asset identifiers distinct from genuine source-post numbers — src/extractor/mod.rs Danbooru MediaAsset exclusion; CI 40046170576
+  - [x] Apply source-post filtering before typed file ordinal selection — src/message.rs source_post_selector_matches_projected_native_post_before_file_ordinals; CI 40046170576
+  - [x] Verify e621 JSON post identities flow into source-post filtering — src/extractor/e621.rs native_post_ids_from_json_feed_source_post_selector; CI 40046429653
+  - [ ] Recover missing or text-only posts, native grouped post scopes and live upstream differential parity
+- 🛡️ **T417** Shared bounded JSON public API response reader — `████████░░ 80%`
+  - [x] Reject declared oversized JSON bodies before reading them — src/extractor/http_json.rs rejects_oversized_content_length_without_body; CI 40045987953
+  - [x] Enforce response byte caps for chunked/streamed bodies and malformed JSON — src/extractor/http_json.rs rejects_oversized_chunked_body_and_malformed_json; CI 40045987953
+  - [x] Integrate bounded JSON into e621 and Philomena without changing public extractors — src/extractor/e621.rs and philomena.rs; CI 40045987953
+  - [x] Integrate bounded JSON into Danbooru, Gelbooru and Moebooru and preserve existing fixtures — src/extractor/danbooru.rs, gelbooru.rs, moebooru.rs; CI 40046320687
+  - [ ] Extend reviewed response guards across all API-backed upstream extractors with live differential and security tests
+- ⏩ **T418** e621-family popular and favorites finite API stopping — `████████░░ 80%`
+  - [x] Reuse validated-media page ceiling for e621 popular and favorites endpoints — src/extractor/e621.rs resolve_at_base_bounded; CI 40042896536
+  - [x] Propagate finite file ordinal bounds through native typed dispatcher only for order-safe routes — src/extractor/mod.rs e621 Target::Popular and Target::Favorites; CI 40042896536
+  - [x] Prevent extra HTTP pages after valid first-page media is collected — src/extractor/e621.rs finite_ceiling_also_stops_e621_popular_and_favorites_after_first_page; CI 40042896536
+  - [x] Keep pool, artist and ordinary unfiltered resolver routes unchanged — src/extractor/e621.rs resolve_limited fallback and existing offline tests; CI 40042896536
+  - [ ] Match full upstream selected-media, post and child predicate and streaming stop semantics
+- 🦄 **T419** Philomena search/gallery selected-media API page minimization — `████████░░ 80%`
+  - [x] Push finite typed file ordinals into Philomena public search and gallery resolvers — src/extractor/mod.rs and philomena.rs resolve_limited; CI 40042877773
+  - [x] Avoid second HTTP pages when the first full response contains enough valid files — src/extractor/philomena.rs finite_gallery_limit_skips_later_full_api_pages; CI 40042877773
+  - [x] Keep source image counts independent of valid media when pagination requires additional pages — src/extractor/philomena.rs finite_search_limit_counts_only_usable_media_across_full_pages; CI 40042877773
+  - [x] Preserve unfiltered image/search/gallery resolution and existing page conventions — src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773
+  - [ ] Complete upstream pagination, filters, site auth, metadata and live differential acceptance
 
 ### 🧱 P5 — Shared website families — `███████░░░ 74%`
 
@@ -468,6 +492,12 @@
   - [x] Keep unique collection ID order and first-record metadata while honoring existing page, request and queue caps — src/extractor/wallhaven.rs deduplicated multi-page queue fixture; CI 40042133689
   - [x] Preserve existing default flattened collection media extraction and test projection — src/extractor/wallhaven.rs append_user_collections, collection_ids and flattened gallery fixtures; CI 40042133689
   - [ ] Reproduce all pinned upstream collection metadata, inherited queue job semantics and live differential acceptance
+- 🌐 **T538** Directlink typed source metadata and upstream extension subset — `████████░░ 80%`
+  - [x] Recognize additional pinned upstream directlink media/archive extensions — src/lib.rs recognizes_additional_pinned_directlink_media_extensions; CI 40043179773
+  - [x] Emit typed direct URL domain/subcategory/path/stem/extension/optional query and fragment fields — src/extractor/directlink.rs directory_and_url_keep_direct_link_identity_and_optional_fields; CI 40043179773
+  - [x] Preserve safe flattened filename and existing untyped JSON format — tests/message_cli.rs directlink_message_dump_preserves_native_source_fields_without_changing_flat_json; CI 40043179773
+  - [x] Verify typed metadata does not turn encoded path data into filesystem traversal — src/extractor/directlink.rs root_directory_and_path_separators_remain_data_only; CI 40043179773
+  - [ ] Reproduce complete upstream directlink matching, referrer headers, filename/archive templates and differential behavior
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
