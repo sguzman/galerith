@@ -11,6 +11,7 @@ pub mod e621;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourchan;
+pub mod twoch;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
@@ -77,6 +78,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
+    ("2ch", "pinned 2ch public threads and bounded board queues"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
@@ -214,6 +216,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("gelbooru_v02")
     } else if fourchan::match_url(input).is_some() || fourchan::match_board_url(input).is_some() {
         Some("4chan")
+    } else if twoch::match_url(input).is_some() {
+        Some("2ch")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
@@ -357,6 +361,9 @@ pub async fn resolve(
     }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve(client, target).await;
+    }
+    if let Some(target) = twoch::match_url(input) {
+        return twoch::resolve(client, target).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board(client, &board, max_pages).await;
@@ -551,6 +558,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve_messages(client, target).await;
+    }
+    if let Some(target) = twoch::match_url(input) {
+        return twoch::resolve_messages(client, target, max_pages).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
@@ -926,6 +936,8 @@ mod tests {
         let fixtures = [
             ("https://example.org/file.jpg", "directlink"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
+            ("https://2ch.org/a/res/12345.html", "2ch"),
+            ("https://2ch.org/a/", "2ch"),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
