@@ -1,16 +1,19 @@
 //! Conservative public ImageChest gallery preview. No API access token or
 //! account/user profile support is implied by this read-only HTML adapter.
 use crate::{
-    message::{media_metadata, ExtractorMessage},
+    message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
 };
 use reqwest::Client;
 use serde_json::Value;
-use std::{collections::HashSet, error::Error};
+use std::{collections::HashSet, error::Error, time::Duration};
 use url::Url;
 
 const MAX_GALLERY_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_GALLERY_FILES: usize = 256;
+const MAX_USER_INDEX_PAGES: u16 = 4;
+const MAX_USER_INDEX_QUEUES: usize = 32;
+const MAX_USER_INDEX_RECORDS: usize = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Gallery {
@@ -38,6 +41,143 @@ pub fn match_url(input: &str) -> Option<Gallery> {
         _ => return None,
     };
     Some(Gallery { id: id.into() })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserProfile {
+    pub username: String,
+}
+
+fn valid_user(value: &str) -> bool {
+    (1..=40).contains(&value.len())
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+}
+
+pub fn match_user_url(input: &str) -> Option<UserProfile> {
+    let url = Url::parse(input).ok()?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("imgchest.com" | "www.imgchest.com"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = url.path_segments()?.collect();
+    let username = match parts.as_slice() {
+        ["u", name] | ["u", name, ""] if valid_user(name) => *name,
+        _ => return None,
+    };
+    Some(UserProfile {
+        username: username.to_owned(),
+    })
+}
+
+fn user_gallery_queues(
+    body: &Value,
+    username: &str,
+    seen: &mut HashSet<String>,
+    output: &mut Vec<ExtractorMessage>,
+) -> Result<usize, Box<dyn Error + Send + Sync>> {
+    let posts = body
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or("ImageChest profile index must contain a post array")?;
+    if posts.len() > MAX_USER_INDEX_RECORDS {
+        return Err("ImageChest profile index exceeds the record limit".into());
+    }
+    for post in posts {
+        let Some(id) = post.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if !valid_id(id)
+            || post
+                .get("privacy")
+                .and_then(Value::as_str)
+                .is_some_and(|privacy| privacy != "public")
+            || post
+                .get("username")
+                .and_then(Value::as_str)
+                .is_some_and(|owner| owner != username)
+        {
+            continue;
+        }
+        if !seen.insert(id.to_owned()) {
+            continue;
+        }
+        let mut metadata = Metadata::new();
+        metadata.insert("category".into(), "imagechest".into());
+        metadata.insert("subcategory".into(), "gallery".into());
+        metadata.insert("username".into(), username.into());
+        metadata.insert("gallery_id".into(), id.into());
+        if let Some(title) = post.get("title").and_then(Value::as_str) {
+            if !title.is_empty()
+                && title.len() <= 256
+                && !title.chars().any(char::is_control)
+            {
+                metadata.insert("title".into(), title.into());
+            }
+        }
+        output.push(queued_url(
+            format!("https://imgchest.com/p/{id}"),
+            metadata,
+        ));
+        if output.len() >= MAX_USER_INDEX_QUEUES {
+            break;
+        }
+    }
+    Ok(posts.len())
+}
+
+async fn queue_user_at_base(
+    client: &Client,
+    user: &UserProfile,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let mut events = Vec::new();
+    let mut seen = HashSet::new();
+    for page in 1..=max_pages.max(1).min(MAX_USER_INDEX_PAGES) {
+        let mut endpoint = base.join("api/posts")?;
+        endpoint
+            .query_pairs_mut()
+            .append_pair("page", &page.to_string())
+            .append_pair("sort", "new")
+            .append_pair("tag", "")
+            .append_pair("q", "")
+            .append_pair("username", &user.username)
+            .append_pair("nsfw", "true");
+        let body =
+            super::http_json::fetch_json_limited(client, endpoint, MAX_GALLERY_HTML_BYTES)
+                .await?;
+        let raw_count = user_gallery_queues(&body, &user.username, &mut seen, &mut events)?;
+        if events.len() >= MAX_USER_INDEX_QUEUES || raw_count == 0 {
+            break;
+        }
+        match body.pointer("/links/next") {
+            Some(Value::Null) => break,
+            Some(Value::String(_)) => {}
+            Some(_) => return Err("ImageChest profile index has invalid continuation".into()),
+            None if raw_count < 15 => break,
+            None => {}
+        }
+        if page < max_pages.min(MAX_USER_INDEX_PAGES) {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+    Ok(events)
+}
+
+/// Read-only user profile listing: deferred public gallery URLs, never files.
+pub async fn queued_user_galleries(
+    client: &Client,
+    user: &UserProfile,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    queue_user_at_base(client, user, max_pages, &Url::parse("https://imgchest.com/")?).await
 }
 
 fn gallery_files(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
