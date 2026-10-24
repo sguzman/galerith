@@ -18,3 +18,12 @@ Added `postimg.cc/ID`, `postimages.org/ID`, `pixxxels.cc/ID` and the correspondi
 Public galleries use up to four read-only JSON `/json?action=list&page=N&album=ID` requests, limited to 2 MiB each and 128 unique queued image tokens overall, with one-second pacing and original order preserved. Queue metadata can include bounded width, height and filename hints. Foreign and malformed tokens are discarded, and URL normalization of dot segments cannot reclassify malformed galleries as files.
 
 Verified with [CI 40055715703](https://github.com/sguzman/galerith/actions/runs/40055715703). The full upstream module and complete Postimages gallery title, metadata, filename/archive, aliases and live-site parity are still unaccepted.
+
+
+## Imxto public images and guarded gallery queues
+
+The pinned `imx.to/i/ID`, `imx.to/img-ID.html` and `img.yt/img-ID.html` public image shapes are normalized to safe first-party `imx.to` requests. The image form uses a read-only `POST` with the upstream public continue parameter `imgContinue`, reads a 2 MiB-bounded HTML page, and selects trusted `https://image.imx.to/` originals, preserving the token and safe original or fallback filename.
+
+Public `imx.to/g/ID` galleries traverse up to four bounded pages and emit up to 128 distinct deferred file queues. Links must be actual first-party anchor attributes; page fragments, encoded path separators, foreign-host URLs and script-only strings are excluded. Pages are read with one-second pacing and deduplication.
+
+[CI 40056127227](https://github.com/sguzman/galerith/actions/runs/40056127227) passed formatting, Clippy, tests, release build and acceptance consistency. This is synthetic offline evidence, not live parity. Imxto full sizes, dimensions, hashes, gallery title, filename/archive and complete upstream behavior remain unaccepted.

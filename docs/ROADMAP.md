@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 104 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 105 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `███████░░░ 73%`
+## 🧩 M2 — Extractor framework and site families — `███████░░░ 74%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
@@ -546,6 +546,12 @@
   - [x] Traverse gallery JSON read-only under 2 MiB body, 4-page, 128-file limits with valid source tokens and one-second pacing — src/extractor/postimg.rs gallery_at_base and parse_gallery_page; CI 40055715703
   - [x] Emit ordered deduplicated typed gallery queues with scalar width/height/name hints and test two local JSON pages — src/extractor/postimg.rs gallery_queue_validates_tokens_deduplicates_and_bounds_records and gallery_follows_two_bounded_api_pages_and_deduplicates; CI 40055715703
   - [ ] Complete Postimages gallery title, full metadata and filename policy, all original aliases, paging/range behavior and live reference parity
+- 🌠 **T547** Pinned imagehosts Imxto public image and guarded gallery subset — `████████░░ 80%`
+  - [x] Match pinned imx.to/i, legacy img-HTML and img.yt aliases while excluding unsafe source origins — src/extractor/imxto.rs pinned_imxto_and_imgyt_image_gallery_routes_are_safe; CI 40056127227
+  - [x] Resolve public image POST continue forms into trusted HTTPS image.imx.to originals and safe names — src/extractor/imxto.rs image_at_base, image_from_html, pinned_original_image_and_filename_are_projected_safely and public_image_request_uses_one_bounded_post_form; CI 40056127227
+  - [x] Enforce 2 MiB HTML response bounds, 4 gallery pages and 128 unique child queues with safe anchors and pacing — src/extractor/imxto.rs read_limited_html, gallery_children and gallery_at_base; CI 40056127227
+  - [x] Preserve gallery/token scope and deduplicated first-party image queues across two offline HTTP pages — src/extractor/imxto.rs gallery_queues_only_canonical_safe_image_anchors_in_order and gallery_pagination_is_capped_and_deduplicates_across_two_pages; CI 40056127227
+  - [ ] Complete Imxto original filesize/dimension/hash metadata, full album title/pagination, filename/archive templates and live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

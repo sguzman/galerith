@@ -2782,6 +2782,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T547",
+              "emoji": "🌠",
+              "name": "Pinned imagehosts Imxto public image and guarded gallery subset",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned imx.to/i, legacy img-HTML and img.yt aliases while excluding unsafe source origins",
+                  "passed": true,
+                  "evidence": "src/extractor/imxto.rs pinned_imxto_and_imgyt_image_gallery_routes_are_safe; CI 40056127227"
+                },
+                {
+                  "title": "Resolve public image POST continue forms into trusted HTTPS image.imx.to originals and safe names",
+                  "passed": true,
+                  "evidence": "src/extractor/imxto.rs image_at_base, image_from_html, pinned_original_image_and_filename_are_projected_safely and public_image_request_uses_one_bounded_post_form; CI 40056127227"
+                },
+                {
+                  "title": "Enforce 2 MiB HTML response bounds, 4 gallery pages and 128 unique child queues with safe anchors and pacing",
+                  "passed": true,
+                  "evidence": "src/extractor/imxto.rs read_limited_html, gallery_children and gallery_at_base; CI 40056127227"
+                },
+                {
+                  "title": "Preserve gallery/token scope and deduplicated first-party image queues across two offline HTTP pages",
+                  "passed": true,
+                  "evidence": "src/extractor/imxto.rs gallery_queues_only_canonical_safe_image_anchors_in_order and gallery_pagination_is_capped_and_deduplicates_across_two_pages; CI 40056127227"
+                },
+                {
+                  "title": "Complete Imxto original filesize/dimension/hash metadata, full album title/pagination, filename/archive templates and live upstream differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
