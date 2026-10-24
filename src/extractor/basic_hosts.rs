@@ -19,7 +19,7 @@ pub enum Host {
 }
 
 impl Host {
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Acidimg => "acidimg",
             Self::Vipr => "vipr",
