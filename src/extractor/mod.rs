@@ -34,6 +34,7 @@ pub mod picstate;
 pub mod pixeldrain;
 pub mod postimg;
 pub mod speakerdeck;
+pub mod silverpic;
 pub mod telegraph;
 pub mod turboimagehost;
 pub mod unsplash;
@@ -120,6 +121,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Postimages files and bounded gallery queues",
     ),
     ("speakerdeck", "public presentation slide images via oEmbed"),
+    ("silverpic", "pinned public Silverpic original-image subset"),
     (
         "telegraph",
         "public article images and embedded figure filters",
@@ -177,6 +179,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("pixhost")
     } else if imgadult::match_url(input).is_some() {
         Some("imgadult")
+    } else if silverpic::match_url(input).is_some() {
+        Some("silverpic")
     } else if let Some(target) = imgdrive::match_url(input) {
         Some(target.family.category())
     } else if imxto::match_url(input).is_some() {
@@ -297,6 +301,9 @@ pub async fn resolve(
     }
     if let Some(target) = imgadult::match_url(input) {
         return imgadult::resolve(client, target).await;
+    }
+    if let Some(target) = silverpic::match_url(input) {
+        return silverpic::resolve(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve(client, target).await;
@@ -422,6 +429,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imgadult::match_url(input) {
         return imgadult::resolve_messages(client, target).await;
+    }
+    if let Some(target) = silverpic::match_url(input) {
+        return silverpic::resolve_messages(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve_messages(client, target).await;
@@ -751,6 +761,7 @@ mod tests {
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
+            ("https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html", "silverpic"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
