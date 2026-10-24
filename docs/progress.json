@@ -3642,6 +3642,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T572",
+              "emoji": "🗃️",
+              "name": "4archive bounded public thread attachments and board queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned 4archive board and thread URLs with validated numeric IDs and hostile-origin rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/fourarchive.rs pinned_board_and_thread_routes_enforce_first_party_and_page_bounds; CI 40140834057"
+                },
+                {
+                  "title": "Extract trusted original attachments, source post identifiers, optional author/date/comment and thread title",
+                  "passed": true,
+                  "evidence": "src/extractor/fourarchive.rs source_post_originals_keep_title_author_comment_and_safe_media; CI 40140834057"
+                },
+                {
+                  "title": "Bound public board discovery with same-board numeric thread queues and deduplication",
+                  "passed": true,
+                  "evidence": "src/extractor/fourarchive.rs board_deduplicates_scoped_numeric_thread_ids; CI 40140834057"
+                },
+                {
+                  "title": "Enforce bounded HTML and source origin with actual thread and board HTTP GET fixtures and typed dispatcher",
+                  "passed": true,
+                  "evidence": "src/extractor/fourarchive.rs thread_and_board_bounded_http_requests_use_first_party_routes; src/extractor/mod.rs; full CI 40140834057"
+                },
+                {
+                  "title": "Reproduce full original 4archive post/date/file-size/dimension and archive/filename semantics, unrestricted board history and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

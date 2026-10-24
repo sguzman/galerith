@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 129 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 130 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -708,6 +708,12 @@
   - [x] Preserve safe pinned TIM.ext original filenames and source author/comment/time fields while excluding foreign CDN and jump links — src/extractor/twochan.rs pinned_post_attachments_keep_original_names_and_post_provenance; CI 40139483057
   - [x] Cap streamed public thread HTML to 2 MiB and media count to 160, with single-source request loopback HTTP fixture — src/extractor/twochan.rs bounded_thread_uses_one_local_http_get_and_two_ordered_files; Rust format/Clippy/tests/release CI 40139483057
   - [ ] Match full upstream per-post metadata, board-name exact formatting, file-size/date semantics, archive templates, extra media layouts and live differential parity
+- 🗃️ **T572** 4archive bounded public thread attachments and board queues — `████████░░ 80%`
+  - [x] Route pinned 4archive board and thread URLs with validated numeric IDs and hostile-origin rejection — src/extractor/fourarchive.rs pinned_board_and_thread_routes_enforce_first_party_and_page_bounds; CI 40140834057
+  - [x] Extract trusted original attachments, source post identifiers, optional author/date/comment and thread title — src/extractor/fourarchive.rs source_post_originals_keep_title_author_comment_and_safe_media; CI 40140834057
+  - [x] Bound public board discovery with same-board numeric thread queues and deduplication — src/extractor/fourarchive.rs board_deduplicates_scoped_numeric_thread_ids; CI 40140834057
+  - [x] Enforce bounded HTML and source origin with actual thread and board HTTP GET fixtures and typed dispatcher — src/extractor/fourarchive.rs thread_and_board_bounded_http_requests_use_first_party_routes; src/extractor/mod.rs; full CI 40140834057
+  - [ ] Reproduce full original 4archive post/date/file-size/dimension and archive/filename semantics, unrestricted board history and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

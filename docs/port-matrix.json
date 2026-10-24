@@ -58,9 +58,14 @@
     {
       "path": "gallery_dl/extractor/4archive.py",
       "module": "4archive",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fourarchive.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded public 4archive board/thread source: exact origin routes, source HTML 2 MiB cap, 256-post/160-media thread and four-page/128-thread board bounds, 1-second board pacing, strict trusted media origins and first-seen thread/media dedup, source-backed title/name/date/comment metadata, typed URLs and queued child threads. Offline unit and real thread/board GET fixtures, all Linux CI 40140834057 passed. Live site, complete upstream non-media post events, parsed dates, dimensions, file sizes and templates unverified."
+      ]
     },
     {
       "path": "gallery_dl/extractor/4chan.py",
