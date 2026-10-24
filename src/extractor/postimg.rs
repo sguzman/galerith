@@ -27,10 +27,17 @@ fn valid_token(s: &str) -> bool {
 pub fn match_url(input: &str) -> Option<Target> {
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some(
-            "postimg.cc" | "www.postimg.cc" | "postimages.org" |
-            "www.postimages.org" | "pixxxels.cc" | "www.pixxxels.cc"
-        ))
+        || !matches!(
+            url.host_str(),
+            Some(
+                "postimg.cc"
+                    | "www.postimg.cc"
+                    | "postimages.org"
+                    | "www.postimages.org"
+                    | "pixxxels.cc"
+                    | "www.pixxxels.cc"
+            )
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -61,8 +68,13 @@ fn safe_media_link(raw: &str) -> Option<(Url, String)> {
     }
     let name = url.path_segments()?.next_back()?;
     let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-    if name.is_empty() || name.len() > 240 || name.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    if name.is_empty()
+        || name.len() > 240
+        || name.contains('%')
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -83,17 +95,27 @@ fn media_from_page(
     html: &str,
     token: &str,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    let offset = html.find(" id=\"download\"")
+    let offset = html
+        .find(" id=\"download\"")
         .ok_or("Postimages page has no public download anchor")?;
-    let anchor = html[..offset].rfind("<a").ok_or("Postimages download marker is not on an anchor")?;
-    let tag = html[anchor..].split_once('>').ok_or("Postimages download anchor is incomplete")?.0;
-    let raw = tag.split_once(" href=\"")
+    let anchor = html[..offset]
+        .rfind("<a")
+        .ok_or("Postimages download marker is not on an anchor")?;
+    let tag = html[anchor..]
+        .split_once('>')
+        .ok_or("Postimages download anchor is incomplete")?
+        .0;
+    let raw = tag
+        .split_once(" href=\"")
         .and_then(|(_, rest)| rest.split_once('"'))
         .map(|(link, _)| link)
         .ok_or("Postimages download anchor has no href")?;
-    let (url, fallback) = safe_media_link(raw)
-        .ok_or("Postimages public media link has an unsupported origin")?;
-    let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+    let (url, fallback) =
+        safe_media_link(raw).ok_or("Postimages public media link has an unsupported origin")?;
+    let ext = fallback
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or("jpg");
     let filename = tag
         .split_once(" alt=\"")
         .and_then(|(_, rest)| rest.split_once('"'))
@@ -108,10 +130,16 @@ fn media_from_page(
                 return None;
             }
             let has_ext = text.rsplit_once('.').is_some_and(|(_, extension)| {
-                matches!(extension.to_ascii_lowercase().as_str(),
-                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+                matches!(
+                    extension.to_ascii_lowercase().as_str(),
+                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+                )
             });
-            let name = if has_ext { text } else { format!("{text}.{ext}") };
+            let name = if has_ext {
+                text
+            } else {
+                format!("{text}.{ext}")
+            };
             Some(safe_filename(&name))
         })
         .unwrap_or(fallback);
@@ -124,13 +152,19 @@ fn media_from_page(
     let mut meta = media_metadata(&item);
     meta.insert("subcategory".into(), "image".into());
     meta.insert("token".into(), token.into());
-    meta.insert("post_url".into(), format!("https://postimg.cc/{token}").into());
+    meta.insert(
+        "post_url".into(),
+        format!("https://postimg.cc/{token}").into(),
+    );
     Ok((item, meta))
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|v| v > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|v| v > MAX_HTML_BYTES as u64)
+    {
         return Err("Postimages public HTML exceeded byte limit".into());
     }
     let mut bytes = Vec::new();
@@ -158,14 +192,20 @@ fn parse_gallery_page(
     seen: &mut HashSet<String>,
     events: &mut Vec<ExtractorMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    let images = value.get("images").and_then(Value::as_array)
+    let images = value
+        .get("images")
+        .and_then(Value::as_array)
         .ok_or("Postimages gallery API has no images array")?;
     if images.len() > MAX_GALLERY_ITEMS {
         return Err("Postimages gallery page exceeds row limit".into());
     }
     for entry in images {
-        let Some(fields) = entry.as_array() else { continue };
-        let Some(token) = fields.get(1).and_then(Value::as_str) else { continue };
+        let Some(fields) = entry.as_array() else {
+            continue;
+        };
+        let Some(token) = fields.get(1).and_then(Value::as_str) else {
+            continue;
+        };
         if !valid_token(token) || !seen.insert(token.to_owned()) {
             continue;
         }
@@ -175,17 +215,21 @@ fn parse_gallery_page(
         meta.insert("gallery_id".into(), gallery.into());
         meta.insert("token".into(), token.into());
         for (key, index) in [("width", 4), ("height", 5)] {
-            if let Some(value) = fields.get(index).and_then(Value::as_u64)
+            if let Some(value) = fields
+                .get(index)
+                .and_then(Value::as_u64)
                 .filter(|v| (1..=32768).contains(v))
             {
                 meta.insert(key.into(), value.into());
             }
         }
-        if let Some(name) = fields.get(2).and_then(Value::as_str)
-            .filter(|s| !s.is_empty() && s.len() <= 230
-                && !s.contains('/') && !s.contains('\\')
-                && !s.chars().any(char::is_control))
-        {
+        if let Some(name) = fields.get(2).and_then(Value::as_str).filter(|s| {
+            !s.is_empty()
+                && s.len() <= 230
+                && !s.contains('/')
+                && !s.contains('\\')
+                && !s.chars().any(char::is_control)
+        }) {
             meta.insert("filename_hint".into(), name.into());
         }
         events.push(queued_url(format!("https://postimg.cc/{token}"), meta));
@@ -193,7 +237,10 @@ fn parse_gallery_page(
             return Ok(false);
         }
     }
-    Ok(value.get("has_page_next").and_then(Value::as_bool).unwrap_or(false))
+    Ok(value
+        .get("has_page_next")
+        .and_then(Value::as_bool)
+        .unwrap_or(false))
 }
 
 async fn gallery_at_base(
@@ -206,7 +253,8 @@ async fn gallery_at_base(
     let mut events = Vec::new();
     for page in 1..=max_pages.clamp(1, MAX_GALLERY_PAGES) {
         let mut endpoint = base.join("json")?;
-        endpoint.query_pairs_mut()
+        endpoint
+            .query_pairs_mut()
             .append_pair("action", "list")
             .append_pair("page", &page.to_string())
             .append_pair("album", id);
@@ -227,7 +275,8 @@ pub async fn resolve(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::File(token) => {
-            let (item, _) = file_at_base(client, &token, &Url::parse("https://postimg.cc/")?).await?;
+            let (item, _) =
+                file_at_base(client, &token, &Url::parse("https://postimg.cc/")?).await?;
             Ok(vec![item])
         }
         Target::Gallery(_) => {
@@ -246,8 +295,13 @@ pub async fn resolve_messages(
             let (item, metadata) =
                 file_at_base(client, &token, &Url::parse("https://postimg.cc/")?).await?;
             Ok(vec![
-                ExtractorMessage::Directory { metadata: metadata.clone() },
-                ExtractorMessage::Url { url: item.url, metadata },
+                ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                },
+                ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                },
             ])
         }
         Target::Gallery(id) => {
@@ -260,7 +314,10 @@ pub async fn resolve_messages(
 mod tests {
     use super::*;
     use serde_json::json;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn file_and_gallery_routes_match_pinned_public_aliases() {
@@ -287,7 +344,10 @@ mod tests {
     fn image_download_anchor_accepts_pinned_url_and_rejects_foreign_file() {
         let html = r#"<a id="download" href="https://i.postimg.cc/PhJZt1Rw/test-tesuto.png?dl=1" alt="Test &amp; Art">Download</a>"#;
         let (file, meta) = media_from_page(html, "Wtn2b3hC").unwrap();
-        assert_eq!(file.url, "https://i.postimg.cc/PhJZt1Rw/test-tesuto.png?dl=1");
+        assert_eq!(
+            file.url,
+            "https://i.postimg.cc/PhJZt1Rw/test-tesuto.png?dl=1"
+        );
         assert_eq!(file.filename, "Test & Art.png");
         assert_eq!(meta["token"], "Wtn2b3hC");
         assert!(media_from_page("<html></html>", "Wtn2b3hC").is_err());
@@ -314,8 +374,14 @@ mod tests {
         let mut events = Vec::new();
         assert!(!parse_gallery_page(&data, "wxpDLgX", &mut seen, &mut events).unwrap());
         assert_eq!(events.len(), 2);
-        assert_eq!(serde_json::to_value(&events[0]).unwrap()["url"], "https://postimg.cc/Wtn2b3hC");
-        assert_eq!(serde_json::to_value(&events[1]).unwrap()["metadata"]["width"], 400);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["url"],
+            "https://postimg.cc/Wtn2b3hC"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["metadata"]["width"],
+            400
+        );
     }
 
     #[tokio::test]
@@ -335,7 +401,9 @@ mod tests {
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (media, _) = file_at_base(&Client::new(), "Wtn2b3hC", &base).await.unwrap();
+        let (media, _) = file_at_base(&Client::new(), "Wtn2b3hC", &base)
+            .await
+            .unwrap();
         assert_eq!(media.filename, "test.png");
         server.await.unwrap();
     }
@@ -345,7 +413,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for (page, token, more) in [(1,"Wtn2b3hC",true),(2,"Z9Y6srnT",false)] {
+            for (page, token, more) in [(1, "Wtn2b3hC", true), (2, "Z9Y6srnT", false)] {
                 let (mut stream, _) = listener.accept().await.unwrap();
                 let mut buf = [0_u8; 4096];
                 let n = stream.read(&mut buf).await.unwrap();
@@ -362,7 +430,9 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = gallery_at_base(&Client::new(), "wxpDLgX", 3, &base).await.unwrap();
+        let events = gallery_at_base(&Client::new(), "wxpDLgX", 3, &base)
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
     }

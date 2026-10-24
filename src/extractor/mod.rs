@@ -97,7 +97,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pixeldrain",
         "public file, list and nonrecursive filesystem JSON APIs",
     ),
-    ("postimg", "public Postimages files and bounded gallery queues"),
+    (
+        "postimg",
+        "public Postimages files and bounded gallery queues",
+    ),
     ("speakerdeck", "public presentation slide images via oEmbed"),
     (
         "telegraph",
