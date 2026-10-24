@@ -341,6 +341,100 @@ mod tests {
     }
 
     #[test]
+    fn profile_routes_and_gallery_queue_ids_are_strictly_validated() {
+        assert_eq!(
+            match_user_url("https://imgchest.com/u/Public_User"),
+            Some(UserProfile {
+                username: "Public_User".into()
+            })
+        );
+        for invalid in [
+            "https://imgchest.com/u/",
+            "https://imgchest.com/u/a%2Fb",
+            "https://imgchest.com/u/name?token=x",
+            "http://imgchest.com/u/name",
+            "https://imgchest.com/u/name/other",
+        ] {
+            assert!(match_user_url(invalid).is_none(), "{invalid}");
+        }
+        let index = json!({"data":[
+            {"id":"abc123xyz45","username":"alice","title":"Safe title","privacy":"public"},
+            {"id":"abc123xyz45","username":"alice","title":"Duplicate"},
+            {"id":"def456uvw78","username":"alice","privacy":"secret"},
+            {"id":"ghi789jkl01","username":"someoneelse"},
+            {"id":"bad/id","username":"alice"}
+        ]});
+        let mut seen = HashSet::new();
+        let mut queue = Vec::new();
+        assert_eq!(
+            user_gallery_queues(&index, "alice", &mut seen, &mut queue).unwrap(),
+            5
+        );
+        assert_eq!(queue.len(), 1);
+        let value = serde_json::to_value(&queue[0]).unwrap();
+        assert_eq!(value["type"], "queue");
+        assert_eq!(value["url"], "https://imgchest.com/p/abc123xyz45");
+        assert_eq!(value["metadata"]["gallery_id"], "abc123xyz45");
+        assert_eq!(value["metadata"]["title"], "Safe title");
+        assert!(user_gallery_queues(
+            &json!({"data":vec![json!({"id":"abc123xyz45"}); MAX_USER_INDEX_RECORDS + 1]}),
+            "alice",
+            &mut seen,
+            &mut queue,
+        )
+        .is_err());
+    }
+
+    #[tokio::test]
+    async fn profile_queue_paginates_locally_without_following_server_urls() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (page, id) in [(1, "abc123xyz45"), (2, "def456uvw78")] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                let text = String::from_utf8_lossy(&request[..n]);
+                assert!(text.starts_with("GET /api/posts?"), "{text}");
+                assert!(text.contains(&format!("page={page}")), "{text}");
+                assert!(text.contains("username=alice"), "{text}");
+                let next = if page == 1 {
+                    json!("https://untrusted.invalid/next")
+                } else {
+                    Value::Null
+                };
+                let body = json!({"data":[{"id":id}],"links":{"next":next}}).to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let api = Url::parse(&format!("http://{addr}/")).unwrap();
+        let user = UserProfile {
+            username: "alice".into(),
+        };
+        let events = queue_user_at_base(&Client::new(), &user, 3, &api)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["url"],
+            "https://imgchest.com/p/abc123xyz45"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["url"],
+            "https://imgchest.com/p/def456uvw78"
+        );
+        server.await.unwrap();
+    }
+
+    #[test]
     fn decodes_public_page_json_and_filters_untrusted_or_duplicate_media() {
         let data = json!({"props":{"post":{"files":[
             {"id":"abc123xyz45","link":"https://cdn.imgchest.com/files/abc123xyz45.jpg"},
