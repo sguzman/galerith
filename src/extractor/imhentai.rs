@@ -124,6 +124,79 @@ fn gallery_title(html: &str) -> Option<String> {
     Some(title)
 }
 
+/// Extract only visible public gallery descriptors already present in the
+/// pinned info list. Do not infer tags from image URLs or site defaults.
+fn gallery_context(html: &str) -> Metadata {
+    let mut metadata = Metadata::new();
+    if let Some(alt) = html
+        .split_once("class=\"subtitle\">")
+        .and_then(|(_, tail)| tail.split_once('<'))
+        .map(|(text, _)| text.trim())
+    {
+        if !alt.is_empty()
+            && alt.len() <= 200
+            && !alt.chars().any(char::is_control)
+        {
+            metadata.insert("title_alt".into(), alt.replace("&amp;", "&").into());
+        }
+    }
+    if let Some(kind) = html
+        .split_once("href='/category/")
+        .or_else(|| html.split_once("href=\"/category/"))
+        .and_then(|(_, tail)| tail.split_once('/'))
+        .map(|(name, _)| name)
+    {
+        if !kind.is_empty()
+            && kind.len() <= 40
+            && kind.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+        {
+            metadata.insert("type".into(), kind.to_owned().into());
+        }
+    }
+    let Some(info) = html
+        .split_once("class=\"galleries_info")
+        .and_then(|(_, tail)| tail.split_once("</ul>"))
+        .map(|(body, _)| body)
+    else {
+        return metadata;
+    };
+    for (key, heading) in [
+        ("parody", "Parodies"),
+        ("character", "Characters"),
+        ("tags", "Tags"),
+        ("artist", "Artists"),
+        ("group", "Groups"),
+        ("language", "Languages"),
+    ] {
+        let mut values = Vec::new();
+        for row in info.split("<li").skip(1).take(64) {
+            let row = row.split_once("</li>").map(|(body, _)| body).unwrap_or(row);
+            if !row.contains(&format!(">{heading}")) {
+                continue;
+            }
+            for anchor in row.split("<a ").skip(1).take(64) {
+                let Some((_, content)) = anchor.split_once('>') else {
+                    continue;
+                };
+                let raw = content.split_once('<').map(|(text, _)| text.trim()).unwrap_or("");
+                if raw.is_empty()
+                    || raw.len() > 120
+                    || raw.chars().any(char::is_control)
+                {
+                    continue;
+                }
+                values.push(raw.replace("&amp;", "&").replace("&#39;", "'"));
+            }
+        }
+        if !values.is_empty() {
+            values.sort();
+            values.dedup();
+            metadata.insert(key.to_owned(), serde_json::json!(values));
+        }
+    }
+    metadata
+}
+
 fn parse_gallery(
     html: &str,
     gallery: &Gallery,
@@ -145,6 +218,7 @@ fn parse_gallery(
 
     let count = map.len();
     let title = gallery_title(html);
+    let context = gallery_context(html);
     let mut items = Vec::with_capacity(count);
     for page in 1..=count {
         let value = map
@@ -186,6 +260,9 @@ fn parse_gallery(
         );
         if let Some(title) = &title {
             meta.insert("title".into(), title.clone().into());
+        }
+        for (name, value) in &context {
+            meta.insert(name.clone(), value.clone());
         }
         items.push((item, meta));
     }
@@ -306,6 +383,21 @@ mod tests {
         assert_eq!(media[0].1["gallery_id"], 12345);
         assert_eq!(media[0].1["title"], "A & B");
         assert!(media.iter().all(|(item, _)| item.post_id.is_none()));
+    }
+
+    #[test]
+    fn visible_gallery_descriptors_keep_source_supported_lists_and_subtitle() {
+        let gallery = match_url("https://imhentai.xxx/gallery/12345/").unwrap();
+        let html = r#"<h1>Primary</h1><div class="subtitle">Alternate &amp; name</div><a href='/category/manga/'>Type</a><ul class="galleries_info"><li><b>Artists</b><a href="/artist/b/">Zeta</a><a href="/artist/a/">Alpha</a><a href="/artist/z/">Zeta</a></li><li><b>Tags</b><a href="/tag/a/">Blue &amp; sky</a></li><li><b>Languages</b><a href="/language/a/">English</a></li></ul><img data-src="https://img.imhentai.xxx/galleries/12345/1t.jpg"><script>$.parseJSON('{"1":"j,800,1000"}')</script>"#;
+        let items = parse_gallery(html, &gallery).unwrap();
+        let meta = &items[0].1;
+        assert_eq!(meta["title"], "Primary");
+        assert_eq!(meta["title_alt"], "Alternate & name");
+        assert_eq!(meta["type"], "manga");
+        assert_eq!(meta["artist"], serde_json::json!(["Alpha", "Zeta"]));
+        assert_eq!(meta["tags"], serde_json::json!(["Blue & sky"]));
+        assert_eq!(meta["language"], serde_json::json!(["English"]));
+        assert!(meta.get("parody").is_none());
     }
 
     #[test]
