@@ -211,7 +211,10 @@ mod tests {
             let mut headers = [0_u8; 4096];
             let n = socket.read(&mut headers).await.unwrap();
             let request = String::from_utf8_lossy(&headers[..n]);
-            assert!(request.starts_with("GET /p/abc123xyz45 HTTP/1.1"), "{request}");
+            assert!(
+                request.starts_with("GET /p/abc123xyz45 HTTP/1.1"),
+                "{request}"
+            );
             let page = json!({"props":{"post":{"files":[
                 {"id":"abc123xyz45","link":"https://cdn.imgchest.com/files/abc123xyz45.png"},
                 {"id":"def456uvw78","link":"https://cdn.imgchest.com/files/def456uvw78.webp"}
@@ -227,7 +230,9 @@ mod tests {
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let files = resolve_at_base(
             &Client::new(),
-            Gallery { id: "abc123xyz45".into() },
+            Gallery {
+                id: "abc123xyz45".into(),
+            },
             &base,
         )
         .await
@@ -259,7 +264,9 @@ mod tests {
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let error = resolve_at_base(
             &Client::new(),
-            Gallery { id: "abc123xyz45".into() },
+            Gallery {
+                id: "abc123xyz45".into(),
+            },
             &base,
         )
         .await
@@ -267,5 +274,4 @@ mod tests {
         assert!(error.to_string().contains("response limit"));
         server.await.unwrap();
     }
-
 }
