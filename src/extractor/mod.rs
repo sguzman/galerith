@@ -36,6 +36,7 @@ pub mod issuu;
 pub mod keenspot;
 pub mod khinsider;
 pub mod lexica;
+pub mod lensdump;
 pub mod lightroom;
 pub mod listal;
 pub mod moebooru;
@@ -100,6 +101,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "listal",
         "pinned public Listal images and people-picture queues",
     ),
+    ("lensdump", "pinned Lensdump public image and album originals"),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
@@ -235,6 +237,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("issuu")
     } else if listal::match_url(input).is_some() {
         Some("listal")
+    } else if lensdump::match_url(input).is_some() {
+        Some("lensdump")
     } else if khinsider::match_url(input).is_some() {
         Some("khinsider")
     } else if keenspot::match_url(input).is_some() {
@@ -390,6 +394,9 @@ pub async fn resolve(
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve(client, target).await;
+    }
+    if let Some(target) = lensdump::match_url(input) {
+        return lensdump::resolve(client, target, 4).await;
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve(client, album).await;
@@ -560,6 +567,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = lensdump::match_url(input) {
+        return lensdump::resolve_messages(client, target, max_pages).await;
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve_messages(client, album).await;
@@ -922,6 +932,8 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
+            ("https://lensdump.com/i/Abc12", "lensdump"),
+            ("https://lensdump.com/a/Abc12", "lensdump"),
             ("https://story.keenspot.com/comic/one/", "keenspot"),
             (
                 "https://downloads.khinsider.com/game-soundtracks/album/game-ost",
