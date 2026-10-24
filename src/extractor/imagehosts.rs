@@ -165,8 +165,9 @@ fn gallery_queue(html: &str, id: &str) -> Vec<ExtractorMessage> {
         return queue;
     };
     let fragment = fragment.split_once("</div>").map(|(f, _)| f).unwrap_or(fragment);
-    for (_, after_href) in fragment.match_indices("href=\"") {
-        let Some((raw, _)) = after_href["href=\"".len()..].split_once('"') else {
+    for (position, _) in fragment.match_indices("href=\"") {
+        let suffix = &fragment[position + "href=\"".len()..];
+        let Some((raw, _)) = suffix.split_once('"') else {
             continue;
         };
         let Some(Pixhost::File { path, token, directory }) = match_url(raw) else {
