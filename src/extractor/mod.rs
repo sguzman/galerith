@@ -1,5 +1,6 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
+pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
@@ -15,7 +16,6 @@ pub mod http_json;
 pub mod imagebam;
 pub mod imagechest;
 pub mod imagehosts;
-pub mod basic_hosts;
 pub mod imagepond;
 pub mod imageshack;
 pub mod imgbb;
@@ -710,7 +710,10 @@ mod tests {
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
             ("https://vipr.im/kcd5jcuhgs3v.html", "vipr"),
-            ("https://imgspice.com/q1taxkhxprrn/example.jpg.html", "imgspice"),
+            (
+                "https://imgspice.com/q1taxkhxprrn/example.jpg.html",
+                "imgspice",
+            ),
             ("https://imx.to/i/1qdeva", "imxto"),
             ("https://imx.to/g/ozdy", "imxto"),
             ("https://picstate.com/view/full/23416694_sfyue", "picstate"),

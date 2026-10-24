@@ -95,7 +95,10 @@ pub fn match_url(input: &str) -> Option<Target> {
         _ => return None,
     };
     if !safe_token(token)
-        || (host == Host::Acidimg && !token.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
+        || (host == Host::Acidimg
+            && !token
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
         || (host == Host::Imgspice
             && parts
                 .iter()
@@ -110,7 +113,12 @@ pub fn match_url(input: &str) -> Option<Target> {
     })
 }
 
-fn attribute_after<'a>(body: &'a str, marker: &str, attribute: &str, quote: char) -> Option<&'a str> {
+fn attribute_after<'a>(
+    body: &'a str,
+    marker: &str,
+    attribute: &str,
+    quote: char,
+) -> Option<&'a str> {
     let rest = body.split_once(marker)?.1;
     let prefix = format!("{attribute}={quote}");
     let before = rest.split_once('>')?.0;
@@ -138,7 +146,10 @@ fn media_link(host: Host, raw: &str) -> Option<(Url, String)> {
         return None;
     }
     let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(extension.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let safe = safe_filename(&filename);
@@ -155,12 +166,18 @@ fn trusted_name(name: Option<&str>, extension: &str) -> Option<String> {
     {
         return None;
     }
-    let decoded = name.replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'");
+    let decoded = name
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'");
     if decoded.chars().any(char::is_control) {
         return None;
     }
     let candidate = if decoded.rsplit_once('.').is_some_and(|(_, ext)| {
-        matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        matches!(
+            ext.to_ascii_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     }) {
         decoded
     } else {
@@ -169,7 +186,10 @@ fn trusted_name(name: Option<&str>, extension: &str) -> Option<String> {
     Some(safe_filename(&candidate))
 }
 
-fn parse_media(body: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+fn parse_media(
+    body: &str,
+    target: &Target,
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let (raw, alt) = match target.host {
         Host::Acidimg => {
             let (start, quote) = if body.contains("<img class='centred'") {
@@ -183,8 +203,8 @@ fn parse_media(body: &str, target: &Target) -> Result<(MediaItem, Metadata), Box
             (url, name)
         }
         Host::Vipr => {
-            let url = attribute_after(body, "<img ", "src", '"')
-                .ok_or("Vipr public image is absent")?;
+            let url =
+                attribute_after(body, "<img ", "src", '"').ok_or("Vipr public image is absent")?;
             let name = attribute_after(body, "<img ", "alt", '"');
             (url, name)
         }
@@ -286,10 +306,22 @@ mod tests {
     #[test]
     fn pinned_acidimg_vipr_and_imgspice_routes_are_narrow() {
         for (url, host, token) in [
-            ("https://acidimg.cc/img-5acb6b9de4640.html", Host::Acidimg, "5acb6b9de4640"),
-            ("https://vipr.im/kcd5jcuhgs3v.html", Host::Vipr, "kcd5jcuhgs3v"),
+            (
+                "https://acidimg.cc/img-5acb6b9de4640.html",
+                Host::Acidimg,
+                "5acb6b9de4640",
+            ),
+            (
+                "https://vipr.im/kcd5jcuhgs3v.html",
+                Host::Vipr,
+                "kcd5jcuhgs3v",
+            ),
             ("https://vipr.im/yyqomiutt768", Host::Vipr, "yyqomiutt768"),
-            ("https://imgspice.com/q1taxkhxprrn/58410038_cal022jsp_308191001.jpg.html", Host::Imgspice, "q1taxkhxprrn"),
+            (
+                "https://imgspice.com/q1taxkhxprrn/58410038_cal022jsp_308191001.jpg.html",
+                Host::Imgspice,
+                "q1taxkhxprrn",
+            ),
         ] {
             let target = match_url(url).expect(url);
             assert_eq!(target.host, host);
@@ -361,7 +393,11 @@ mod tests {
             let n = socket.read(&mut request).await.unwrap();
             let line = String::from_utf8_lossy(&request[..n]);
             assert!(line.starts_with("POST /img-abc123.html HTTP/1.1"), "{line}");
-            assert!(line.to_ascii_lowercase().contains("content-type: application/x-www-form-urlencoded"), "{line}");
+            assert!(
+                line.to_ascii_lowercase()
+                    .contains("content-type: application/x-www-form-urlencoded"),
+                "{line}"
+            );
             let body = "<img class='centred' src='https://img.acidimg.cc/files/abc123.png' alt='Original'>";
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
