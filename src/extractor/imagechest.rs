@@ -155,7 +155,9 @@ mod tests {
     fn matches_exact_public_gallery_shape_only() {
         assert_eq!(
             match_url("https://www.imgchest.com/p/abc123xyz45"),
-            Some(Gallery { id: "abc123xyz45".into() })
+            Some(Gallery {
+                id: "abc123xyz45".into()
+            })
         );
         for invalid in [
             "https://imgchest.com/u/user",
