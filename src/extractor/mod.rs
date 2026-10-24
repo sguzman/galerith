@@ -18,6 +18,7 @@ pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
 pub mod imagebam;
+pub mod fivehundredpx;
 pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
@@ -191,6 +192,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public prompt-image searches over POST cursor API",
     ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
+    ("500px", "public 500px single-photo expanded source originals"),
     (
         "3dbooru",
         "pinned Behoimi post, tag, pool and popular Moebooru routes",
@@ -241,6 +243,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("philomena")
     } else if photovogue::match_url(input).is_some() {
         Some("photovogue")
+    } else if fivehundredpx::match_url(input).is_some() {
+        Some("500px")
     } else if moebooru::is_3dbooru(input) {
         Some("3dbooru")
     } else if moebooru::match_url(input).is_some() {
@@ -397,6 +401,9 @@ pub async fn resolve(
     }
     if let Some(target) = photovogue::match_url(input) {
         return photovogue::resolve(client, target, max_pages).await;
+    }
+    if let Some(photo) = fivehundredpx::match_url(input) {
+        return fivehundredpx::resolve(client, photo).await;
     }
     if let Some(target) = moebooru::match_url(input) {
         return moebooru::resolve(client, target, max_pages).await;
@@ -747,6 +754,9 @@ pub async fn resolve_messages(
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
+    }
+    if let Some(photo) = fivehundredpx::match_url(input) {
+        return fivehundredpx::resolve_messages(client, photo).await;
     }
     if let Some(target) = moebooru::match_url(input) {
         return Ok(from_source_post_media(
@@ -1165,6 +1175,7 @@ mod tests {
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
             ("http://behoimi.org/post/show/44", "3dbooru"),
+            ("https://500px.com/photo/12345/Golden-Landscape", "500px"),
             ("https://derpibooru.org/images/123", "philomena"),
             ("https://pixeldrain.com/u/File12", "pixeldrain"),
         ];
