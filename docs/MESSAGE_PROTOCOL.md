@@ -21,10 +21,14 @@ per-extractor and depth policies.
 ## Read-only CLI preview
 
 Use `galerith --dump-messages 'https://example.org/image.jpg'`
-for newline-delimited JSON. The current direct-media adapter emits a
-`directory` event followed by a `url` event. It exposes only native fields:
-`category`, `extractor`, `filename` and, when known, `post_id`.
-It does not infer source-site metadata already lost in a flattened list.
+for newline-delimited JSON. The native direct-media adapter emits a
+`directory` event followed by a `url` event, with `category`, `extractor`,
+`filename`, `domain`, `subcategory`, URL `path`, filename `stem` and
+`extension`, plus optional decoded `query` and `fragment`. These source fields
+are derived from the input URL, not inferred from an external API. The regular
+`--dump-json` output remains the established flattened `MediaItem` schema.
+The generic adapters for other sites do not infer metadata already lost in
+a flattened list.
 
 For `https://wallhaven.cc/user/USER/favorites` the same flag instead reads
 the public collection index and emits `queue` events for validated unique
@@ -49,7 +53,7 @@ remain visible as deferred events. Cycles do not recurse forever.
 
 The iterative job carries parent directory/queue context into child messages,
 but child-supplied values take precedence. It deliberately strips inherited
-`filename`, `extractor` and `post_id` at child boundaries so an unrelated
+`filename`, `extractor`, `post_id` and `source_post_id` at child boundaries so an unrelated
 parent media identity cannot contaminate child files.
 
 **Opt-in file jobs:** `galerith --follow-queues 'URL'` resolves queued children
