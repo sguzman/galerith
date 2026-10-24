@@ -157,7 +157,9 @@ fn next_page(
         return Ok(None);
     }
     let next = current.join(raw)?;
-    if next.scheme() != "https"
+    // The public entry point always starts with HTTPS. Compare to the
+    // already-validated origin so the local HTTP fixture follows the same rule.
+    if next.scheme() != current.scheme()
         || next.host_str() != current.host_str()
         || !next.username().is_empty()
         || next.password().is_some()
