@@ -27,9 +27,14 @@
     {
       "path": "gallery_dl/extractor/2chen.py",
       "module": "2chen",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/twochen.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded pinned 2chen public HTML thread and catalog adapter: sturdychan.help/2chen.moe/2chen.club and schan.help, strict board/ID routing, public first-party originals from media articles with post name, date source, hash, source filename and post ID; bounded 2 MiB HTML, 128 media/thread and 128 catalog children; one thread plus one catalog HTTP loopback test. Full Linux format, Clippy, tests and release build CI 40138833991 passed. Complete date/archive templates, custom layout versions and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/35photo.py",

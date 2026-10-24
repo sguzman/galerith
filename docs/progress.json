@@ -3578,6 +3578,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T570",
+              "emoji": "🧵",
+              "name": "2chen public HTML thread and catalog media preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned sturdychan/schan public thread and board catalog routes, including 2chen.moe/.club source aliases",
+                  "passed": true,
+                  "evidence": "src/extractor/twochen.rs canonical_sturdychan_schan_and_2chen_aliases_are_scoped; src/extractor/mod.rs route fixture; CI 40138833991"
+                },
+                {
+                  "title": "Extract source-backed public thread media and author/date/hash/post ID fields from bounded HTML with trusted original URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/twochen.rs thread_html_produces_source_order_post_ids_and_safe_download_names; CI 40138833991"
+                },
+                {
+                  "title": "Emit bounded first-party catalog-to-thread deferred queues with first-seen deduplication and hostile-origin rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/twochen.rs catalog_queues_exact_first_party_thread_urls_and_deduplicates; CI 40138833991"
+                },
+                {
+                  "title": "Verify thread and catalog extraction with separate real local HTTP GET fixtures, streamed 2 MiB HTML limits and media/queue caps",
+                  "passed": true,
+                  "evidence": "src/extractor/twochen.rs public_thread_request_returns_two_safe_originals and public_catalog_request_queues_two_thread_children; full Rust CI 40138833991"
+                },
+                {
+                  "title": "Match every pinned layout, full UTC date conversion, original archive/directory/filename templates and live 2chen source differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

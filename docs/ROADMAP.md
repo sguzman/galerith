@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 127 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 128 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -696,6 +696,12 @@
   - [x] Emit deferred, first-seen 2ch board thread queues across bounded index and page JSON, rejecting malformed and duplicate IDs — src/extractor/twoch.rs board_queues_deduplicate_first_seen_numeric_thread_ids; CI 40138163930
   - [x] Enforce bounded public JSON responses, thread media and board pagination with one-thread and two-page loopback HTTP regressions — src/extractor/twoch.rs thread_api_reads_single_bounded_json_request and board_index_and_page_follow_ordered_deferred_children; CI 40138163930
   - [ ] Match every pinned date/filename/directory/archive metadata, unlimited board pages, alternative file formats and live upstream differential parity
+- 🧵 **T570** 2chen public HTML thread and catalog media preview — `████████░░ 80%`
+  - [x] Recognize pinned sturdychan/schan public thread and board catalog routes, including 2chen.moe/.club source aliases — src/extractor/twochen.rs canonical_sturdychan_schan_and_2chen_aliases_are_scoped; src/extractor/mod.rs route fixture; CI 40138833991
+  - [x] Extract source-backed public thread media and author/date/hash/post ID fields from bounded HTML with trusted original URLs — src/extractor/twochen.rs thread_html_produces_source_order_post_ids_and_safe_download_names; CI 40138833991
+  - [x] Emit bounded first-party catalog-to-thread deferred queues with first-seen deduplication and hostile-origin rejection — src/extractor/twochen.rs catalog_queues_exact_first_party_thread_urls_and_deduplicates; CI 40138833991
+  - [x] Verify thread and catalog extraction with separate real local HTTP GET fixtures, streamed 2 MiB HTML limits and media/queue caps — src/extractor/twochen.rs public_thread_request_returns_two_safe_originals and public_catalog_request_queues_two_thread_children; full Rust CI 40138833991
+  - [ ] Match every pinned layout, full UTC date conversion, original archive/directory/filename templates and live 2chen source differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
