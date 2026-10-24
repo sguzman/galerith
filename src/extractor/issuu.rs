@@ -319,6 +319,16 @@ mod tests {
         .is_err());
     }
 
+    #[test]
+    fn pinned_escaped_hydration_inside_script_wrapper_is_parsed_as_data() {
+        let publication = match_url("https://issuu.com/press/docs/fall-2026").unwrap();
+        let html = r#"<script>window.__STATE__ = "{\"documentTextVersion\":1,\"initialDocumentData\":{\"document\":{\"revisionId\":\"rev12\",\"publicationId\":\"pub34\",\"pageCount\":2,\"username\":\"press\"}}}";</script>"#;
+        let pages = records(html, &publication).unwrap();
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0].0.url, "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg");
+        assert_eq!(pages[1].1["num"], 2);
+    }
+
     #[tokio::test]
     async fn bounded_public_html_uses_one_get_for_document() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

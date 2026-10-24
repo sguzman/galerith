@@ -76,6 +76,41 @@ fn parse_docs(html: &str) -> Option<Vec<Value>> {
                 if let Some(docs) = docs_node(&value, 0) {
                     return Some(docs.clone());
                 }
+            // The pinned Issuu user page can embed an escaped docs array
+            // inside script serialization rather than a JSON root.
+            if let Some(marker) = decoded.find("\"docs\":") {
+                if let Some(offset) = decoded[marker..].find('[') {
+                    let start = marker + offset;
+                    let mut level = 0usize;
+                    let mut quoted = false;
+                    let mut escape = false;
+                    for (index, byte) in decoded.as_bytes().iter().enumerate().skip(start) {
+                        if escape {
+                            escape = false;
+                            continue;
+                        }
+                        if quoted && *byte == b'\\' {
+                            escape = true;
+                        } else if *byte == b'"' {
+                            quoted = !quoted;
+                        } else if !quoted {
+                            if *byte == b'[' {
+                                level += 1;
+                            } else if *byte == b']' {
+                                level -= 1;
+                                if level == 0 {
+                                    if let Some(body) = decoded.get(start..=index) {
+                                        if let Ok(docs) = serde_json::from_str::<Vec<Value>>(body) {
+                                            return Some(docs);
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             }
         }
     }
@@ -224,6 +259,16 @@ mod tests {
         assert_eq!(first["url"], "https://issuu.com/press/docs/a");
         assert_eq!(first["metadata"]["username"], "press");
         assert_eq!(first["metadata"]["publication_slug"], "a");
+    }
+
+    #[test]
+    fn pinned_escaped_publisher_docs_array_is_decoded_without_script_execution() {
+        let publisher = match_url("https://issuu.com/press").unwrap();
+        let html = r#"<script>window.__STATE__ = "{\"docs\":[{\"uri\":\"press/docs/a\"},{\"uri\":\"press/docs/b\"}]}";</script>"#;
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        assert_eq!(decode_user_page(html, &publisher, &mut seen, &mut result).unwrap(), 2);
+        assert_eq!(result.len(), 2);
     }
 
     #[tokio::test]
