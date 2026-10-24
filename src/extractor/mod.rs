@@ -15,6 +15,7 @@ pub mod http_json;
 pub mod imagebam;
 pub mod imagechest;
 pub mod imagehosts;
+pub mod basic_hosts;
 pub mod imagepond;
 pub mod imageshack;
 pub mod imgbb;
@@ -75,6 +76,9 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pixhost",
         "public Pixhost image pages and safe gallery queues",
     ),
+    ("acidimg", "pinned public Acidimg POST image preview"),
+    ("vipr", "pinned public Vipr image preview"),
+    ("imgspice", "pinned public Imgspice image preview"),
     ("imagepond", "public ImagePond single-file OG media pages"),
     ("picstate", "public Picstate original image pages"),
     ("imxto", "pinned Imxto single images and guarded galleries"),
@@ -156,6 +160,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
     } else if imagechest::match_url(input).is_some() || imagechest::match_user_url(input).is_some()
     {
         Some("imagechest")
+    } else if let Some(target) = basic_hosts::match_url(input) {
+        Some(target.host.name())
     } else if imagehosts::match_url(input).is_some() {
         Some("pixhost")
     } else if imxto::match_url(input).is_some() {
@@ -264,6 +270,9 @@ pub async fn resolve(
     if let Some(target) = imagechest::match_url(input) {
         return imagechest::resolve(client, target).await;
     }
+    if let Some(target) = basic_hosts::match_url(input) {
+        return basic_hosts::resolve(client, target).await;
+    }
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve(client, target).await;
     }
@@ -371,6 +380,9 @@ pub async fn resolve_messages(
     }
     if let Some(gallery) = imagechest::match_url(input) {
         return imagechest::resolve_messages(client, gallery).await;
+    }
+    if let Some(target) = basic_hosts::match_url(input) {
+        return basic_hosts::resolve_messages(client, target).await;
     }
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve_messages(client, target).await;
@@ -696,6 +708,9 @@ mod tests {
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
+            ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
+            ("https://vipr.im/kcd5jcuhgs3v.html", "vipr"),
+            ("https://imgspice.com/q1taxkhxprrn/example.jpg.html", "imgspice"),
             ("https://imx.to/i/1qdeva", "imxto"),
             ("https://imx.to/g/ozdy", "imxto"),
             ("https://picstate.com/view/full/23416694_sfyue", "picstate"),
