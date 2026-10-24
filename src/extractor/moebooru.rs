@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::{error::Error, time::Duration};
 use url::Url;
 
+const MOEBOORU_JSON_RESPONSE_LIMIT: usize = 8 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Query {
     Post(u64),
@@ -188,13 +190,9 @@ async fn resolve_at_base_limited(
                 query.append_pair(key, value);
             }
         }
-        let body: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         return Ok(parse_items(&body, target.category)?
             .into_iter()
             .take(media_limit)
@@ -219,8 +217,9 @@ async fn resolve_at_base_limited(
             .append_pair("tags", &tags)
             .append_pair("limit", "100")
             .append_pair("page", &page.to_string());
-        let response = client.get(endpoint).send().await?.error_for_status()?;
-        let body: Value = response.json().await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let short_page = body
             .as_array()
             .ok_or("Moebooru API returned non-array JSON")?

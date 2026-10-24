@@ -7,6 +7,8 @@ use serde_json::Value;
 use std::{error::Error, time::Duration};
 use url::Url;
 
+const GELBOORU_JSON_RESPONSE_LIMIT: usize = 8 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post(u64),
@@ -155,8 +157,9 @@ async fn resolve_at_base_limited(
                 }
             }
         }
-        let response = client.get(url).send().await?.error_for_status()?;
-        let body: Value = response.json().await?;
+        let body: Value =
+            super::http_json::fetch_json_limited(client, url, GELBOORU_JSON_RESPONSE_LIMIT)
+                .await?;
         let source_count = source_post_count(&body)?;
         let fresh = parse_posts(&body, base)?;
         let done = matches!(target, Target::Post(_)) || source_count < 100;
