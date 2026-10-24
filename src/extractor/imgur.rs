@@ -124,7 +124,7 @@ fn media_record(
     Some((item, meta))
 }
 
-fn unwrap_data<'a>(value: &'a Value) -> &'a Value {
+fn unwrap_data(value: &Value) -> &Value {
     value.get("data").unwrap_or(value)
 }
 
