@@ -140,7 +140,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
     } else if imagechest::match_url(input).is_some() || imagechest::match_user_url(input).is_some()
     {
         Some("imagechest")
-    } else if imagepond::match_url(input).is_some() {
+    } else if imagepond::match_url(input).is_some()
+        || imagepond::match_queue_url(input).is_some()
+    {
         Some("imagepond")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
@@ -244,6 +246,9 @@ pub async fn resolve(
     if let Some(target) = imagepond::match_url(input) {
         return imagepond::resolve(client, target).await;
     }
+    if imagepond::match_queue_url(input).is_some() {
+        return Err("ImagePond album/profile traversal requires --follow-queues or --dump-messages".into());
+    }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
     }
@@ -323,6 +328,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagepond::match_url(input) {
         return imagepond::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imagepond::match_queue_url(input) {
+        return imagepond::resolve_queue_messages(client, target).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
@@ -624,6 +632,7 @@ mod tests {
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
             ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://www.imagepond.net/i/abc123", "imagepond"),
+            ("https://www.imagepond.net/a/gallery123", "imagepond"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),

@@ -1,14 +1,15 @@
 //! Independent public ImagePond single-file page preview.
 //! Album/profile queue pagination and full Chevereto metadata remain open.
 use crate::{
-    message::{media_metadata, ExtractorMessage},
+    message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
 };
 use reqwest::Client;
-use std::error::Error;
+use std::{collections::HashSet, error::Error};
 use url::Url;
 
 const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+const MAX_QUEUE_CHILDREN: usize = 48;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
@@ -48,6 +49,108 @@ pub fn match_url(input: &str) -> Option<Target> {
         path: format!("{route}/{id}"),
         id: (*id).to_owned(),
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueueTarget {
+    Album(String),
+    User(String),
+}
+
+/// Public first-page album and explicit /user/ profile routes. Upstream
+/// supports more aliases and pagination; those remain future work.
+pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
+    let url = Url::parse(input).ok()?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("imagepond.net" | "www.imagepond.net"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+    {
+        return None;
+    }
+    let path: Vec<_> = url.path_segments()?.collect();
+    match path.as_slice() {
+        ["a" | "album", id] if safe_slug(id) => Some(QueueTarget::Album((*id).into())),
+        ["user", name] if safe_slug(name) => Some(QueueTarget::User((*name).into())),
+        _ => None,
+    }
+}
+
+fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMessage> {
+    let mut candidates = Vec::new();
+    for marker in ["/i/", "/video/"] {
+        for (position, _) in html.match_indices(marker) {
+            let suffix = &html[position + marker.len()..];
+            let len = suffix
+                .bytes()
+                .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+                .count();
+            let id = &suffix[..len];
+            if !safe_slug(id) || suffix.as_bytes().get(len) == Some(&b'/') {
+                continue;
+            }
+            candidates.push((position, marker, id.to_owned()));
+        }
+    }
+    candidates.sort_by_key(|(position, _, _)| *position);
+    let mut seen = HashSet::new();
+    let mut messages = Vec::new();
+    for (_, marker, id) in candidates {
+        let url = format!("https://www.imagepond.net{marker}{id}");
+        if !seen.insert(url.clone()) {
+            continue;
+        }
+        let mut metadata = Metadata::new();
+        metadata.insert("category".into(), "imagepond".into());
+        metadata.insert("subcategory".into(), "file".into());
+        metadata.insert("file_id".into(), id.into());
+        match target {
+            QueueTarget::Album(id) => {
+                metadata.insert("album_id".into(), id.clone().into());
+            }
+            QueueTarget::User(name) => {
+                metadata.insert("username".into(), name.clone().into());
+            }
+        }
+        messages.push(queued_url(url, metadata));
+        if messages.len() >= MAX_QUEUE_CHILDREN {
+            break;
+        }
+    }
+    messages
+}
+
+async fn queue_at_base(
+    client: &Client,
+    target: &QueueTarget,
+    base: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let route = match target {
+        QueueTarget::Album(id) => format!("a/{id}"),
+        QueueTarget::User(name) => format!("user/{name}"),
+    };
+    let endpoint = base.join(&route)?;
+    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    if response.content_length().is_some_and(|size| size > MAX_HTML_BYTES as u64) {
+        return Err("ImagePond listing HTML exceeds byte limit".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
+            return Err("ImagePond listing HTML exceeds byte limit".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(collect_queue_messages(std::str::from_utf8(&body)?, target))
+}
+
+pub async fn resolve_queue_messages(
+    client: &Client,
+    target: QueueTarget,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    queue_at_base(client, &target, &Url::parse("https://www.imagepond.net/")?).await
 }
 
 fn property(html: &str, name: &str) -> Option<String> {
@@ -195,6 +298,67 @@ mod tests {
         ] {
             assert!(match_url(url).is_none(), "{url}");
         }
+    }
+
+    #[test]
+    fn album_user_routes_and_deferred_media_queues_are_bounded() {
+        assert_eq!(
+            match_queue_url("https://imagepond.net/a/gallery123"),
+            Some(QueueTarget::Album("gallery123".into()))
+        );
+        assert_eq!(
+            match_queue_url("https://www.imagepond.net/user/public-user"),
+            Some(QueueTarget::User("public-user".into()))
+        );
+        for bad in [
+            "http://imagepond.net/a/gallery123",
+            "https://imagepond.net/a/gallery123?token=x",
+            "https://imagepond.net/user/a%2Fb",
+            "https://evilimagepond.net/a/gallery123",
+        ] {
+            assert!(match_queue_url(bad).is_none(), "{bad}");
+        }
+        let html = r#"<a href="/i/a1">One</a><a href="/video/b2">Video</a><a href="/i/a1">Duplicate</a><a href="/i/../secret">Bad</a>"#;
+        let events = collect_queue_messages(html, &QueueTarget::Album("gallery123".into()));
+        assert_eq!(events.len(), 2);
+        let a = serde_json::to_value(&events[0]).unwrap();
+        let b = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(a["url"], "https://www.imagepond.net/i/a1");
+        assert_eq!(b["url"], "https://www.imagepond.net/video/b2");
+        assert_eq!(a["metadata"]["album_id"], "gallery123");
+        assert_eq!(b["metadata"]["file_id"], "b2");
+    }
+
+    #[tokio::test]
+    async fn local_first_page_user_listing_emits_safe_deferred_queues() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = stream.read(&mut request).await.unwrap();
+            assert!(String::from_utf8_lossy(&request[..n]).starts_with("GET /user/alice HTTP/1.1"));
+            let html = r#"<a href="/i/one123">Image</a><a href="/video/two456">Video</a>"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                html.len()
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let events = queue_at_base(
+            &Client::new(),
+            &QueueTarget::User("alice".into()),
+            &base,
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["metadata"]["username"],
+            "alice"
+        );
+        server.await.unwrap();
     }
 
     #[test]
