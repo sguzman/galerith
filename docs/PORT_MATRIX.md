@@ -104,7 +104,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/imgbox.py` | 🟡 Partial | `src/extractor/imgbox.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgpile.py` | 🟡 Partial | `src/extractor/imgpile.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imgth.py` | 🟡 Partial | `src/extractor/imgth.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/imgur.py` | 🟡 Partial | `src/extractor/imgur.rs`, `src/extractor/mod.rs` |
+| `gallery_dl/extractor/imgur.py` | 🟡 Partial | `src/extractor/imgur.rs`, `src/extractor/imgur/listing.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/imhentai.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/inkbunny.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/instagram.py` | ⚪ Not ported | — |

@@ -626,12 +626,13 @@
   - [x] Dispatch flat public media and typed directory/URL events with actual source token metadata — src/extractor/imgclick.rs resolve and resolve_messages; src/extractor/mod.rs; CI 40119597122
   - [x] Use pinned five-field complex continue POST, HTTP and schemeless public source aliases, and HTTPS-upgrade public media — src/extractor/imgclick.rs loopback_single_public_image_is_bounded, pinned_imgclick_token_and_safe_source_names and public_imgclick_image_marker_extracts_only_safe_originals; CI 40120708863, 40120836307, 40121092155
   - [ ] Match all upstream metadata/filename/archive fields, alternate site behavior and live differential parity
-- 📷 **T560** Imgur public image, album and deferred gallery previews — `████████░░ 80%`
+- 📷 **T560** Imgur public image, album, gallery and listing queue previews — `████████░░ 83%`
   - [x] Recognize pinned public image, album and gallery URL families with strict source ID validation — src/extractor/imgur.rs pinned_public_url_families_have_strict_origins; CI 40122108041
   - [x] Parse validated original media and ordered album metadata with JPEG and animated GIF normalization — src/extractor/imgur.rs pinned_public_images_and_albums_preserve_id_and_order; CI 40122108041
   - [x] Emit typed gallery child queue classification and ordered file and album directory/URL events — src/extractor/imgur.rs pinned_public_gallery_is_deferred_to_image_or_album and messages_from_records; src/extractor/mod.rs; CI 40122108041
   - [x] Bound authenticated public Client-ID API JSON to 2 MiB with offline HTTP request regression — src/extractor/imgur.rs bounded_single_image_makes_one_authenticated_public_api_request; CI 40122108041
-  - [ ] Match full pinned Imgur users/favorites/search/auth, metadata/filename/archive behavior and live differential parity
+  - [x] Discover bounded public user posts/favorites, subreddit, tag and search queues with validated identifiers and deduplication — src/extractor/imgur/listing.rs public_listing_routes_are_strict_and_scoped, queue_items_validate_ids_preserve_order_and_classification and bounded_public_listing_paginates_then_stops_at_empty_page; full Linux CI 40122975656
+  - [ ] Match complete pinned authenticated account behavior, full listing modes, metadata/filename/archive rules and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

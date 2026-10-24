@@ -3212,8 +3212,8 @@
             {
               "id": "T560",
               "emoji": "📷",
-              "name": "Imgur public image, album and deferred gallery previews",
-              "progress": 80,
+              "name": "Imgur public image, album, gallery and listing queue previews",
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned public image, album and gallery URL families with strict source ID validation",
@@ -3236,7 +3236,12 @@
                   "evidence": "src/extractor/imgur.rs bounded_single_image_makes_one_authenticated_public_api_request; CI 40122108041"
                 },
                 {
-                  "title": "Match full pinned Imgur users/favorites/search/auth, metadata/filename/archive behavior and live differential parity",
+                  "title": "Discover bounded public user posts/favorites, subreddit, tag and search queues with validated identifiers and deduplication",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur/listing.rs public_listing_routes_are_strict_and_scoped, queue_items_validate_ids_preserve_order_and_classification and bounded_public_listing_paginates_then_stops_at_empty_page; full Linux CI 40122975656"
+                },
+                {
+                  "title": "Match complete pinned authenticated account behavior, full listing modes, metadata/filename/archive rules and live differential parity",
                   "passed": false
                 }
               ]

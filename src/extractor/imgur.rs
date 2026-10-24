@@ -1,6 +1,6 @@
 //! Independent public Imgur image/album/gallery preview from pinned imgur.py.
-//! Account sessions, private content, search and complete archive formatting
-//! remain outside this conservative initial Rust subset.
+//! Private sessions, complete archive configuration and live differential
+//! parity remain outside this conservative public Rust subset.
 use crate::{
     message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     MediaItem,
