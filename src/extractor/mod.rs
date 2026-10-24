@@ -33,9 +33,9 @@ pub mod imgur;
 pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
+pub mod kabeuchi;
 pub mod keenspot;
 pub mod khinsider;
-pub mod kabeuchi;
 pub mod lensdump;
 pub mod lexica;
 pub mod lightroom;
@@ -97,7 +97,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "khinsider",
         "public soundtrack albums with bounded track formats",
     ),
-    ("kabeuchi", "public image-post user feeds with bounded pagination"),
+    (
+        "kabeuchi",
+        "public image-post user feeds with bounded pagination",
+    ),
     ("keenspot", "public subdomain webcomic page originals"),
     (
         "listal",
