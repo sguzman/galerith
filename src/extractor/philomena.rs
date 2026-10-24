@@ -142,11 +142,33 @@ pub async fn resolve(
     resolve_at_base(client, target, max_pages, &api).await
 }
 
+/// Safe file-only finite selector pushdown for native image/search/gallery
+/// requests. Source pages are still counted by their raw image records.
+pub async fn resolve_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    max_items: usize,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    let api = Url::parse(&format!("https://{}/api/v1/json/", target.host))?;
+    resolve_at_base_limited(client, target, max_pages, &api, max_items.max(1)).await
+}
+
 async fn resolve_at_base(
     client: &Client,
     target: Target,
     max_pages: u16,
     base: &Url,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    resolve_at_base_limited(client, target, max_pages, base, usize::MAX).await
+}
+
+async fn resolve_at_base_limited(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+    max_items: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Query::Image(id) = &target.query {
         let endpoint = base.join(&format!("images/{id}"))?;
@@ -184,7 +206,12 @@ async fn resolve_at_base(
             .json()
             .await?;
         let (fresh, count) = images(&body, target.category)?;
-        results.extend(fresh);
+        for item in fresh {
+            results.push(item);
+            if results.len() >= max_items {
+                return Ok(results);
+            }
+        }
         if count < 50 {
             break;
         }
@@ -336,6 +363,99 @@ mod tests {
         assert_eq!(results[0].filename, "50.webp");
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn finite_gallery_limit_skips_later_full_api_pages() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            let n = socket.read(&mut request).await.unwrap();
+            let text = String::from_utf8_lossy(&request[..n]);
+            assert!(text.contains("q=gallery_id%3A100"), "{text}");
+            assert!(text.contains("page=1"), "{text}");
+            let image_rows: Vec<_> = (1..=50)
+                .map(|id| json!({"id":id,"view_url":format!("https://cdn.example.org/{id}.jpg")}))
+                .collect();
+            let body = json!({"images":image_rows}).to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "furbooru.org",
+            category: "furbooru",
+            filter_id: "2",
+            query: Query::Gallery(100),
+        };
+        let images = resolve_at_base_limited(&Client::new(), target, 3, &base, 2)
+            .await
+            .unwrap();
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].post_id, Some(1));
+        assert_eq!(images[1].post_id, Some(2));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn finite_search_limit_counts_only_usable_media_across_full_pages() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for page in [1, 2] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                let text = String::from_utf8_lossy(&request[..n]);
+                assert!(text.contains(&format!("page={page}")), "{text}");
+                let posts: Vec<_> = if page == 1 {
+                    (1..=50)
+                        .map(|id| {
+                            if id == 1 {
+                                json!({"id":id,"view_url":"https://cdn.example.org/1.jpg"})
+                            } else {
+                                json!({"id":id})
+                            }
+                        })
+                        .collect()
+                } else {
+                    vec![json!({"id":51,"view_url":"https://cdn.example.org/51.jpg"})]
+                };
+                let body = json!({"images":posts}).to_string();
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = Target {
+            host: "derpibooru.org",
+            category: "derpibooru",
+            filter_id: "56027",
+            query: Query::Search("fox".into()),
+        };
+        let images = resolve_at_base_limited(&Client::new(), target, 3, &base, 2)
+            .await
+            .unwrap();
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].post_id, Some(1));
+        assert_eq!(images[1].post_id, Some(51));
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn tag_slug_resolves_to_search_query_in_local_api() {
         use tokio::{

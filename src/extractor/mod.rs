@@ -338,6 +338,11 @@ async fn resolve_messages_bounded(
             e621::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
+    if let (Some(limit), Some(target)) = (file_bound, philomena::match_url(input)) {
+        return Ok(from_media(
+            philomena::resolve_limited(client, target, max_pages, limit).await?,
+        ));
+    }
     resolve_messages(client, input, max_pages).await
 }
 
