@@ -298,6 +298,21 @@ pub async fn resolve_messages(
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
     }
+    if let Some(target) = moebooru::match_url(input) {
+        return Ok(from_source_post_media(
+            moebooru::resolve(client, target, max_pages).await?,
+        ));
+    }
+    if let Some(target) = gelbooru_v02::match_url(input) {
+        return Ok(from_source_post_media(
+            gelbooru_v02::resolve(client, target, max_pages).await?,
+        ));
+    }
+    if let Some(target) = gelbooru::match_url(input) {
+        return Ok(from_source_post_media(
+            gelbooru::resolve(client, target, max_pages).await?,
+        ));
+    }
     if let Some(target) = philomena::match_url(input) {
         return Ok(from_source_post_media(
             philomena::resolve(client, target, max_pages).await?,
@@ -339,17 +354,17 @@ async fn resolve_messages_bounded(
         }
     }
     if let (Some(limit), Some(target)) = (file_bound, gelbooru::match_url(input)) {
-        return Ok(from_media(
+        return Ok(from_source_post_media(
             gelbooru::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
     if let (Some(limit), Some(target)) = (file_bound, gelbooru_v02::match_url(input)) {
-        return Ok(from_media(
+        return Ok(from_source_post_media(
             gelbooru_v02::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
     if let (Some(limit), Some(target)) = (file_bound, moebooru::match_url(input)) {
-        return Ok(from_media(
+        return Ok(from_source_post_media(
             moebooru::resolve_limited(client, target, max_pages, limit).await?,
         ));
     }
