@@ -377,6 +377,30 @@ mod tests {
             .is_none());
     }
 
+    #[tokio::test]
+    async fn source_post_selector_matches_projected_native_post_before_file_ordinals() {
+        let first = fixture();
+        let mut selected_post = fixture();
+        selected_post.post_id = Some(77);
+        selected_post.filename = "selected.jpg".into();
+        let selection = JobSelection {
+            files: Some(IndexRange::parse("1").unwrap()),
+            children: None,
+            directories: None,
+            source_posts: Some(IndexRange::parse("77").unwrap()),
+        };
+        let events = from_source_post_media(vec![first, selected_post]);
+        let results = traverse_queue_job_filtered_with(events, 0, 0, &selection, |_| async {
+            Ok::<_, Box<dyn Error + Send + Sync>>(Vec::new())
+        })
+        .await
+        .unwrap();
+        assert_eq!(results.len(), 2);
+        let output = serde_json::to_value(&results[1]).unwrap();
+        assert_eq!(output["metadata"]["source_post_id"], 77);
+        assert_eq!(output["metadata"]["filename"], "selected.jpg");
+    }
+
     #[test]
     fn queue_events_are_distinct_from_media_and_do_not_emit_urls() {
         let mut metadata = Metadata::new();
