@@ -383,9 +383,7 @@ mod tests {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut request = [0u8; 8192];
                 let count = socket.read(&mut request).await.unwrap();
-                assert!(
-                    String::from_utf8_lossy(&request[..count]).starts_with(method_path)
-                );
+                assert!(String::from_utf8_lossy(&request[..count]).starts_with(method_path));
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
