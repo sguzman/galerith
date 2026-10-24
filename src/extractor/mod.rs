@@ -135,7 +135,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("comedywildlifephoto")
     } else if imagebam::match_url(input).is_some() {
         Some("imagebam")
-    } else if imagechest::match_url(input).is_some() {
+    } else if imagechest::match_url(input).is_some()
+        || imagechest::match_user_url(input).is_some()
+    {
         Some("imagechest")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
@@ -231,6 +233,9 @@ pub async fn resolve(
     if let Some(target) = imagechest::match_url(input) {
         return imagechest::resolve(client, target).await;
     }
+    if imagechest::match_user_url(input).is_some() {
+        return Err("ImageChest profile traversal requires --follow-queues or --dump-messages".into());
+    }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
     }
@@ -301,6 +306,9 @@ pub async fn resolve_messages(
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
+    }
+    if let Some(user) = imagechest::match_user_url(input) {
+        return imagechest::queued_user_galleries(client, &user, max_pages).await;
     }
     if let Some(gallery) = imagechest::match_url(input) {
         return imagechest::resolve_messages(client, gallery).await;
@@ -603,6 +611,7 @@ mod tests {
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
             ("https://imgchest.com/p/abc123xyz45", "imagechest"),
+            ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
