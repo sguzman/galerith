@@ -201,7 +201,9 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("fappic")
     } else if imagevenue::match_url(input).is_some() {
         Some("imagevenue")
-    } else if imagetwist::match_url(input).is_some() {
+    } else if imagetwist::match_url(input).is_some()
+        || imagetwist::match_gallery_url(input).is_some()
+    {
         Some("imagetwist")
     } else if let Some(target) = imgdrive::match_url(input) {
         Some(target.family.category())
@@ -338,6 +340,9 @@ pub async fn resolve(
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve(client, target).await;
+    }
+    if imagetwist::match_gallery_url(input).is_some() {
+        return Err("Imagetwist gallery requires --dump-messages or --follow-queues".into());
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve(client, target).await;
@@ -478,6 +483,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imagetwist::match_gallery_url(input) {
+        return imagetwist::resolve_gallery_messages(client, target, max_pages).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve_messages(client, target).await;
@@ -815,6 +823,7 @@ mod tests {
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
+            ("https://imagetwist.com/p/gdldev/747223/digits", "imagetwist"),
             ("https://pixhost.to/show/190/130327671_test-.png", "pixhost"),
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://acidimg.cc/img-5acb6b9de4640.html", "acidimg"),
