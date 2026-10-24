@@ -704,13 +704,15 @@
         "src/extractor/mod.rs",
         "src/extractor/postimg.rs",
         "src/extractor/imxto.rs",
-        "src/extractor/picstate.rs"
+        "src/extractor/picstate.rs",
+        "src/extractor/basic_hosts.rs"
       ],
       "evidence": [
         "Independent Pixhost file/gallery subset of pinned imagehosts.py: public /show and /gallery routes, bounded HTML, pinned cookies, strict first-party links and typed child queues, dedup and synthetic loopback tests; CI 40055130109 passed. Other host families and full upstream parity remain open.",
         "Independent Postimages single-file and JSON gallery subset: pinned public aliases, safe CDN media, bounded 2 MiB responses, at most 4 pages/128 deferred children, deduplication and offline two-page JSON test; CI 40055715703 passed. Full per-host metadata, all site families and live upstream parity remain unaccepted.",
         "Independent Imxto public POST continue-image and bounded 4-page/128-child gallery subset, validated imx.to and img.yt source aliases, first-party media, dedup/pacing and offline tests; CI 40056127227 passed. Full Imxto metadata/gallery/title and live differential parity still open.",
-        "Independent guarded Picstate /view/full source-image subset, safe /file and /files original URL identity checks, 2 MiB bounded HTML and synthetic loopback tests; CI 40056481549 passed. Complete metadata, filename/archive and live upstream parity remain open."
+        "Independent guarded Picstate /view/full source-image subset, safe /file and /files original URL identity checks, 2 MiB bounded HTML and synthetic loopback tests; CI 40056481549 passed. Complete metadata, filename/archive and live upstream parity remain open.",
+        "Acidimg, Vipr, Imgspice independently implemented Rust public image-preview subset with pinned URL patterns, Acidimg form POST, domain-validated media/filename metadata, 2 MiB streamed HTML guard and offline tests; CI 40057318396 passed. Full upstream per-host parity and remaining multi-host extractors remain open."
       ]
     },
     {

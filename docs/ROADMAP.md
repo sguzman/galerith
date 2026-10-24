@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 106 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 107 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -558,6 +558,12 @@
   - [x] Enforce a 2 MiB public HTML body limit, reject unsafe media links and test one loopback HTTP request — src/extractor/picstate.rs bounded_public_image_page_makes_one_http_request and at_base; CI 40056481549
   - [x] Emit native typed directory/media events with stable alphanumeric token and canonical post URL, without invented numeric post IDs — src/extractor/picstate.rs resolve_messages, media_from_page and mod.rs dispatch; CI 40056481549
   - [ ] Port full Picstate original filename/archive conventions, source metadata, redirects and live upstream differential acceptance
+- 🖇️ **T549** Acidimg, Vipr and Imgspice public single-image adapters — `████████░░ 80%`
+  - [x] Recognize pinned source URLs on three image hosts, rejecting credentials, dot traversal and foreign source hosts — src/extractor/basic_hosts.rs pinned_acidimg_vipr_and_imgspice_routes_are_narrow and src/extractor/mod.rs registry; CI 40057318396
+  - [x] Select host-specific original media and safe optional file names under strict HTTPS trusted-domain policy — src/extractor/basic_hosts.rs host_specific_public_html_parses_safe_names_and_media and hostile_media_hosts_and_filename_values_do_not_escape_origins; CI 40057318396
+  - [x] Reproduce Acidimg's pinned public POST continuation and keep all public HTML reads bounded to 2 MiB — src/extractor/basic_hosts.rs acidimg_uses_pinned_post_continuation_and_one_bounded_page and declared_oversized_public_body_is_rejected_before_parsing; CI 40057318396
+  - [x] Dispatch flat and native typed image records with genuine alphanumeric source-token metadata and no invented numeric post IDs — src/extractor/basic_hosts.rs resolve, resolve_messages and media_metadata plus mod.rs typed/flat dispatch; CI 40057318396
+  - [ ] Complete pinned per-host names, rich metadata, custom request options, live site differential parity and all remaining multi-host imagehosts.py families
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

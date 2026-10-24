@@ -34,3 +34,12 @@ Public `imx.to/g/ID` galleries traverse up to four bounded pages and emit up to 
 Pinned `picstate.com/view/full/ID` public pages now resolve a validated original media URL under the matching `picstate.com/file/ID/` or `/files/ID/` path. Only recognized public image extensions and source-matched IDs are accepted. Bounded, sanitized alternate image naming is used when present; typed events preserve the public post URL and alphanumeric token. One page request is limited to **2 MiB** of HTML, with no hidden private/profile traversal.
 
 [CI 40056481549](https://github.com/sguzman/galerith/actions/runs/40056481549) passed offline matching, hostile-media rejection, normalization traversal regressions, loopback request, formatting, Clippy, tests and release build. Full metadata, archive/filename parity and live conformance remain unaccepted.
+
+
+## Acidimg, Vipr and Imgspice public single-image subset
+
+A shared Rust adapter in `src/extractor/basic_hosts.rs` now handles strict public source URL patterns for `acidimg.cc/img-TOKEN.html`, `vipr.im/TOKEN[.html]`, and `imgspice.com/TOKEN[/FILE]`. Acidimg uses the pinned public `imgContinue` POST parameter; Vipr and Imgspice request ordinary public pages. Host-specific HTML selectors extract original media with bounded optional filenames.
+
+Each response is capped at **2 MiB** through declared content-length and streamed-body enforcement. Resulting media must use HTTPS and the corresponding domain (or its subdomains), with safe supported image extensions and no credentialed, query-bearing or fragment media links. Typed events carry the original alphanumeric token and public source URL; no numeric post identity is invented.
+
+[Linux CI 40057318396](https://github.com/sguzman/galerith/actions/runs/40057318396) verifies source URL matching, host-specific HTML fixtures, foreign-origin rejection, Acidimg POST and oversized-response handling. This is entirely **offline/synthetic** evidence, not live differential conformance. Per-host metadata/filename/archive semantics, configurable request options and remaining `imagehosts.py` families are still unaccepted.
