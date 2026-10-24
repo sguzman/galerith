@@ -2910,6 +2910,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T551",
+              "emoji": "🧭",
+              "name": "Turboimagehost public originals and bounded album queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match only pinned public Turboimagehost image and album URL shapes",
+                  "passed": true,
+                  "evidence": "src/extractor/turboimagehost.rs matches_only_public_image_url_shapes and album_urls_and_deferred_children_are_strict_and_ordered; CI 40058313952"
+                },
+                {
+                  "title": "Accept first-party HTTPS original media with source page identity preserved in typed events",
+                  "passed": true,
+                  "evidence": "src/extractor/turboimagehost.rs first_public_image_uses_trusted_media_and_real_id, resolve_messages; CI 40058313952"
+                },
+                {
+                  "title": "Emit strictly validated and deduplicated first-party deferred gallery child queues",
+                  "passed": true,
+                  "evidence": "src/extractor/turboimagehost.rs album_links and album_urls_and_deferred_children_are_strict_and_ordered; CI 40058313952"
+                },
+                {
+                  "title": "Bound HTML bytes, gallery page/child count and verify three-page loopback pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/turboimagehost.rs read_html, album_at_base and bounded_album_pages_deduplicate_and_stop_on_empty_page; CI 40058313952"
+                },
+                {
+                  "title": "Full pinned gallery page/skip behavior, metadata/filenames/archive, auth and live upstream differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

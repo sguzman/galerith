@@ -52,3 +52,12 @@ An additional independently authored Rust adapter now recognizes pinned `imgdriv
 The HTML cap is **2 MiB** per response, checked against both declared and actual downloaded bytes. Foreign/credentialed origins, unsafe filename segments and query/fragment-bearing direct media are rejected.
 
 [CI 40057685467](https://github.com/sguzman/galerith/actions/runs/40057685467) passed the pinned-source examples, unsafe input rejections, local one-request HTTP fixture, oversized content-length rejection, formatting, Clippy and release build. Full upstream metadata/date, all site-specific variants and live differential parity remain open.
+
+
+## Turboimagehost pinned public image and bounded album subset
+
+The read-only `/p/NUM/NAME.EXT.html` route resolves a public original media file, requiring a trusted first-party HTTPS image source, valid filename and real page token. The `/album/NUM/NAME` route emits ordered, deduplicated typed child queues from validated anchor `href` attributes. It does not follow foreign links, `data-href` or script-only strings.
+
+HTML is capped at **2 MiB per response**; album traversal at **4 pages** and **160 unique child files**, with one-second interpage pacing and stop-on-empty accepted results. The flat album route explicitly requires the opt-in queue mode.
+
+[Linux CI 40058313952](https://github.com/sguzman/galerith/actions/runs/40058313952) passed formatting, Clippy, tests, roadmap checks and release build. This is offline/synthetic evidence only. Complete upstream pagination, metadata, archive/filename conventions and live differential acceptance remain open.

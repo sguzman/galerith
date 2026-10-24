@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 108 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 109 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -570,6 +570,12 @@
   - [x] Reject foreign, credentialed, non-HTTPS, query-bearing or unsafe media and filenames — src/extractor/imgdrive.rs unsafe_media_urls_and_original_names_are_excluded; CI 40057685467
   - [x] Enforce a 2 MiB HTML response bound, retain genuine alphanumeric source token in typed/flat extraction, test single-request HTTP — src/extractor/imgdrive.rs public_page_reads_one_request_and_rejects_oversized_response_header and rejects_large_declared_response_without_parsing_body; CI 40057685467
   - [ ] Reproduce complete upstream site variations, original filename/date metadata, archive naming, response errors and live differential acceptance
+- 🧭 **T551** Turboimagehost public originals and bounded album queues — `████████░░ 80%`
+  - [x] Match only pinned public Turboimagehost image and album URL shapes — src/extractor/turboimagehost.rs matches_only_public_image_url_shapes and album_urls_and_deferred_children_are_strict_and_ordered; CI 40058313952
+  - [x] Accept first-party HTTPS original media with source page identity preserved in typed events — src/extractor/turboimagehost.rs first_public_image_uses_trusted_media_and_real_id, resolve_messages; CI 40058313952
+  - [x] Emit strictly validated and deduplicated first-party deferred gallery child queues — src/extractor/turboimagehost.rs album_links and album_urls_and_deferred_children_are_strict_and_ordered; CI 40058313952
+  - [x] Bound HTML bytes, gallery page/child count and verify three-page loopback pagination — src/extractor/turboimagehost.rs read_html, album_at_base and bounded_album_pages_deduplicate_and_stop_on_empty_page; CI 40058313952
+  - [ ] Full pinned gallery page/skip behavior, metadata/filenames/archive, auth and live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
