@@ -8,4 +8,6 @@ The public gallery subset recognizes `/p/USER/NUMERIC_ID` and `/p/USER/NUMERIC_I
 
 All results are **synthetic offline acceptance tests**, not verified live upstream parity. Evidence: [Linux CI 40119078981](https://github.com/sguzman/galerith/actions/runs/40119078981), including public source/missing-image fixtures, page-loopback and hostile continuation URLs.
 
-**Outstanding:** upstream root-query `?op=user_public&fld_id=...&page=...` gallery entry forms, every original gallery/layout/host combination, cookies, authentication, full file metadata, filename/archive templates, media response validation and live reference differential tests. The pinned multi-host module remains partial.
+The pinned root-query `?op=user_public&per_page=40&fld_id=...&usr_login=...&page=...` entry is now also recognized with strict identity/field validation and initial page selection; malformed or extra fields are rejected. This passed [CI 40119385165](https://github.com/sguzman/galerith/actions/runs/40119385165).
+
+**Outstanding:** unrestricted upstream gallery pagination, other gallery/layout/host combinations, cookies, authentication, complete media and gallery metadata, filename/archive templates, media response validation and live reference differential tests. The pinned multi-host module remains partial.

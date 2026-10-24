@@ -612,18 +612,20 @@
   - [x] Enforce 2 MiB HTML byte limits with a one-source-page loopback test — src/extractor/imagetwist.rs fetches_one_bounded_public_page_without_downloading_media; CI 40119078981
   - [x] Dispatch flat single files and typed directory/URL messages with source token and post URL — src/extractor/imagetwist.rs resolve and resolve_messages, mod.rs registry; CI 40119078981
   - [ ] Reproduce every source URL, site cookie/redirect, original/media variant, filename/archive metadata and live pinned differential parity
-- 🧵 **T558** Imagetwist bounded native public gallery and child queues — `████████░░ 80%`
+- 🧵 **T558** Imagetwist bounded native public gallery and child queues — `████████░░ 83%`
   - [x] Match pinned public /p/USER/GALLERY_ID/TITLE and short gallery paths without accepting untrusted query inputs — src/extractor/imagetwist.rs match_gallery_url, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981
   - [x] Emit ordered and deduplicated first-party child file queues with gallery ID, username and title metadata — src/extractor/imagetwist.rs gallery_child_events, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981
   - [x] Validate same-origin advancing continuation links while limiting pages and emitted children — src/extractor/imagetwist.rs next_gallery_url and gallery_next_page_rejects_external_and_nonadvancing_urls; CI 40119078981
   - [x] Verify two-page HTTP fixture with bounded response bodies, pacing and first-seen file ordering — src/extractor/imagetwist.rs bounded_two_page_gallery_preserves_first_seen_child_order; CI 40119078981
-  - [ ] Match pinned root-query gallery URLs, arbitrary original pagination/metadata, private galleries and live upstream differential parity
-- 🖱️ **T559** Imgclick guarded public single-original preview — `████████░░ 80%`
+  - [x] Recognize pinned root-query public gallery entries with exact identity, bounded page selection and forbidden-field rejection — src/extractor/imagetwist.rs pinned_root_query_gallery_source_routes_are_strict; CI 40119385165
+  - [ ] Reproduce unrestricted upstream paging, private galleries, full gallery metadata, filenames/archive templates and live differential parity
+- 🖱️ **T559** Imgclick guarded public single-original preview — `████████░░ 83%`
   - [x] Match pinned Imgclick token and optional safe HTML filename routes; reject forged origins and malformed paths — src/extractor/imgclick.rs pinned_imgclick_token_and_safe_source_names; CI 40119597122
   - [x] Parse public original marker with validated HTTPS media origin, extension and sanitized alternate filename — src/extractor/imgclick.rs public_imgclick_image_marker_extracts_only_safe_originals; CI 40119597122
   - [x] Bound source HTML to 2 MiB with a one-request local HTTP regression — src/extractor/imgclick.rs loopback_single_public_image_is_bounded; CI 40119597122
   - [x] Dispatch flat public media and typed directory/URL events with actual source token metadata — src/extractor/imgclick.rs resolve and resolve_messages; src/extractor/mod.rs; CI 40119597122
-  - [ ] Reproduce pinned complex form submissions, all metadata/archive/filename semantics and live differential parity
+  - [x] Use pinned five-field complex continue POST, HTTP and schemeless public source aliases, and HTTPS-upgrade public media — src/extractor/imgclick.rs loopback_single_public_image_is_bounded, pinned_imgclick_token_and_safe_source_names and public_imgclick_image_marker_extracts_only_safe_originals; CI 40120708863, 40120836307, 40121092155
+  - [ ] Match all upstream metadata/filename/archive fields, alternate site behavior and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
