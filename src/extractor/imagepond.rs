@@ -61,6 +61,14 @@ pub enum QueueTarget {
 
 /// Bounded public album and explicit /user/ profile routes. Upstream
 /// supports more aliases, auth and metadata than this conservative preview.
+fn valid_username(value: &str) -> bool {
+    (1..=40).contains(&value.len())
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+        && !matches!(value, "i" | "img" | "image" | "video" | "a" | "album" | "user")
+}
+
 pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
@@ -76,7 +84,8 @@ pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
         ["a" | "album", id] if safe_slug(id) => Some(QueueTarget::Album((*id).into())),
-        ["user", name] if safe_slug(name) => Some(QueueTarget::User((*name).into())),
+        ["user", name] if valid_username(name) => Some(QueueTarget::User((*name).into())),
+        [name] if valid_username(name) => Some(QueueTarget::User((*name).into())),
         _ => None,
     }
 }
@@ -457,11 +466,22 @@ mod tests {
             match_queue_url("https://www.imagepond.net/user/public-user"),
             Some(QueueTarget::User("public-user".into()))
         );
+        assert_eq!(
+            match_queue_url("https://imagepond.net/dariusbbb24"),
+            Some(QueueTarget::User("dariusbbb24".into()))
+        );
+        assert_eq!(
+            match_queue_url("https://imagepond.net/ap000"),
+            Some(QueueTarget::User("ap000".into()))
+        );
         for bad in [
             "http://imagepond.net/a/gallery123",
             "https://imagepond.net/a/gallery123?token=x",
             "https://imagepond.net/user/a%2Fb",
             "https://evilimagepond.net/a/gallery123",
+            "https://imagepond.net/user",
+            "https://imagepond.net/favicon.ico",
+            "https://imagepond.net/img",
         ] {
             assert!(match_queue_url(bad).is_none(), "{bad}");
         }
