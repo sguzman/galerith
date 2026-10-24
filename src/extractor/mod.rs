@@ -18,13 +18,13 @@ pub mod imagebam;
 pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
-pub mod imgclick;
 pub mod imageshack;
 pub mod imagetwist;
 pub mod imagevenue;
 pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
+pub mod imgclick;
 pub mod imgdrive;
 pub mod imgpile;
 pub mod imgpv;
@@ -832,7 +832,10 @@ mod tests {
             ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
-            ("https://imgclick.net/4tbrre1oxew9/test-_-_.png.html", "imgclick"),
+            (
+                "https://imgclick.net/4tbrre1oxew9/test-_-_.png.html",
+                "imgclick",
+            ),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
             (
                 "https://imagetwist.com/p/gdldev/747223/digits",

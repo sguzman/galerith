@@ -152,7 +152,10 @@ fn parse_page(
     let mut metadata = media_metadata(&item);
     metadata.insert("subcategory".into(), "image".into());
     metadata.insert("token".into(), target.token.clone().into());
-    metadata.insert("post_url".into(), format!("https://{}/{}", target.host, target.token).into());
+    metadata.insert(
+        "post_url".into(),
+        format!("https://{}/{}", target.host, target.token).into(),
+    );
     Ok((item, metadata))
 }
 
