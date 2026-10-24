@@ -493,10 +493,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (path, body) in [
-                (
-                    "/",
-                    r#"<a href="/comic/first/" id="first_day1">First</a>"#,
-                ),
+                ("/", r#"<a href="/comic/first/" id="first_day1">First</a>"#),
                 (
                     "/comic/first/",
                     r#"<img class="ksc" src="https://images.keenspot.com/one.jpg"><a href="/comic/second/" id="next_day">Next</a>"#,
@@ -519,7 +516,9 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let output = at_base(&Client::new(), &sample_comic(), &base).await.unwrap();
+        let output = at_base(&Client::new(), &sample_comic(), &base)
+            .await
+            .unwrap();
         assert_eq!(output.len(), 2);
         assert_eq!(output[0].0.filename, "story_001_one.jpg");
         assert_eq!(output[1].0.filename, "story_002_two.jpg");
