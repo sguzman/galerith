@@ -107,6 +107,58 @@ fn capture<'a>(source: &'a str, start: &str, end: char) -> Option<&'a str> {
         .map(|(value, _)| value)
 }
 
+/// Parse the pinned Listal "<day> <English month> <year> <HH:MM>"
+/// timestamp as a timezone-free local date. Never invent a UTC offset.
+fn parse_source_date(raw: &str) -> Option<String> {
+    let mut words = raw.split_whitespace();
+    let day = words.next()?;
+    let month = words.next()?;
+    let year = words.next()?;
+    let clock = words.next()?;
+    if words.next().is_some() || year.len() != 4 {
+        return None;
+    }
+    let day: u32 = day.parse().ok()?;
+    let year: u32 = year.parse().ok()?;
+    if !(1..=9999).contains(&year) {
+        return None;
+    }
+    let month = match month {
+        "January" => 1,
+        "February" => 2,
+        "March" => 3,
+        "April" => 4,
+        "May" => 5,
+        "June" => 6,
+        "July" => 7,
+        "August" => 8,
+        "September" => 9,
+        "October" => 10,
+        "November" => 11,
+        "December" => 12,
+        _ => return None,
+    };
+    let mut hm = clock.split(':');
+    let hours: u32 = hm.next()?.parse().ok()?;
+    let minutes: u32 = hm.next()?.parse().ok()?;
+    if hm.next().is_some() || hours > 23 || minutes > 59 {
+        return None;
+    }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let max_day = match month {
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => 31,
+    };
+    if day == 0 || day > max_day {
+        return None;
+    }
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:00"
+    ))
+}
+
 fn parse_image(
     html: &str,
     id: &str,
@@ -166,6 +218,9 @@ fn parse_image(
         .filter(|text| text.len() <= 90 && !text.chars().any(char::is_control))
     {
         metadata.insert("date_source".into(), date.into());
+        if let Some(parsed) = parse_source_date(date) {
+            metadata.insert("date".into(), parsed.into());
+        }
     }
     Ok((item, metadata))
 }
@@ -398,9 +453,35 @@ mod tests {
         assert_eq!(meta["width"], 800);
         assert_eq!(meta["author"], "Sam");
         assert_eq!(meta["date_source"], "12 April 2020 16:30");
+        assert_eq!(meta["date"], "2020-04-12T16:30:00");
         assert!(media.post_id.is_none());
         let forged = html.replace("image.listal.com", "evil-listal.com");
         assert!(parse_image(&forged, "12345678").is_err());
+    }
+
+    #[test]
+    fn source_date_parser_rejects_impossible_calendar_dates_and_offsets() {
+        assert_eq!(
+            parse_source_date("29 February 2024 23:59"),
+            Some("2024-02-29T23:59:00".into())
+        );
+        assert_eq!(
+            parse_source_date("29 February 2000 00:00"),
+            Some("2000-02-29T00:00:00".into())
+        );
+        for bad in [
+            "29 February 2023 12:00",
+            "29 February 1900 12:00",
+            "31 April 2026 12:00",
+            "0 December 2026 12:00",
+            "10 January 2026 24:00",
+            "10 January 2026 20:60",
+            "10 Unknown 2026 12:00",
+            "10 January 2026 12:00 UTC",
+            "10 January 0000 12:00",
+        ] {
+            assert_eq!(parse_source_date(bad), None, "{bad}");
+        }
     }
 
     #[test]
