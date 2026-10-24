@@ -273,7 +273,7 @@ mod tests {
             "https://imhentai.xxx/gallery/12345/../../secret",
             "https://imhentai.xxx/gallery/12%2f34/",
             "https://name:password@imhentai.xxx/gallery/12345/",
-            "https://imhentai.xxx:443/gallery/12345/",
+            "https://imhentai.xxx:8443/gallery/12345/",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
