@@ -2974,6 +2974,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T553",
+              "emoji": "🩶",
+              "name": "Pinned Silverpic public original-image preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize canonical Silverpic .net/.com source page slugs with traversal and credential safeguards",
+                  "passed": true,
+                  "evidence": "src/extractor/silverpic.rs pinned_public_urls_and_rejected_auth_or_traversal; CI 40113694094"
+                },
+                {
+                  "title": "Extract only first-party /img original with supported image extension and safe filename fallback",
+                  "passed": true,
+                  "evidence": "src/extractor/silverpic.rs original_media_and_numeric_dimensions_use_same_image_tag, original_media_path_and_alt_values_reject_untrusted_data; CI 40113694094"
+                },
+                {
+                  "title": "Carry bounded source token, dimensions and optional source alt in typed metadata without a fabricated numeric source post",
+                  "passed": true,
+                  "evidence": "src/extractor/silverpic.rs parse_page and typed resolve_messages, source-backed metadata tests; CI 40113694094"
+                },
+                {
+                  "title": "Enforce declared and streamed 2 MiB HTML response byte ceilings and single-request loopback fetch",
+                  "passed": true,
+                  "evidence": "src/extractor/silverpic.rs at_base and fetches_only_one_bounded_html_page; CI 40113694094"
+                },
+                {
+                  "title": "Verify pinned complete Silverpic metadata, source filename/archive behavior, other live layouts and differential conformance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

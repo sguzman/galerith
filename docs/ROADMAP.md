@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 110 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 111 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -582,6 +582,12 @@
   - [x] Send the pinned img_i_d public cookie, preserving original-alt text regardless of HTML attribute order — src/extractor/imgadult.rs cookie_and_one_html_request_are_exercised_offline; CI 40058711190
   - [x] Enforce streamed/declared 2 MiB HTML bounds and expose typed original URL and alphanumeric source identity — src/extractor/imgadult.rs at_base, resolve_messages, media_metadata and CI 40058711190
   - [ ] Complete all upstream Imgadult metadata, filename/archive and cookie/session variations and live differential acceptance
+- 🩶 **T553** Pinned Silverpic public original-image preview — `████████░░ 80%`
+  - [x] Recognize canonical Silverpic .net/.com source page slugs with traversal and credential safeguards — src/extractor/silverpic.rs pinned_public_urls_and_rejected_auth_or_traversal; CI 40113694094
+  - [x] Extract only first-party /img original with supported image extension and safe filename fallback — src/extractor/silverpic.rs original_media_and_numeric_dimensions_use_same_image_tag, original_media_path_and_alt_values_reject_untrusted_data; CI 40113694094
+  - [x] Carry bounded source token, dimensions and optional source alt in typed metadata without a fabricated numeric source post — src/extractor/silverpic.rs parse_page and typed resolve_messages, source-backed metadata tests; CI 40113694094
+  - [x] Enforce declared and streamed 2 MiB HTML response byte ceilings and single-request loopback fetch — src/extractor/silverpic.rs at_base and fetches_only_one_bounded_html_page; CI 40113694094
+  - [ ] Verify pinned complete Silverpic metadata, source filename/archive behavior, other live layouts and differential conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

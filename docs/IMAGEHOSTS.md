@@ -70,3 +70,9 @@ The public `imgadult.com/img-HEX.html` route now resolves a safe original media 
 Each source HTML response is capped at **2 MiB**, with both content-length and streamed-body checks. Typed events retain the real hexadecimal page token; no numeric source-post scope is invented.
 
 [CI 40058711190](https://github.com/sguzman/galerith/actions/runs/40058711190) passed strict URL matching, hostile origin tests, one-request public-cookie loopback fixture, formatter, Clippy, tests and release build. This is synthetic offline evidence, not full metadata/filename/archive or live differential parity.
+
+## Silverpic public single-image subset
+
+The Rust `silverpic` adapter recognizes strict `silverpic.net` and `silverpic.com` source-page URLs of the form `/SLUG/NAME.EXT.html`. A bounded read finds the first original `<img src="/img/FILE">` element; the original file is resolved against the fixed `https://silverpic.net/` origin. Safe alternate image labels and bounded 1–32768 image dimensions are retained in typed messages. The original URL path and extension are validated; foreign origins, traversal, query tokens, unsupported formats and hostile names are excluded. It does not fabricate a numeric source-post ID or download the image for inspection.
+
+[Linux CI 40113694094](https://github.com/sguzman/galerith/actions/runs/40113694094) passed formatting, Clippy, offline tests, roadmap checks and release compilation. This is **not** live differential acceptance and does not complete all pinned `imagehosts.py` host families or filename/archive semantics.
