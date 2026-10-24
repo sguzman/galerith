@@ -251,6 +251,7 @@ pub struct Gallery {
     id: String,
     title: Option<String>,
     path: String,
+    start_page: u16,
 }
 
 fn safe_segment(value: &str) -> bool {
@@ -279,9 +280,48 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
-        || url.query().is_some()
         || url.fragment().is_some()
     {
+        return None;
+    }
+    if url.path() == "/" {
+        let pairs: Vec<_> = url.query_pairs().collect();
+        if pairs.len() != 5 {
+            return None;
+        }
+        let field = |name: &str| {
+            let found: Vec<_> = pairs
+                .iter()
+                .filter(|(key, _)| key == name)
+                .map(|(_, value)| value.as_ref())
+                .collect();
+            if found.len() == 1 {
+                Some(found[0])
+            } else {
+                None
+            }
+        };
+        let user = field("usr_login")?;
+        let id = field("fld_id")?;
+        let page = field("page")?.parse::<u16>().ok()?;
+        if field("op")? != "user_public"
+            || field("per_page")? != "40"
+            || !safe_segment(user)
+            || !gallery_id(id)
+            || !(1..=MAX_GALLERY_PAGES).contains(&page)
+        {
+            return None;
+        }
+        return Some(Gallery {
+            host: host.to_owned(),
+            user: user.to_owned(),
+            id: id.to_owned(),
+            title: None,
+            path: format!("?{}", url.query()?),
+            start_page: page,
+        });
+    }
+    if url.query().is_some() {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
@@ -298,6 +338,7 @@ pub fn match_gallery_url(input: &str) -> Option<Gallery> {
         id: id.to_owned(),
         title,
         path: url.path().trim_start_matches('/').to_owned(),
+        start_page: 1,
     })
 }
 
@@ -451,7 +492,7 @@ async fn gallery_at_base(
     let mut events = Vec::new();
     let mut seen = HashSet::new();
     let mut inherited_title = gallery.title.clone();
-    let mut last_page = 1u16;
+    let mut last_page = gallery.start_page;
     for page in 0..max_pages.clamp(1, MAX_GALLERY_PAGES) {
         let mut response = client
             .get(current.clone())
@@ -561,6 +602,25 @@ mod tests {
         assert_eq!(item["url"], "https://imagetwist.com/j6eu91sbl9bs");
         assert_eq!(item["metadata"]["gallery_id"], "747223");
         assert_eq!(item["metadata"]["gallery_title"], "digits");
+    }
+
+    #[test]
+    fn pinned_root_query_gallery_source_routes_are_strict() {
+        let url = "https://imagetwist.com/?op=user_public&per_page=40&fld_id=806105&usr_login=gdldev&page=2";
+        let gallery = match_gallery_url(url).unwrap();
+        assert_eq!(gallery.id, "806105");
+        assert_eq!(gallery.user, "gdldev");
+        assert_eq!(gallery.start_page, 2);
+        assert!(gallery.path.starts_with("?op=user_public"));
+        for invalid in [
+            "https://imagetwist.com/?op=user_public&fld_id=806105&usr_login=gdldev&page=2",
+            "https://imagetwist.com/?op=user_public&per_page=40&fld_id=806105&usr_login=gdldev&page=999",
+            "https://imagetwist.com/?op=user_public&per_page=40&fld_id=806105&usr_login=gdldev&page=2&token=x",
+            "https://imagetwist.com/?op=user_public&per_page=40&fld_id=806105&usr_login=../escape&page=2",
+            "https://imagetwist.com/?op=user_public&per_page=40&fld_id=806105&usr_login=gdldev&page=2&page=3",
+        ] {
+            assert!(match_gallery_url(invalid).is_none(), "{invalid}");
+        }
     }
 
     #[test]
