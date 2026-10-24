@@ -191,7 +191,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public prompt-image searches over POST cursor API",
     ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
-    ("3dbooru", "pinned Behoimi post, tag, pool and popular Moebooru routes"),
+    (
+        "3dbooru",
+        "pinned Behoimi post, tag, pool and popular Moebooru routes",
+    ),
     ("philomena", "images, tags, searches and galleries"),
     ("photovogue", "public photographer photo API feeds"),
     (
