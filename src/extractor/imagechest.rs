@@ -134,7 +134,7 @@ async fn queue_user_at_base(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut events = Vec::new();
     let mut seen = HashSet::new();
-    for page in 1..=max_pages.max(1).min(MAX_USER_INDEX_PAGES) {
+    for page in 1..=max_pages.clamp(1, MAX_USER_INDEX_PAGES) {
         let mut endpoint = base.join("api/posts")?;
         endpoint
             .query_pairs_mut()
