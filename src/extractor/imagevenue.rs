@@ -14,6 +14,7 @@ const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
 pub struct Target {
     id: String,
     host: String,
+    request_path: String,
 }
 
 fn valid_id(id: &str) -> bool {
@@ -21,6 +22,24 @@ fn valid_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+}
+
+fn digits(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn valid_legacy_file(value: &str) -> bool {
+    (5..=220).contains(&value.len())
+        && !value.contains("..")
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.')
+        })
+        && value.rsplit_once('.').is_some_and(|(_, ext)| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "webp"
+            )
+        })
 }
 
 fn valid_host(host: &str) -> bool {
@@ -46,21 +65,42 @@ pub fn match_url(input: &str) -> Option<Target> {
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
-        || url.query().is_some()
         || url.fragment().is_some()
     {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
-    let [id] = parts.as_slice() else {
-        return None;
+    let pairs: Vec<_> = url.query_pairs().collect();
+    let (id, request_path) = match parts.as_slice() {
+        [id] if valid_id(id) && pairs.is_empty() => ((*id).to_owned(), (*id).to_owned()),
+        ["view", "o"] if pairs.len() == 3 => {
+            let image = pairs.iter().find(|(key, _)| key == "i")?.1.as_ref();
+            let host = pairs.iter().find(|(key, _)| key == "h")?.1.as_ref();
+            let location = pairs.iter().find(|(key, _)| key == "l")?.1.as_ref();
+            if !valid_legacy_file(image)
+                || !host.strip_prefix("img").is_some_and(digits)
+                || !location.strip_prefix("loc").is_some_and(digits)
+                || pairs.iter().filter(|(key, _)| key == "i").count() != 1
+                || pairs.iter().filter(|(key, _)| key == "h").count() != 1
+                || pairs.iter().filter(|(key, _)| key == "l").count() != 1
+            {
+                return None;
+            }
+            (image.to_owned(), format!("view/o?{}", url.query()?))
+        }
+        ["img.php"] if pairs.len() == 1 && pairs[0].0 == "image" => {
+            let image = pairs[0].1.as_ref();
+            if !valid_legacy_file(image) {
+                return None;
+            }
+            (image.to_owned(), format!("img.php?{}", url.query()?))
+        }
+        _ => return None,
     };
-    if !valid_id(id) {
-        return None;
-    }
     Some(Target {
-        id: (*id).into(),
+        id,
         host: host.into(),
+        request_path,
     })
 }
 
@@ -174,7 +214,7 @@ async fn resolve_at_base(
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let mut response = client
-        .get(base.join(&target.id)?)
+        .get(base.join(&target.request_path)?)
         .send()
         .await?
         .error_for_status()?;
@@ -235,6 +275,7 @@ mod tests {
             Some(Target {
                 id: "ME13LS07".into(),
                 host: "www.imagevenue.com".into(),
+                request_path: "ME13LS07".into(),
             })
         );
         assert!(match_url("https://img28116.imagevenue.com/ME13LS07").is_some());
@@ -247,6 +288,31 @@ mod tests {
             "https://www.imagevenue.com/ME13LS07/extra",
             "https://www.imagevenue.com/a%2fb",
             "https://www.imagevenue.com/short",
+        ] {
+            assert!(match_url(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn pinned_legacy_view_and_img_php_routes_allow_only_safe_query_fields() {
+        let view = match_url(
+            "https://www.imagevenue.com/view/o?i=92518_13732377lo.jpg&h=img150&l=loc486",
+        )
+        .unwrap();
+        assert_eq!(view.id, "92518_13732377lo.jpg");
+        assert!(view.request_path.starts_with("view/o?i="));
+        let image = match_url(
+            "https://img28116.imagevenue.com/img.php?image=th_52709_test_122_64lo.jpg",
+        )
+        .unwrap();
+        assert_eq!(image.id, "th_52709_test_122_64lo.jpg");
+        for bad in [
+            "https://www.imagevenue.com/view/o?i=foo.jpg&h=img150",
+            "https://www.imagevenue.com/view/o?i=foo.jpg&h=img150&l=loc486&token=secret",
+            "https://www.imagevenue.com/view/o?i=foo.jpg&i=evil.jpg&l=loc486",
+            "https://www.imagevenue.com/view/o?i=../escape.jpg&h=img150&l=loc486",
+            "https://img28116.imagevenue.com/img.php?image=a.jpg&token=secret",
+            "https://img28116.imagevenue.com/img.php?image=javascript:alert(1)",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
