@@ -2590,6 +2590,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T541",
+              "emoji": "🧵",
+              "name": "ImagePond bounded typed album and user file queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize public album and explicit user-profile listing URLs while excluding foreign origins and query-token inputs",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs match_queue_url and album_user_routes_and_deferred_media_queues_are_bounded; CI 40052501580"
+                },
+                {
+                  "title": "Project ordered, deduplicated image/video child URLs as deferred typed queues with parent scope metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs collect_queue_messages and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580"
+                },
+                {
+                  "title": "Enforce 4-page, 48-child and 2-MiB per-response caps with interpage pacing and safe typed dispatcher registration",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs queue_at_base, resolve_queue_messages, mod.rs registry; CI 40052501580"
+                },
+                {
+                  "title": "Validate same-origin next links, advance monotonically and verify two-page loopback request ordering and deduplication",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs rejects_foreign_and_nonprogressing_listing_continuations and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580"
+                },
+                {
+                  "title": "Match pinned gallery-dl all album/user URL variants, metadata inheritance, continuation rules, filename/archive formatting and live site differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

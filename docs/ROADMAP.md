@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 60%` across 98 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 60%` across 99 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -510,6 +510,12 @@
   - [x] Bound public file HTML response bodies and verify exactly one source-page HTTP request — src/extractor/imagepond.rs bounded_single_public_image_page_uses_only_one_request and rejects_declared_oversized_html_before_reading_body; CI 40051989239
   - [x] Expose safe native URL events and optional title/id in typed extraction, preserving ordinary flat media behavior — src/extractor/imagepond.rs resolve_messages and resolve, mod.rs typed/flat dispatch; CI 40051989239
   - [ ] Complete ImagePond albums, user queues, rich file/video metadata, filename/archive templates, media hosts and live pinned upstream differential conformance
+- 🧵 **T541** ImagePond bounded typed album and user file queues — `████████░░ 80%`
+  - [x] Recognize public album and explicit user-profile listing URLs while excluding foreign origins and query-token inputs — src/extractor/imagepond.rs match_queue_url and album_user_routes_and_deferred_media_queues_are_bounded; CI 40052501580
+  - [x] Project ordered, deduplicated image/video child URLs as deferred typed queues with parent scope metadata — src/extractor/imagepond.rs collect_queue_messages and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580
+  - [x] Enforce 4-page, 48-child and 2-MiB per-response caps with interpage pacing and safe typed dispatcher registration — src/extractor/imagepond.rs queue_at_base, resolve_queue_messages, mod.rs registry; CI 40052501580
+  - [x] Validate same-origin next links, advance monotonically and verify two-page loopback request ordering and deduplication — src/extractor/imagepond.rs rejects_foreign_and_nonprogressing_listing_continuations and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580
+  - [ ] Match pinned gallery-dl all album/user URL variants, metadata inheritance, continuation rules, filename/archive formatting and live site differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

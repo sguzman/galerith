@@ -8,6 +8,12 @@ The source HTML byte ceiling is **2 MiB**, enforced against both declared conten
 
 Verified offline tests cover image and video URL selection, unsafe media rejection, strict page matching, one-request HTTP resolution and oversized declared responses. Evidence: [Linux CI 40051989239](https://github.com/sguzman/galerith/actions/runs/40051989239).
 
-**Not implemented:** the pinned upstream ImagePond album/user generators, their paginated child queues, the complete metadata and date/video duration model, broad Chevereto source and media variants, all media MIME/format aliases, filename/archive policies and live upstream differential conformance. No upstream module is fully accepted on the strength of this preview.
+## Album and user typed queues
+
+The bounded read-only `/a/ID`, `/album/ID` and explicit `/user/USERNAME` routes emit deferred `queue` messages with validated first-party image/video child URLs and parent album or username context. They can be inspected with `--dump-messages --expand-queues` or used with opt-in `--follow-queues`. The default eager/flat album or user URL remains explicitly unsupported.
+
+Listing HTML responses are limited to **2 MiB** each, traversal to **4 pages** and output to **48 distinct child URLs**. A supported `rel="next"` link must remain at the same origin and path, have only a numeric advancing page query, and fit inside the page cap. Invalid/external links are rejected without following them. The resolver paces consecutive pages by one second and preserves first-seen child ordering across pages. [Linux CI 40052501580](https://github.com/sguzman/galerith/actions/runs/40052501580) validates origin controls and two-page local HTTP/dedup fixtures.
+
+**Still missing:** all pinned upstream album/user URL aliases, exhaustive original Chevereto HTML layouts and arbitrary continuation queries, complete metadata and date/video duration models, broad media/thumbnail/MIME variants, filename/archive policies, account behavior and live upstream differential conformance. No upstream module is fully accepted on the strength of these previews.
 
 For exact scope and acceptance status see the [full module matrix](port-matrix.json) and [roadmap](ROADMAP.md).

@@ -18,6 +18,10 @@ All three are distinct types. Queue events do not silently resolve children.
 Future extraction jobs need bounded recursion, cycle, authentication,
 per-extractor and depth policies.
 
+ImagePond public files expose bounded typed URL events; selected album/user
+listings emit deferred ordered queues with strict same-origin pagination, never
+unbounded automatic file downloads. See [ImagePond](IMAGEPOND.md).
+
 ImageChest public galleries supply validated `gallery_id` and optional
 bounded page/file metadata without overwriting media identity. Public user
 profiles emit deferred validated gallery queues; see [ImageChest](IMAGECHEST.md).
