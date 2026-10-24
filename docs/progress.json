@@ -3208,6 +3208,38 @@
                 }
               ],
               "progress": 83
+            },
+            {
+              "id": "T560",
+              "emoji": "📷",
+              "name": "Imgur public image, album and deferred gallery previews",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned public image, album and gallery URL families with strict source ID validation",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur.rs pinned_public_url_families_have_strict_origins; CI 40122108041"
+                },
+                {
+                  "title": "Parse validated original media and ordered album metadata with JPEG and animated GIF normalization",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur.rs pinned_public_images_and_albums_preserve_id_and_order; CI 40122108041"
+                },
+                {
+                  "title": "Emit typed gallery child queue classification and ordered file and album directory/URL events",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur.rs pinned_public_gallery_is_deferred_to_image_or_album and messages_from_records; src/extractor/mod.rs; CI 40122108041"
+                },
+                {
+                  "title": "Bound authenticated public Client-ID API JSON to 2 MiB with offline HTTP request regression",
+                  "passed": true,
+                  "evidence": "src/extractor/imgur.rs bounded_single_image_makes_one_authenticated_public_api_request; CI 40122108041"
+                },
+                {
+                  "title": "Match full pinned Imgur users/favorites/search/auth, metadata/filename/archive behavior and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

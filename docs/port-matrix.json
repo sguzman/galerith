@@ -814,9 +814,14 @@
     {
       "path": "gallery_dl/extractor/imgur.py",
       "module": "imgur",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imgur.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Imgur single-image, album and gallery deferred child queue preview with first-party source ID validation, canonical i.imgur.com originals, JPEG/animated GIF selection, bounded 2 MiB public Client-ID JSON and synthetic one-API-request HTTP fixture. Full Linux CI 40122108041 passed. User/favorites/search/auth, complete metadata/filename/archive, redirects and live upstream differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/imhentai.py",
