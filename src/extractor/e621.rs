@@ -6,6 +6,7 @@ use serde_json::Value;
 use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
+const E621_JSON_RESPONSE_LIMIT: usize = 8 * 1024 * 1024;
 const E621_PER_PAGE: usize = 320;
 const E621_PAGE_THRESHOLD: usize = E621_PER_PAGE - 20;
 
@@ -356,13 +357,7 @@ async fn paginate_posts_bounded(
                 .append_pair("limit", &E621_PER_PAGE.to_string())
                 .append_pair("page", &page.to_string());
         }
-        let data: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let data: Value = super::http_json::fetch_json_limited(client, endpoint, E621_JSON_RESPONSE_LIMIT).await?;
         let count = posts_list(&data)?.len();
         if count == 0 {
             break;
@@ -390,13 +385,7 @@ async fn resolve_pool(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("pools/{id}.json"))?;
-    let metadata: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let metadata: Value = super::http_json::fetch_json_limited(client, endpoint, E621_JSON_RESPONSE_LIMIT).await?;
     let post_ids = metadata
         .get("post_ids")
         .and_then(Value::as_array)
@@ -427,13 +416,7 @@ async fn resolve_artist(
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("artists/{id}.json"))?;
-    let artist: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let artist: Value = super::http_json::fetch_json_limited(client, endpoint, E621_JSON_RESPONSE_LIMIT).await?;
     let name = artist
         .get("name")
         .and_then(Value::as_str)
@@ -474,13 +457,7 @@ async fn resolve_artist_search(
             }
             query.append_pair("page", &page.to_string());
         }
-        let data: Value = client
-            .get(url)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let data: Value = super::http_json::fetch_json_limited(client, url, E621_JSON_RESPONSE_LIMIT).await?;
         let artists = data
             .as_array()
             .ok_or("e621 artist search must return an array")?;
@@ -521,13 +498,7 @@ async fn resolve_at_base(
         }
         Target::Post { id, .. } => {
             let endpoint = base.join(&format!("posts/{id}.json"))?;
-            let data: Value = client
-                .get(endpoint)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            let data: Value = super::http_json::fetch_json_limited(client, endpoint, E621_JSON_RESPONSE_LIMIT).await?;
             let post = data.get("post").ok_or("missing e621 post object")?;
             Ok(parse_post(post, base).into_iter().collect())
         }

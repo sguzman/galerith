@@ -9,6 +9,7 @@ pub mod directlink;
 pub mod e621;
 pub mod foolfuuka;
 pub mod fourchan;
+pub mod http_json;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod imagebam;
