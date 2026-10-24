@@ -3738,6 +3738,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T575",
+              "emoji": "📸",
+              "name": "35photo guarded public originals and listing queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route bounded first-party public individual photos, tag, genre, and user paths and reject hostile path, query and credential forms",
+                  "passed": true,
+                  "evidence": "src/extractor/thirtyfivephoto.rs routes_accept_pinned_images_tags_genres_and_users_only; full Linux CI 40142431871"
+                },
+                {
+                  "title": "Decode source-backed single/series originals, titles, statistics, tags and trusted media paths from photo.getData",
+                  "passed": true,
+                  "evidence": "src/extractor/thirtyfivephoto.rs source_photo_json_yields_validated_series_originals_and_metadata; full Linux CI 40142431871"
+                },
+                {
+                  "title": "Emit bounded typed photo queues for first-party tag/genre/user public listings with deduplication",
+                  "passed": true,
+                  "evidence": "src/extractor/thirtyfivephoto.rs tag_page_queues_first_seen_numeric_public_photos; full Linux CI 40142431871"
+                },
+                {
+                  "title": "Bound HTML/API bytes and list-page counts with an original image API plus multi-page tag loopback HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/thirtyfivephoto.rs api_and_two_tag_pages_resolve_public_source_requests; full Linux CI 40142431871"
+                },
+                {
+                  "title": "Reproduce pinned user and genre AJAX pagination, complex metadata/filename/archive semantics, all listing variants and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
