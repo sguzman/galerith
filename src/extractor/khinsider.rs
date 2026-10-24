@@ -20,7 +20,8 @@ pub struct Album {
 
 fn valid_slug(s: &str) -> bool {
     (1..=130).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
 pub fn match_url(raw: &str) -> Option<Album> {
@@ -44,11 +45,12 @@ pub fn match_url(raw: &str) -> Option<Album> {
     }
     let paths: Vec<_> = url.path_segments()?.collect();
     match paths.as_slice() {
-        ["game-soundtracks", "album", slug]
-        | ["game-soundtracks", "album", slug, ""]
+        ["game-soundtracks", "album", slug] | ["game-soundtracks", "album", slug, ""]
             if valid_slug(slug) =>
         {
-            Some(Album { slug: (*slug).to_owned() })
+            Some(Album {
+                slug: (*slug).to_owned(),
+            })
         }
         _ => None,
     }
@@ -62,7 +64,12 @@ fn visible_text(value: &str) -> Option<String> {
     if value.len() > 240 || value.chars().any(char::is_control) || value.contains('<') {
         return None;
     }
-    Some(value.replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'"))
+    Some(
+        value
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'"),
+    )
 }
 
 fn metadata(page: &str, slug: &str) -> Metadata {
@@ -98,7 +105,9 @@ fn trusted_album_path(url: &Url, slug: &str) -> bool {
     {
         return false;
     }
-    let Some(paths) = url.path_segments() else { return false };
+    let Some(paths) = url.path_segments() else {
+        return false;
+    };
     let segments: Vec<_> = paths.collect();
     matches!(segments.as_slice(), ["game-soundtracks", "album", album, file]
         if *album == slug && !file.is_empty() && !file.contains('%') && !file.contains(".."))
@@ -112,8 +121,13 @@ fn track_pages(page: &str, slug: &str) -> Result<Vec<Url>, Box<dyn Error + Send 
         .ok_or("KHInsider source lacks pinned public song table")?;
     let base = Url::parse("https://downloads.khinsider.com/")?;
     let mut tracks = Vec::new();
-    for block in songs.split("<td class=\"clickable-row\"><a href=\"").skip(1) {
-        let Some(path) = block.split_once('"').map(|(href, _)| href) else { continue };
+    for block in songs
+        .split("<td class=\"clickable-row\"><a href=\"")
+        .skip(1)
+    {
+        let Some(path) = block.split_once('"').map(|(href, _)| href) else {
+            continue;
+        };
         let url = base.join(path)?;
         if !trusted_album_path(&url, slug) {
             return Err("KHInsider song row escapes its public album path".into());
@@ -130,7 +144,9 @@ fn track_pages(page: &str, slug: &str) -> Result<Vec<Url>, Box<dyn Error + Send 
 }
 
 fn trusted_audio(url: &Url) -> bool {
-    let Some(host) = url.host_str() else { return false };
+    let Some(host) = url.host_str() else {
+        return false;
+    };
     let host = host.to_ascii_lowercase();
     let recognized = ["khinsider.com", "vgmsite.com", "vgmtreasurechest.com"]
         .iter()
@@ -153,17 +169,27 @@ fn decode_track(
     album_meta: &Metadata,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let mut candidates = Vec::new();
-    for block in html.split("<p><a href=\"").skip(1).take(MAX_FORMATS_PER_TRACK + 1) {
+    for block in html
+        .split("<p><a href=\"")
+        .skip(1)
+        .take(MAX_FORMATS_PER_TRACK + 1)
+    {
         if candidates.len() >= MAX_FORMATS_PER_TRACK {
             return Err("KHInsider track exposes too many media format links".into());
         }
-        let Some(raw) = block.split_once('"').map(|(url, _)| url) else { continue };
+        let Some(raw) = block.split_once('"').map(|(url, _)| url) else {
+            continue;
+        };
         let Ok(url) = Url::parse(raw) else { continue };
         if !trusted_audio(&url) {
             continue;
         }
-        let Some(last) = url.path_segments().and_then(|mut s| s.next_back()) else { continue };
-        let Some((_, ext)) = last.rsplit_once('.') else { continue };
+        let Some(last) = url.path_segments().and_then(|mut s| s.next_back()) else {
+            continue;
+        };
+        let Some((_, ext)) = last.rsplit_once('.') else {
+            continue;
+        };
         let ext = ext.to_ascii_lowercase();
         if !matches!(ext.as_str(), "mp3" | "flac" | "ogg" | "wav" | "m4a") {
             continue;
@@ -212,7 +238,10 @@ async fn fetch_html(
     if response.url().origin() != origin.origin() {
         return Err("KHInsider source redirected outside trusted album origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("KHInsider source HTML exceeds bounded response size".into());
     }
     let mut bytes = Vec::new();
@@ -230,7 +259,12 @@ async fn records_at_base(
     album: &Album,
     base: &Url,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
-    let page = fetch_html(client, base.join(&format!("game-soundtracks/album/{}", album.slug))?, base).await?;
+    let page = fetch_html(
+        client,
+        base.join(&format!("game-soundtracks/album/{}", album.slug))?,
+        base,
+    )
+    .await?;
     let tracks = track_pages(&page, &album.slug)?;
     let meta = metadata(&page, &album.slug);
     let mut result = Vec::new();
@@ -255,7 +289,8 @@ pub async fn resolve(
     album: Album,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://downloads.khinsider.com/")?;
-    Ok(records_at_base(client, &album, &base).await?
+    Ok(records_at_base(client, &album, &base)
+        .await?
         .into_iter()
         .map(|(item, _)| item)
         .collect())
@@ -282,7 +317,10 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn album_html() -> &'static str {
         r#"<h2>Game &amp; Sounds</h2>Year: <b>2025</b>Number of Files: <b>2</b>Download all songs at once:<table id="songlist"><td class="clickable-row"><a href="/game-soundtracks/album/game-ost/track-1">One</a></td><td class="clickable-row"><a href="/game-soundtracks/album/game-ost/track-2">Two</a></td></table>"#
@@ -290,7 +328,12 @@ mod tests {
 
     #[test]
     fn matches_only_pinned_album_origins_and_validated_slugs() {
-        assert_eq!(match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap().slug, "game-ost");
+        assert_eq!(
+            match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost")
+                .unwrap()
+                .slug,
+            "game-ost"
+        );
         for invalid in [
             "https://evilkhinsider.com/game-soundtracks/album/game-ost",
             "https://www.khinsider.com/game-soundtracks/album/game-ost",
@@ -306,53 +349,80 @@ mod tests {
     #[test]
     fn preserves_album_song_order_and_rejects_out_of_album_tracks() {
         let tracks = track_pages(album_html(), "game-ost").unwrap();
-        assert_eq!(tracks.len(),2);
+        assert_eq!(tracks.len(), 2);
         assert_eq!(tracks[0].path(), "/game-soundtracks/album/game-ost/track-1");
         assert_eq!(tracks[1].path(), "/game-soundtracks/album/game-ost/track-2");
-        let evil=album_html().replace("game-ost/track-2","other/track-2");
-        assert!(track_pages(&evil,"game-ost").is_err());
-        assert_eq!(metadata(album_html(), "game-ost")["album_name"], "Game & Sounds");
+        let evil = album_html().replace("game-ost/track-2", "other/track-2");
+        assert!(track_pages(&evil, "game-ost").is_err());
+        assert_eq!(
+            metadata(album_html(), "game-ost")["album_name"],
+            "Game & Sounds"
+        );
     }
 
     #[test]
     fn default_mp3_selects_mp3_then_first_fallback_with_trusted_media() {
-        let meta=metadata(album_html(),"game-ost");
-        let html=r#"<p><a href="https://dl.vgmsite.com/one.flac">FLAC</a></p><p><a href="https://dl.vgmsite.com/one.mp3">MP3</a></p>"#;
-        let tracks=decode_track(html,"game-ost",1,&meta).unwrap();
-        assert_eq!(tracks.len(),1);
-        assert_eq!(tracks[0].0.url,"https://dl.vgmsite.com/one.mp3");
-        assert_eq!(tracks[0].1["num"],1);
-        assert_eq!(tracks[0].1["year"],"2025");
-        let fallback=decode_track(r#"<p><a href="https://dl.vgmsite.com/only.flac">FLAC</a></p>"#,"game-ost",2,&meta).unwrap();
-        assert_eq!(fallback[0].1["extension"],"flac");
-        let forged=decode_track(r#"<p><a href="https://evil-vgmsite.com/fake.mp3">Bad</a></p>"#,"game-ost",1,&meta);
+        let meta = metadata(album_html(), "game-ost");
+        let html = r#"<p><a href="https://dl.vgmsite.com/one.flac">FLAC</a></p><p><a href="https://dl.vgmsite.com/one.mp3">MP3</a></p>"#;
+        let tracks = decode_track(html, "game-ost", 1, &meta).unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].0.url, "https://dl.vgmsite.com/one.mp3");
+        assert_eq!(tracks[0].1["num"], 1);
+        assert_eq!(tracks[0].1["year"], "2025");
+        let fallback = decode_track(
+            r#"<p><a href="https://dl.vgmsite.com/only.flac">FLAC</a></p>"#,
+            "game-ost",
+            2,
+            &meta,
+        )
+        .unwrap();
+        assert_eq!(fallback[0].1["extension"], "flac");
+        let forged = decode_track(
+            r#"<p><a href="https://evil-vgmsite.com/fake.mp3">Bad</a></p>"#,
+            "game-ost",
+            1,
+            &meta,
+        );
         assert!(forged.is_err());
     }
 
     #[tokio::test]
     async fn bounded_album_and_two_track_pages_resolve_three_local_http_requests() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            for (path,body) in [
-                ("/game-soundtracks/album/game-ost",album_html()),
-                ("/game-soundtracks/album/game-ost/track-1",r#"<p><a href="https://dl.vgmsite.com/first.mp3">MP3</a></p>"#),
-                ("/game-soundtracks/album/game-ost/track-2",r#"<p><a href="https://dl.vgmtreasurechest.com/second.flac">FLAC</a></p>"#),
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                ("/game-soundtracks/album/game-ost", album_html()),
+                (
+                    "/game-soundtracks/album/game-ost/track-1",
+                    r#"<p><a href="https://dl.vgmsite.com/first.mp3">MP3</a></p>"#,
+                ),
+                (
+                    "/game-soundtracks/album/game-ost/track-2",
+                    r#"<p><a href="https://dl.vgmtreasurechest.com/second.flac">FLAC</a></p>"#,
+                ),
             ] {
-                let (mut socket,_)=listener.accept().await.unwrap();
-                let mut request=[0u8;4096];
-                let n=socket.read(&mut request).await.unwrap();
-                assert!(String::from_utf8_lossy(&request[..n]).starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
-        let base=Url::parse(&format!("http://{addr}/")).unwrap();
-        let album=match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
-        let files=records_at_base(&Client::new(),&album,&base).await.unwrap();
-        assert_eq!(files.len(),2);
-        assert_eq!(files[0].0.filename,"game-ost_001_first.mp3");
-        assert_eq!(files[1].1["extension"],"flac");
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let album =
+            match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
+        let files = records_at_base(&Client::new(), &album, &base)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].0.filename, "game-ost_001_first.mp3");
+        assert_eq!(files[1].1["extension"], "flac");
         server.await.unwrap();
     }
 }

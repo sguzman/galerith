@@ -90,7 +90,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("imhentai", "pinned public IMHentai-family galleries"),
     ("issuu", "pinned public Issuu publication pages"),
-    ("khinsider", "public soundtrack albums with bounded track formats"),
+    (
+        "khinsider",
+        "public soundtrack albums with bounded track formats",
+    ),
     (
         "listal",
         "pinned public Listal images and people-picture queues",
@@ -909,7 +912,10 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
-            ("https://downloads.khinsider.com/game-soundtracks/album/game-ost", "khinsider"),
+            (
+                "https://downloads.khinsider.com/game-soundtracks/album/game-ost",
+                "khinsider",
+            ),
             ("https://issuu.com/press", "issuu"),
             ("https://imhentai.xxx/tag/art/", "imhentai"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
