@@ -188,8 +188,22 @@ fn gallery_queue(html: &str, id: &str) -> Vec<ExtractorMessage> {
         .split_once("</div>")
         .map(|(f, _)| f)
         .unwrap_or(fragment);
-    for (position, _) in fragment.match_indices("href=\"") {
-        let suffix = &fragment[position + "href=\"".len()..];
+    for (position, _) in fragment.match_indices("<a") {
+        let Some(after_tag) = fragment.get(position + 2..) else {
+            continue;
+        };
+        let Some((attributes, _)) = after_tag.split_once('>') else {
+            continue;
+        };
+        if !attributes.starts_with(char::is_whitespace) {
+            continue;
+        }
+        let Some((prefix, suffix)) = attributes.split_once("href=\"") else {
+            continue;
+        };
+        if !prefix.ends_with(char::is_whitespace) {
+            continue;
+        }
         let Some((raw, _)) = suffix.split_once('"') else {
             continue;
         };
@@ -344,7 +358,7 @@ mod tests {
 
     #[test]
     fn gallery_only_enqueues_first_party_public_file_urls_and_deduplicates() {
-        let html = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">One</a><a href="https://pixhost.to/show/190/130327671_test-.png">Duplicate</a><a href="https://evil.example/show/190/123_file.jpg">Foreign</a><a href="https://pixhost.to/show/191/987654_other.jpg">Two</a><a href="/show/192/123222_extra.webp">Relative</a><a href="//evil.example/show/193/222333_bad.jpg">Bad</a></div>"#;
+        let html = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">One</a><a href="https://pixhost.to/show/190/130327671_test-.png">Duplicate</a><a href="https://evil.example/show/190/123_file.jpg">Foreign</a><a href="https://pixhost.to/show/191/987654_other.jpg">Two</a><a href="/show/192/123222_extra.webp">Relative</a><a href="//evil.example/show/193/222333_bad.jpg">Bad</a><a data-href="/show/194/444555_fake.jpg">Data</a><script>let x='href="/show/195/888999_js.jpg"';</script></div>"#;
         let queue = gallery_queue(html, "jSMFq");
         assert_eq!(queue.len(), 3);
         let first = serde_json::to_value(&queue[0]).unwrap();
