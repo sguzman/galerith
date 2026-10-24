@@ -10,6 +10,7 @@ pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
 pub mod fappic;
+pub mod fivehundredpx;
 pub mod foolfuuka;
 pub mod fourarchive;
 pub mod fourchan;
@@ -18,7 +19,6 @@ pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
 pub mod imagebam;
-pub mod fivehundredpx;
 pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
@@ -192,7 +192,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public prompt-image searches over POST cursor API",
     ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
-    ("500px", "public 500px single-photo expanded source originals"),
+    (
+        "500px",
+        "public 500px single-photo expanded source originals",
+    ),
     (
         "3dbooru",
         "pinned Behoimi post, tag, pool and popular Moebooru routes",

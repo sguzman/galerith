@@ -17,7 +17,10 @@ pub struct Photo {
 
 pub fn match_url(raw: &str) -> Option<Photo> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|x| lower.contains(x)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|x| lower.contains(x))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
@@ -47,10 +50,14 @@ fn media_url(raw: &str) -> Option<String> {
     let url = Url::parse(raw).ok()?;
     let host = url.host_str()?;
     let origin_ok = ["500px.com", "500px.org", "500pxcdn.com"]
-        .iter().any(|root| host == *root || host.ends_with(&format!(".{root}")));
-    if !origin_ok || url.scheme() != "https"
-        || !url.username().is_empty() || url.password().is_some()
-        || url.port().is_some() || url.path().contains("..")
+        .iter()
+        .any(|root| host == *root || host.ends_with(&format!(".{root}")));
+    if !origin_ok
+        || url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.path().contains("..")
     {
         return None;
     }
@@ -58,30 +65,45 @@ fn media_url(raw: &str) -> Option<String> {
 }
 
 fn record(
-    body: &Value, photo: &Photo,
+    body: &Value,
+    photo: &Photo,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let id = photo.id.to_string();
-    let source = body.get("photos").and_then(|p| p.get(&id))
+    let source = body
+        .get("photos")
+        .and_then(|p| p.get(&id))
         .ok_or("500px expanded photo API response lacks requested photo")?;
-    let source_id = source.get("id")
+    let source_id = source
+        .get("id")
         .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()))
         .ok_or("500px expanded photo lacks validated numeric ID")?;
     if source_id != photo.id {
         return Err("500px expanded photo ID does not match request".into());
     }
-    let images = source.get("images").and_then(Value::as_array)
+    let images = source
+        .get("images")
+        .and_then(Value::as_array)
         .ok_or("500px expanded photo lacks image renditions")?;
     if images.is_empty() || images.len() > 32 {
         return Err("500px expanded image list is outside bounds".into());
     }
-    let original = images.last().and_then(|v| v.get("url")).and_then(Value::as_str)
-        .and_then(media_url).ok_or("500px original must use a trusted HTTPS image host")?;
-    let ext = source.get("image_format").and_then(Value::as_str)
-        .ok_or("500px original has no image format")?.to_ascii_lowercase();
+    let original = images
+        .last()
+        .and_then(|v| v.get("url"))
+        .and_then(Value::as_str)
+        .and_then(media_url)
+        .ok_or("500px original must use a trusted HTTPS image host")?;
+    let ext = source
+        .get("image_format")
+        .and_then(Value::as_str)
+        .ok_or("500px original has no image format")?
+        .to_ascii_lowercase();
     if !(2..=5).contains(&ext.len()) || !ext.bytes().all(|c| c.is_ascii_alphanumeric()) {
         return Err("500px source image format invalid".into());
     }
-    let name = source.get("name").and_then(Value::as_str)
+    let name = source
+        .get("name")
+        .and_then(Value::as_str)
         .filter(|name| !name.is_empty() && name.len() <= 240 && !name.chars().any(char::is_control))
         .unwrap_or(&id);
     let cleaned = safe_filename(name);
@@ -96,8 +118,13 @@ fn record(
     metadata.insert("id".into(), photo.id.into());
     metadata.insert("name".into(), cleaned.into());
     metadata.insert("extension".into(), ext.into());
-    metadata.insert("post_url".into(), format!("https://500px.com/photo/{id}").into());
-    if let Some(username) = source.pointer("/user/username").and_then(Value::as_str)
+    metadata.insert(
+        "post_url".into(),
+        format!("https://500px.com/photo/{id}").into(),
+    );
+    if let Some(username) = source
+        .pointer("/user/username")
+        .and_then(Value::as_str)
         .filter(|s| s.len() <= 100 && !s.chars().any(char::is_control))
     {
         metadata.insert("username".into(), username.into());
@@ -116,7 +143,9 @@ fn record(
 }
 
 async fn at_base(
-    client: &Client, photo: &Photo, base: &Url,
+    client: &Client,
+    photo: &Photo,
+    base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let mut url = base.join("v1/photos")?;
     let id = photo.id.to_string();
@@ -138,13 +167,19 @@ async fn at_base(
             params.append_pair(key, value);
         }
     }
-    let mut response = client.get(url.clone())
+    let mut response = client
+        .get(url.clone())
         .header("Origin", "https://500px.com")
-        .send().await?.error_for_status()?;
+        .send()
+        .await?
+        .error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("500px expanded photo API redirected outside its origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_JSON as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_JSON as u64)
+    {
         return Err("500px API JSON exceeds response limit".into());
     }
     let mut bytes = Vec::new();
@@ -158,32 +193,50 @@ async fn at_base(
 }
 
 pub async fn resolve(
-    client: &Client, photo: Photo,
+    client: &Client,
+    photo: Photo,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.500px.com/")?;
     Ok(vec![at_base(client, &photo, &base).await?.0])
 }
 
 pub async fn resolve_messages(
-    client: &Client, photo: Photo,
+    client: &Client,
+    photo: Photo,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.500px.com/")?;
     let (item, metadata) = at_base(client, &photo, &base).await?;
     Ok(vec![
-        ExtractorMessage::Directory { metadata: metadata.clone() },
-        ExtractorMessage::Url { url: item.url, metadata },
+        ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        },
+        ExtractorMessage::Url {
+            url: item.url,
+            metadata,
+        },
     ])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn matches_only_public_single_photos_and_pinned_origins() {
-        assert_eq!(match_url("https://500px.com/photo/12345/Golden-Landscape").unwrap().id, 12345);
-        assert_eq!(match_url("https://web.500px.com/photo/12345").unwrap().id, 12345);
+        assert_eq!(
+            match_url("https://500px.com/photo/12345/Golden-Landscape")
+                .unwrap()
+                .id,
+            12345
+        );
+        assert_eq!(
+            match_url("https://web.500px.com/photo/12345").unwrap().id,
+            12345
+        );
         for bad in [
             "https://fake500px.com/photo/12345",
             "https://500px.com/photo/0",
