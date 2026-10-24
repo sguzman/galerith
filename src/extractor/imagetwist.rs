@@ -623,8 +623,7 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let gallery =
-            match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
+        let gallery = match_gallery_url("https://imagetwist.com/p/gdldev/747223/digits").unwrap();
         let events = gallery_at_base(&Client::new(), &gallery, 3, &base)
             .await
             .unwrap();
