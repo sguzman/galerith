@@ -90,7 +90,9 @@ pub fn match_url(input: &str) -> Option<Target> {
             Query::Popular { feed, parameters }
         }
         ("post", Some("index"), None, None) if category == "3dbooru" => {
-            let tags = url.query_pairs().find(|(k, _)| k == "tags")
+            let tags = url
+                .query_pairs()
+                .find(|(k, _)| k == "tags")
                 .map(|(_, v)| v.into_owned())?;
             Query::Tags(tags)
         }
@@ -117,15 +119,24 @@ async fn source_json(
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     if category != "3dbooru" {
         return super::http_json::fetch_json_limited(
-            client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT,
-        ).await;
+            client,
+            endpoint,
+            MOEBOORU_JSON_RESPONSE_LIMIT,
+        )
+        .await;
     }
     // Pinned Behoimi adapter needs a fixed source referer and no compression.
-    let mut response = client.get(endpoint)
+    let mut response = client
+        .get(endpoint)
         .header("Referer", "http://behoimi.org/post/show/")
         .header("Accept-Encoding", "identity")
-        .send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|size| size > MOEBOORU_JSON_RESPONSE_LIMIT as u64) {
+        .send()
+        .await?
+        .error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|size| size > MOEBOORU_JSON_RESPONSE_LIMIT as u64)
+    {
         return Err("3dbooru API response exceeds byte cap".into());
     }
     let mut body = Vec::new();
@@ -186,7 +197,11 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let scheme = if target.category == "3dbooru" { "http" } else { "https" };
+    let scheme = if target.category == "3dbooru" {
+        "http"
+    } else {
+        "https"
+    };
     let base = Url::parse(&format!("{scheme}://{}/", target.host))?;
     resolve_at_base(client, target, max_pages, &base).await
 }
@@ -199,7 +214,11 @@ pub async fn resolve_limited(
     max_pages: u16,
     max_media: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let scheme = if target.category == "3dbooru" { "http" } else { "https" };
+    let scheme = if target.category == "3dbooru" {
+        "http"
+    } else {
+        "https"
+    };
     let base = Url::parse(&format!("{scheme}://{}/", target.host))?;
     resolve_at_base_limited(client, target, max_pages, &base, max_media).await
 }
@@ -229,8 +248,7 @@ async fn resolve_at_base_limited(
                 query.append_pair(key, value);
             }
         }
-        let body: Value =
-            source_json(client, endpoint, target.category).await?;
+        let body: Value = source_json(client, endpoint, target.category).await?;
         return Ok(parse_items(&body, target.category)?
             .into_iter()
             .take(media_limit)
@@ -249,15 +267,18 @@ async fn resolve_at_base_limited(
     };
     let mut output = Vec::new();
     for page in 1..=pages {
-        let path = if target.category == "3dbooru" { "post/index.json" } else { "post.json" };
+        let path = if target.category == "3dbooru" {
+            "post/index.json"
+        } else {
+            "post.json"
+        };
         let mut endpoint = base.join(path)?;
         endpoint
             .query_pairs_mut()
             .append_pair("tags", &tags)
             .append_pair("limit", "100")
             .append_pair("page", &page.to_string());
-        let body: Value =
-            source_json(client, endpoint, target.category).await?;
+        let body: Value = source_json(client, endpoint, target.category).await?;
         let short_page = body
             .as_array()
             .ok_or("Moebooru API returned non-array JSON")?
@@ -364,7 +385,10 @@ mod tests {
 
     #[tokio::test]
     async fn behoimi_3dbooru_uses_index_json_and_pinned_request_headers() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -372,7 +396,9 @@ mod tests {
             let mut request = [0u8; 8192];
             let size = stream.read(&mut request).await.unwrap();
             let source = String::from_utf8_lossy(&request[..size]).to_ascii_lowercase();
-            assert!(source.starts_with("get /post/index.json?tags=id%3a44&limit=100&page=1 http/1.1"));
+            assert!(
+                source.starts_with("get /post/index.json?tags=id%3a44&limit=100&page=1 http/1.1")
+            );
             assert!(source.contains("referer: http://behoimi.org/post/show/"));
             assert!(source.contains("accept-encoding: identity"));
             let body = r#"[{"id":44,"file_url":"http://behoimi.org/data/44.jpg"}]"#;
@@ -384,7 +410,9 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let target = match_url("http://behoimi.org/post/show/44").unwrap();
-        let originals = resolve_at_base(&Client::new(), target, 1, &base).await.unwrap();
+        let originals = resolve_at_base(&Client::new(), target, 1, &base)
+            .await
+            .unwrap();
         assert_eq!(originals.len(), 1);
         assert_eq!(originals[0].filename, "3dbooru_44.jpg");
         server.await.unwrap();
