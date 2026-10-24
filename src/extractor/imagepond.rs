@@ -103,7 +103,10 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
         {
             continue;
         }
-        let Some(parts) = url.path_segments().map(|segments| segments.collect::<Vec<_>>()) else {
+        let Some(parts) = url
+            .path_segments()
+            .map(|segments| segments.collect::<Vec<_>>())
+        else {
             continue;
         };
         let [route, id] = parts.as_slice() else {
@@ -416,7 +419,12 @@ mod tests {
         let events = collect_queue_messages(html, &QueueTarget::User("alice".into()));
         let urls: Vec<_> = events
             .iter()
-            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .map(|event| {
+                serde_json::to_value(event).unwrap()["url"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
             .collect();
         assert_eq!(
             urls,
