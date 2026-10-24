@@ -36,6 +36,7 @@ pub fn match_url(input: &str) -> Option<Target> {
         || url.password().is_some()
         || url.port().is_some()
         || url.query().is_some()
+        || url.fragment().is_some()
     {
         return None;
     }
@@ -68,6 +69,7 @@ pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
         || url.password().is_some()
         || url.port().is_some()
         || url.query().is_some()
+        || url.fragment().is_some()
     {
         return None;
     }
@@ -80,58 +82,62 @@ pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
 }
 
 fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMessage> {
-    // Only actual HTML href attributes qualify; substrings of foreign links,
-    // scripts and plain text must never turn into first-party child requests.
+    // Preserve document order across normal file anchors and the literal
+    // pinned Chevereto album fallback. JavaScript is never evaluated.
     let root = Url::parse("https://www.imagepond.net/").expect("fixed public origin");
-    let mut seen = HashSet::new();
-    let mut messages = Vec::new();
-    for element in html.split("<a").skip(1) {
-        let Some((attributes, _)) = element.split_once('>') else {
+    let mut candidates = Vec::new();
+    for (position, _) in html.match_indices("<a") {
+        let Some(after_tag) = html.get(position + 2..) else {
+            continue;
+        };
+        let Some((attributes, _)) = after_tag.split_once('>') else {
             continue;
         };
         if !attributes.starts_with(char::is_whitespace) {
             continue;
         }
-        let Some(raw_href) = attributes
-            .split_once("href=\"")
-            .and_then(|(_, suffix)| suffix.split_once('"'))
-            .map(|(href, _)| href)
-        else {
+        let Some((prefix, suffix)) = attributes.split_once("href=\"") else {
             continue;
         };
+        if !prefix.ends_with(char::is_whitespace) {
+            continue;
+        }
+        let Some((href, _)) = suffix.split_once('"') else {
+            continue;
+        };
+        if href.len() <= 2048 {
+            candidates.push((position, href.to_owned()));
+        }
+    }
+    if matches!(target, QueueTarget::Album(_)) {
+        const FALLBACK: &str = "'javascript:void(0)' : '";
+        for (position, _) in html.match_indices(FALLBACK) {
+            let Some((href, _)) = html[position + FALLBACK.len()..].split_once('\'') else {
+                continue;
+            };
+            if href.len() <= 2048 {
+                candidates.push((position, href.to_owned()));
+            }
+        }
+    }
+    candidates.sort_by_key(|(position, _)| *position);
+    let mut seen = HashSet::new();
+    let mut messages = Vec::new();
+    for (_, raw_href) in candidates {
         let Ok(url) = root.join(&raw_href.replace("&amp;", "&")) else {
             continue;
         };
-        if url.scheme() != "https"
-            || !matches!(url.host_str(), Some("imagepond.net" | "www.imagepond.net"))
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || url.port().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            continue;
-        }
-        let Some(parts) = url
-            .path_segments()
-            .map(|segments| segments.collect::<Vec<_>>())
-        else {
+        let Some(file) = match_url(url.as_str()) else {
             continue;
         };
-        let [route, id] = parts.as_slice() else {
-            continue;
-        };
-        if !matches!(*route, "i" | "img" | "image" | "video") || !safe_slug(id) {
-            continue;
-        }
-        let child = format!("https://www.imagepond.net/{route}/{id}");
+        let child = format!("https://www.imagepond.net/{}", file.path);
         if !seen.insert(child.clone()) {
             continue;
         }
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "imagepond".into());
         metadata.insert("subcategory".into(), "file".into());
-        metadata.insert("file_id".into(), (*id).into());
+        metadata.insert("file_id".into(), file.id.into());
         match target {
             QueueTarget::Album(id) => {
                 metadata.insert("album_id".into(), id.clone().into());
@@ -468,6 +474,38 @@ mod tests {
         assert_eq!(b["url"], "https://www.imagepond.net/video/b2");
         assert_eq!(a["metadata"]["album_id"], "gallery123");
         assert_eq!(b["metadata"]["file_id"], "b2");
+    }
+
+    #[test]
+    fn album_fallback_reads_pinned_public_file_pattern_without_executing_js() {
+        let html = r#"<script>download = 'javascript:void(0)' : 'https://www.imagepond.net/i/chv_317512';</script><a href="/video/1000423939.zb8Fxy">Video</a><script>other = 'javascript:void(0)' : 'https://evil.example/i/fake';</script>"#;
+        let results = collect_queue_messages(html, &QueueTarget::Album("chv_2822".into()));
+        assert_eq!(results.len(), 2);
+        let first = serde_json::to_value(&results[0]).unwrap();
+        let second = serde_json::to_value(&results[1]).unwrap();
+        assert_eq!(first["url"], "https://www.imagepond.net/i/chv_317512");
+        assert_eq!(first["metadata"]["album_id"], "chv_2822");
+        assert_eq!(
+            second["url"],
+            "https://www.imagepond.net/video/1000423939.zb8Fxy"
+        );
+        assert_eq!(second["metadata"]["file_id"], "1000423939.zb8Fxy");
+        assert_eq!(
+            collect_queue_messages(html, &QueueTarget::User("alice".into())).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn queue_rejects_url_fragments_and_fake_anchor_attributes() {
+        let html = r#"<a data-href="/i/fake123">Fake</a><a href="/i/real123#fragment">Fragment</a><a href="/i/real456">Real</a>"#;
+        let events = collect_queue_messages(html, &QueueTarget::Album("gallery".into()));
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["url"],
+            "https://www.imagepond.net/i/real456"
+        );
+        assert!(match_url("https://www.imagepond.net/i/real456#fragment").is_none());
     }
 
     #[test]
