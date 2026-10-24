@@ -20,6 +20,7 @@ pub mod imagepond;
 pub mod imageshack;
 pub mod imgbb;
 pub mod imgbox;
+pub mod imgadult;
 pub mod imgdrive;
 pub mod imgpile;
 pub mod imgth;
@@ -83,6 +84,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imgspice", "pinned public Imgspice image preview"),
     ("imagepond", "public ImagePond single-file OG media pages"),
     ("picstate", "public Picstate original image pages"),
+    ("imgadult", "pinned public Imgadult cookie-based image preview"),
     ("imgdrive", "pinned public Imgdrive OG image preview"),
     ("imgtaxi", "pinned public Imgtaxi OG image preview"),
     ("imgwallet", "pinned public Imgwallet OG image preview"),
@@ -170,6 +172,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some(target.host.name())
     } else if imagehosts::match_url(input).is_some() {
         Some("pixhost")
+    } else if imgadult::match_url(input).is_some() {
+        Some("imgadult")
     } else if let Some(target) = imgdrive::match_url(input) {
         Some(target.family.category())
     } else if imxto::match_url(input).is_some() {
@@ -287,6 +291,9 @@ pub async fn resolve(
     }
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve(client, target).await;
+    }
+    if let Some(target) = imgadult::match_url(input) {
+        return imgadult::resolve(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve(client, target).await;
@@ -409,6 +416,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagehosts::match_url(input) {
         return imagehosts::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imgadult::match_url(input) {
+        return imgadult::resolve_messages(client, target).await;
     }
     if let Some(target) = imgdrive::match_url(input) {
         return imgdrive::resolve_messages(client, target).await;
@@ -747,6 +757,7 @@ mod tests {
                 "imgspice",
             ),
             ("https://imx.to/i/1qdeva", "imxto"),
+            ("https://imgadult.com/img-686b4f451af05.html", "imgadult"),
             ("https://imgdrive.net/img-61ac0caeabf35.html", "imgdrive"),
             ("https://imgtaxi.com/img-61c71cea940d6.html", "imgtaxi"),
             ("https://imgwallet.com/img-62fd3045ceec6.html", "imgwallet"),
