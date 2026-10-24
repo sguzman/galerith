@@ -378,7 +378,15 @@ pub async fn resolve_messages(
     client: &Client,
     gallery: Gallery,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let page = gallery_page_at_base(client, &gallery, &Url::parse("https://imgchest.com/")?).await?;
+    resolve_messages_at_base(client, gallery, &Url::parse("https://imgchest.com/")?).await
+}
+
+async fn resolve_messages_at_base(
+    client: &Client,
+    gallery: Gallery,
+    base: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let page = gallery_page_at_base(client, &gallery, base).await?;
     let media = gallery_files(&page)?;
     Ok(gallery_messages_with_fields(&gallery, media, &page))
 }
@@ -684,6 +692,56 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].filename, "abc123xyz45.png");
         assert_eq!(files[1].filename, "def456uvw78.webp");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn typed_gallery_http_request_preserves_metadata_without_refetch() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; 4096];
+            let len = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..len]);
+            assert!(request.starts_with("GET /p/abc123xyz45 HTTP/1.1"));
+            let data = json!({"props":{"post":{
+                "title":"Public album", "username":"alice", "image_count":1,
+                "files":[{
+                    "id":"def456uvw78",
+                    "link":"https://cdn.imgchest.com/files/def456uvw78.jpg",
+                    "description":"Public description", "position":1
+                }]
+            }}});
+            let encoded = data.to_string().replace('"', "&quot;");
+            let body = format!("<section data-page=\"{encoded}\"></section>");
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let events = resolve_messages_at_base(
+            &Client::new(),
+            Gallery {
+                id: "abc123xyz45".into(),
+            },
+            &base,
+        )
+        .await
+        .unwrap();
+        assert_eq!(events.len(), 2);
+        let dir = serde_json::to_value(&events[0]).unwrap();
+        let url = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(dir["metadata"], url["metadata"]);
+        assert_eq!(url["metadata"]["title"], "Public album");
+        assert_eq!(url["metadata"]["description"], "Public description");
+        assert_eq!(url["metadata"]["file_id"], "def456uvw78");
         server.await.unwrap();
     }
 
