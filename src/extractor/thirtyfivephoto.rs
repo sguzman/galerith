@@ -18,6 +18,7 @@ pub enum Target {
     Image(String),
     Tag(String),
     Genre(String),
+    GenreNew(String),
     User(String),
 }
 
@@ -68,6 +69,9 @@ pub fn match_url(raw: &str) -> Option<Target> {
         ["tags", tag] | ["tags", tag, ""] if slug(tag) => Some(Target::Tag((*tag).into())),
         [p] | [p, ""] if p.strip_prefix("genre_").is_some_and(numeric) => {
             Some(Target::Genre(p.trim_start_matches("genre_").into()))
+        }
+        [p, "new"] | [p, "new", ""] if p.strip_prefix("genre_").is_some_and(numeric) => {
+            Some(Target::GenreNew(p.trim_start_matches("genre_").into()))
         }
         [user] | [user, ""]
             if slug(user)
@@ -358,6 +362,7 @@ async fn ajax_listing(
     scope: &str,
     mode: &str,
     key: &str,
+    rating: &str,
     first_ids: Vec<String>,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
@@ -394,7 +399,7 @@ async fn ajax_listing(
             } else {
                 pairs
                     .append_pair("community_id", key)
-                    .append_pair("photo_rating", "50");
+                    .append_pair("photo_rating", rating);
             }
             pairs.append_pair("lastId", &cursor);
         }
@@ -487,31 +492,37 @@ async fn at_base(
                 &format!("user:{name}"),
                 "photoUser",
                 raw,
+                "50",
                 Vec::new(),
                 max_pages,
             )
             .await?;
             Ok((Vec::new(), queue))
         }
-        Target::Genre(id) => {
-            let url = page_base.join(&format!("genre_{id}/"))?;
+        listing @ (Target::Genre(_) | Target::GenreNew(_)) => {
+            let (id, recent) = match listing {
+                Target::Genre(id) => (id, false),
+                Target::GenreNew(id) => (id, true),
+                _ => unreachable!(),
+            };
+            let path = if recent {
+                format!("genre_{id}/new/")
+            } else {
+                format!("genre_{id}/")
+            };
+            let url = page_base.join(&path)?;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
-            let block = html
-                .split_once(" class=\"photo")
-                .map(|(_, following)| following)
+            let markup = html.split_once(" class=\"photo")
+                .map(|(_, text)| text)
                 .unwrap_or("");
-            let first = parse_ajax_ids(block);
+            let first = parse_ajax_ids(markup);
+            let scope = if recent { format!("genre_new:{id}") } else { format!("genre:{id}") };
+            let rating = if recent { "0" } else { "50" };
             let queue = ajax_listing(
-                client,
-                page_base,
-                &format!("genre:{id}"),
-                "genre",
-                &id,
-                first,
-                max_pages,
-            )
-            .await?;
+                client, page_base, &scope,
+                "genre", &id, rating, first, max_pages,
+            ).await?;
             Ok((Vec::new(), queue))
         }
     }
@@ -573,6 +584,10 @@ mod tests {
         assert_eq!(
             match_url("https://35photo.pro/genre_12345/"),
             Some(Target::Genre("12345".into()))
+        );
+        assert_eq!(
+            match_url("https://35photo.pro/genre_12345/new/"),
+            Some(Target::GenreNew("12345".into()))
         );
         assert_eq!(
             match_url("https://35photo.pro/alice/"),
@@ -687,6 +702,44 @@ mod tests {
             "https://35photo.pro/photo_20/"
         );
         backend.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn recent_genre_uses_zero_rating_in_pinned_ajax_protocol() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, html) in [
+                ("/genre_12/new/", r#"<div class="photo item"><a href="/photo_45/">First</a></div>"#),
+                (
+                    "/show_block.php?type=getNextPageData&page=genre&community_id=12&photo_rating=0&lastId=45",
+                    r#"{"data":"<a href='/photo_20/'>Next</a>","lastId":""}"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 8192];
+                let len = stream.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..len])
+                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                    html.len()
+                );
+                stream.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let (_, queue) = at_base(
+            &Client::new(), &base, &base, Target::GenreNew("12".into()), 2,
+        ).await.unwrap();
+        assert_eq!(queue.len(), 2);
+        assert_eq!(
+            serde_json::to_value(&queue[0]).unwrap()["metadata"]["source_scope"],
+            "genre_new:12"
+        );
+        server.await.unwrap();
     }
 
     #[tokio::test]
