@@ -34,6 +34,7 @@ pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
 pub mod khinsider;
+pub mod keenspot;
 pub mod lexica;
 pub mod lightroom;
 pub mod listal;
@@ -94,6 +95,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "khinsider",
         "public soundtrack albums with bounded track formats",
     ),
+    ("keenspot", "public subdomain webcomic page originals"),
     (
         "listal",
         "pinned public Listal images and people-picture queues",
@@ -235,6 +237,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("listal")
     } else if khinsider::match_url(input).is_some() {
         Some("khinsider")
+    } else if keenspot::match_url(input).is_some() {
+        Some("keenspot")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -389,6 +393,9 @@ pub async fn resolve(
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve(client, album).await;
+    }
+    if let Some(comic) = keenspot::match_url(input) {
+        return keenspot::resolve(client, comic).await;
     }
     if issuu::publisher::match_url(input).is_some() {
         return Err("Issuu publisher feeds require --dump-messages or --follow-queues".into());
@@ -556,6 +563,9 @@ pub async fn resolve_messages(
     }
     if let Some(album) = khinsider::match_url(input) {
         return khinsider::resolve_messages(client, album).await;
+    }
+    if let Some(comic) = keenspot::match_url(input) {
+        return keenspot::resolve_messages(client, comic).await;
     }
     if let Some(publisher) = issuu::publisher::match_url(input) {
         return issuu::publisher::resolve_messages(client, publisher, max_pages).await;
@@ -912,6 +922,7 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
+            ("https://story.keenspot.com/comic/one/", "keenspot"),
             (
                 "https://downloads.khinsider.com/game-soundtracks/album/game-ost",
                 "khinsider",
