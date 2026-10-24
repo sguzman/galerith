@@ -59,9 +59,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     let path: Vec<_> = url.path_segments()?.collect();
     match path.as_slice() {
         ["gallery", id] if valid_token(id) => Some(Target::Gallery((*id).into())),
-        [id] | ["image", id]
-            if valid_token(id) && !matches!(*id, "gallery" | "json" | "image") =>
-        {
+        [id] | ["image", id] if valid_token(id) && !matches!(*id, "gallery" | "json" | "image") => {
             Some(Target::File((*id).into()))
         }
         _ => None,
