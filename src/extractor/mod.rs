@@ -19,6 +19,7 @@ pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
 pub mod imageshack;
+pub mod imagevenue;
 pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
@@ -26,7 +27,6 @@ pub mod imgdrive;
 pub mod imgpile;
 pub mod imgpv;
 pub mod imgth;
-pub mod imagevenue;
 pub mod imxto;
 pub mod lexica;
 pub mod lightroom;
@@ -72,7 +72,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     ("fappic", "pinned public Fappic original-image preview"),
-    ("imagevenue", "pinned public ImageVenue single-image preview"),
+    (
+        "imagevenue",
+        "pinned public ImageVenue single-image preview",
+    ),
     (
         "foolfuuka",
         "archive threads, boards, galleries and searches",

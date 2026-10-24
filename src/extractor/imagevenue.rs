@@ -82,7 +82,10 @@ fn safe_media(raw: &str) -> Option<(Url, String)> {
         return None;
     }
     let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let filename = safe_filename(name);
@@ -254,7 +257,10 @@ mod tests {
         let target = match_url("https://www.imagevenue.com/ME13LS07").unwrap();
         let html = r#"<div class="card-body image"><img src="/loader.svg"><img src="https://cdn-images.imagevenue.com/10/ac/05/ME13LS07_o.png" alt="test-テスト-&quot;&amp;&gt;"></div>"#;
         let (media, meta) = parse_page(html, &target).unwrap();
-        assert_eq!(media.url, "https://cdn-images.imagevenue.com/10/ac/05/ME13LS07_o.png");
+        assert_eq!(
+            media.url,
+            "https://cdn-images.imagevenue.com/10/ac/05/ME13LS07_o.png"
+        );
         assert!(media.filename.ends_with(".png"));
         assert!(media.filename.contains("テスト"));
         assert_eq!(meta["token"], "ME13LS07");
@@ -269,7 +275,8 @@ mod tests {
         assert!(parse_page(
             r#"<div class="card-body"><img src="https://evil.example/image.jpg"></div>"#,
             &target,
-        ).is_err());
+        )
+        .is_err());
         for bad in [
             "http://cdn-images.imagevenue.com/a.jpg",
             "https://evilimagevenue.com/a.jpg",
