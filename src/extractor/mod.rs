@@ -30,6 +30,7 @@ pub mod imgpile;
 pub mod imgpv;
 pub mod imgth;
 pub mod imgur;
+pub mod imhentai;
 pub mod imxto;
 pub mod lexica;
 pub mod lightroom;
@@ -84,6 +85,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "imgur",
         "pinned public Imgur images, albums and gallery queues",
     ),
+    ("imhentai", "pinned public IMHentai-family galleries"),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
@@ -212,6 +214,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgclick")
     } else if imgur::match_url(input).is_some() {
         Some("imgur")
+    } else if imhentai::match_url(input).is_some() {
+        Some("imhentai")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -354,6 +358,9 @@ pub async fn resolve(
     }
     if let Some(target) = imgur::match_url(input) {
         return imgur::resolve(client, target).await;
+    }
+    if let Some(gallery) = imhentai::match_url(input) {
+        return imhentai::resolve(client, gallery).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve(client, target).await;
@@ -503,6 +510,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imgur::match_url(input) {
         return imgur::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(gallery) = imhentai::match_url(input) {
+        return imhentai::resolve_messages(client, gallery).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
@@ -850,6 +860,7 @@ mod tests {
                 "imgclick",
             ),
             ("https://imgur.com/abcdefg", "imgur"),
+            ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
             (
                 "https://imagetwist.com/p/gdldev/747223/digits",
