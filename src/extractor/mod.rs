@@ -599,6 +599,7 @@ mod tests {
                 "gelbooru_v02",
             ),
             ("https://www.imagebam.com/view/M123abc", "imagebam"),
+            ("https://imgchest.com/p/abc123xyz45", "imagechest"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
