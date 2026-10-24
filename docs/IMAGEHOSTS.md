@@ -61,3 +61,12 @@ The read-only `/p/NUM/NAME.EXT.html` route resolves a public original media file
 HTML is capped at **2 MiB per response**; album traversal at **4 pages** and **160 unique child files**, with one-second interpage pacing and stop-on-empty accepted results. The flat album route explicitly requires the opt-in queue mode.
 
 [Linux CI 40058313952](https://github.com/sguzman/galerith/actions/runs/40058313952) passed formatting, Clippy, tests, roadmap checks and release build. This is offline/synthetic evidence only. Complete upstream pagination, metadata, archive/filename conventions and live differential acceptance remain open.
+
+
+## Imgadult guarded public image pages
+
+The public `imgadult.com/img-HEX.html` route now resolves a safe original media URL within Imgadult's HTTPS domain and supported image extensions. Requests send the pinned public `img_i_d=1` cookie, and one bounded image element supplies original `src` and optional `alt` independently of attribute order. The boilerplate suffix in supported alternate names is dropped; unsafe names fall back to the original URL filename.
+
+Each source HTML response is capped at **2 MiB**, with both content-length and streamed-body checks. Typed events retain the real hexadecimal page token; no numeric source-post scope is invented.
+
+[CI 40058711190](https://github.com/sguzman/galerith/actions/runs/40058711190) passed strict URL matching, hostile origin tests, one-request public-cookie loopback fixture, formatter, Clippy, tests and release build. This is synthetic offline evidence, not full metadata/filename/archive or live differential parity.

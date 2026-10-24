@@ -2942,6 +2942,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T552",
+              "emoji": "🍪",
+              "name": "Imgadult pinned public cookie-gated original-image preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match only supported public Imgadult /img-HEX.html source URLs and reject unsafe origins or parameters",
+                  "passed": true,
+                  "evidence": "src/extractor/imgadult.rs pinned_public_imgadult_url_and_safe_media_shapes and mod.rs preview registration; CI 40058711190"
+                },
+                {
+                  "title": "Resolve public original image from trusted first-party HTTPS media with source ID and safe filename",
+                  "passed": true,
+                  "evidence": "src/extractor/imgadult.rs original_media_and_site_suffix_are_safely_decoded, safe_media and parse_page; CI 40058711190"
+                },
+                {
+                  "title": "Send the pinned img_i_d public cookie, preserving original-alt text regardless of HTML attribute order",
+                  "passed": true,
+                  "evidence": "src/extractor/imgadult.rs cookie_and_one_html_request_are_exercised_offline; CI 40058711190"
+                },
+                {
+                  "title": "Enforce streamed/declared 2 MiB HTML bounds and expose typed original URL and alphanumeric source identity",
+                  "passed": true,
+                  "evidence": "src/extractor/imgadult.rs at_base, resolve_messages, media_metadata and CI 40058711190"
+                },
+                {
+                  "title": "Complete all upstream Imgadult metadata, filename/archive and cookie/session variations and live differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

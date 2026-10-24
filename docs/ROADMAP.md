@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 109 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 62%` across 110 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -576,6 +576,12 @@
   - [x] Emit strictly validated and deduplicated first-party deferred gallery child queues — src/extractor/turboimagehost.rs album_links and album_urls_and_deferred_children_are_strict_and_ordered; CI 40058313952
   - [x] Bound HTML bytes, gallery page/child count and verify three-page loopback pagination — src/extractor/turboimagehost.rs read_html, album_at_base and bounded_album_pages_deduplicate_and_stop_on_empty_page; CI 40058313952
   - [ ] Full pinned gallery page/skip behavior, metadata/filenames/archive, auth and live upstream differential acceptance
+- 🍪 **T552** Imgadult pinned public cookie-gated original-image preview — `████████░░ 80%`
+  - [x] Match only supported public Imgadult /img-HEX.html source URLs and reject unsafe origins or parameters — src/extractor/imgadult.rs pinned_public_imgadult_url_and_safe_media_shapes and mod.rs preview registration; CI 40058711190
+  - [x] Resolve public original image from trusted first-party HTTPS media with source ID and safe filename — src/extractor/imgadult.rs original_media_and_site_suffix_are_safely_decoded, safe_media and parse_page; CI 40058711190
+  - [x] Send the pinned img_i_d public cookie, preserving original-alt text regardless of HTML attribute order — src/extractor/imgadult.rs cookie_and_one_html_request_are_exercised_offline; CI 40058711190
+  - [x] Enforce streamed/declared 2 MiB HTML bounds and expose typed original URL and alphanumeric source identity — src/extractor/imgadult.rs at_base, resolve_messages, media_metadata and CI 40058711190
+  - [ ] Complete all upstream Imgadult metadata, filename/archive and cookie/session variations and live differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
