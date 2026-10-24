@@ -27,6 +27,7 @@ pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
 pub mod pixeldrain;
+pub mod postimg;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod unsplash;
@@ -96,6 +97,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pixeldrain",
         "public file, list and nonrecursive filesystem JSON APIs",
     ),
+    ("postimg", "public Postimages files and bounded gallery queues"),
     ("speakerdeck", "public presentation slide images via oEmbed"),
     (
         "telegraph",
@@ -175,6 +177,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("desktopography")
     } else if pixeldrain::match_url(input).is_some() {
         Some("pixeldrain")
+    } else if postimg::match_url(input).is_some() {
+        Some("postimg")
     } else if telegraph::match_url(input).is_some() {
         Some("telegraph")
     } else if speakerdeck::match_url(input).is_some() {
@@ -301,6 +305,9 @@ pub async fn resolve(
     if let Some(target) = pixeldrain::match_url(input) {
         return pixeldrain::resolve(client, target).await;
     }
+    if let Some(target) = postimg::match_url(input) {
+        return postimg::resolve(client, target).await;
+    }
     if let Some(target) = telegraph::match_url(input) {
         return telegraph::resolve(client, target).await;
     }
@@ -359,6 +366,9 @@ pub async fn resolve_messages(
     }
     if let Some(image) = imageshack::match_url(input) {
         return imageshack::resolve_messages(client, image).await;
+    }
+    if let Some(target) = postimg::match_url(input) {
+        return postimg::resolve_messages(client, target, max_pages).await;
     }
     if let Some(listing) = imageshack::match_listing_url(input) {
         return imageshack::resolve_listing_messages(client, listing, max_pages).await;
@@ -669,6 +679,8 @@ mod tests {
             ("https://imageshack.com/i/iq8ac04fj", "imageshack"),
             ("https://imageshack.com/a/OGtz/1", "imageshack"),
             ("https://imageshack.com/user/Ezekiel.Gonzalez", "imageshack"),
+            ("https://postimg.cc/Wtn2b3hC", "postimg"),
+            ("https://postimg.cc/gallery/wxpDLgX", "postimg"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
