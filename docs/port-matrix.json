@@ -712,7 +712,8 @@
         "src/extractor/silverpic.rs",
         "src/extractor/imgpv.rs",
         "src/extractor/fappic.rs",
-        "src/extractor/imagevenue.rs"
+        "src/extractor/imagevenue.rs",
+        "src/extractor/imagetwist.rs"
       ],
       "evidence": [
         "Independent Pixhost file/gallery subset of pinned imagehosts.py: public /show and /gallery routes, bounded HTML, pinned cookies, strict first-party links and typed child queues, dedup and synthetic loopback tests; CI 40055130109 passed. Other host families and full upstream parity remain open.",
@@ -726,7 +727,8 @@
         "Independent conservative Silverpic .net/.com source-page and first-party /img original-image preview with safe names, optional dimensions, source metadata, 2 MiB HTML cap, synthetic input and loopback tests; full Linux CI 40113694094 passed. Complete upstream page/filename/archive/live parity unaccepted.",
         "Independent Imgpv .com public image-preview original, first-party media, safe filenames and bounded optional user/date text; 2 MiB HTML and loopback tests, full CI 40114488724. Complete upstream date/filename/archive and live differential parity remain open.",
         "Independent bounded Fappic root/thumbnail original-image preview with validated source-token rewrite, strict HTTPS first-party media, safe optional filename prefix, typed real source identity and synthetic loopback tests; full Linux CI 40115128753. Complete upstream filename/archive, variants and live parity remain open.",
-        "Guarded public ImageVenue original-image cards and legacy view/img.php route validation, trusted HTTPS media, loader skip, Unicode alt filename and bounded 2 MiB source HTML with synthetic loopback tests; CI 40118064201 and 40118283168. Cookies, 404 placeholder signatures and full live parity unaccepted."
+        "Guarded public ImageVenue original-image cards and legacy view/img.php route validation, trusted HTTPS media, loader skip, Unicode alt filename and bounded 2 MiB source HTML with synthetic loopback tests; CI 40118064201 and 40118283168. Cookies, 404 placeholder signatures and full live parity unaccepted.",
+        "Independent guarded Imagetwist and Imagehaha single-image originals plus bounded four-page/160-child Imagetwist public gallery queues, trusted hosts, safe monotonic pagination and offline loopback tests; full Linux CI 40119078981. Root-query galleries, auth/cookies, rich filename/archive/live differential parity not accepted."
       ]
     },
     {

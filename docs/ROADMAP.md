@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 63%` across 114 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 63%` across 116 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -606,6 +606,18 @@
   - [x] Enforce the 2 MiB HTML byte limit and verify the one-request public page loopback fixture — src/extractor/imagevenue.rs resolve_at_base and bounded_public_html_uses_one_page_request; CI 40118064201
   - [x] Dispatch flat media and typed directory/URL events with real source token and host metadata — src/extractor/imagevenue.rs resolve and resolve_messages, mod.rs registry; CI 40118283168
   - [ ] Complete site cookies, all legacy variations, special 404 media signatures, filename/archive behavior and live pinned upstream differential conformance
+- 🌀 **T557** Imagetwist/Imagehaha guarded public single-image originals — `████████░░ 80%`
+  - [x] Match pinned Imagetwist and Imagehaha image hosts, 12-character tokens and safe optional media names — src/extractor/imagetwist.rs pinned_image_hosts_and_token_routes; CI 40119078981
+  - [x] Parse image originals with an explicit missing-image /imgs/ guard, trusted HTTPS media and safe alt filenames — src/extractor/imagetwist.rs original_media_keeps_safe_filename_and_rejects_placeholder; CI 40119078981
+  - [x] Enforce 2 MiB HTML byte limits with a one-source-page loopback test — src/extractor/imagetwist.rs fetches_one_bounded_public_page_without_downloading_media; CI 40119078981
+  - [x] Dispatch flat single files and typed directory/URL messages with source token and post URL — src/extractor/imagetwist.rs resolve and resolve_messages, mod.rs registry; CI 40119078981
+  - [ ] Reproduce every source URL, site cookie/redirect, original/media variant, filename/archive metadata and live pinned differential parity
+- 🧵 **T558** Imagetwist bounded native public gallery and child queues — `████████░░ 80%`
+  - [x] Match pinned public /p/USER/GALLERY_ID/TITLE and short gallery paths without accepting untrusted query inputs — src/extractor/imagetwist.rs match_gallery_url, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981
+  - [x] Emit ordered and deduplicated first-party child file queues with gallery ID, username and title metadata — src/extractor/imagetwist.rs gallery_child_events, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981
+  - [x] Validate same-origin advancing continuation links while limiting pages and emitted children — src/extractor/imagetwist.rs next_gallery_url and gallery_next_page_rejects_external_and_nonadvancing_urls; CI 40119078981
+  - [x] Verify two-page HTTP fixture with bounded response bodies, pacing and first-seen file ordering — src/extractor/imagetwist.rs bounded_two_page_gallery_preserves_first_seen_child_order; CI 40119078981
+  - [ ] Match pinned root-query gallery URLs, arbitrary original pagination/metadata, private galleries and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

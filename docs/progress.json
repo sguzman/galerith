@@ -3102,6 +3102,70 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T557",
+              "emoji": "🌀",
+              "name": "Imagetwist/Imagehaha guarded public single-image originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned Imagetwist and Imagehaha image hosts, 12-character tokens and safe optional media names",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs pinned_image_hosts_and_token_routes; CI 40119078981"
+                },
+                {
+                  "title": "Parse image originals with an explicit missing-image /imgs/ guard, trusted HTTPS media and safe alt filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs original_media_keeps_safe_filename_and_rejects_placeholder; CI 40119078981"
+                },
+                {
+                  "title": "Enforce 2 MiB HTML byte limits with a one-source-page loopback test",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs fetches_one_bounded_public_page_without_downloading_media; CI 40119078981"
+                },
+                {
+                  "title": "Dispatch flat single files and typed directory/URL messages with source token and post URL",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs resolve and resolve_messages, mod.rs registry; CI 40119078981"
+                },
+                {
+                  "title": "Reproduce every source URL, site cookie/redirect, original/media variant, filename/archive metadata and live pinned differential parity",
+                  "passed": false
+                }
+              ]
+            },
+            {
+              "id": "T558",
+              "emoji": "🧵",
+              "name": "Imagetwist bounded native public gallery and child queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned public /p/USER/GALLERY_ID/TITLE and short gallery paths without accepting untrusted query inputs",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs match_gallery_url, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981"
+                },
+                {
+                  "title": "Emit ordered and deduplicated first-party child file queues with gallery ID, username and title metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs gallery_child_events, pinned_gallery_routes_and_ordered_child_queue_filter; CI 40119078981"
+                },
+                {
+                  "title": "Validate same-origin advancing continuation links while limiting pages and emitted children",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs next_gallery_url and gallery_next_page_rejects_external_and_nonadvancing_urls; CI 40119078981"
+                },
+                {
+                  "title": "Verify two-page HTTP fixture with bounded response bodies, pacing and first-seen file ordering",
+                  "passed": true,
+                  "evidence": "src/extractor/imagetwist.rs bounded_two_page_gallery_preserves_first_seen_child_order; CI 40119078981"
+                },
+                {
+                  "title": "Match pinned root-query gallery URLs, arbitrary original pagination/metadata, private galleries and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
