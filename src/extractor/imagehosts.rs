@@ -144,7 +144,12 @@ async fn read_public_html(
     client: &Client,
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let mut response = client
+        .get(endpoint)
+        .header(reqwest::header::COOKIE, "pixhostads=1; pixhosttest=1")
+        .send()
+        .await?
+        .error_for_status()?;
     if response
         .content_length()
         .is_some_and(|size| size > MAX_HTML_BYTES as u64)
@@ -354,8 +359,12 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut bytes = [0_u8; 4096];
             let n = stream.read(&mut bytes).await.unwrap();
-            assert!(String::from_utf8_lossy(&bytes[..n])
-                .starts_with("GET /show/190/130327671_test-.png HTTP/1.1"));
+            let request = String::from_utf8_lossy(&bytes[..n]);
+            assert!(request.starts_with("GET /show/190/130327671_test-.png HTTP/1.1"));
+            assert!(
+                request.to_ascii_lowercase().contains("cookie: pixhostads=1; pixhosttest=1"),
+                "{request}"
+            );
             let body =
                 r#"<img class="image-img" src="https://img01.pixhost.to/images/190/original.png">"#;
             let reply = format!(
