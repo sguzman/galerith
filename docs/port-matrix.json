@@ -980,7 +980,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Guarded independent public Lensdump image, album and user-albums subset: validated /i/ID /a/ID and /USER URL patterns, trusted media source, parsed gallery JSON data-object originals, 2 MiB source HTML, 160 image/4 album page and 128 child/4 user-page limits, strict canonical first-party user album pagination and typed child queues, 1-second pacing. Offline gallery record and single-image plus two-page user HTTP fixtures; fully compiled and tested in Linux CI 40133703784. Full source query dialect, all metadata, naming/archive and live differential parity unaccepted."
+        "Guarded independent public Lensdump image, album and user-albums subset: validated /i/ID /a/ID and /USER URL patterns, trusted media source, parsed gallery JSON data-object originals, 2 MiB source HTML, 160 image/4 album page and 128 child/4 user-page limits, strict canonical first-party user album pagination and typed child queues, 1-second pacing. Offline gallery record and single-image plus two-page user HTTP fixtures; fully compiled and tested in Linux CI 40133703784. Full source query dialect, all metadata, naming/archive and live differential parity unaccepted.",
+        "Pinned i.lensdump.com, i0..i9.lensdump.com and single-character *.l3n.co source image aliases are recognized and resolved back to canonical public image metadata pages; forged CDN hosts and queries rejected by synthetic route fixtures. Full CI 40133995880 passed."
       ]
     },
     {

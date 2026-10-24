@@ -3445,7 +3445,7 @@
               "id": "T566",
               "emoji": "📷",
               "name": "Lensdump public images, albums and user-album queue preview",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Integrate Lensdump public image and album URL matching into native dispatch with source host constraints",
@@ -3468,7 +3468,12 @@
                   "evidence": "src/extractor/lensdump/user.rs recognizes_public_profile_and_bounded_sort_page_only, queues_only_scoped_unduplicated_public_album_identifiers, continuation_rejects_foreign_origins_and_nonsequential_pages, public_user_album_queue_uses_bounded_two_requests; CI 40133703784"
                 },
                 {
-                  "title": "Match complete upstream gallery query dialect, all image CDN and metadata/date fields, filename/archive, all publisher pagination, and live pinned differential parity",
+                  "title": "Recognize pinned Lensdump i/digit-subdomain and single-letter l3n.co image shortcuts without accepting lookalike hostnames or private queries",
+                  "passed": true,
+                  "evidence": "src/extractor/lensdump.rs source_matcher_accepts_pinned_public_images_and_albums_only; full Linux CI 40133995880"
+                },
+                {
+                  "title": "Match complete pinned album query dialect, all source metadata/date/naming/archive modes, original CDN variants and live differential parity",
                   "passed": false
                 }
               ]

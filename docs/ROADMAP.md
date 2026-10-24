@@ -670,12 +670,13 @@
   - [x] Follow bounded standard first/next comic page links, refusing foreign origins and query contamination — src/extractor/keenspot.rs next_comic_urls_reject_outside_origins_and_bad_queries; full CI 40132748097
   - [x] Preserve ordered public comic originals through 3-request loopback HTTP fixture and typed routed messages — src/extractor/keenspot.rs bounded_two_comic_page_traversal_stays_on_origin_and_keeps_order; src/extractor/mod.rs routed fixture; full CI 40132748097
   - [ ] Reproduce all pinned special comic navigation layouts, external embedded media, output/archive formats, unbounded archive paging and live differential parity
-- 📷 **T566** Lensdump public images, albums and user-album queue preview — `████████░░ 80%`
+- 📷 **T566** Lensdump public images, albums and user-album queue preview — `████████░░ 83%`
   - [x] Integrate Lensdump public image and album URL matching into native dispatch with source host constraints — src/extractor/lensdump.rs source_matcher_accepts_pinned_public_images_and_albums_only; src/extractor/mod.rs routed fixtures; CI 40133703784
   - [x] Decode source-backed original images and ordered album data-object media with trusted CDN and metadata — src/extractor/lensdump.rs public_image_and_album_records_preserve_trusted_media_order_and_metadata; CI 40133703784
   - [x] Bound original and album HTML, gallery enumeration and first-party pagination with offline original-image HTTP fixture — src/extractor/lensdump.rs public_single_original_reads_one_bounded_html_page and bounded gallery parser; CI 40133703784
   - [x] Queue public user albums with first-party IDs, deduplication, optional strict page/sort and two-page loopback regression — src/extractor/lensdump/user.rs recognizes_public_profile_and_bounded_sort_page_only, queues_only_scoped_unduplicated_public_album_identifiers, continuation_rejects_foreign_origins_and_nonsequential_pages, public_user_album_queue_uses_bounded_two_requests; CI 40133703784
-  - [ ] Match complete upstream gallery query dialect, all image CDN and metadata/date fields, filename/archive, all publisher pagination, and live pinned differential parity
+  - [x] Recognize pinned Lensdump i/digit-subdomain and single-letter l3n.co image shortcuts without accepting lookalike hostnames or private queries — src/extractor/lensdump.rs source_matcher_accepts_pinned_public_images_and_albums_only; full Linux CI 40133995880
+  - [ ] Match complete pinned album query dialect, all source metadata/date/naming/archive modes, original CDN variants and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
