@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 61%` across 105 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 61%` across 106 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -552,6 +552,12 @@
   - [x] Enforce 2 MiB HTML response bounds, 4 gallery pages and 128 unique child queues with safe anchors and pacing — src/extractor/imxto.rs read_limited_html, gallery_children and gallery_at_base; CI 40056127227
   - [x] Preserve gallery/token scope and deduplicated first-party image queues across two offline HTTP pages — src/extractor/imxto.rs gallery_queues_only_canonical_safe_image_anchors_in_order and gallery_pagination_is_capped_and_deduplicates_across_two_pages; CI 40056127227
   - [ ] Complete Imxto original filesize/dimension/hash metadata, full album title/pagination, filename/archive templates and live upstream differential acceptance
+- 📷 **T548** Pinned imagehosts Picstate guarded public original images — `████████░░ 80%`
+  - [x] Recognize pinned Picstate /view/full/ID image routes with safe canonical token validation — src/extractor/picstate.rs pinned_public_image_urls_are_narrow; CI 40056481549
+  - [x] Extract trusted /file or /files original images with source-matched IDs and safe original/alt filename projection — src/extractor/picstate.rs trusted_original_image_and_source_identity_are_required; CI 40056481549
+  - [x] Enforce a 2 MiB public HTML body limit, reject unsafe media links and test one loopback HTTP request — src/extractor/picstate.rs bounded_public_image_page_makes_one_http_request and at_base; CI 40056481549
+  - [x] Emit native typed directory/media events with stable alphanumeric token and canonical post URL, without invented numeric post IDs — src/extractor/picstate.rs resolve_messages, media_from_page and mod.rs dispatch; CI 40056481549
+  - [ ] Port full Picstate original filename/archive conventions, source metadata, redirects and live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

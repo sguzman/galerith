@@ -27,3 +27,10 @@ The pinned `imx.to/i/ID`, `imx.to/img-ID.html` and `img.yt/img-ID.html` public i
 Public `imx.to/g/ID` galleries traverse up to four bounded pages and emit up to 128 distinct deferred file queues. Links must be actual first-party anchor attributes; page fragments, encoded path separators, foreign-host URLs and script-only strings are excluded. Pages are read with one-second pacing and deduplication.
 
 [CI 40056127227](https://github.com/sguzman/galerith/actions/runs/40056127227) passed formatting, Clippy, tests, release build and acceptance consistency. This is synthetic offline evidence, not live parity. Imxto full sizes, dimensions, hashes, gallery title, filename/archive and complete upstream behavior remain unaccepted.
+
+
+## Picstate public single-image subset
+
+Pinned `picstate.com/view/full/ID` public pages now resolve a validated original media URL under the matching `picstate.com/file/ID/` or `/files/ID/` path. Only recognized public image extensions and source-matched IDs are accepted. Bounded, sanitized alternate image naming is used when present; typed events preserve the public post URL and alphanumeric token. One page request is limited to **2 MiB** of HTML, with no hidden private/profile traversal.
+
+[CI 40056481549](https://github.com/sguzman/galerith/actions/runs/40056481549) passed offline matching, hostile-media rejection, normalization traversal regressions, loopback request, formatting, Clippy, tests and release build. Full metadata, archive/filename parity and live conformance remain unaccepted.

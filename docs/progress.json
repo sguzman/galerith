@@ -2814,6 +2814,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T548",
+              "emoji": "📷",
+              "name": "Pinned imagehosts Picstate guarded public original images",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned Picstate /view/full/ID image routes with safe canonical token validation",
+                  "passed": true,
+                  "evidence": "src/extractor/picstate.rs pinned_public_image_urls_are_narrow; CI 40056481549"
+                },
+                {
+                  "title": "Extract trusted /file or /files original images with source-matched IDs and safe original/alt filename projection",
+                  "passed": true,
+                  "evidence": "src/extractor/picstate.rs trusted_original_image_and_source_identity_are_required; CI 40056481549"
+                },
+                {
+                  "title": "Enforce a 2 MiB public HTML body limit, reject unsafe media links and test one loopback HTTP request",
+                  "passed": true,
+                  "evidence": "src/extractor/picstate.rs bounded_public_image_page_makes_one_http_request and at_base; CI 40056481549"
+                },
+                {
+                  "title": "Emit native typed directory/media events with stable alphanumeric token and canonical post URL, without invented numeric post IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/picstate.rs resolve_messages, media_from_page and mod.rs dispatch; CI 40056481549"
+                },
+                {
+                  "title": "Port full Picstate original filename/archive conventions, source metadata, redirects and live upstream differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
