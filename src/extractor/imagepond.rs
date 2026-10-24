@@ -85,7 +85,7 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
             let suffix = &html[position + marker.len()..];
             let len = suffix
                 .bytes()
-                .take_while(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+                .take_while(|b| b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'.'))
                 .count();
             let id = &suffix[..len];
             if !safe_slug(id) || suffix.as_bytes().get(len) == Some(&b'/') {
