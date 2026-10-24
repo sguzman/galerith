@@ -306,14 +306,14 @@ async fn resolve_messages_at_base(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Gallery(id) => {
-            let value = public_json(client, &base, &format!("post/v1/posts/{id}"), false).await?;
+            let value = public_json(client, base, &format!("post/v1/posts/{id}"), false).await?;
             decode_gallery(&value, &id)
         }
         Target::Listing(listing) => {
-            listing::resolve_messages(client, &base, listing, max_pages).await
+            listing::resolve_messages(client, base, listing, max_pages).await
         }
         other => Ok(messages_from_records(
-            records_at_base(client, &other, &base).await?,
+            records_at_base(client, &other, base).await?,
         )),
     }
 }
