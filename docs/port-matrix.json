@@ -51,7 +51,8 @@
       ],
       "evidence": [
         "Guarded public 35photo single image and series API originals, optional metadata, tag, genre and user first-party listing queues. Response cap 2 MiB, max 4 listing pages/128 children/32 series files, request pacing, host-spoof rejection, offline API plus two-tag-page HTTP fixture; Linux format/Clippy/tests/release build CI 40142431871 succeeded. Public genre/user AJAX pagination, rich output names/archive and live differential parity remain unaccepted.",
-        "User profile IDs and genre initial IDs now feed bounded source-parameter show_block.php AJAX queues with strict numeric descending cursors, deduplicated children, validated response shape and synthetic profile/genre multi-page loopback HTTP regression; full CI 40143033517 passed."
+        "User profile IDs and genre initial IDs now feed bounded source-parameter show_block.php AJAX queues with strict numeric descending cursors, deduplicated children, validated response shape and synthetic profile/genre multi-page loopback HTTP regression; full CI 40143033517 passed.",
+        "35photo /genre_ID/new/ route now generates pinned photo_rating=0 instead of standard 50 and preserves bounded continuation semantics; dedicated two-request HTTP regression. CI 40143477543 passed."
       ]
     },
     {

@@ -726,13 +726,14 @@
   - [x] Generate first-seen public child-album queues without private/unverified permalinks — src/extractor/eightmuses.rs encoded_public_ractive_json_produces_source_backed_images_and_child_queues; full CI 40141793059
   - [x] Bound source HTML, media, public queues and paging with two-page loopback HTTP regression and typed dispatch — src/extractor/eightmuses.rs two_bounded_encoded_album_pages_use_source_order_and_dedup; src/extractor/mod.rs registry fixture; full CI 40141793059
   - [ ] Match upstream page/query options, complete album metadata/archive/filename semantics, unbounded galleries, live HTML and original-image differential parity
-- 📸 **T575** 35photo guarded public originals and listing queues — `████████░░ 83%`
+- 📸 **T575** 35photo guarded public originals and listing queues — `█████████░ 86%`
   - [x] Route bounded first-party public individual photos, tag, genre, and user paths and reject hostile path, query and credential forms — src/extractor/thirtyfivephoto.rs routes_accept_pinned_images_tags_genres_and_users_only; full Linux CI 40142431871
   - [x] Decode source-backed single/series originals, titles, statistics, tags and trusted media paths from photo.getData — src/extractor/thirtyfivephoto.rs source_photo_json_yields_validated_series_originals_and_metadata; full Linux CI 40142431871
   - [x] Emit bounded typed photo queues for first-party tag/genre/user public listings with deduplication — src/extractor/thirtyfivephoto.rs tag_page_queues_first_seen_numeric_public_photos; full Linux CI 40142431871
   - [x] Bound HTML/API bytes and list-page counts with an original image API plus multi-page tag loopback HTTP fixture — src/extractor/thirtyfivephoto.rs api_and_two_tag_pages_resolve_public_source_requests; full Linux CI 40142431871
   - [x] Follow pinned user photoUser and genre AJAX show_block.php numeric descending cursor pages, deduped in stable source order — src/extractor/thirtyfivephoto.rs user_and_genre_ajax_queues_follow_pinned_numeric_cursors and ajax_photo_identifiers_sort_numerically_and_reject_truncated_paths; full CI 40143033517
-  - [ ] Match genre new/rating variants, comprehensive metadata and filename/archive templates, unrestricted pagination and live pinned differential parity
+  - [x] Support pinned genre_ID/new source route and rating-zero AJAX cursor traversal with exact HTTP regression — src/extractor/thirtyfivephoto.rs recent_genre_uses_zero_rating_in_pinned_ajax_protocol and routes_accept_pinned_images_tags_genres_and_users_only; full Linux CI 40143477543
+  - [ ] Complete source metadata, filename/archive/directory templates, unrestricted feed paging and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
