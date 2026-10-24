@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 62%` across 113 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 63%` across 114 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -600,6 +600,12 @@
   - [x] Parse first-party original image marker and sanitise boilerplate filename and real page token — src/extractor/fappic.rs pinned_original_selector_and_sanitized_filename_prefix and rejects_unsupported_origins_and_disallowed_names; CI 40115128753
   - [x] Bound public HTML to 2 MiB, preserve typed URL/directory metadata and verify one HTTP source request — src/extractor/fappic.rs at_base, resolve_messages and one-request loopback fixture; CI 40115128753
   - [ ] Reproduce complete Fappic original media hosts, filenames/archive templates, redirects and live upstream differential behavior
+- 🖼️ **T556** ImageVenue guarded originals and pinned legacy source routes — `████████░░ 80%`
+  - [x] Recognize uppercase image IDs plus validated legacy view/img.php source queries — src/extractor/imagevenue.rs pinned_simple_source_and_img_subdomain_are_conservative and pinned_legacy_view_and_img_php_routes_allow_only_safe_query_fields; CI 40118283168
+  - [x] Parse card-body originals, skip loader.svg, validate HTTPS media host/extensions and Unicode alt filenames — src/extractor/imagevenue.rs pinned_card_skips_loader_and_preserves_safe_unicode_alt and rejects_untrusted_originals_and_missing_card; CI 40118064201
+  - [x] Enforce the 2 MiB HTML byte limit and verify the one-request public page loopback fixture — src/extractor/imagevenue.rs resolve_at_base and bounded_public_html_uses_one_page_request; CI 40118064201
+  - [x] Dispatch flat media and typed directory/URL events with real source token and host metadata — src/extractor/imagevenue.rs resolve and resolve_messages, mod.rs registry; CI 40118283168
+  - [ ] Complete site cookies, all legacy variations, special 404 media signatures, filename/archive behavior and live pinned upstream differential conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

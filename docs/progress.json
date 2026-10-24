@@ -3070,6 +3070,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T556",
+              "emoji": "🖼️",
+              "name": "ImageVenue guarded originals and pinned legacy source routes",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize uppercase image IDs plus validated legacy view/img.php source queries",
+                  "passed": true,
+                  "evidence": "src/extractor/imagevenue.rs pinned_simple_source_and_img_subdomain_are_conservative and pinned_legacy_view_and_img_php_routes_allow_only_safe_query_fields; CI 40118283168"
+                },
+                {
+                  "title": "Parse card-body originals, skip loader.svg, validate HTTPS media host/extensions and Unicode alt filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/imagevenue.rs pinned_card_skips_loader_and_preserves_safe_unicode_alt and rejects_untrusted_originals_and_missing_card; CI 40118064201"
+                },
+                {
+                  "title": "Enforce the 2 MiB HTML byte limit and verify the one-request public page loopback fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/imagevenue.rs resolve_at_base and bounded_public_html_uses_one_page_request; CI 40118064201"
+                },
+                {
+                  "title": "Dispatch flat media and typed directory/URL events with real source token and host metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/imagevenue.rs resolve and resolve_messages, mod.rs registry; CI 40118283168"
+                },
+                {
+                  "title": "Complete site cookies, all legacy variations, special 404 media signatures, filename/archive behavior and live pinned upstream differential conformance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
