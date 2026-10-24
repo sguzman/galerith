@@ -133,7 +133,10 @@ async fn queue_at_base(
     };
     let endpoint = base.join(&route)?;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|size| size > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
+    {
         return Err("ImagePond listing HTML exceeds byte limit".into());
     }
     let mut body = Vec::new();
@@ -346,13 +349,9 @@ mod tests {
             stream.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = queue_at_base(
-            &Client::new(),
-            &QueueTarget::User("alice".into()),
-            &base,
-        )
-        .await
-        .unwrap();
+        let events = queue_at_base(&Client::new(), &QueueTarget::User("alice".into()), &base)
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(
             serde_json::to_value(&events[0]).unwrap()["metadata"]["username"],

@@ -140,9 +140,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
     } else if imagechest::match_url(input).is_some() || imagechest::match_user_url(input).is_some()
     {
         Some("imagechest")
-    } else if imagepond::match_url(input).is_some()
-        || imagepond::match_queue_url(input).is_some()
-    {
+    } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
@@ -247,7 +245,9 @@ pub async fn resolve(
         return imagepond::resolve(client, target).await;
     }
     if imagepond::match_queue_url(input).is_some() {
-        return Err("ImagePond album/profile traversal requires --follow-queues or --dump-messages".into());
+        return Err(
+            "ImagePond album/profile traversal requires --follow-queues or --dump-messages".into(),
+        );
     }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
