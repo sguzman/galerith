@@ -25,11 +25,11 @@ pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
 pub mod imgclick;
-pub mod imgur;
 pub mod imgdrive;
 pub mod imgpile;
 pub mod imgpv;
 pub mod imgth;
+pub mod imgur;
 pub mod imxto;
 pub mod lexica;
 pub mod lightroom;
@@ -80,7 +80,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pinned public ImageVenue single-image preview",
     ),
     ("imgclick", "pinned public Imgclick original-image preview"),
-    ("imgur", "pinned public Imgur images, albums and gallery queues"),
+    (
+        "imgur",
+        "pinned public Imgur images, albums and gallery queues",
+    ),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",

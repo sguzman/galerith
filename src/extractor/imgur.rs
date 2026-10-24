@@ -39,7 +39,10 @@ fn id_suffix(s: &str) -> Option<String> {
 
 pub fn match_url(raw: &str) -> Option<Target> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|s| lower.contains(s)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|s| lower.contains(s))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
@@ -63,7 +66,10 @@ pub fn match_url(raw: &str) -> Option<Target> {
             return None;
         };
         let (id, ext) = name.rsplit_once('.')?;
-        if !matches!(ext.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "mp4") {
+        if !matches!(
+            ext.to_ascii_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "mp4"
+        ) {
             return None;
         }
         return id_suffix(id).map(Target::Image);
@@ -76,7 +82,10 @@ pub fn match_url(raw: &str) -> Option<Target> {
     }
 }
 
-fn media_record(value: &Value, album: Option<(&str, usize, usize)>) -> Option<(MediaItem, Metadata)> {
+fn media_record(
+    value: &Value,
+    album: Option<(&str, usize, usize)>,
+) -> Option<(MediaItem, Metadata)> {
     let id = value.get("id")?.as_str()?;
     if !valid_id(id) {
         return None;
@@ -101,7 +110,10 @@ fn media_record(value: &Value, album: Option<(&str, usize, usize)>) -> Option<(M
         post_id: None,
     };
     let mut meta = media_metadata(&item);
-    meta.insert("subcategory".into(), if album.is_some() { "album" } else { "image" }.into());
+    meta.insert(
+        "subcategory".into(),
+        if album.is_some() { "album" } else { "image" }.into(),
+    );
     meta.insert("media_id".into(), id.to_owned().into());
     meta.insert("extension".into(), ext.to_owned().into());
     if let Some((album_id, number, count)) = album {
@@ -116,10 +128,16 @@ fn unwrap_data<'a>(value: &'a Value) -> &'a Value {
     value.get("data").unwrap_or(value)
 }
 
-fn decode_image(value: &Value, id: &str) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
+fn decode_image(
+    value: &Value,
+    id: &str,
+) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let root = unwrap_data(value);
-    let primary = root.get("media").and_then(Value::as_array)
-        .and_then(|images| images.first()).unwrap_or(root);
+    let primary = root
+        .get("media")
+        .and_then(Value::as_array)
+        .and_then(|images| images.first())
+        .unwrap_or(root);
     let record = media_record(primary, None)
         .ok_or("Imgur public image metadata lacks a supported original")?;
     if record.1.get("media_id").and_then(Value::as_str) != Some(id) {
@@ -128,28 +146,48 @@ fn decode_image(value: &Value, id: &str) -> Result<Vec<(MediaItem, Metadata)>, B
     Ok(vec![record])
 }
 
-fn decode_album(value: &Value, id: &str) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
+fn decode_album(
+    value: &Value,
+    id: &str,
+) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let root = unwrap_data(value);
-    if root.get("id").and_then(Value::as_str).is_some_and(|actual| actual != id) {
+    if root
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|actual| actual != id)
+    {
         return Err("Imgur public album identity mismatch".into());
     }
-    let images = root.get("media").and_then(Value::as_array)
+    let images = root
+        .get("media")
+        .and_then(Value::as_array)
         .ok_or("Imgur public album has no media collection")?;
     if images.len() > MAX_ALBUM_MEDIA {
         return Err("Imgur album exceeds the bounded public media limit".into());
     }
     let count = images.len();
-    Ok(images.iter().enumerate()
+    Ok(images
+        .iter()
+        .enumerate()
         .filter_map(|(i, image)| media_record(image, Some((id, i + 1, count))))
         .collect())
 }
 
-fn decode_gallery(value: &Value, id: &str) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+fn decode_gallery(
+    value: &Value,
+    id: &str,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let root = unwrap_data(value);
-    if root.get("id").and_then(Value::as_str).is_some_and(|actual| actual != id) {
+    if root
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|actual| actual != id)
+    {
         return Err("Imgur public gallery identity mismatch".into());
     }
-    let album = root.get("is_album").and_then(Value::as_bool)
+    let album = root
+        .get("is_album")
+        .and_then(Value::as_bool)
         .ok_or("Imgur gallery has no public album classification")?;
     let mut meta = Metadata::new();
     meta.insert("category".into(), "imgur".into());
@@ -171,12 +209,20 @@ async fn public_json(
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let mut endpoint = base.join(path)?;
     if include {
-        endpoint.query_pairs_mut().append_pair("include", "media,tags,account");
+        endpoint
+            .query_pairs_mut()
+            .append_pair("include", "media,tags,account");
     }
-    let mut response = client.get(endpoint)
+    let mut response = client
+        .get(endpoint)
         .header("Authorization", format!("Client-ID {PUBLIC_CLIENT_ID}"))
-        .send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_JSON_BYTES as u64) {
+        .send()
+        .await?
+        .error_for_status()?;
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_JSON_BYTES as u64)
+    {
         return Err("Imgur public JSON exceeds the response limit".into());
     }
     let mut bytes = Vec::new();
@@ -210,8 +256,13 @@ async fn records_at_base(
 fn messages_from_records(records: Vec<(MediaItem, Metadata)>) -> Vec<ExtractorMessage> {
     let mut events = Vec::with_capacity(records.len() * 2);
     for (item, meta) in records {
-        events.push(ExtractorMessage::Directory { metadata: meta.clone() });
-        events.push(ExtractorMessage::Url { url: item.url, metadata: meta });
+        events.push(ExtractorMessage::Directory {
+            metadata: meta.clone(),
+        });
+        events.push(ExtractorMessage::Url {
+            url: item.url,
+            metadata: meta,
+        });
     }
     events
 }
@@ -221,7 +272,11 @@ pub async fn resolve(
     target: Target,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.imgur.com/")?;
-    Ok(records_at_base(client, &target, &base).await?.into_iter().map(|(item, _)| item).collect())
+    Ok(records_at_base(client, &target, &base)
+        .await?
+        .into_iter()
+        .map(|(item, _)| item)
+        .collect())
 }
 
 pub async fn resolve_messages(
@@ -234,7 +289,9 @@ pub async fn resolve_messages(
             let value = public_json(client, &base, &format!("post/v1/posts/{id}"), false).await?;
             decode_gallery(&value, &id)
         }
-        other => Ok(messages_from_records(records_at_base(client, &other, &base).await?)),
+        other => Ok(messages_from_records(
+            records_at_base(client, &other, &base).await?,
+        )),
     }
 }
 
@@ -248,11 +305,26 @@ mod tests {
 
     #[test]
     fn pinned_public_url_families_have_strict_origins() {
-        assert_eq!(match_url("https://imgur.com/abcde"), Some(Target::Image("abcde".into())));
-        assert_eq!(match_url("https://i.imgur.com/abcdefg.jpg"), Some(Target::Image("abcdefg".into())));
-        assert_eq!(match_url("https://imgur.com/a/abcde"), Some(Target::Album("abcde".into())));
-        assert_eq!(match_url("https://imgur.com/gallery/abcdefg"), Some(Target::Gallery("abcdefg".into())));
-        assert_eq!(match_url("https://imgur.com/r/pics/abcdefg"), Some(Target::Image("abcdefg".into())));
+        assert_eq!(
+            match_url("https://imgur.com/abcde"),
+            Some(Target::Image("abcde".into()))
+        );
+        assert_eq!(
+            match_url("https://i.imgur.com/abcdefg.jpg"),
+            Some(Target::Image("abcdefg".into()))
+        );
+        assert_eq!(
+            match_url("https://imgur.com/a/abcde"),
+            Some(Target::Album("abcde".into()))
+        );
+        assert_eq!(
+            match_url("https://imgur.com/gallery/abcdefg"),
+            Some(Target::Gallery("abcdefg".into()))
+        );
+        assert_eq!(
+            match_url("https://imgur.com/r/pics/abcdefg"),
+            Some(Target::Image("abcdefg".into()))
+        );
         for invalid in [
             "https://evilimgur.com/abcdefg",
             "https://imgur.com/a/../../../private",
@@ -287,10 +359,21 @@ mod tests {
 
     #[test]
     fn pinned_public_gallery_is_deferred_to_image_or_album() {
-        let album = decode_gallery(&serde_json::json!({"id":"abcde", "is_album":true}), "abcde").unwrap();
-        assert_eq!(serde_json::to_value(&album[0]).unwrap()["url"], "https://imgur.com/a/abcde");
-        let image = decode_gallery(&serde_json::json!({"id":"abcde", "is_album":false}), "abcde").unwrap();
-        assert_eq!(serde_json::to_value(&image[0]).unwrap()["url"], "https://imgur.com/abcde");
+        let album =
+            decode_gallery(&serde_json::json!({"id":"abcde", "is_album":true}), "abcde").unwrap();
+        assert_eq!(
+            serde_json::to_value(&album[0]).unwrap()["url"],
+            "https://imgur.com/a/abcde"
+        );
+        let image = decode_gallery(
+            &serde_json::json!({"id":"abcde", "is_album":false}),
+            "abcde",
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(&image[0]).unwrap()["url"],
+            "https://imgur.com/abcde"
+        );
         assert!(decode_gallery(&serde_json::json!({"id":"abcde"}), "abcde").is_err());
     }
 
@@ -303,15 +386,23 @@ mod tests {
             let mut buf = [0u8; 4096];
             let n = socket.read(&mut buf).await.unwrap();
             let request = String::from_utf8_lossy(&buf[..n]);
-            assert!(request.starts_with("GET /post/v1/media/abcde?include="), "{request}");
-            assert!(request.contains("Authorization: Client-ID 546c25a59c58ad7")
-                || request.contains("authorization: Client-ID 546c25a59c58ad7"), "{request}");
+            assert!(
+                request.starts_with("GET /post/v1/media/abcde?include="),
+                "{request}"
+            );
+            assert!(
+                request.contains("Authorization: Client-ID 546c25a59c58ad7")
+                    || request.contains("authorization: Client-ID 546c25a59c58ad7"),
+                "{request}"
+            );
             let json = r#"{"id":"abcde","media":[{"id":"abcde","ext":"jpeg"}]}"#;
             let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}", json.len());
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let root = Url::parse(&format!("http://{address}/")).unwrap();
-        let result = records_at_base(&Client::new(), &Target::Image("abcde".into()), &root).await.unwrap();
+        let result = records_at_base(&Client::new(), &Target::Image("abcde".into()), &root)
+            .await
+            .unwrap();
         assert_eq!(result[0].0.filename, "imgur_abcde.jpg");
         server.await.unwrap();
     }
