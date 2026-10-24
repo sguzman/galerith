@@ -1,6 +1,9 @@
 //! Conservative public ImageChest gallery preview. No API access token or
 //! account/user profile support is implied by this read-only HTML adapter.
-use crate::{safe_filename, MediaItem};
+use crate::{
+    message::{media_metadata, ExtractorMessage},
+    safe_filename, MediaItem,
+};
 use reqwest::Client;
 use serde_json::Value;
 use std::{collections::HashSet, error::Error};
@@ -146,6 +149,31 @@ pub async fn resolve(
     resolve_at_base(client, gallery, &Url::parse("https://imgchest.com/")?).await
 }
 
+fn gallery_messages(gallery: &Gallery, items: Vec<MediaItem>) -> Vec<ExtractorMessage> {
+    let mut events = Vec::with_capacity(items.len().saturating_mul(2));
+    for item in items {
+        let mut metadata = media_metadata(&item);
+        metadata.insert("gallery_id".into(), gallery.id.clone().into());
+        events.push(ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        });
+        events.push(ExtractorMessage::Url {
+            url: item.url,
+            metadata,
+        });
+    }
+    events
+}
+
+/// Native message inspection retains the real alphanumeric gallery identity.
+pub async fn resolve_messages(
+    client: &Client,
+    gallery: Gallery,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    let media = resolve(client, gallery.clone()).await?;
+    Ok(gallery_messages(&gallery, media))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,6 +216,29 @@ mod tests {
         assert_eq!(files[0].filename, "abc123xyz45.jpg");
         assert_eq!(files[0].post_id, None);
     }
+    #[test]
+    fn typed_gallery_messages_preserve_alphanumeric_gallery_identity() {
+        let gallery = Gallery {
+            id: "abc123xyz45".into(),
+        };
+        let file = MediaItem {
+            url: "https://cdn.imgchest.com/files/def456uvw78.webp".into(),
+            filename: "def456uvw78.webp".into(),
+            extractor: "imagechest",
+            post_id: None,
+        };
+        let events = gallery_messages(&gallery, vec![file]);
+        assert_eq!(events.len(), 2);
+        let meta = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(meta["metadata"]["gallery_id"], "abc123xyz45");
+        assert_eq!(meta["metadata"]["category"], "imagechest");
+        assert!(meta["metadata"].get("source_post_id").is_none());
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["metadata"],
+            meta["metadata"]
+        );
+    }
+
     #[test]
     fn rejects_invalid_page_shapes_and_excessive_gallery_records() {
         assert!(parse_html("<html>No public page JSON</html>").is_err());
