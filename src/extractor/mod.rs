@@ -11,8 +11,8 @@ pub mod e621;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourarchive;
-pub mod fourchanarchives;
 pub mod fourchan;
+pub mod fourchanarchives;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
@@ -86,7 +86,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "4archive",
         "public archived thread originals and bounded board queues",
     ),
-    ("4chanarchives", "public archived thread originals and bounded board queues"),
+    (
+        "4chanarchives",
+        "public archived thread originals and bounded board queues",
+    ),
     ("2ch", "pinned 2ch public threads and bounded board queues"),
     (
         "2chen",
@@ -989,7 +992,10 @@ mod tests {
             ("https://dec.2chan.net/12/res/12345.htm", "2chan"),
             ("https://4archive.org/board/a/thread/12345", "4archive"),
             ("https://4archive.org/board/a/", "4archive"),
-            ("https://4chanarchives.com/board/a/thread/12345", "4chanarchives"),
+            (
+                "https://4chanarchives.com/board/a/thread/12345",
+                "4chanarchives",
+            ),
             ("https://4chanarchives.com/board/a/", "4chanarchives"),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
