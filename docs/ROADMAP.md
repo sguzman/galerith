@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 130 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 131 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -714,6 +714,12 @@
   - [x] Bound public board discovery with same-board numeric thread queues and deduplication — src/extractor/fourarchive.rs board_deduplicates_scoped_numeric_thread_ids; CI 40140834057
   - [x] Enforce bounded HTML and source origin with actual thread and board HTTP GET fixtures and typed dispatcher — src/extractor/fourarchive.rs thread_and_board_bounded_http_requests_use_first_party_routes; src/extractor/mod.rs; full CI 40140834057
   - [ ] Reproduce full original 4archive post/date/file-size/dimension and archive/filename semantics, unrestricted board history and live upstream differential parity
+- 🗂️ **T573** 4chanarchives guarded public thread originals and board discovery — `████████░░ 80%`
+  - [x] Recognize pinned public archived board/thread URLs with validated IDs and strict origin/path/query checks — src/extractor/fourchanarchives.rs public_archive_thread_and_board_routes_reject_unsafe_inputs; CI 40141229791
+  - [x] Preserve source-backed post image originals, thread OG title, post IDs, name, original time and comment — src/extractor/fourchanarchives.rs archived_thread_original_preserves_title_name_date_and_post_comment; CI 40141229791
+  - [x] Build first-seen same-board typed child thread queues with trusted href and ID validation — src/extractor/fourchanarchives.rs board_queues_only_same_board_first_party_numeric_threads; CI 40141229791
+  - [x] Limit source HTML, posts, media, board pages and children with local thread/board GET regressions and typed dispatcher — src/extractor/fourchanarchives.rs archived_thread_and_board_use_two_bounded_html_gets; src/extractor/mod.rs routing fixture; full CI 40141229791
+  - [ ] Match all pinned non-media post directory events, exact original filename/archive, file dimensions/times, unlimited boards and live differential conformance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -3674,6 +3674,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T573",
+              "emoji": "🗂️",
+              "name": "4chanarchives guarded public thread originals and board discovery",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned public archived board/thread URLs with validated IDs and strict origin/path/query checks",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchanarchives.rs public_archive_thread_and_board_routes_reject_unsafe_inputs; CI 40141229791"
+                },
+                {
+                  "title": "Preserve source-backed post image originals, thread OG title, post IDs, name, original time and comment",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchanarchives.rs archived_thread_original_preserves_title_name_date_and_post_comment; CI 40141229791"
+                },
+                {
+                  "title": "Build first-seen same-board typed child thread queues with trusted href and ID validation",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchanarchives.rs board_queues_only_same_board_first_party_numeric_threads; CI 40141229791"
+                },
+                {
+                  "title": "Limit source HTML, posts, media, board pages and children with local thread/board GET regressions and typed dispatcher",
+                  "passed": true,
+                  "evidence": "src/extractor/fourchanarchives.rs archived_thread_and_board_use_two_bounded_html_gets; src/extractor/mod.rs routing fixture; full CI 40141229791"
+                },
+                {
+                  "title": "Match all pinned non-media post directory events, exact original filename/archive, file dimensions/times, unlimited boards and live differential conformance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

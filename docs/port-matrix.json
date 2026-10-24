@@ -83,9 +83,14 @@
     {
       "path": "gallery_dl/extractor/4chanarchives.py",
       "module": "4chanarchives",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fourchanarchives.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded public 4chanarchives thread and board adapter, exact first-party URL matching, bounded 2 MiB source HTML, 256 posts/160 originals, up to 4 board pages/128 queued first-seen threads with 1-second pacing, metadata from source OG title, post number, author, unparsed time and comment, trusted first-party/4cdn media. Offline HTTP GET fixtures for thread and board; CI 40141229791 passed rustfmt, Clippy, tests, consistency and release. Nonmedia post event parity, exhaustive template/date/media variants and live upstream differential parity unverified."
+      ]
     },
     {
       "path": "gallery_dl/extractor/500px.py",
