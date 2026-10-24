@@ -20,8 +20,9 @@ add `source_post_id` as a **distinct** field. These are not interchangeable.
 This means `--dump-messages --expand-queues --message-directory-range N`
 and `--follow-queues --job-directory-range N` can select true post
 scope ordinals for supported 4chan thread URLs, including text-only posts.
-4chan **board listing** URLs still use the old flattened preview and are
-not covered by this grouping contract.
+4chan **board listing** URLs instead expose bounded deferred thread queues.
+They have no post IDs until a child thread is resolved; only the thread
+adapter emits real post scopes, including text-only posts.
 
 The parser and network seam have local regression tests for the real API
 post boundary, text-only posts, invalid attachments, one request per thread,
@@ -50,6 +51,19 @@ posts could otherwise cause necessary later API pages to be skipped. These
 controls remain bounded preview semantics, not upstream-equivalent post
 expression filtering or live website parity.
 
+
+## Additional booru source-post projections
+
+Danbooru regular post/search/collection, e621-family, Gelbooru JSON/XML,
+Moebooru and Philomena media records carry numeric API post identifiers.
+Their typed adapters expose `source_post_id` alongside the preserved
+`post_id`, allowing a source-post selector to apply before a file-range
+selector. The special Danbooru media-asset endpoint is excluded: its
+independent asset ID cannot be presumed to be a post ID.
+
+This projection cannot recreate absent/text-only post events, native
+directory grouping for multiple media, or all upstream metadata. It is
+not equivalent to the API-backed 4chan thread post grouping above.
 
 ## Wallhaven: bounded page requests for finite file ranges
 

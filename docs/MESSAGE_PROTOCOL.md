@@ -70,6 +70,15 @@ single safe filename and recognized extractor provenance. An offline CLI
 fixture verifies actual HTTP transfer and atomic file creation. This is
 not a complete replacement for upstream archive/metadata/job semantics.
 
+For Danbooru post/search/collection results, the e621 family, the
+Gelbooru JSON and XML families, Moebooru and Philomena, the typed
+projection retains a real numeric `source_post_id` when the native media
+record includes its actual post ID. This is **not** full post grouping:
+posts without downloadable media are absent from these flattened previews.
+An isolated Danbooru media asset is explicitly excluded from this
+projection because its asset ID need not be a source post ID. Parent
+`post_id` metadata is not silently replaced.
+
 Job-time positive ordinal selectors can filter file URLs, queued child requests
 and directory scopes before the corresponding actions. Inspection uses
 `--message-file-range`, `--message-child-range` and `--message-directory-range`;
