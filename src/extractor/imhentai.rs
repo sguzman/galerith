@@ -133,10 +133,7 @@ fn gallery_context(html: &str) -> Metadata {
         .and_then(|(_, tail)| tail.split_once('<'))
         .map(|(text, _)| text.trim())
     {
-        if !alt.is_empty()
-            && alt.len() <= 200
-            && !alt.chars().any(char::is_control)
-        {
+        if !alt.is_empty() && alt.len() <= 200 && !alt.chars().any(char::is_control) {
             metadata.insert("title_alt".into(), alt.replace("&amp;", "&").into());
         }
     }
@@ -178,11 +175,11 @@ fn gallery_context(html: &str) -> Metadata {
                 let Some((_, content)) = anchor.split_once('>') else {
                     continue;
                 };
-                let raw = content.split_once('<').map(|(text, _)| text.trim()).unwrap_or("");
-                if raw.is_empty()
-                    || raw.len() > 120
-                    || raw.chars().any(char::is_control)
-                {
+                let raw = content
+                    .split_once('<')
+                    .map(|(text, _)| text.trim())
+                    .unwrap_or("");
+                if raw.is_empty() || raw.len() > 120 || raw.chars().any(char::is_control) {
                     continue;
                 }
                 values.push(raw.replace("&amp;", "&").replace("&#39;", "'"));
