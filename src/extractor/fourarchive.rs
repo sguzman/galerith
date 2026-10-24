@@ -190,7 +190,10 @@ fn thread_records(
         }
         let Some(raw) = block
             .split_once("class=\"fileText\"")
-            .and_then(|(_, tail)| tail.split_once("</span>").or_else(|| tail.split_once("</div>")))
+            .and_then(|(_, tail)| {
+                tail.split_once("</span>")
+                    .or_else(|| tail.split_once("</div>"))
+            })
             .map(|(raw, _)| raw)
         else {
             continue;
