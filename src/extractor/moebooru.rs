@@ -33,16 +33,20 @@ fn site(host: &str) -> Option<(&'static str, &'static str)> {
         "konachan.com" | "konachan.net" => Some(("konachan.com", "konachan")),
         "sakugabooru.com" | "www.sakugabooru.com" => Some(("www.sakugabooru.com", "sakugabooru")),
         "lolibooru.moe" => Some(("lolibooru.moe", "lolibooru")),
+        "behoimi.org" | "www.behoimi.org" => Some(("behoimi.org", "3dbooru")),
         _ => None,
     }
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
     let url = Url::parse(input).ok()?;
-    if url.scheme() != "https" {
+    let (host, category) = site(url.host_str()?)?;
+    if url.scheme() != "https" && !(category == "3dbooru" && url.scheme() == "http") {
         return None;
     }
-    let (host, category) = site(url.host_str()?)?;
+    if !url.username().is_empty() || url.password().is_some() || url.port().is_some() {
+        return None;
+    }
     let mut path = url.path_segments()?.filter(|p| !p.is_empty());
     let query = match (path.next()?, path.next(), path.next(), path.next()) {
         ("post", Some("show"), Some(id), None) => {
@@ -85,6 +89,11 @@ pub fn match_url(input: &str) -> Option<Target> {
             }
             Query::Popular { feed, parameters }
         }
+        ("post", Some("index"), None, None) if category == "3dbooru" => {
+            let tags = url.query_pairs().find(|(k, _)| k == "tags")
+                .map(|(_, v)| v.into_owned())?;
+            Query::Tags(tags)
+        }
         ("post", None, None, None) => {
             let tags = url
                 .query_pairs()
@@ -99,6 +108,34 @@ pub fn match_url(input: &str) -> Option<Target> {
         category,
         query,
     })
+}
+
+async fn source_json(
+    client: &Client,
+    endpoint: Url,
+    category: &str,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    if category != "3dbooru" {
+        return super::http_json::fetch_json_limited(
+            client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT,
+        ).await;
+    }
+    // Pinned Behoimi adapter needs a fixed source referer and no compression.
+    let mut response = client.get(endpoint)
+        .header("Referer", "http://behoimi.org/post/show/")
+        .header("Accept-Encoding", "identity")
+        .send().await?.error_for_status()?;
+    if response.content_length().is_some_and(|size| size > MOEBOORU_JSON_RESPONSE_LIMIT as u64) {
+        return Err("3dbooru API response exceeds byte cap".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > MOEBOORU_JSON_RESPONSE_LIMIT.saturating_sub(body.len()) {
+            return Err("3dbooru API response exceeds byte cap".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(serde_json::from_slice(&body)?)
 }
 
 fn parse_items(
@@ -149,7 +186,8 @@ pub async fn resolve(
     target: Target,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let base = Url::parse(&format!("https://{}/", target.host))?;
+    let scheme = if target.category == "3dbooru" { "http" } else { "https" };
+    let base = Url::parse(&format!("{scheme}://{}/", target.host))?;
     resolve_at_base(client, target, max_pages, &base).await
 }
 
@@ -161,7 +199,8 @@ pub async fn resolve_limited(
     max_pages: u16,
     max_media: usize,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let base = Url::parse(&format!("https://{}/", target.host))?;
+    let scheme = if target.category == "3dbooru" { "http" } else { "https" };
+    let base = Url::parse(&format!("{scheme}://{}/", target.host))?;
     resolve_at_base_limited(client, target, max_pages, &base, max_media).await
 }
 
@@ -191,8 +230,7 @@ async fn resolve_at_base_limited(
             }
         }
         let body: Value =
-            super::http_json::fetch_json_limited(client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT)
-                .await?;
+            source_json(client, endpoint, target.category).await?;
         return Ok(parse_items(&body, target.category)?
             .into_iter()
             .take(media_limit)
@@ -211,15 +249,15 @@ async fn resolve_at_base_limited(
     };
     let mut output = Vec::new();
     for page in 1..=pages {
-        let mut endpoint = base.join("post.json")?;
+        let path = if target.category == "3dbooru" { "post/index.json" } else { "post.json" };
+        let mut endpoint = base.join(path)?;
         endpoint
             .query_pairs_mut()
             .append_pair("tags", &tags)
             .append_pair("limit", "100")
             .append_pair("page", &page.to_string());
         let body: Value =
-            super::http_json::fetch_json_limited(client, endpoint, MOEBOORU_JSON_RESPONSE_LIMIT)
-                .await?;
+            source_json(client, endpoint, target.category).await?;
         let short_page = body
             .as_array()
             .ok_or("Moebooru API returned non-array JSON")?
@@ -290,6 +328,66 @@ mod tests {
         assert!(match_url("https://yande.re/post/popular_by_hour").is_none());
         assert!(match_url("http://yande.re/post/show/1").is_none());
         assert!(match_url("https://untrusted.example/post/show/1").is_none());
+    }
+
+    #[test]
+    fn behoimi_3dbooru_routes_respect_pinned_http_endpoints() {
+        assert_eq!(
+            match_url("http://behoimi.org/post?tags=sky+blue"),
+            Some(Target {
+                host: "behoimi.org",
+                category: "3dbooru",
+                query: Query::Tags("sky blue".into()),
+            })
+        );
+        assert_eq!(
+            match_url("https://www.behoimi.org/pool/show/24"),
+            Some(Target {
+                host: "behoimi.org",
+                category: "3dbooru",
+                query: Query::Pool(24),
+            })
+        );
+        assert_eq!(
+            match_url("http://behoimi.org/post/show/44"),
+            Some(Target {
+                host: "behoimi.org",
+                category: "3dbooru",
+                query: Query::Post(44),
+            })
+        );
+        assert!(match_url("http://fakebehoimi.org/post/show/44").is_none());
+        assert!(match_url("http://yande.re/post/show/44").is_none());
+        assert!(match_url("http://behoimi.org:8080/post/show/44").is_none());
+        assert!(match_url("http://behoimi.org/post/show/0").is_none());
+    }
+
+    #[tokio::test]
+    async fn behoimi_3dbooru_uses_index_json_and_pinned_request_headers() {
+        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 8192];
+            let size = stream.read(&mut request).await.unwrap();
+            let source = String::from_utf8_lossy(&request[..size]).to_ascii_lowercase();
+            assert!(source.starts_with("get /post/index.json?tags=id%3a44&limit=100&page=1 http/1.1"));
+            assert!(source.contains("referer: http://behoimi.org/post/show/"));
+            assert!(source.contains("accept-encoding: identity"));
+            let body = r#"[{"id":44,"file_url":"http://behoimi.org/data/44.jpg"}]"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = match_url("http://behoimi.org/post/show/44").unwrap();
+        let originals = resolve_at_base(&Client::new(), target, 1, &base).await.unwrap();
+        assert_eq!(originals.len(), 1);
+        assert_eq!(originals[0].filename, "3dbooru_44.jpg");
+        server.await.unwrap();
     }
 
     #[test]
