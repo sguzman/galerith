@@ -50,10 +50,7 @@ fn family_for_host(host: &str) -> Option<Family> {
 }
 
 fn safe_token(raw: &str) -> bool {
-    (1..=80).contains(&raw.len())
-        && raw
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    (1..=80).contains(&raw.len()) && raw.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -123,7 +120,10 @@ fn original_media(input: &str, domain: &str) -> Option<(Url, String)> {
         return None;
     }
     let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let name = safe_filename(&filename);
@@ -140,7 +140,10 @@ fn image_name(raw: &str, ext: &str) -> Option<String> {
     {
         return None;
     }
-    let decoded = title.replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'");
+    let decoded = title
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'");
     if decoded.chars().any(char::is_control) {
         return None;
     }
@@ -165,7 +168,10 @@ fn media_from_page(
     let image = og_value(html, "image").ok_or("Imagehost has no public OG image")?;
     let (url, fallback) =
         original_media(image, &target.domain).ok_or("Imagehost image origin is not trusted")?;
-    let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+    let ext = fallback
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or("jpg");
     let filename = image_name(title, ext).unwrap_or(fallback);
     let media = MediaItem {
         url: url.to_string(),
@@ -243,9 +249,21 @@ mod tests {
     #[test]
     fn pinned_imgdrive_imgtaxi_and_imgwallet_routes_match() {
         for (url, family, token) in [
-            ("https://imgdrive.net/img-61ac0caeabf35.html", Family::Imgdrive, "61ac0caeabf35"),
-            ("https://imgtaxi.com/img-61c71cea940d6.html", Family::Imgtaxi, "61c71cea940d6"),
-            ("https://imgwallet.com/img-62fd3045ceec6.html", Family::Imgwallet, "62fd3045ceec6"),
+            (
+                "https://imgdrive.net/img-61ac0caeabf35.html",
+                Family::Imgdrive,
+                "61ac0caeabf35",
+            ),
+            (
+                "https://imgtaxi.com/img-61c71cea940d6.html",
+                Family::Imgtaxi,
+                "61c71cea940d6",
+            ),
+            (
+                "https://imgwallet.com/img-62fd3045ceec6.html",
+                Family::Imgwallet,
+                "62fd3045ceec6",
+            ),
         ] {
             let target = match_url(url).unwrap();
             assert_eq!(target.family, family);
@@ -327,7 +345,10 @@ mod tests {
             let mut request = [0_u8; 4096];
             let n = socket.read(&mut request).await.unwrap();
             let text = String::from_utf8_lossy(&request[..n]);
-            assert!(text.starts_with("GET /img-61ac0caeabf35.html HTTP/1.1"), "{text}");
+            assert!(
+                text.starts_with("GET /img-61ac0caeabf35.html HTTP/1.1"),
+                "{text}"
+            );
             let html = "<meta property=\"og:title\" content=\"Public | imagehost\"><meta property=\"og:image\" content=\"https://imgdrive.net/images/small/file.png\">";
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
