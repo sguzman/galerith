@@ -3297,6 +3297,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T562",
+              "emoji": "📖",
+              "name": "Issuu public publications and publisher queue preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned public Issuu publication and publisher paths with validated usernames, slugs, page ordinals and origin",
+                  "passed": true,
+                  "evidence": "src/extractor/issuu.rs pinned_publication_routes_reject_unsafe_inputs; src/extractor/issuu/publisher.rs publisher_routes_reject_credentials_unsafe_slugs_and_unbounded_pages; CI 40129349191"
+                },
+                {
+                  "title": "Read source hydration document ID, revision ID, page count and supported publication metadata into ordered canonical CDN pages",
+                  "passed": true,
+                  "evidence": "src/extractor/issuu.rs validated_hydration_creates_canonical_media_pages_with_source_metadata; CI 40129349191"
+                },
+                {
+                  "title": "Limit source HTML and publication count with a one-request offline public document HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/issuu.rs bounded_public_html_uses_one_get_for_document; CI 40129349191"
+                },
+                {
+                  "title": "Enumerate validated publisher document queues with deduplication and bounded 4-page pagination, without eager child downloads",
+                  "passed": true,
+                  "evidence": "src/extractor/issuu/publisher.rs publisher_deduplicates_scoped_public_documents_and_preserves_queue_metadata and publisher_stops_after_a_short_public_document_page; src/extractor/mod.rs dispatcher; CI 40129349191"
+                },
+                {
+                  "title": "Match pinned escaped hydration and publisher script variants, full metadata/filename/archive semantics, unrestricted pagination, media response verification and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

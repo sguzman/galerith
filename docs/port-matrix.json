@@ -857,9 +857,15 @@
     {
       "path": "gallery_dl/extractor/issuu.py",
       "module": "issuu",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/issuu.rs",
+        "src/extractor/issuu/publisher.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded public Issuu publication and publisher preview: canonical revision/publication CDN JPEG pages with source-backed metadata, 2 MiB HTML limit, 240-page publication cap, source owner validation, 4 publisher pages with 144 child cap and 48 per response, strict public-origin routing, offline publication GET and scoped publisher queue tests. Full Linux CI 40129349191 passed. Exact complex upstream escaped hydration, comprehensive filename/archive formatting, all user modes, live site parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/itaku.py",
