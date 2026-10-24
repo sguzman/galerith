@@ -364,11 +364,16 @@ mod tests {
             let (mut socket, _) = foreign.accept().await.unwrap();
             let mut bytes = [0u8; 2048];
             socket.read(&mut bytes).await.unwrap();
-            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 .await
                 .unwrap();
         });
-        let result = read_html(&Client::new(), Url::parse(&format!("http://{source_addr}/")).unwrap()).await;
+        let result = read_html(
+            &Client::new(),
+            Url::parse(&format!("http://{source_addr}/")).unwrap(),
+        )
+        .await;
         assert!(result.is_err());
         redirect.await.unwrap();
         destination.await.unwrap();

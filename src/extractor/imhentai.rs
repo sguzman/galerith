@@ -435,7 +435,8 @@ mod tests {
             let (mut socket, _) = foreign.accept().await.unwrap();
             let mut bytes = [0u8; 2048];
             socket.read(&mut bytes).await.unwrap();
-            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 .await
                 .unwrap();
         });
