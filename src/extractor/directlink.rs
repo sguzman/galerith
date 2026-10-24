@@ -21,7 +21,9 @@ pub fn resolve_messages(input: &str) -> Result<Vec<ExtractorMessage>, ExtractErr
         .trim_start_matches('/')
         .rsplit_once('/')
         .map_or("", |(path, _)| path);
-    let path = percent_decode_str(directory).decode_utf8_lossy().into_owned();
+    let path = percent_decode_str(directory)
+        .decode_utf8_lossy()
+        .into_owned();
     let (stem, extension) = media
         .filename
         .rsplit_once('.')
@@ -36,13 +38,19 @@ pub fn resolve_messages(input: &str) -> Result<Vec<ExtractorMessage>, ExtractErr
     if let Some(query) = parsed.query() {
         metadata.insert(
             "query".into(),
-            percent_decode_str(query).decode_utf8_lossy().into_owned().into(),
+            percent_decode_str(query)
+                .decode_utf8_lossy()
+                .into_owned()
+                .into(),
         );
     }
     if let Some(fragment) = parsed.fragment() {
         metadata.insert(
             "fragment".into(),
-            percent_decode_str(fragment).decode_utf8_lossy().into_owned().into(),
+            percent_decode_str(fragment)
+                .decode_utf8_lossy()
+                .into_owned()
+                .into(),
         );
     }
     Ok(vec![
@@ -62,10 +70,9 @@ mod tests {
 
     #[test]
     fn directory_and_url_keep_direct_link_identity_and_optional_fields() {
-        let events = resolve_messages(
-            "https://assets.example.org/arts/Poster%20Art.JPEG?download=1#first",
-        )
-        .unwrap();
+        let events =
+            resolve_messages("https://assets.example.org/arts/Poster%20Art.JPEG?download=1#first")
+                .unwrap();
         assert_eq!(events.len(), 2);
         let directory = serde_json::to_value(&events[0]).unwrap();
         let url = serde_json::to_value(&events[1]).unwrap();

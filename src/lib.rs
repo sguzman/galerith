@@ -132,7 +132,9 @@ mod tests {
 
     #[test]
     fn recognizes_additional_pinned_directlink_media_extensions() {
-        for extension in ["jpe", "heic", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf"] {
+        for extension in [
+            "jpe", "heic", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf",
+        ] {
             let url = format!("https://assets.example.org/downloads/file.{extension}");
             let item = extract_direct_media(&url).unwrap();
             assert_eq!(item.filename, format!("file.{extension}"));
