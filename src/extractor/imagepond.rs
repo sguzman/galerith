@@ -89,7 +89,8 @@ fn valid_media_link(link: &str) -> Option<(Url, String)> {
     if filename.is_empty() || filename.len() > 240 || filename.contains('%') {
         return None;
     }
-    Some((url, safe_filename(filename)))
+    let safe_name = safe_filename(filename);
+    Some((url, safe_name))
 }
 
 fn parse_page(html: &str) -> Result<(MediaItem, Option<String>), Box<dyn Error + Send + Sync>> {
