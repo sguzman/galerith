@@ -3610,6 +3610,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T571",
+              "emoji": "🖼️",
+              "name": "2chan public Futaba thread originals and post metadata",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned subdomain.2chan.net public numeric thread routes with strict server/board/origin and hostile-input validation",
+                  "passed": true,
+                  "evidence": "src/extractor/twochan.rs only_trusted_public_thread_routes_are_recognized; src/extractor/mod.rs registry fixture; CI 40139483057"
+                },
+                {
+                  "title": "Decode ordered first-party /BOARD/src/TIM original media with supported extensions, source thread/post identifiers and page title",
+                  "passed": true,
+                  "evidence": "src/extractor/twochan.rs pinned_post_attachments_keep_original_names_and_post_provenance; CI 40139483057"
+                },
+                {
+                  "title": "Preserve safe pinned TIM.ext original filenames and source author/comment/time fields while excluding foreign CDN and jump links",
+                  "passed": true,
+                  "evidence": "src/extractor/twochan.rs pinned_post_attachments_keep_original_names_and_post_provenance; CI 40139483057"
+                },
+                {
+                  "title": "Cap streamed public thread HTML to 2 MiB and media count to 160, with single-source request loopback HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/twochan.rs bounded_thread_uses_one_local_http_get_and_two_ordered_files; Rust format/Clippy/tests/release CI 40139483057"
+                },
+                {
+                  "title": "Match full upstream per-post metadata, board-name exact formatting, file-size/date semantics, archive templates, extra media layouts and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

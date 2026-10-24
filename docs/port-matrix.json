@@ -20,9 +20,14 @@
     {
       "path": "gallery_dl/extractor/2chan.py",
       "module": "2chan",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/twochan.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded pinned 2chan Futaba thread subset: exact server.2chan.net host and board route, numeric thread IDs, one bounded thread HTML fetch, source title/board name and post name/time/comment metadata, original first-party /BOARD/src/TIM media with TIM.ext naming, 2 MiB HTTP byte cap and 160 media limit. Hostile origin and source filename tests, one-request loopback HTTP fixture, full Rust CI 40139483057 passed. Exact boardname/date/size/archive and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/2chen.py",

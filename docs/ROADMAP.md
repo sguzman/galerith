@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 128 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 129 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -702,6 +702,12 @@
   - [x] Emit bounded first-party catalog-to-thread deferred queues with first-seen deduplication and hostile-origin rejection — src/extractor/twochen.rs catalog_queues_exact_first_party_thread_urls_and_deduplicates; CI 40138833991
   - [x] Verify thread and catalog extraction with separate real local HTTP GET fixtures, streamed 2 MiB HTML limits and media/queue caps — src/extractor/twochen.rs public_thread_request_returns_two_safe_originals and public_catalog_request_queues_two_thread_children; full Rust CI 40138833991
   - [ ] Match every pinned layout, full UTC date conversion, original archive/directory/filename templates and live 2chen source differential parity
+- 🖼️ **T571** 2chan public Futaba thread originals and post metadata — `████████░░ 80%`
+  - [x] Recognize pinned subdomain.2chan.net public numeric thread routes with strict server/board/origin and hostile-input validation — src/extractor/twochan.rs only_trusted_public_thread_routes_are_recognized; src/extractor/mod.rs registry fixture; CI 40139483057
+  - [x] Decode ordered first-party /BOARD/src/TIM original media with supported extensions, source thread/post identifiers and page title — src/extractor/twochan.rs pinned_post_attachments_keep_original_names_and_post_provenance; CI 40139483057
+  - [x] Preserve safe pinned TIM.ext original filenames and source author/comment/time fields while excluding foreign CDN and jump links — src/extractor/twochan.rs pinned_post_attachments_keep_original_names_and_post_provenance; CI 40139483057
+  - [x] Cap streamed public thread HTML to 2 MiB and media count to 160, with single-source request loopback HTTP fixture — src/extractor/twochan.rs bounded_thread_uses_one_local_http_get_and_two_ordered_files; Rust format/Clippy/tests/release CI 40139483057
+  - [ ] Match full upstream per-post metadata, board-name exact formatting, file-size/date semantics, archive templates, extra media layouts and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

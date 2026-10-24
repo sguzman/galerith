@@ -4,12 +4,12 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 44 · Not ported: 228.**
+**Complete: 0 · Partial: 45 · Not ported: 227.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
 | `gallery_dl/extractor/2ch.py` | 🟡 Partial | `src/extractor/twoch.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/2chan.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/2chan.py` | 🟡 Partial | `src/extractor/twochan.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/2chen.py` | 🟡 Partial | `src/extractor/twochen.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/35photo.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/3dbooru.py` | ⚪ Not ported | — |
