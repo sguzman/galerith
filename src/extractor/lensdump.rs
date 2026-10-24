@@ -50,13 +50,9 @@ pub fn match_url(raw: &str) -> Option<Target> {
             _ => None,
         };
     }
-    let cdn_image = host
-        .strip_suffix(".lensdump.com")
-        .is_some_and(|sub| sub == "i" || (
-            sub.len() == 2
-                && sub.starts_with('i')
-                && sub.as_bytes()[1].is_ascii_digit()
-        ));
+    let cdn_image = host.strip_suffix(".lensdump.com").is_some_and(|sub| {
+        sub == "i" || (sub.len() == 2 && sub.starts_with('i') && sub.as_bytes()[1].is_ascii_digit())
+    });
     let cdn_short = host
         .strip_suffix(".l3n.co")
         .is_some_and(|sub| sub.len() == 1 && sub.as_bytes()[0].is_ascii_alphanumeric());
