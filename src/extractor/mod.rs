@@ -1,5 +1,6 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
+pub mod eightmuses;
 pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
@@ -82,6 +83,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
+    ("8muses", "bounded public encoded album images and child queues"),
     (
         "4archive",
         "public archived thread originals and bounded board queues",
@@ -243,6 +245,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("4archive")
     } else if fourchanarchives::match_url(input).is_some() {
         Some("4chanarchives")
+    } else if eightmuses::match_url(input).is_some() {
+        Some("8muses")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
@@ -401,6 +405,9 @@ pub async fn resolve(
     }
     if let Some(target) = fourchanarchives::match_url(input) {
         return fourchanarchives::resolve(client, target).await;
+    }
+    if let Some(album) = eightmuses::match_url(input) {
+        return eightmuses::resolve(client, album).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board(client, &board, max_pages).await;
@@ -610,6 +617,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fourchanarchives::match_url(input) {
         return fourchanarchives::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(album) = eightmuses::match_url(input) {
+        return eightmuses::resolve_messages(client, album, max_pages).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
@@ -997,6 +1007,7 @@ mod tests {
                 "4chanarchives",
             ),
             ("https://4chanarchives.com/board/a/", "4chanarchives"),
+            ("https://comics.8muses.com/comics/album/Artist/Album", "8muses"),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
