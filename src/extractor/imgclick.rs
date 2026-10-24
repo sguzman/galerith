@@ -40,7 +40,16 @@ pub fn match_url(input: &str) -> Option<Target> {
     {
         return None;
     }
-    let url = Url::parse(input).ok()?;
+    // The pinned route accepts an omitted scheme. Canonicalize only the
+    // literal Imgclick host forms before applying strict URL validation.
+    let source = if input.starts_with("imgclick.net/")
+        || input.starts_with("www.imgclick.net/")
+    {
+        format!("https://{input}")
+    } else {
+        input.to_owned()
+    };
+    let url = Url::parse(&source).ok()?;
     let host = url.host_str()?;
     if !matches!(url.scheme(), "https" | "http")
         || !matches!(host, "imgclick.net" | "www.imgclick.net")
@@ -239,7 +248,11 @@ mod tests {
         assert_eq!(source.token, "4tbrre1oxew9");
         assert!(match_url("https://www.imgclick.net/4tbrre1oxew9").is_some());
         assert!(match_url("http://imgclick.net/4tbrre1oxew9").is_some());
+        assert!(match_url("imgclick.net/4tbrre1oxew9").is_some());
+        assert!(match_url("www.imgclick.net/4tbrre1oxew9/sample.png.html").is_some());
         for bad in [
+            "evilimgclick.net/4tbrre1oxew9",
+            "imgclick.net/4tbrre1oxew9?private=1",
             "https://evilimgclick.net/4tbrre1oxew9",
             "https://imgclick.net/4tbrre1oxew9?token=private",
             "https://imgclick.net/4tbrre1oxew9/test.exe",
