@@ -25,6 +25,7 @@ pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
 pub mod imgclick;
+pub mod imgur;
 pub mod imgdrive;
 pub mod imgpile;
 pub mod imgpv;
@@ -79,6 +80,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "pinned public ImageVenue single-image preview",
     ),
     ("imgclick", "pinned public Imgclick original-image preview"),
+    ("imgur", "pinned public Imgur images, albums and gallery queues"),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
@@ -205,6 +207,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imagevenue")
     } else if imgclick::match_url(input).is_some() {
         Some("imgclick")
+    } else if imgur::match_url(input).is_some() {
+        Some("imgur")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -344,6 +348,9 @@ pub async fn resolve(
     }
     if let Some(target) = imgclick::match_url(input) {
         return imgclick::resolve(client, target).await;
+    }
+    if let Some(target) = imgur::match_url(input) {
+        return imgur::resolve(client, target).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve(client, target).await;
@@ -490,6 +497,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imgclick::match_url(input) {
         return imgclick::resolve_messages(client, target).await;
+    }
+    if let Some(target) = imgur::match_url(input) {
+        return imgur::resolve_messages(client, target).await;
     }
     if let Some(target) = imagetwist::match_url(input) {
         return imagetwist::resolve_messages(client, target).await;
