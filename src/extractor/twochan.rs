@@ -1,5 +1,8 @@
 //! Guarded Futaba / 2chan public thread-original preview from pinned 2chan.py.
-use crate::{message::{media_metadata, ExtractorMessage, Metadata}, MediaItem};
+use crate::{
+    message::{media_metadata, ExtractorMessage, Metadata},
+    MediaItem,
+};
 use reqwest::Client;
 use std::{collections::HashSet, error::Error};
 use url::Url;
@@ -9,45 +12,69 @@ const MAX_MEDIA: usize = 160;
 type Records = (Metadata, Vec<(MediaItem, Metadata)>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Thread { server: String, board: String, id: String }
+pub struct Thread {
+    server: String,
+    board: String,
+    id: String,
+}
 
 fn slug(s: &str, max: usize) -> bool {
     (1..=max).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_'))
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_'))
 }
 fn numeric(s: &str) -> bool {
-    (1..=18).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_digit())
+    (1..=18).contains(&s.len())
+        && s.bytes().all(|b| b.is_ascii_digit())
         && s.parse::<u64>().ok().is_some_and(|n| n > 0)
 }
 
 pub fn match_url(raw: &str) -> Option<Thread> {
     let input = if !raw.contains("://") && raw.contains(".2chan.net/") {
         format!("https://{raw}")
-    } else { raw.to_owned() };
+    } else {
+        raw.to_owned()
+    };
     let lower = input.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|v| lower.contains(v)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|v| lower.contains(v))
+    {
         return None;
     }
     let url = Url::parse(&input).ok()?;
     if !matches!(url.scheme(), "http" | "https")
-        || !url.username().is_empty() || url.password().is_some() || url.port().is_some()
-        || url.query().is_some() || url.fragment().is_some() {
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return None;
     }
     let server = url.host_str()?.strip_suffix(".2chan.net")?;
-    if !slug(server, 36) { return None }
+    if !slug(server, 36) {
+        return None;
+    }
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
         [board, "res", id] | [board, "res", id, ""] if slug(board, 24) => {
             let id = id.strip_suffix(".htm").unwrap_or(id);
-            numeric(id).then(|| Thread { server: server.into(), board: (*board).into(), id: id.into() })
+            numeric(id).then(|| Thread {
+                server: server.into(),
+                board: (*board).into(),
+                id: id.into(),
+            })
         }
         _ => None,
     }
 }
 
 fn extract<'a>(page: &'a str, start: &str, end: &str) -> Option<&'a str> {
-    page.split_once(start)?.1.split_once(end).map(|(value, _)| value)
+    page.split_once(start)?
+        .1
+        .split_once(end)
+        .map(|(value, _)| value)
 }
 fn text_only(value: &str) -> String {
     let mut output = String::new();
@@ -60,24 +87,50 @@ fn text_only(value: &str) -> String {
             _ => {}
         }
     }
-    output.replace("&amp;", "&").replace("&quot;", "\"").replace("&lt;", "<")
-        .replace("&gt;", ">").replace("&#39;", "'").trim().chars().take(240).collect()
+    output
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&#39;", "'")
+        .trim()
+        .chars()
+        .take(240)
+        .collect()
 }
 
 fn original(root: &Url, board: &str, source: &str) -> Option<(Url, String, String)> {
-    if !source.starts_with('/') || source.contains('%') || source.contains('\\')
-        || source.split('/').any(|part| matches!(part, "." | "..")) {
+    if !source.starts_with('/')
+        || source.contains('%')
+        || source.contains('\\')
+        || source.split('/').any(|part| matches!(part, "." | ".."))
+    {
         return None;
     }
     let url = root.join(source).ok()?;
-    if url.origin() != root.origin() || !url.username().is_empty() || url.password().is_some()
-        || url.query().is_some() || url.fragment().is_some() { return None }
+    if url.origin() != root.origin()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
     let parts: Vec<_> = url.path_segments()?.collect();
-    let [file_board, "src", name] = parts.as_slice() else { return None };
-    if *file_board != board { return None }
+    let [file_board, "src", name] = parts.as_slice() else {
+        return None;
+    };
+    if *file_board != board {
+        return None;
+    }
     let (tim, ext) = name.rsplit_once('.')?;
     let ext = ext.to_ascii_lowercase();
-    if !numeric(tim) || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "webm" | "mp4") {
+    if !numeric(tim)
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "webm" | "mp4"
+        )
+    {
         return None;
     }
     Some((url, tim.into(), ext))
@@ -85,18 +138,27 @@ fn original(root: &Url, board: &str, source: &str) -> Option<(Url, String, Strin
 
 fn parse(html: &str, target: &Thread, root: &Url) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let title = extract(html, "<title>", "</title>").ok_or("2chan public page lacks title")?;
-    let (title, board_name) = title.rsplit_once(" - ")
+    let (title, board_name) = title
+        .rsplit_once(" - ")
         .ok_or("2chan public title lacks source board separator")?;
     let mut directory = Metadata::new();
     for (key, value) in [
-        ("category", "2chan"), ("subcategory", "thread"),
-        ("server", target.server.as_str()), ("board", target.board.as_str()),
+        ("category", "2chan"),
+        ("subcategory", "thread"),
+        ("server", target.server.as_str()),
+        ("board", target.board.as_str()),
         ("thread", target.id.as_str()),
-    ] { directory.insert(key.into(), value.into()); }
+    ] {
+        directory.insert(key.into(), value.into());
+    }
     directory.insert("title".into(), text_only(title).into());
     directory.insert("board_name".into(), text_only(board_name).into());
-    let posts = extract(html, "<div class=\"thre\"", "<div style=\"clear:left\"></div>")
-        .ok_or("2chan thread lacks bounded public post area")?;
+    let posts = extract(
+        html,
+        "<div class=\"thre\"",
+        "<div style=\"clear:left\"></div>",
+    )
+    .ok_or("2chan thread lacks bounded public post area")?;
     let mut files = Vec::new();
     let mut seen = HashSet::new();
     for post in posts.split("<table border=0>") {
@@ -106,21 +168,46 @@ fn parse(html: &str, target: &Thread, root: &Url) -> Result<Records, Box<dyn Err
         let comment = extract(post, "<blockquote", "</blockquote>")
             .and_then(|x| x.split_once('>').map(|(_, y)| text_only(y)));
         for link in post.split("<a href=\"").skip(1).take(64) {
-            let Some((href, after)) = link.split_once('"') else { continue };
-            if href.starts_with("/bin/jump") { continue }
-            let Some((url, tim, ext)) = original(root, &target.board, href) else { continue };
-            if !seen.insert(url.to_string()) { continue }
-            if files.len() >= MAX_MEDIA { return Err("2chan thread exceeded public media cap".into()) }
-            let item = MediaItem { url: url.to_string(), filename: format!("{tim}.{ext}"),
-                extractor: "2chan", post_id };
+            let Some((href, after)) = link.split_once('"') else {
+                continue;
+            };
+            if href.starts_with("/bin/jump") {
+                continue;
+            }
+            let Some((url, tim, ext)) = original(root, &target.board, href) else {
+                continue;
+            };
+            if !seen.insert(url.to_string()) {
+                continue;
+            }
+            if files.len() >= MAX_MEDIA {
+                return Err("2chan thread exceeded public media cap".into());
+            }
+            let item = MediaItem {
+                url: url.to_string(),
+                filename: format!("{tim}.{ext}"),
+                extractor: "2chan",
+                post_id,
+            };
             let mut metadata = media_metadata(&item);
-            for (key, value) in &directory { metadata.insert(key.clone(), value.clone()); }
+            for (key, value) in &directory {
+                metadata.insert(key.clone(), value.clone());
+            }
             metadata.insert("tim".into(), tim.clone().into());
-            metadata.insert("time_source".into(), tim.get(..tim.len().saturating_sub(3)).unwrap_or("").into());
+            metadata.insert(
+                "time_source".into(),
+                tim.get(..tim.len().saturating_sub(3)).unwrap_or("").into(),
+            );
             metadata.insert("extension".into(), ext.into());
-            if let Some(ref value) = post_name { metadata.insert("name".into(), value.clone().into()); }
-            if let Some(ref value) = post_date { metadata.insert("now".into(), value.clone().into()); }
-            if let Some(ref value) = comment { metadata.insert("com".into(), value.clone().into()); }
+            if let Some(ref value) = post_name {
+                metadata.insert("name".into(), value.clone().into());
+            }
+            if let Some(ref value) = post_date {
+                metadata.insert("now".into(), value.clone().into());
+            }
+            if let Some(ref value) = comment {
+                metadata.insert("com".into(), value.clone().into());
+            }
             if let Some(value) = extract(after, ">", "<").filter(|x| x.len() <= 240) {
                 metadata.insert("source_attachment_text".into(), text_only(value).into());
             }
@@ -130,13 +217,20 @@ fn parse(html: &str, target: &Thread, root: &Url) -> Result<Records, Box<dyn Err
     Ok((directory, files))
 }
 
-async fn at_base(client: &Client, target: &Thread, base: &Url) -> Result<Records, Box<dyn Error + Send + Sync>> {
+async fn at_base(
+    client: &Client,
+    target: &Thread,
+    base: &Url,
+) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let url = base.join(&format!("{}/res/{}.htm", target.board, target.id))?;
     let mut response = client.get(url.clone()).send().await?.error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("2chan thread redirect left first-party source origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("2chan HTML exceeds size limit".into());
     }
     let mut content = Vec::new();
@@ -149,26 +243,44 @@ async fn at_base(client: &Client, target: &Thread, base: &Url) -> Result<Records
     parse(std::str::from_utf8(&content)?, target, base)
 }
 
-pub async fn resolve(client: &Client, target: Thread) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve(
+    client: &Client,
+    target: Thread,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}.2chan.net/", target.server))?;
-    Ok(at_base(client, &target, &base).await?.1.into_iter().map(|(item, _)| item).collect())
+    Ok(at_base(client, &target, &base)
+        .await?
+        .1
+        .into_iter()
+        .map(|(item, _)| item)
+        .collect())
 }
 
-pub async fn resolve_messages(client: &Client, target: Thread)
-    -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve_messages(
+    client: &Client,
+    target: Thread,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse(&format!("https://{}.2chan.net/", target.server))?;
     let (metadata, files) = at_base(client, &target, &base).await?;
     let mut output = vec![ExtractorMessage::Directory { metadata }];
-    output.extend(files.into_iter().map(|(item, metadata)| ExtractorMessage::Url {
-        url: item.url, metadata,
-    }));
+    output.extend(
+        files
+            .into_iter()
+            .map(|(item, metadata)| ExtractorMessage::Url {
+                url: item.url,
+                metadata,
+            }),
+    );
     Ok(output)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn fixture() -> &'static str {
         r#"<title>Art &amp; discussion - Board</title><div class="thre"><table border=0><span class="cnm">Anon</span><span class="cno">No.12345</span><blockquote>Hello &amp; friend</blockquote><a href="/12/src/178000001.jpg" target="_blank">178000001.jpg</a><table border=0><span class="cnm">Reply</span><span class="cno">No.12346</span><a href="/12/src/178000002.png" target="_blank">178000002.png</a><div style="clear:left"></div>"#
@@ -176,9 +288,14 @@ mod tests {
 
     #[test]
     fn only_trusted_public_thread_routes_are_recognized() {
-        assert_eq!(match_url("dec.2chan.net/12/res/12345.htm"), Some(Thread {
-            server:"dec".into(),board:"12".into(),id:"12345".into()
-        }));
+        assert_eq!(
+            match_url("dec.2chan.net/12/res/12345.htm"),
+            Some(Thread {
+                server: "dec".into(),
+                board: "12".into(),
+                id: "12345".into()
+            })
+        );
         for invalid in [
             "https://evil2chan.net/12/res/12345.htm",
             "https://dec.2chan.net/12/res/0.htm",
@@ -186,7 +303,9 @@ mod tests {
             "https://dec.2chan.net:8443/12/res/12345.htm",
             "https://user:pw@dec.2chan.net/12/res/12345.htm",
             "https://dec.2chan.net/12/../../secret",
-        ] { assert!(match_url(invalid).is_none(), "{invalid}"); }
+        ] {
+            assert!(match_url(invalid).is_none(), "{invalid}");
+        }
     }
 
     #[test]
@@ -200,7 +319,10 @@ mod tests {
         assert_eq!(files[0].0.url, "https://dec.2chan.net/12/src/178000001.jpg");
         assert_eq!(files[0].0.post_id, Some(12345));
         assert_eq!(files[0].1["com"], "Hello & friend");
-        let forged = fixture().replace("/12/src/178000001.jpg", "https://evil.dec.2chan.net/12/src/178000001.jpg");
+        let forged = fixture().replace(
+            "/12/src/178000001.jpg",
+            "https://evil.dec.2chan.net/12/src/178000001.jpg",
+        );
         assert_eq!(parse(&forged, &target, &base).unwrap().1.len(), 1);
     }
 
@@ -212,9 +334,13 @@ mod tests {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut request = [0u8; 4096];
             let n = socket.read(&mut request).await.unwrap();
-            assert!(String::from_utf8_lossy(&request[..n]).starts_with("GET /12/res/12345.htm HTTP/1.1"));
+            assert!(String::from_utf8_lossy(&request[..n])
+                .starts_with("GET /12/res/12345.htm HTTP/1.1"));
             let body = fixture();
-            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let target = match_url("https://dec.2chan.net/12/res/12345.htm").unwrap();
