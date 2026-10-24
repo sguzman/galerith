@@ -68,7 +68,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("gelbooru_v02", "XML/DAPI post and tag host family"),
     ("imagebam", "public image pages and bounded galleries"),
     ("imagechest", "public ImageChest gallery page media"),
-    ("pixhost", "public Pixhost image pages and safe gallery queues"),
+    (
+        "pixhost",
+        "public Pixhost image pages and safe gallery queues",
+    ),
     ("imagepond", "public ImagePond single-file OG media pages"),
     ("imageshack", "public ImageShack individual image REST API"),
     ("imgbb", "public image pages and first-page albums"),

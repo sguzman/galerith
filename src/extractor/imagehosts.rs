@@ -18,12 +18,16 @@ pub enum Pixhost {
         token: String,
         directory: String,
     },
-    Gallery { id: String },
+    Gallery {
+        id: String,
+    },
 }
 
 fn valid_gallery_id(raw: &str) -> bool {
     (1..=80).contains(&raw.len())
-        && raw.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+        && raw
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
 }
 
 fn valid_file_name(raw: &str) -> Option<&str> {
@@ -35,7 +39,10 @@ fn valid_file_name(raw: &str) -> Option<&str> {
         return None;
     }
     let ext = rest.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     Some(token)
@@ -69,9 +76,7 @@ pub fn match_url(input: &str) -> Option<Pixhost> {
                 directory: (*directory).into(),
             })
         }
-        ["gallery", id] if valid_gallery_id(id) => Some(Pixhost::Gallery {
-            id: (*id).into(),
-        }),
+        ["gallery", id] if valid_gallery_id(id) => Some(Pixhost::Gallery { id: (*id).into() }),
         _ => None,
     }
 }
@@ -97,7 +102,10 @@ fn safe_original_media(raw: &str) -> Option<(Url, String)> {
         return None;
     }
     let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     let name = safe_filename(filename);
@@ -109,10 +117,13 @@ fn media_from_html(
     token: &str,
     directory: &str,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    let pos = html.find("class=\"image-img\" src=\"")
+    let pos = html
+        .find("class=\"image-img\" src=\"")
         .ok_or("Pixhost page has no recognized public original image")?;
     let rest = &html[pos + "class=\"image-img\" src=\"".len()..];
-    let media = rest.split_once('"').map(|(url, _)| url)
+    let media = rest
+        .split_once('"')
+        .map(|(url, _)| url)
         .ok_or("Pixhost image attribute is incomplete")?;
     let (url, filename) =
         safe_original_media(media).ok_or("Pixhost original image host or file is unsupported")?;
@@ -134,7 +145,10 @@ async fn read_public_html(
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|size| size > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
+    {
         return Err("Pixhost public HTML response exceeds byte bound".into());
     }
     let mut bytes = Vec::new();
@@ -164,13 +178,21 @@ fn gallery_queue(html: &str, id: &str) -> Vec<ExtractorMessage> {
     let Some(fragment) = html.split_once("class=\"images\"").map(|(_, r)| r) else {
         return queue;
     };
-    let fragment = fragment.split_once("</div>").map(|(f, _)| f).unwrap_or(fragment);
+    let fragment = fragment
+        .split_once("</div>")
+        .map(|(f, _)| f)
+        .unwrap_or(fragment);
     for (position, _) in fragment.match_indices("href=\"") {
         let suffix = &fragment[position + "href=\"".len()..];
         let Some((raw, _)) = suffix.split_once('"') else {
             continue;
         };
-        let Some(Pixhost::File { path, token, directory }) = match_url(raw) else {
+        let Some(Pixhost::File {
+            path,
+            token,
+            directory,
+        }) = match_url(raw)
+        else {
             continue;
         };
         let child = format!("https://pixhost.to/{path}");
@@ -205,10 +227,19 @@ pub async fn resolve(
     target: Pixhost,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     match target {
-        Pixhost::File { path, token, directory } => {
-            let (item, _) =
-                file_at_base(client, &path, &token, &directory, &Url::parse("https://pixhost.to/")?)
-                    .await?;
+        Pixhost::File {
+            path,
+            token,
+            directory,
+        } => {
+            let (item, _) = file_at_base(
+                client,
+                &path,
+                &token,
+                &directory,
+                &Url::parse("https://pixhost.to/")?,
+            )
+            .await?;
             Ok(vec![item])
         }
         Pixhost::Gallery { .. } => {
@@ -222,13 +253,27 @@ pub async fn resolve_messages(
     target: Pixhost,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     match target {
-        Pixhost::File { path, token, directory } => {
-            let (item, metadata) =
-                file_at_base(client, &path, &token, &directory, &Url::parse("https://pixhost.to/")?)
-                    .await?;
+        Pixhost::File {
+            path,
+            token,
+            directory,
+        } => {
+            let (item, metadata) = file_at_base(
+                client,
+                &path,
+                &token,
+                &directory,
+                &Url::parse("https://pixhost.to/")?,
+            )
+            .await?;
             Ok(vec![
-                ExtractorMessage::Directory { metadata: metadata.clone() },
-                ExtractorMessage::Url { url: item.url, metadata },
+                ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                },
+                ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                },
             ])
         }
         Pixhost::Gallery { id } => {
@@ -294,7 +339,10 @@ mod tests {
         let queue = gallery_queue(html, "jSMFq");
         assert_eq!(queue.len(), 2);
         let first = serde_json::to_value(&queue[0]).unwrap();
-        assert_eq!(first["url"], "https://pixhost.to/show/190/130327671_test-.png");
+        assert_eq!(
+            first["url"],
+            "https://pixhost.to/show/190/130327671_test-.png"
+        );
         assert_eq!(first["metadata"]["gallery_id"], "jSMFq");
     }
 
@@ -308,7 +356,8 @@ mod tests {
             let n = stream.read(&mut bytes).await.unwrap();
             assert!(String::from_utf8_lossy(&bytes[..n])
                 .starts_with("GET /show/190/130327671_test-.png HTTP/1.1"));
-            let body = r#"<img class="image-img" src="https://img01.pixhost.to/images/190/original.png">"#;
+            let body =
+                r#"<img class="image-img" src="https://img01.pixhost.to/images/190/original.png">"#;
             let reply = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
@@ -317,8 +366,14 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let (file, _) = file_at_base(
-            &Client::new(), "show/190/130327671_test-.png", "130327671", "190", &base
-        ).await.unwrap();
+            &Client::new(),
+            "show/190/130327671_test-.png",
+            "130327671",
+            "190",
+            &base,
+        )
+        .await
+        .unwrap();
         assert_eq!(file.filename, "original.png");
         server.await.unwrap();
     }
