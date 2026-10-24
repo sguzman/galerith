@@ -22,7 +22,8 @@ pub enum Target {
 
 fn board_slug(s: &str) -> bool {
     (1..=32).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }
 fn thread_id(s: &str) -> bool {
     (1..=18).contains(&s.len())
@@ -37,7 +38,10 @@ pub fn match_url(raw: &str) -> Option<Target> {
         raw.to_owned()
     };
     let lower = url_text.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|s| lower.contains(s)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|s| lower.contains(s))
+    {
         return None;
     }
     let url = Url::parse(&url_text).ok()?;
@@ -56,15 +60,23 @@ pub fn match_url(raw: &str) -> Option<Target> {
         ["board", board, "thread", id] | ["board", board, "thread", id, ""]
             if board_slug(board) && thread_id(id) =>
         {
-            Some(Target::Thread { board: (*board).into(), id: (*id).into() })
+            Some(Target::Thread {
+                board: (*board).into(),
+                id: (*id).into(),
+            })
         }
-        ["board", board] | ["board", board, ""] if board_slug(board) => {
-            Some(Target::Board { board: (*board).into(), start: 1 })
-        }
+        ["board", board] | ["board", board, ""] if board_slug(board) => Some(Target::Board {
+            board: (*board).into(),
+            start: 1,
+        }),
         ["board", board, page] | ["board", board, page, ""] if board_slug(board) => {
             let page = page.parse::<u16>().ok()?;
-            (1..=MAX_BOARD_PAGES).contains(&page)
-                .then(|| Target::Board { board: (*board).into(), start: page })
+            (1..=MAX_BOARD_PAGES)
+                .contains(&page)
+                .then(|| Target::Board {
+                    board: (*board).into(),
+                    start: page,
+                })
         }
         _ => None,
     }
@@ -84,16 +96,23 @@ fn plain_text(html: &str) -> String {
             _ => {}
         }
     }
-    result.replace("&amp;", "&").replace("&lt;", "<")
-        .replace("&gt;", ">").replace("&quot;", "\"")
-        .replace("&#39;", "'").trim().to_owned()
+    result
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .trim()
+        .to_owned()
 }
 
 fn trusted_original(base: &Url, raw: &str) -> Option<(Url, String)> {
     let url = base.join(raw).ok()?;
     let host = url.host_str()?;
-    let allowed = host == "4archive.org" || host.ends_with(".4archive.org")
-        || host == "4cdn.org" || host.ends_with(".4cdn.org");
+    let allowed = host == "4archive.org"
+        || host.ends_with(".4archive.org")
+        || host == "4cdn.org"
+        || host.ends_with(".4cdn.org");
     if !allowed
         || url.scheme() != "https"
         || !url.username().is_empty()
@@ -108,7 +127,10 @@ fn trusted_original(base: &Url, raw: &str) -> Option<(Url, String)> {
     }
     let filename = url.path_segments()?.next_back()?;
     let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(extension.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "webm" | "mp4") {
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "webm" | "mp4"
+    ) {
         return None;
     }
     let name = safe_filename(filename);
@@ -118,7 +140,9 @@ fn trusted_original(base: &Url, raw: &str) -> Option<(Url, String)> {
 type Records = (Metadata, Vec<(MediaItem, Metadata)>);
 
 fn thread_records(
-    html: &str, board: &str, thread: &str,
+    html: &str,
+    board: &str,
+    thread: &str,
 ) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://4archive.org/")?;
     let mut common = Metadata::new();
@@ -126,20 +150,30 @@ fn thread_records(
     common.insert("subcategory".into(), "thread".into());
     common.insert("board".into(), board.into());
     common.insert("thread".into(), thread.parse::<u64>()?.into());
-    common.insert("post_url".into(), format!("https://4archive.org/board/{board}/thread/{thread}").into());
+    common.insert(
+        "post_url".into(),
+        format!("https://4archive.org/board/{board}/thread/{thread}").into(),
+    );
     let mut title = extract(html, "class=\"subject\">", "</span>")
-        .map(plain_text).unwrap_or_default();
+        .map(plain_text)
+        .unwrap_or_default();
     let post_blocks: Vec<_> = html.split("class=\"postContainer").skip(1).collect();
     if post_blocks.is_empty() || post_blocks.len() > MAX_POSTS {
         return Err("4archive thread lacks a bounded set of public posts".into());
     }
     if title.is_empty() {
-        title = post_blocks.iter().find_map(|block| {
-            extract(block, "<blockquote ", "</blockquote>")
-                .and_then(|q| q.split_once('>'))
-                .map(|(_, text)| plain_text(text))
-                .filter(|s| !s.is_empty())
-        }).unwrap_or_default().chars().take(50).collect();
+        title = post_blocks
+            .iter()
+            .find_map(|block| {
+                extract(block, "<blockquote ", "</blockquote>")
+                    .and_then(|q| q.split_once('>'))
+                    .map(|(_, text)| plain_text(text))
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or_default()
+            .chars()
+            .take(50)
+            .collect();
     }
     if title.len() > 240 {
         title = title.chars().take(240).collect();
@@ -148,14 +182,21 @@ fn thread_records(
     let mut media = Vec::new();
     let mut seen = HashSet::new();
     for block in post_blocks {
-        let Some(post) = extract(block, ">Post No.", "<")
-            .filter(|n| thread_id(n)) else { continue };
+        let Some(post) = extract(block, ">Post No.", "<").filter(|n| thread_id(n)) else {
+            continue;
+        };
         if !block.contains("class=\"file\"") {
             continue;
         }
-        let Some(raw) = extract(block, "class=\"fileText\"", "class=\"") else { continue };
-        let Some(link) = extract(raw, "href=\"", "\"") else { continue };
-        let Some((url, basename)) = trusted_original(&base, link) else { continue };
+        let Some(raw) = extract(block, "class=\"fileText\"", "class=\"") else {
+            continue;
+        };
+        let Some(link) = extract(raw, "href=\"", "\"") else {
+            continue;
+        };
+        let Some((url, basename)) = trusted_original(&base, link) else {
+            continue;
+        };
         if !seen.insert(url.to_string()) {
             continue;
         }
@@ -165,7 +206,8 @@ fn thread_records(
         let filename = extract(raw, "alt=\"Image: ", "\"")
             .filter(|v| !v.is_empty() && v.len() <= 200 && !v.contains('/') && !v.contains('\\'))
             .map(safe_filename)
-            .filter(|v| !v.is_empty()).unwrap_or(basename);
+            .filter(|v| !v.is_empty())
+            .unwrap_or(basename);
         let item = MediaItem {
             url: url.to_string(),
             filename: safe_filename(&format!("{post} {filename}")),
@@ -173,20 +215,26 @@ fn thread_records(
             post_id: post.parse::<u64>().ok(),
         };
         let mut meta = media_metadata(&item);
-        for (k, v) in &common { meta.insert(k.clone(), v.clone()); }
+        for (k, v) in &common {
+            meta.insert(k.clone(), v.clone());
+        }
         meta.insert("no".into(), post.parse::<u64>()?.into());
         if let Some(name) = extract(block, "class=\"name\">", "</span>") {
             let name = plain_text(name);
-            if name.len() <= 120 { meta.insert("name".into(), name.into()); }
+            if name.len() <= 120 {
+                meta.insert("name".into(), name.into());
+            }
         }
         if let Some(date) = extract(block, "class=\"dateTime\">", "<")
             .or_else(|| extract(block, "class=\"dateTime postNum\" >", "<"))
-            .map(str::trim).filter(|d| d.len() <= 80 && !d.chars().any(char::is_control))
+            .map(str::trim)
+            .filter(|d| d.len() <= 80 && !d.chars().any(char::is_control))
         {
             meta.insert("date_source".into(), date.into());
         }
         if let Some(comment) = extract(block, "<blockquote ", "</blockquote>")
-            .and_then(|q| q.split_once('>')).map(|(_, q)| plain_text(q))
+            .and_then(|q| q.split_once('>'))
+            .map(|(_, q)| plain_text(q))
         {
             meta.insert("com".into(), comment.into());
         }
@@ -196,15 +244,26 @@ fn thread_records(
 }
 
 fn board_children(
-    html: &str, board: &str, seen: &mut HashSet<String>, output: &mut Vec<ExtractorMessage>,
+    html: &str,
+    board: &str,
+    seen: &mut HashSet<String>,
+    output: &mut Vec<ExtractorMessage>,
 ) -> bool {
     let mut found = false;
     for tail in html.split("class=\"thread\" id=\"t").skip(1).take(1000) {
-        let Some(id) = tail.split_once('"').map(|(id, _)| id) else { continue };
-        if !thread_id(id) { continue; }
+        let Some(id) = tail.split_once('"').map(|(id, _)| id) else {
+            continue;
+        };
+        if !thread_id(id) {
+            continue;
+        }
         found = true;
-        if output.len() >= MAX_BOARD_CHILDREN { break; }
-        if !seen.insert(id.into()) { continue; }
+        if output.len() >= MAX_BOARD_CHILDREN {
+            break;
+        }
+        if !seen.insert(id.into()) {
+            continue;
+        }
         let target = format!("https://4archive.org/board/{board}/thread/{id}");
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "4archive".into());
@@ -216,14 +275,19 @@ fn board_children(
     found
 }
 
-async fn read_html(
-    client: &Client, endpoint: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let mut response = client.get(endpoint.clone()).send().await?.error_for_status()?;
+async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let mut response = client
+        .get(endpoint.clone())
+        .send()
+        .await?
+        .error_for_status()?;
     if response.url().origin() != endpoint.origin() {
         return Err("4archive source redirected to a different origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("4archive source HTML exceeds 2 MiB limit".into());
     }
     let mut content = Vec::new();
@@ -237,21 +301,31 @@ async fn read_html(
 }
 
 async fn thread_at_base(
-    client: &Client, base: &Url, board: &str, thread: &str,
+    client: &Client,
+    base: &Url,
+    board: &str,
+    thread: &str,
 ) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let url = base.join(&format!("board/{board}/thread/{thread}"))?;
     thread_records(&read_html(client, url).await?, board, thread)
 }
 
 async fn board_at_base(
-    client: &Client, base: &Url, board: &str, start: u16, count: u16,
+    client: &Client,
+    base: &Url,
+    board: &str,
+    start: u16,
+    count: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut seen = HashSet::new();
     let mut output = Vec::new();
-    let end = start.saturating_add(count.clamp(1, MAX_BOARD_PAGES))
+    let end = start
+        .saturating_add(count.clamp(1, MAX_BOARD_PAGES))
         .min(MAX_BOARD_PAGES + 1);
     for page in start..end {
-        if page > start { tokio::time::sleep(Duration::from_secs(1)).await; }
+        if page > start {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         let html = read_html(client, base.join(&format!("board/{board}/{page}"))?).await?;
         if !board_children(&html, board, &mut seen, &mut output)
             || output.len() >= MAX_BOARD_CHILDREN
@@ -263,20 +337,27 @@ async fn board_at_base(
 }
 
 pub async fn resolve(
-    client: &Client, target: Target,
+    client: &Client,
+    target: Target,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://4archive.org/")?;
     match target {
-        Target::Thread { board, id } =>
-            Ok(thread_at_base(client, &base, &board, &id).await?.1
-                .into_iter().map(|(item, _)| item).collect()),
-        Target::Board { .. } =>
-            Err("4archive board feeds require --dump-messages or --follow-queues".into()),
+        Target::Thread { board, id } => Ok(thread_at_base(client, &base, &board, &id)
+            .await?
+            .1
+            .into_iter()
+            .map(|(item, _)| item)
+            .collect()),
+        Target::Board { .. } => {
+            Err("4archive board feeds require --dump-messages or --follow-queues".into())
+        }
     }
 }
 
 pub async fn resolve_messages(
-    client: &Client, target: Target, max_pages: u16,
+    client: &Client,
+    target: Target,
+    max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://4archive.org/")?;
     match target {
@@ -284,27 +365,50 @@ pub async fn resolve_messages(
             let (common, records) = thread_at_base(client, &base, &board, &id).await?;
             let mut events = vec![ExtractorMessage::Directory { metadata: common }];
             for (media, meta) in records {
-                events.push(ExtractorMessage::Url { url: media.url, metadata: meta });
+                events.push(ExtractorMessage::Url {
+                    url: media.url,
+                    metadata: meta,
+                });
             }
             Ok(events)
         }
-        Target::Board { board, start } =>
-            board_at_base(client, &base, &board, start, max_pages).await,
+        Target::Board { board, start } => {
+            board_at_base(client, &base, &board, start, max_pages).await
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_board_and_thread_routes_enforce_first_party_and_page_bounds() {
-        assert_eq!(match_url("https://4archive.org/board/a/thread/12345"),
-            Some(Target::Thread { board: "a".into(), id: "12345".into() }));
-        assert_eq!(match_url("https://4archive.org/board/g/2"),
-            Some(Target::Board { board: "g".into(), start: 2 }));
-        assert_eq!(match_url("4archive.org/board/g/"), Some(Target::Board { board: "g".into(), start: 1 }));
+        assert_eq!(
+            match_url("https://4archive.org/board/a/thread/12345"),
+            Some(Target::Thread {
+                board: "a".into(),
+                id: "12345".into()
+            })
+        );
+        assert_eq!(
+            match_url("https://4archive.org/board/g/2"),
+            Some(Target::Board {
+                board: "g".into(),
+                start: 2
+            })
+        );
+        assert_eq!(
+            match_url("4archive.org/board/g/"),
+            Some(Target::Board {
+                board: "g".into(),
+                start: 1
+            })
+        );
         for bad in [
             "https://evil4archive.org/board/a/thread/12345",
             "https://4archive.org/board/a/thread/0",
@@ -313,7 +417,9 @@ mod tests {
             "https://name:pw@4archive.org/board/a/thread/12345",
             "https://4archive.org:8443/board/a",
             "https://4archive.org/board/a/../../private",
-        ] { assert!(match_url(bad).is_none(), "{bad}"); }
+        ] {
+            assert!(match_url(bad).is_none(), "{bad}");
+        }
     }
 
     #[test]
@@ -335,8 +441,10 @@ mod tests {
         let page = r#"<div class="thread" id="t1001"></div><div class="thread" id="t1001"></div><div class="thread" id="t1002"></div><div class="thread" id="t../../bad"></div>"#;
         assert!(board_children(page, "g", &mut seen, &mut events));
         assert_eq!(events.len(), 2);
-        assert_eq!(serde_json::to_value(&events[1]).unwrap()["url"],
-            "https://4archive.org/board/g/thread/1002");
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["url"],
+            "https://4archive.org/board/g/thread/1002"
+        );
     }
 
     #[tokio::test]
@@ -345,22 +453,33 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (path, body) in [
-                ("/board/a/thread/100", r#"<div class="postContainer"><span>Post No.200</span><div class="file"><span class="fileText">File: <a href="https://files.4archive.org/image.png"><img alt="Image: picture.png"></a></span></div></div>"#),
+                (
+                    "/board/a/thread/100",
+                    r#"<div class="postContainer"><span>Post No.200</span><div class="file"><span class="fileText">File: <a href="https://files.4archive.org/image.png"><img alt="Image: picture.png"></a></span></div></div>"#,
+                ),
                 ("/board/a/1", r#"<div class="thread" id="t100"></div>"#),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut req = [0u8; 4096];
                 let n = socket.read(&mut req).await.unwrap();
-                assert!(String::from_utf8_lossy(&req[..n])
-                    .starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                assert!(
+                    String::from_utf8_lossy(&req[..n]).starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let records = thread_at_base(&Client::new(), &base, "a", "100").await.unwrap();
+        let records = thread_at_base(&Client::new(), &base, "a", "100")
+            .await
+            .unwrap();
         assert_eq!(records.1.len(), 1);
-        let boards = board_at_base(&Client::new(), &base, "a", 1, 1).await.unwrap();
+        let boards = board_at_base(&Client::new(), &base, "a", 1, 1)
+            .await
+            .unwrap();
         assert_eq!(boards.len(), 1);
         server.await.unwrap();
     }

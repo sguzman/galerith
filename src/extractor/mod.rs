@@ -10,8 +10,8 @@ pub mod directlink;
 pub mod e621;
 pub mod fappic;
 pub mod foolfuuka;
-pub mod fourchan;
 pub mod fourarchive;
+pub mod fourchan;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod http_json;
@@ -81,7 +81,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
-    ("4archive", "public archived thread originals and bounded board queues"),
+    (
+        "4archive",
+        "public archived thread originals and bounded board queues",
+    ),
     ("2ch", "pinned 2ch public threads and bounded board queues"),
     (
         "2chen",
