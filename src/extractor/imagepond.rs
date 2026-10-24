@@ -80,33 +80,45 @@ pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
 }
 
 fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMessage> {
-    let mut candidates = Vec::new();
-    for marker in ["/i/", "/video/"] {
-        for (position, _) in html.match_indices(marker) {
-            let suffix = &html[position + marker.len()..];
-            let len = suffix
-                .bytes()
-                .take_while(|b| b.is_ascii_alphanumeric() || matches!(*b, b'_' | b'-' | b'.'))
-                .count();
-            let id = &suffix[..len];
-            if !safe_slug(id) || suffix.as_bytes().get(len) == Some(&b'/') {
-                continue;
-            }
-            candidates.push((position, marker, id.to_owned()));
-        }
-    }
-    candidates.sort_by_key(|(position, _, _)| *position);
+    // Only actual HTML href attributes qualify; substrings of foreign links,
+    // scripts and plain text must never turn into first-party child requests.
+    let root = Url::parse("https://www.imagepond.net/").expect("fixed public origin");
     let mut seen = HashSet::new();
     let mut messages = Vec::new();
-    for (_, marker, id) in candidates {
-        let url = format!("https://www.imagepond.net{marker}{id}");
-        if !seen.insert(url.clone()) {
+    for (_, suffix) in html.match_indices("href=\"") {
+        let Some(raw_href) = suffix["href=\"".len()..].split_once('"').map(|(href, _)| href) else {
+            continue;
+        };
+        let Ok(url) = root.join(&raw_href.replace("&amp;", "&")) else {
+            continue;
+        };
+        if url.scheme() != "https"
+            || !matches!(url.host_str(), Some("imagepond.net" | "www.imagepond.net"))
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.port().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            continue;
+        }
+        let Some(parts) = url.path_segments().map(|segments| segments.collect::<Vec<_>>()) else {
+            continue;
+        };
+        let [route, id] = parts.as_slice() else {
+            continue;
+        };
+        if !matches!(*route, "i" | "img" | "image" | "video") || !safe_slug(id) {
+            continue;
+        }
+        let child = format!("https://www.imagepond.net/{route}/{id}");
+        if !seen.insert(child.clone()) {
             continue;
         }
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "imagepond".into());
         metadata.insert("subcategory".into(), "file".into());
-        metadata.insert("file_id".into(), id.into());
+        metadata.insert("file_id".into(), (*id).into());
         match target {
             QueueTarget::Album(id) => {
                 metadata.insert("album_id".into(), id.clone().into());
@@ -115,60 +127,12 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
                 metadata.insert("username".into(), name.clone().into());
             }
         }
-        messages.push(queued_url(url, metadata));
+        messages.push(queued_url(child, metadata));
         if messages.len() >= MAX_QUEUE_CHILDREN {
             break;
         }
     }
     messages
-}
-
-fn next_listing_page(
-    html: &str,
-    current: &Url,
-    max_pages: u16,
-) -> Result<Option<Url>, Box<dyn Error + Send + Sync>> {
-    for part in html.split("<a").skip(1) {
-        let Some((attributes, _)) = part.split_once('>') else {
-            continue;
-        };
-        if !attributes.contains("rel=\"next\"") {
-            continue;
-        }
-        let href = attributes
-            .split_once("href=\"")
-            .and_then(|(_, suffix)| suffix.split_once('"'))
-            .map(|(href, _)| href)
-            .ok_or("ImagePond next page has no safe href")?;
-        let next = current.join(href)?;
-        if next.origin() != current.origin()
-            || next.path() != current.path()
-            || next.username() != current.username()
-            || next.password().is_some()
-            || next.fragment().is_some()
-        {
-            return Err("ImagePond next page has an unsafe origin or path".into());
-        }
-        let query: Vec<_> = next.query_pairs().collect();
-        if query.len() != 1 || query[0].0 != "page" {
-            return Err("ImagePond next page has unsupported query parameters".into());
-        }
-        let number = query[0].1.parse::<u16>()?;
-        let current_page = current
-            .query_pairs()
-            .find(|(key, _)| key == "page")
-            .map(|(_, value)| value.parse::<u16>())
-            .transpose()?
-            .unwrap_or(1);
-        if number <= current_page {
-            return Err("ImagePond next page must advance monotonically".into());
-        }
-        if number > max_pages.clamp(1, MAX_QUEUE_PAGES) {
-            return Ok(None);
-        }
-        return Ok(Some(next));
-    }
-    Ok(None)
 }
 
 async fn queue_at_base(
@@ -440,6 +404,23 @@ mod tests {
         assert_eq!(b["url"], "https://www.imagepond.net/video/b2");
         assert_eq!(a["metadata"]["album_id"], "gallery123");
         assert_eq!(b["metadata"]["file_id"], "b2");
+    }
+
+    #[test]
+    fn queue_scanner_never_rewrites_foreign_link_or_plain_text_into_child() {
+        let html = r#"<a href="https://malicious.example/i/fake123">External</a><script>let example="/video/ghost123";</script><a href="/i/good123">Valid</a><a href="//evil.example/video/bad123">Not ours</a><a href="/i/../hidden">Traversal</a><a href="/img/picture123?token=secret">Token</a><a href="https://imagepond.net/video/real456">Valid video</a>"#;
+        let events = collect_queue_messages(html, &QueueTarget::User("alice".into()));
+        let urls: Vec<_> = events
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(
+            urls,
+            [
+                "https://www.imagepond.net/i/good123",
+                "https://www.imagepond.net/video/real456"
+            ]
+        );
     }
 
     #[tokio::test]
