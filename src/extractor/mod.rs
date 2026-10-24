@@ -15,6 +15,7 @@ pub mod http_json;
 pub mod imagebam;
 pub mod imagechest;
 pub mod imagepond;
+pub mod imageshack;
 pub mod imgbb;
 pub mod imgbox;
 pub mod imgpile;
@@ -67,6 +68,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("imagebam", "public image pages and bounded galleries"),
     ("imagechest", "public ImageChest gallery page media"),
     ("imagepond", "public ImagePond single-file OG media pages"),
+    ("imageshack", "public ImageShack individual image REST API"),
     ("imgbb", "public image pages and first-page albums"),
     ("imgbox", "public image pages and bounded galleries"),
     ("imgpile", "public post media and multiple-image pages"),
@@ -142,6 +144,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imagechest")
     } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
+    } else if imageshack::match_url(input).is_some() {
+        Some("imageshack")
     } else if imgbb::match_url(input).is_some() {
         Some("imgbb")
     } else if imgbox::match_url(input).is_some() {
@@ -249,6 +253,9 @@ pub async fn resolve(
             "ImagePond album/profile traversal requires --follow-queues or --dump-messages".into(),
         );
     }
+    if let Some(image) = imageshack::match_url(input) {
+        return imageshack::resolve(client, image).await;
+    }
     if let Some(target) = imgbb::match_url(input) {
         return imgbb::resolve(client, target).await;
     }
@@ -331,6 +338,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imagepond::match_queue_url(input) {
         return imagepond::resolve_queue_messages(client, target, max_pages).await;
+    }
+    if let Some(image) = imageshack::match_url(input) {
+        return imageshack::resolve_messages(client, image).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
@@ -633,6 +643,7 @@ mod tests {
             ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://www.imagepond.net/i/abc123", "imagepond"),
             ("https://www.imagepond.net/a/gallery123", "imagepond"),
+            ("https://imageshack.com/i/iq8ac04fj", "imageshack"),
             ("https://ibb.co/album/album123", "imgbb"),
             ("https://imgbox.com/a1B2c3D4", "imgbox"),
             ("https://imgpile.com/p/AbCdEfG", "imgpile"),
