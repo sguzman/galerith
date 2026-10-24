@@ -34,6 +34,7 @@ pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
 pub mod lexica;
+pub mod listal;
 pub mod lightroom;
 pub mod moebooru;
 pub mod philomena;
@@ -88,6 +89,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("imhentai", "pinned public IMHentai-family galleries"),
     ("issuu", "pinned public Issuu publication pages"),
+    ("listal", "pinned public Listal images and people-picture queues"),
     (
         "imagetwist",
         "pinned public Imagetwist and Imagehaha originals",
@@ -221,6 +223,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imhentai")
     } else if issuu::match_url(input).is_some() || issuu::publisher::match_url(input).is_some() {
         Some("issuu")
+    } else if listal::match_url(input).is_some() {
+        Some("listal")
     } else if imagetwist::match_url(input).is_some()
         || imagetwist::match_gallery_url(input).is_some()
     {
@@ -369,6 +373,9 @@ pub async fn resolve(
     }
     if let Some(publication) = issuu::match_url(input) {
         return issuu::resolve(client, publication).await;
+    }
+    if let Some(target) = listal::match_url(input) {
+        return listal::resolve(client, target).await;
     }
     if issuu::publisher::match_url(input).is_some() {
         return Err("Issuu publisher feeds require --dump-messages or --follow-queues".into());
@@ -530,6 +537,9 @@ pub async fn resolve_messages(
     }
     if let Some(publication) = issuu::match_url(input) {
         return issuu::resolve_messages(client, publication).await;
+    }
+    if let Some(target) = listal::match_url(input) {
+        return listal::resolve_messages(client, target, max_pages).await;
     }
     if let Some(publisher) = issuu::publisher::match_url(input) {
         return issuu::publisher::resolve_messages(client, publisher, max_pages).await;
@@ -885,6 +895,7 @@ mod tests {
             ("https://imgur.com/abcdefg", "imgur"),
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
+            ("https://www.listal.com/viewimage/12345678", "listal"),
             ("https://issuu.com/press", "issuu"),
             ("https://imhentai.xxx/tag/art/", "imhentai"),
             ("https://imagetwist.com/f1i2s4vhvbrq/test.png", "imagetwist"),
