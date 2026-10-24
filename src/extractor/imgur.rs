@@ -295,6 +295,15 @@ pub async fn resolve_messages(
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.imgur.com/")?;
+    resolve_messages_at_base(client, target, max_pages, &base).await
+}
+
+async fn resolve_messages_at_base(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+    base: &Url,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     match target {
         Target::Gallery(id) => {
             let value = public_json(client, &base, &format!("post/v1/posts/{id}"), false).await?;
@@ -389,6 +398,75 @@ mod tests {
             "https://imgur.com/abcde"
         );
         assert!(decode_gallery(&serde_json::json!({"id":"abcde"}), "abcde").is_err());
+    }
+
+    #[tokio::test]
+    async fn gallery_queue_traversal_fetches_public_album_and_preserves_media_order() {
+        use crate::message::traverse_queue_job_with;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, json) in [
+                (
+                    "/post/v1/posts/abcdefg",
+                    r#"{"data":{"id":"abcdefg","is_album":true}}"#,
+                ),
+                (
+                    "/post/v1/albums/abcdefg?include=",
+                    r#"{"data":{"id":"abcdefg","media":[{"id":"abcde","ext":"jpg"},{"id":"xyz12","ext":"png"}]}}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buffer = [0u8; 4096];
+                let count = socket.read(&mut buffer).await.unwrap();
+                let request = String::from_utf8_lossy(&buffer[..count]);
+                assert!(request.starts_with(&format!("GET {path}")), "{request}");
+                assert!(
+                    request.to_ascii_lowercase().contains("authorization: client-id "),
+                    "{request}"
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+                    json.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let client = Client::new();
+        let parent = resolve_messages_at_base(
+            &client,
+            Target::Gallery("abcdefg".into()),
+            1,
+            &base,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(&parent[0], ExtractorMessage::Queue { .. }));
+        let expanded = traverse_queue_job_with(parent, 1, 4, |url| {
+            let target = match_url(&url).expect("validated gallery child");
+            resolve_messages_at_base(&client, target, 1, &base)
+        })
+        .await
+        .unwrap();
+        let urls = expanded
+            .iter()
+            .filter_map(|message| {
+                if let ExtractorMessage::Url { url, .. } = message {
+                    Some(url.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            urls,
+            ["https://i.imgur.com/abcde.jpg", "https://i.imgur.com/xyz12.png"]
+        );
+        assert_eq!(expanded.len(), 5);
+        server.await.unwrap();
     }
 
     #[tokio::test]
