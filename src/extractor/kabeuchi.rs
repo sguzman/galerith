@@ -109,7 +109,14 @@ fn read_post(
     user: &User,
     media: &mut Vec<(MediaItem, Metadata)>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    if value.get("is_ad").and_then(Value::as_bool).unwrap_or(false) {
+    if value.get("is_ad").is_some_and(|flag| match flag {
+        Value::Null | Value::Bool(false) => false,
+        Value::Bool(true) => true,
+        Value::Number(number) => number.as_i64() != Some(0),
+        Value::String(text) => !text.is_empty(),
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(fields) => !fields.is_empty(),
+    }) {
         return Ok(());
     }
     let Some(post_id) = value.get("id").and_then(serial_id) else {
@@ -334,8 +341,10 @@ mod tests {
         let info = serde_json::json!({"datas":[
             {"id":1001,"image1":"first.jpg","image2":"second.png","image3":"","title":"Artwork","created_at":"2026-04-06T11:00:00Z"},
             {"id":1002,"image1":"advert.jpg","is_ad":true},
-            {"id":1003,"image1":""}
-        ],"last_data":1003});
+            {"id":1003,"image1":""},
+            {"id":1004,"image1":"numeric-ad.jpg","is_ad":1},
+            {"id":1005,"image1":"string-ad.jpg","is_ad":"1"}
+        ],"last_data":1005});
         let mut media = Vec::new();
         assert_eq!(decode_posts(&info, &user, &mut media).unwrap(), None);
         assert_eq!(media.len(), 2);
