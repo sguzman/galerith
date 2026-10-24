@@ -64,7 +64,7 @@ pub fn match_url(input: &str) -> Option<Target> {
     let parts: Vec<_> = url.path_segments()?.collect();
     let token = match parts.as_slice() {
         [token] if valid_token(token) => *token,
-        [token, hint] if valid_token(token) && valid_hint(hint) => *token,
+        [token, hint] if valid_token(token) && (hint.is_empty() || valid_hint(hint)) => *token,
         _ => return None,
     };
     Some(Target {
@@ -250,6 +250,8 @@ mod tests {
         assert!(match_url("http://imgclick.net/4tbrre1oxew9").is_some());
         assert!(match_url("imgclick.net/4tbrre1oxew9").is_some());
         assert!(match_url("www.imgclick.net/4tbrre1oxew9/sample.png.html").is_some());
+        assert!(match_url("https://imgclick.net/4tbrre1oxew9/").is_some());
+        assert!(match_url("http://imgclick.net/4tbrre1oxew9/").is_some());
         for bad in [
             "evilimgclick.net/4tbrre1oxew9",
             "imgclick.net/4tbrre1oxew9?private=1",
