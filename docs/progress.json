@@ -2622,6 +2622,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T542",
+              "emoji": "🛡️",
+              "name": "ImagePond structured OpenGraph metadata and safe HTML child-link validation",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Project bounded typed image/video dimensions, media class and safe optional title from OG content",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs parse_page and typed_og_details_preserve_numeric_dimensions_and_safe_mime_thumbnail; CI 40053074485"
+                },
+                {
+                  "title": "Reject overflow dimensions, unsafe thumbnail origins and unapproved video MIME metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs typed_og_details_drop_overflow_dimensions_and_untrusted_thumbnail; CI 40053074485"
+                },
+                {
+                  "title": "Avoid constructing deferred child URL from external hrefs, query-bearing links or script-only path substrings",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs queue_scanner_never_rewrites_foreign_link_or_plain_text_into_child; CI 40053074485"
+                },
+                {
+                  "title": "Preserve first-party album/user scoped queue ordering and existing bounded HTTP behavior",
+                  "passed": true,
+                  "evidence": "src/extractor/imagepond.rs album_pagination_preserves_first_seen_media_and_caps_pages and local_first_page_user_listing_emits_safe_deferred_queues; CI 40053074485"
+                },
+                {
+                  "title": "Match upstream OG metadata, canonical IDs, trusted host variants and complete HTML/link parsing with live differential fixtures",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

@@ -34,7 +34,7 @@ cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 
 ## Port tracking
 
-**Overall MVP:** `██████░░░░ 60%` (99 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `██████░░░░ 60%` (100 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📨 Message preview](docs/MESSAGE_PROTOCOL.md) · [🔎 Typed job filters](docs/JOB_FILTERS.md) · [🧱 Post scopes and pagination](docs/POST_SCOPES_AND_PAGING.md) · [🧵 4chan queue](docs/FOURCHAN_QUEUE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 

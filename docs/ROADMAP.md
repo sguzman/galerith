@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 60%` across 99 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 60%` across 100 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -516,6 +516,12 @@
   - [x] Enforce 4-page, 48-child and 2-MiB per-response caps with interpage pacing and safe typed dispatcher registration — src/extractor/imagepond.rs queue_at_base, resolve_queue_messages, mod.rs registry; CI 40052501580
   - [x] Validate same-origin next links, advance monotonically and verify two-page loopback request ordering and deduplication — src/extractor/imagepond.rs rejects_foreign_and_nonprogressing_listing_continuations and album_pagination_preserves_first_seen_media_and_caps_pages; CI 40052501580
   - [ ] Match pinned gallery-dl all album/user URL variants, metadata inheritance, continuation rules, filename/archive formatting and live site differential acceptance
+- 🛡️ **T542** ImagePond structured OpenGraph metadata and safe HTML child-link validation — `████████░░ 80%`
+  - [x] Project bounded typed image/video dimensions, media class and safe optional title from OG content — src/extractor/imagepond.rs parse_page and typed_og_details_preserve_numeric_dimensions_and_safe_mime_thumbnail; CI 40053074485
+  - [x] Reject overflow dimensions, unsafe thumbnail origins and unapproved video MIME metadata — src/extractor/imagepond.rs typed_og_details_drop_overflow_dimensions_and_untrusted_thumbnail; CI 40053074485
+  - [x] Avoid constructing deferred child URL from external hrefs, query-bearing links or script-only path substrings — src/extractor/imagepond.rs queue_scanner_never_rewrites_foreign_link_or_plain_text_into_child; CI 40053074485
+  - [x] Preserve first-party album/user scoped queue ordering and existing bounded HTTP behavior — src/extractor/imagepond.rs album_pagination_preserves_first_seen_media_and_caps_pages and local_first_page_user_listing_emits_safe_deferred_queues; CI 40053074485
+  - [ ] Match upstream OG metadata, canonical IDs, trusted host variants and complete HTML/link parsing with live differential fixtures
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

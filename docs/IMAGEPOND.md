@@ -17,3 +17,8 @@ Listing HTML responses are limited to **2 MiB** each, traversal to **4 pages** a
 **Still missing:** all pinned upstream album/user URL aliases, exhaustive original Chevereto HTML layouts and arbitrary continuation queries, complete metadata and date/video duration models, broad media/thumbnail/MIME variants, filename/archive policies, account behavior and live upstream differential conformance. No upstream module is fully accepted on the strength of these previews.
 
 For exact scope and acceptance status see the [full module matrix](port-matrix.json) and [roadmap](ROADMAP.md).
+
+
+## Additional typed file metadata and queue-origin safeguards
+
+A verified metadata subset preserves public OpenGraph image/video class and up to 32,768-pixel dimensions, and videos can carry allowlisted MIME type plus a same-site thumbnail URL. Missing, malformed, overflow and untrusted fields are excluded without changing the flattened media record. The deferred queue scanner only constructs links from recognized first-party anchor attributes, not naked `/i/` substrings inside scripts or foreign links. See [CI 40053074485](https://github.com/sguzman/galerith/actions/runs/40053074485). This is deliberately narrower than the upstream full file metadata and DOM/HTML compatibility contract.
