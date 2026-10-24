@@ -163,7 +163,7 @@ fn next_page(
         || next.host_str() != current.host_str()
         || !next.username().is_empty()
         || next.password().is_some()
-        || next.port().is_some()
+        || next.port_or_known_default() != current.port_or_known_default()
         || next.fragment().is_some()
         || next.path() != listing.path
     {
