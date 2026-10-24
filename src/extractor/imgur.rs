@@ -257,7 +257,9 @@ async fn records_at_base(
             decode_album(&value, id)
         }
         Target::Gallery(_) => Err("Imgur gallery requires deferred typed child queue".into()),
-        Target::Listing(_) => Err("Imgur public listing requires deferred typed child queues".into()),
+        Target::Listing(_) => {
+            Err("Imgur public listing requires deferred typed child queues".into())
+        }
     }
 }
 
@@ -298,7 +300,9 @@ pub async fn resolve_messages(
             let value = public_json(client, &base, &format!("post/v1/posts/{id}"), false).await?;
             decode_gallery(&value, &id)
         }
-        Target::Listing(listing) => listing::resolve_messages(client, &base, listing, max_pages).await,
+        Target::Listing(listing) => {
+            listing::resolve_messages(client, &base, listing, max_pages).await
+        }
         other => Ok(messages_from_records(
             records_at_base(client, &other, &base).await?,
         )),
