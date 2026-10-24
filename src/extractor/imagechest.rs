@@ -114,17 +114,11 @@ fn user_gallery_queues(
         metadata.insert("username".into(), username.into());
         metadata.insert("gallery_id".into(), id.into());
         if let Some(title) = post.get("title").and_then(Value::as_str) {
-            if !title.is_empty()
-                && title.len() <= 256
-                && !title.chars().any(char::is_control)
-            {
+            if !title.is_empty() && title.len() <= 256 && !title.chars().any(char::is_control) {
                 metadata.insert("title".into(), title.into());
             }
         }
-        output.push(queued_url(
-            format!("https://imgchest.com/p/{id}"),
-            metadata,
-        ));
+        output.push(queued_url(format!("https://imgchest.com/p/{id}"), metadata));
         if output.len() >= MAX_USER_INDEX_QUEUES {
             break;
         }
@@ -151,8 +145,7 @@ async fn queue_user_at_base(
             .append_pair("username", &user.username)
             .append_pair("nsfw", "true");
         let body =
-            super::http_json::fetch_json_limited(client, endpoint, MAX_GALLERY_HTML_BYTES)
-                .await?;
+            super::http_json::fetch_json_limited(client, endpoint, MAX_GALLERY_HTML_BYTES).await?;
         let raw_count = user_gallery_queues(&body, &user.username, &mut seen, &mut events)?;
         if events.len() >= MAX_USER_INDEX_QUEUES || raw_count == 0 {
             break;
@@ -177,7 +170,13 @@ pub async fn queued_user_galleries(
     user: &UserProfile,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    queue_user_at_base(client, user, max_pages, &Url::parse("https://imgchest.com/")?).await
+    queue_user_at_base(
+        client,
+        user,
+        max_pages,
+        &Url::parse("https://imgchest.com/")?,
+    )
+    .await
 }
 
 fn gallery_files(data: &Value) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
