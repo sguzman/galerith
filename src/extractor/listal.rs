@@ -443,6 +443,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bounded_people_listing_follows_valid_next_page_and_deduplicates_ids() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, html) in [
+                (
+                    "/alice/pictures",
+                    "<a href='https://www.listal.com/viewimage/1234'>First</a><a href='/alice/pictures/2'>Next</a>",
+                ),
+                (
+                    "/alice/pictures/2",
+                    "<a href='https://www.listal.com/viewimage/1234'>Dup</a><a href='https://www.listal.com/viewimage/5678'>Second</a><a href='https://evil-listal.com/viewimage/9999'>Bad</a>",
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..n])
+                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                    html.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let events = people_at_base(&Client::new(), &base, "alice", 4).await.unwrap();
+        assert_eq!(events.len(), 2);
+        let urls = events
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            urls,
+            ["https://www.listal.com/viewimage/1234", "https://www.listal.com/viewimage/5678"]
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn bounded_public_image_get_uses_one_source_request() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
