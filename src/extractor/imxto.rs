@@ -19,7 +19,9 @@ pub enum Target {
 
 fn safe_token(value: &str) -> bool {
     (1..=80).contains(&value.len())
-        && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
@@ -33,7 +35,10 @@ pub fn match_url(raw: &str) -> Option<Target> {
     }
     let url = Url::parse(raw).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("imx.to" | "www.imx.to" | "img.yt" | "www.img.yt"))
+        || !matches!(
+            url.host_str(),
+            Some("imx.to" | "www.imx.to" | "img.yt" | "www.img.yt")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -77,8 +82,13 @@ fn valid_media(raw: &str) -> Option<(Url, String)> {
     }
     let filename = url.path_segments()?.next_back()?;
     let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    if filename.is_empty() || filename.len() > 240 || filename.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    if filename.is_empty()
+        || filename.len() > 240
+        || filename.contains('%')
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -94,23 +104,32 @@ fn image_from_html(
         .split_once("<div style=\"text-align:center;\"><a href=\"")
         .map(|(_, rest)| rest)
         .ok_or("Imxto public page lacks expected image anchor")?;
-    let (media, after) = source.split_once('"').ok_or("Imxto media anchor is incomplete")?;
-    let (url, fallback) = valid_media(media)
-        .ok_or("Imxto original image link has unsupported origin")?;
+    let (media, after) = source
+        .split_once('"')
+        .ok_or("Imxto media anchor is incomplete")?;
+    let (url, fallback) =
+        valid_media(media).ok_or("Imxto original image link has unsupported origin")?;
     let filename = after
         .split_once(" title=\"")
         .and_then(|(_, rest)| rest.split_once('"'))
         .and_then(|(name, _)| {
-            if name.is_empty() || name.len() > 230
-                || name.contains('/') || name.contains('\\')
+            if name.is_empty()
+                || name.len() > 230
+                || name.contains('/')
+                || name.contains('\\')
                 || name.chars().any(char::is_control)
             {
                 return None;
             }
-            let suffix = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+            let suffix = fallback
+                .rsplit_once('.')
+                .map(|(_, ext)| ext)
+                .unwrap_or("jpg");
             let name = if name.rsplit_once('.').is_some_and(|(_, ext)| {
-                matches!(ext.to_ascii_lowercase().as_str(),
-                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+                matches!(
+                    ext.to_ascii_lowercase().as_str(),
+                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+                )
             }) {
                 name.to_string()
             } else {
@@ -135,7 +154,10 @@ async fn read_limited_html(
     response: reqwest::Response,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = response.error_for_status()?;
-    if response.content_length().is_some_and(|v| v > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|v| v > MAX_HTML_BYTES as u64)
+    {
         return Err("Imxto public HTML exceeds byte limit".into());
     }
     let mut bytes = Vec::new();
@@ -172,18 +194,32 @@ fn gallery_children(
 ) -> bool {
     let root = Url::parse("https://imx.to/").expect("fixed Imxto origin");
     for (position, _) in html.match_indices("<a") {
-        let Some(after) = html.get(position + 2..) else { continue };
-        let Some((attrs, _)) = after.split_once('>') else { continue };
-        if !attrs.starts_with(char::is_whitespace) { continue; }
-        let Some((prefix, href)) = attrs.split_once("href=\"") else { continue };
-        if !prefix.ends_with(char::is_whitespace) { continue; }
-        let Some((raw, _)) = href.split_once('"') else { continue };
+        let Some(after) = html.get(position + 2..) else {
+            continue;
+        };
+        let Some((attrs, _)) = after.split_once('>') else {
+            continue;
+        };
+        if !attrs.starts_with(char::is_whitespace) {
+            continue;
+        }
+        let Some((prefix, href)) = attrs.split_once("href=\"") else {
+            continue;
+        };
+        if !prefix.ends_with(char::is_whitespace) {
+            continue;
+        }
+        let Some((raw, _)) = href.split_once('"') else {
+            continue;
+        };
         let Ok(link) = root.join(raw) else { continue };
         let Some(Target::Image { path, token }) = match_url(link.as_str()) else {
             continue;
         };
         let canonical = format!("https://imx.to/{path}");
-        if !seen.insert(canonical.clone()) { continue; }
+        if !seen.insert(canonical.clone()) {
+            continue;
+        }
         let mut meta = Metadata::new();
         meta.insert("category".into(), "imxto".into());
         meta.insert("subcategory".into(), "image".into());
@@ -207,7 +243,9 @@ async fn gallery_at_base(
     let mut seen = HashSet::new();
     for page in 1..=max_pages.clamp(1, MAX_GALLERY_PAGES) {
         let mut endpoint = base.join(&format!("g/{id}"))?;
-        endpoint.query_pairs_mut().append_pair("page", &page.to_string());
+        endpoint
+            .query_pairs_mut()
+            .append_pair("page", &page.to_string());
         let response = client.get(endpoint).send().await?;
         let html = read_limited_html(response).await?;
         if !gallery_children(&html, id, &mut seen, &mut messages) {
@@ -230,7 +268,9 @@ pub async fn resolve(
                 image_at_base(client, &path, &token, &Url::parse("https://imx.to/")?).await?;
             Ok(vec![item])
         }
-        Target::Gallery(_) => Err("Imxto gallery requires --dump-messages or --follow-queues".into()),
+        Target::Gallery(_) => {
+            Err("Imxto gallery requires --dump-messages or --follow-queues".into())
+        }
     }
 }
 
@@ -244,8 +284,13 @@ pub async fn resolve_messages(
             let (item, metadata) =
                 image_at_base(client, &path, &token, &Url::parse("https://imx.to/")?).await?;
             Ok(vec![
-                ExtractorMessage::Directory { metadata: metadata.clone() },
-                ExtractorMessage::Url { url: item.url, metadata },
+                ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                },
+                ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                },
             ])
         }
         Target::Gallery(id) => {
@@ -257,13 +302,19 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_imxto_and_imgyt_image_gallery_routes_are_safe() {
         assert_eq!(
             match_url("https://imx.to/i/1qdeva"),
-            Some(Target::Image { path: "i/1qdeva".into(), token: "1qdeva".into() })
+            Some(Target::Image {
+                path: "i/1qdeva".into(),
+                token: "1qdeva".into()
+            })
         );
         assert_eq!(
             match_url("https://img.yt/img-57a2050547b97.html"),
@@ -272,10 +323,15 @@ mod tests {
                 token: "57a2050547b97".into()
             })
         );
-        assert_eq!(match_url("https://imx.to/g/ozdy"), Some(Target::Gallery("ozdy".into())));
+        assert_eq!(
+            match_url("https://imx.to/g/ozdy"),
+            Some(Target::Gallery("ozdy".into()))
+        );
         for bad in [
-            "http://imx.to/i/1qdeva", "https://evilimx.to/i/1qdeva",
-            "https://imx.to/i/1qdeva?secret=1", "https://imx.to/i/a%2Fb",
+            "http://imx.to/i/1qdeva",
+            "https://evilimx.to/i/1qdeva",
+            "https://imx.to/i/1qdeva?secret=1",
+            "https://imx.to/i/a%2Fb",
             "https://imx.to/g/../i/1qdeva",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
@@ -301,8 +357,14 @@ mod tests {
         let mut events = Vec::new();
         assert!(!gallery_children(html, "ozdy", &mut seen, &mut events));
         assert_eq!(events.len(), 2);
-        assert_eq!(serde_json::to_value(&events[0]).unwrap()["url"], "https://imx.to/i/one123");
-        assert_eq!(serde_json::to_value(&events[1]).unwrap()["url"], "https://imx.to/img-two456.html");
+        assert_eq!(
+            serde_json::to_value(&events[0]).unwrap()["url"],
+            "https://imx.to/i/one123"
+        );
+        assert_eq!(
+            serde_json::to_value(&events[1]).unwrap()["url"],
+            "https://imx.to/img-two456.html"
+        );
     }
 
     #[tokio::test]
@@ -323,7 +385,9 @@ mod tests {
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = image_at_base(&Client::new(), "i/1qdeva", "1qdeva", &base).await.unwrap();
+        let (file, _) = image_at_base(&Client::new(), "i/1qdeva", "1qdeva", &base)
+            .await
+            .unwrap();
         assert_eq!(file.filename, "test.png");
         server.await.unwrap();
     }
@@ -334,8 +398,14 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (page, html) in [
-                (1, r#"<a href="/i/one123">one</a><span class="pagination">More</span>"#),
-                (2, r#"<a href="/i/one123">duplicate</a><a href="/i/two456">two</a>"#),
+                (
+                    1,
+                    r#"<a href="/i/one123">one</a><span class="pagination">More</span>"#,
+                ),
+                (
+                    2,
+                    r#"<a href="/i/one123">duplicate</a><a href="/i/two456">two</a>"#,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut buffer = [0_u8; 4096];
@@ -351,7 +421,9 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = gallery_at_base(&Client::new(), "ozdy", 3, &base).await.unwrap();
+        let events = gallery_at_base(&Client::new(), "ozdy", 3, &base)
+            .await
+            .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
     }
