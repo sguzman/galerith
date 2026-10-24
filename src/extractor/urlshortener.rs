@@ -1,7 +1,7 @@
 //! Pinned public bit.ly and t.co URL-shortener queue subset.
 use crate::message::{queued_url, ExtractorMessage, Metadata};
 use reqwest::{header::LOCATION, redirect::Policy, Client, StatusCode};
-use std::{error::Error, net::IpAddr};
+use std::error::Error;
 use url::Url;
 
 const MAX_PAGE_BYTES: usize = 32 * 1024;
@@ -14,14 +14,19 @@ pub struct ShortLink {
 }
 
 pub fn match_url(raw: &str) -> Option<ShortLink> {
-    let lower = raw.to_ascii_lowercase();
+    let candidate = if raw.starts_with("bit.ly/") || raw.starts_with("t.co/") {
+        format!("https://{raw}")
+    } else {
+        raw.to_owned()
+    };
+    let lower = candidate.to_ascii_lowercase();
     if ["%2e", "%2f", "%5c", "/../", "/./"]
         .iter()
         .any(|s| lower.contains(s))
     {
         return None;
     }
-    let link = Url::parse(raw).ok()?;
+    let link = Url::parse(&candidate).ok()?;
     if !matches!(link.scheme(), "http" | "https")
         || !link.username().is_empty()
         || link.password().is_some()
@@ -64,7 +69,7 @@ fn public_destination(input: &str, source: &Url) -> Option<Url> {
         return None;
     }
     let domain = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
-    if domain.parse::<IpAddr>().is_ok()
+    if matches!(url.host(), Some(url::Host::Ipv4(_) | url::Host::Ipv6(_)))
         || matches!(domain.as_str(), "localhost" | "localhost.localdomain")
         || [
             ".localhost",
@@ -135,8 +140,10 @@ async fn resolve_endpoint(
     if head.url().origin() != endpoint.origin() {
         return Err("Shortener initial request escaped its origin".into());
     }
-    if let Some(dest) = header_target(&head, &endpoint) {
-        return Ok(dest);
+    if head.status().is_redirection() {
+        if let Some(dest) = header_target(&head, &endpoint) {
+            return Ok(dest);
+        }
     }
     // Some public shorteners reject HEAD; t.co can also return an HTML
     // meta refresh instead of a redirect when a browser agent is present.
@@ -148,8 +155,10 @@ async fn resolve_endpoint(
         if response.url().origin() != endpoint.origin() {
             return Err("Shortener GET escaped its origin".into());
         }
-        if let Some(dest) = header_target(&response, &endpoint) {
-            return Ok(dest);
+        if response.status().is_redirection() {
+            if let Some(dest) = header_target(&response, &endpoint) {
+                return Ok(dest);
+            }
         }
         if service == "tco" && response.status().is_success() {
             let page = read_small_html(response).await?;
@@ -192,6 +201,8 @@ mod tests {
     fn pinned_hosts_accept_only_public_short_codes() {
         assert_eq!(match_url("https://bit.ly/abc_12").unwrap().service, "bitly");
         assert_eq!(match_url("http://t.co/abc123").unwrap().service, "tco");
+        assert_eq!(match_url("bit.ly/abc123").unwrap().code, "abc123");
+        assert_eq!(match_url("t.co/abc123").unwrap().code, "abc123");
         for unsafe_url in [
             "https://evilbit.ly/abc123",
             "https://bit.ly.evil.test/abc123",
@@ -214,6 +225,7 @@ mod tests {
             "http://127.0.0.1/private",
             "https://192.168.1.1/",
             "http://[::1]/",
+            "http://[::ffff:127.0.0.1]/",
             "https://intranet.local/path",
             "https://service.internal/path",
             "file:///etc/passwd",
