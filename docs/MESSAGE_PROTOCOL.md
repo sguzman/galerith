@@ -18,6 +18,10 @@ All three are distinct types. Queue events do not silently resolve children.
 Future extraction jobs need bounded recursion, cycle, authentication,
 per-extractor and depth policies.
 
+ImageChest public galleries supply validated `gallery_id` and optional
+bounded page/file metadata without overwriting media identity. Public user
+profiles emit deferred validated gallery queues; see [ImageChest](IMAGECHEST.md).
+
 ## Read-only CLI preview
 
 Use `galerith --dump-messages 'https://example.org/image.jpg'`

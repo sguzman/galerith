@@ -684,7 +684,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent Rust public ImageChest gallery HTML/data-page media extraction and typed metadata, bounded public user gallery queues, strict canonical URL and CDN validation, pagination-until-empty, 2 MiB response guards and local HTTP tests; CI 40047578834 passed. Authenticated API, complete metadata/filenames/archive and live upstream parity open."
+        "Independent Rust public ImageChest gallery HTML/data-page media extraction and typed metadata, bounded public user gallery queues, strict canonical URL and CDN validation, pagination-until-empty, 2 MiB response guards and local HTTP tests; CI 40047578834 passed. Authenticated API, complete metadata/filenames/archive and live upstream parity open.",
+        "Validated canonical API listing links and record-ID consistency, typed gallery title/username/count and file ID/position/description sanitation, one-request HTTP typed metadata fixture; CI 40051572947 passed. Auth, complete archive/filename and live differential parity remain open."
       ]
     },
     {
