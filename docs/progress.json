@@ -3780,6 +3780,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T576",
+              "emoji": "🧩",
+              "name": "3dbooru pinned Behoimi Moebooru request and media adapter",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned HTTP/HTTPS Behoimi tags, pool, post and popular routes without admitting unknown hosts or existing-host plaintext HTTP",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs behoimi_3dbooru_routes_respect_pinned_http_endpoints; CI 40143946115"
+                },
+                {
+                  "title": "Reuse native Moebooru JSON post, tag, pool and popular handling with Behoimi's /post/index.json API path and 3dbooru category identity",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs source-specific endpoint and query router; src/extractor/mod.rs classifier; CI 40143946115"
+                },
+                {
+                  "title": "Preserve pinned Behoimi Referer and identity encoding request headers with strict API response cap and same-origin redirect validation",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs source_json and behoimi_3dbooru_uses_index_json_and_pinned_request_headers; CI 40143946115"
+                },
+                {
+                  "title": "Verify public image extraction with offline HTTP request path/header and native dispatch regression",
+                  "passed": true,
+                  "evidence": "src/extractor/moebooru.rs behoimi_3dbooru_uses_index_json_and_pinned_request_headers; src/extractor/mod.rs route fixtures; full CI 40143946115"
+                },
+                {
+                  "title": "Match full pinned 3dbooru metadata, age/permissions, files, filename/archive/directory options and live endpoint differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

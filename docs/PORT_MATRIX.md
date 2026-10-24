@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 49 · Not ported: 223.**
+**Complete: 0 · Partial: 50 · Not ported: 222.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -12,7 +12,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/2chan.py` | 🟡 Partial | `src/extractor/twochan.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/2chen.py` | 🟡 Partial | `src/extractor/twochen.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/35photo.py` | 🟡 Partial | `src/extractor/thirtyfivephoto.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/3dbooru.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/3dbooru.py` | 🟡 Partial | `src/extractor/moebooru.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/4archive.py` | 🟡 Partial | `src/extractor/fourarchive.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/4chan.py` | 🟡 Partial | `src/extractor/fourchan.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/4chanarchives.py` | 🟡 Partial | `src/extractor/fourchanarchives.rs`, `src/extractor/mod.rs` |

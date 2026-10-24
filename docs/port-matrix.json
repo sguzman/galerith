@@ -58,9 +58,14 @@
     {
       "path": "gallery_dl/extractor/3dbooru.py",
       "module": "3dbooru",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/moebooru.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent pinned 3dbooru/Behoimi adapter through existing native Moebooru implementation: exact Behoimi HTTP/HTTPS user entry host, post/tags/pool/popular patterns, /post/index.json JSON original extraction, pinned Referer/Accept-Encoding headers, same-origin API redirect and 8 MiB response cap; offline one-request Behoimi post HTTP fixture passed full CI 40143946115. Comprehensive filename/archive/metadata/auth and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/4archive.py",

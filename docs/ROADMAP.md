@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 133 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 65%` across 134 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -734,6 +734,12 @@
   - [x] Follow pinned user photoUser and genre AJAX show_block.php numeric descending cursor pages, deduped in stable source order — src/extractor/thirtyfivephoto.rs user_and_genre_ajax_queues_follow_pinned_numeric_cursors and ajax_photo_identifiers_sort_numerically_and_reject_truncated_paths; full CI 40143033517
   - [x] Support pinned genre_ID/new source route and rating-zero AJAX cursor traversal with exact HTTP regression — src/extractor/thirtyfivephoto.rs recent_genre_uses_zero_rating_in_pinned_ajax_protocol and routes_accept_pinned_images_tags_genres_and_users_only; full Linux CI 40143477543
   - [ ] Complete source metadata, filename/archive/directory templates, unrestricted feed paging and live pinned upstream differential parity
+- 🧩 **T576** 3dbooru pinned Behoimi Moebooru request and media adapter — `████████░░ 80%`
+  - [x] Match pinned HTTP/HTTPS Behoimi tags, pool, post and popular routes without admitting unknown hosts or existing-host plaintext HTTP — src/extractor/moebooru.rs behoimi_3dbooru_routes_respect_pinned_http_endpoints; CI 40143946115
+  - [x] Reuse native Moebooru JSON post, tag, pool and popular handling with Behoimi's /post/index.json API path and 3dbooru category identity — src/extractor/moebooru.rs source-specific endpoint and query router; src/extractor/mod.rs classifier; CI 40143946115
+  - [x] Preserve pinned Behoimi Referer and identity encoding request headers with strict API response cap and same-origin redirect validation — src/extractor/moebooru.rs source_json and behoimi_3dbooru_uses_index_json_and_pinned_request_headers; CI 40143946115
+  - [x] Verify public image extraction with offline HTTP request path/header and native dispatch regression — src/extractor/moebooru.rs behoimi_3dbooru_uses_index_json_and_pinned_request_headers; src/extractor/mod.rs route fixtures; full CI 40143946115
+  - [ ] Match full pinned 3dbooru metadata, age/permissions, files, filename/archive/directory options and live endpoint differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
