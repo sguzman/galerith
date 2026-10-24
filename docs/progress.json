@@ -3482,6 +3482,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T567",
+              "emoji": "🖼️",
+              "name": "Kabeuchi public user image posts and bounded upload pagination",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned public numeric Kabeuchi profile URLs with exact single-id query and strict first-party scope",
+                  "passed": true,
+                  "evidence": "src/extractor/kabeuchi.rs numeric_public_profile_routes_reject_unsafe_queries_and_hosts and validates_target_ids_and_detects_repeated_page_cursors; full CI 40135167658"
+                },
+                {
+                  "title": "Decode source-backed ordered image1–image6 media with validated first-party upload filenames and metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/kabeuchi.rs validated_public_posts_emit_ordered_media_and_skip_ads; full CI 40135167658"
+                },
+                {
+                  "title": "Skip no-image and ad posts across truthy JSON boolean, numeric and text flags and reject unsafe image paths",
+                  "passed": true,
+                  "evidence": "src/extractor/kabeuchi.rs validated_public_posts_emit_ordered_media_and_skip_ads; full CI 40135167658"
+                },
+                {
+                  "title": "Bound profile HTML, POST JSON, pagination and media counts with one- and two-page real loopback form-post regressions",
+                  "passed": true,
+                  "evidence": "src/extractor/kabeuchi.rs public_profile_plus_form_post_are_bounded_local_requests and bounded_upload_posts_follow_two_cursor_pages_in_order; src/extractor/mod.rs routed fixture; full CI 40135167658"
+                },
+                {
+                  "title": "Match unlimited pinned public user history, full ISO date/metadata, filename/directory/archive templates, all API modes and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

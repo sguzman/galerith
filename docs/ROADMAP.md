@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 64%` across 124 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 64%` across 125 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -678,6 +678,12 @@
   - [x] Queue public user albums with first-party IDs, deduplication, optional strict page/sort and two-page loopback regression — src/extractor/lensdump/user.rs recognizes_public_profile_and_bounded_sort_page_only, queues_only_scoped_unduplicated_public_album_identifiers, continuation_rejects_foreign_origins_and_nonsequential_pages, public_user_album_queue_uses_bounded_two_requests; CI 40133703784
   - [x] Recognize pinned Lensdump i/digit-subdomain and single-letter l3n.co image shortcuts without accepting lookalike hostnames or private queries — src/extractor/lensdump.rs source_matcher_accepts_pinned_public_images_and_albums_only; full Linux CI 40133995880
   - [ ] Match complete pinned album query dialect, all source metadata/date/naming/archive modes, original CDN variants and live differential parity
+- 🖼️ **T567** Kabeuchi public user image posts and bounded upload pagination — `████████░░ 80%`
+  - [x] Recognize pinned public numeric Kabeuchi profile URLs with exact single-id query and strict first-party scope — src/extractor/kabeuchi.rs numeric_public_profile_routes_reject_unsafe_queries_and_hosts and validates_target_ids_and_detects_repeated_page_cursors; full CI 40135167658
+  - [x] Decode source-backed ordered image1–image6 media with validated first-party upload filenames and metadata — src/extractor/kabeuchi.rs validated_public_posts_emit_ordered_media_and_skip_ads; full CI 40135167658
+  - [x] Skip no-image and ad posts across truthy JSON boolean, numeric and text flags and reject unsafe image paths — src/extractor/kabeuchi.rs validated_public_posts_emit_ordered_media_and_skip_ads; full CI 40135167658
+  - [x] Bound profile HTML, POST JSON, pagination and media counts with one- and two-page real loopback form-post regressions — src/extractor/kabeuchi.rs public_profile_plus_form_post_are_bounded_local_requests and bounded_upload_posts_follow_two_cursor_pages_in_order; src/extractor/mod.rs routed fixture; full CI 40135167658
+  - [ ] Match unlimited pinned public user history, full ISO date/metadata, filename/directory/archive templates, all API modes and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -906,9 +906,14 @@
     {
       "path": "gallery_dl/extractor/kabeuchi.py",
       "module": "kabeuchi",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/kabeuchi.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Kabeuchi public user images: validated /mypage/?id=NUMERIC profile, first-party profile-derived upload target, bounded POST form /get_posts.php with 4-page/48-post-per-page/160-media caps, 2 MiB HTML/JSON response caps, source-order image1-image6, truthy ad and empty image skipping, unsafe image path rejection, cycle-guarded pagination and typed source metadata. Offline one- and two-page HTTP regressions, full Linux CI 40135167658 passed. Full histories, filename/archive and live parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/kaliscan.py",
