@@ -158,8 +158,7 @@ async fn resolve_at_base_limited(
             }
         }
         let body: Value =
-            super::http_json::fetch_json_limited(client, url, GELBOORU_JSON_RESPONSE_LIMIT)
-                .await?;
+            super::http_json::fetch_json_limited(client, url, GELBOORU_JSON_RESPONSE_LIMIT).await?;
         let source_count = source_post_count(&body)?;
         let fresh = parse_posts(&body, base)?;
         let done = matches!(target, Target::Post(_)) || source_count < 100;
