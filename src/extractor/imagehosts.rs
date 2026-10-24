@@ -180,6 +180,7 @@ async fn file_at_base(
 fn gallery_queue(html: &str, id: &str) -> Vec<ExtractorMessage> {
     let mut queue = Vec::new();
     let mut seen = HashSet::new();
+    let root = Url::parse("https://pixhost.to/").expect("fixed Pixhost gallery origin");
     let Some(fragment) = html.split_once("class=\"images\"").map(|(_, r)| r) else {
         return queue;
     };
@@ -192,11 +193,14 @@ fn gallery_queue(html: &str, id: &str) -> Vec<ExtractorMessage> {
         let Some((raw, _)) = suffix.split_once('"') else {
             continue;
         };
+        let Ok(link) = root.join(raw) else {
+            continue;
+        };
         let Some(Pixhost::File {
             path,
             token,
             directory,
-        }) = match_url(raw)
+        }) = match_url(link.as_str())
         else {
             continue;
         };
@@ -340,15 +344,19 @@ mod tests {
 
     #[test]
     fn gallery_only_enqueues_first_party_public_file_urls_and_deduplicates() {
-        let html = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">One</a><a href="https://pixhost.to/show/190/130327671_test-.png">Duplicate</a><a href="https://evil.example/show/190/123_file.jpg">Foreign</a><a href="https://pixhost.to/show/191/987654_other.jpg">Two</a></div>"#;
+        let html = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">One</a><a href="https://pixhost.to/show/190/130327671_test-.png">Duplicate</a><a href="https://evil.example/show/190/123_file.jpg">Foreign</a><a href="https://pixhost.to/show/191/987654_other.jpg">Two</a><a href="/show/192/123222_extra.webp">Relative</a><a href="//evil.example/show/193/222333_bad.jpg">Bad</a></div>"#;
         let queue = gallery_queue(html, "jSMFq");
-        assert_eq!(queue.len(), 2);
+        assert_eq!(queue.len(), 3);
         let first = serde_json::to_value(&queue[0]).unwrap();
         assert_eq!(
             first["url"],
             "https://pixhost.to/show/190/130327671_test-.png"
         );
         assert_eq!(first["metadata"]["gallery_id"], "jSMFq");
+        assert_eq!(
+            serde_json::to_value(&queue[2]).unwrap()["url"],
+            "https://pixhost.to/show/192/123222_extra.webp"
+        );
     }
 
     #[tokio::test]
