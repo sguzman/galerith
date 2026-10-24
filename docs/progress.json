@@ -2526,6 +2526,38 @@
                 }
               ],
               "progress": 80
+            },
+            {
+              "id": "T539",
+              "emoji": "🖼️",
+              "name": "ImageChest public gallery and bounded user-profile queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match only canonical public ImageChest gallery and profile URL shapes",
+                  "passed": true,
+                  "evidence": "src/extractor/imagechest.rs matches_exact_public_gallery_shape_only and profile_routes_and_gallery_queue_ids_are_strictly_validated; CI 40047578834"
+                },
+                {
+                  "title": "Extract distinct approved CDN media links from bounded gallery HTML/JSON without inventing post IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/imagechest.rs decodes_public_page_json_and_filters_untrusted_or_duplicate_media, local_public_gallery_fetches_one_page_without_media_downloads; CI 40047578834"
+                },
+                {
+                  "title": "Emit alphanumeric gallery identity in typed file messages and valid deferred profile-gallery queues",
+                  "passed": true,
+                  "evidence": "src/extractor/imagechest.rs typed_gallery_messages_preserve_alphanumeric_gallery_identity and profile_routes_and_gallery_queue_ids_are_strictly_validated; CI 40047578834"
+                },
+                {
+                  "title": "Enforce public profile pagination, request caps and response guards with loopback fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/imagechest.rs profile_queue_paginates_locally_without_following_server_urls, rejects_declared_oversized_gallery_before_reading_body; CI 40047578834"
+                },
+                {
+                  "title": "Reproduce authenticated access, complete gallery/user metadata and filename/archive settings with live upstream differential acceptance",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

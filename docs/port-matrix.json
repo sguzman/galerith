@@ -678,9 +678,14 @@
     {
       "path": "gallery_dl/extractor/imagechest.py",
       "module": "imagechest",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/imagechest.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent Rust public ImageChest gallery HTML/data-page media extraction and typed metadata, bounded public user gallery queues, strict canonical URL and CDN validation, pagination-until-empty, 2 MiB response guards and local HTTP tests; CI 40047578834 passed. Authenticated API, complete metadata/filenames/archive and live upstream parity open."
+      ]
     },
     {
       "path": "gallery_dl/extractor/imagefap.py",

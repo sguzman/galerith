@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `██████░░░░ 59%` across 96 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `██████░░░░ 60%` across 97 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -498,6 +498,12 @@
   - [x] Preserve safe flattened filename and existing untyped JSON format — tests/message_cli.rs directlink_message_dump_preserves_native_source_fields_without_changing_flat_json; CI 40043179773
   - [x] Verify typed metadata does not turn encoded path data into filesystem traversal — src/extractor/directlink.rs root_directory_and_path_separators_remain_data_only; CI 40043179773
   - [ ] Reproduce complete upstream directlink matching, referrer headers, filename/archive templates and differential behavior
+- 🖼️ **T539** ImageChest public gallery and bounded user-profile queues — `████████░░ 80%`
+  - [x] Match only canonical public ImageChest gallery and profile URL shapes — src/extractor/imagechest.rs matches_exact_public_gallery_shape_only and profile_routes_and_gallery_queue_ids_are_strictly_validated; CI 40047578834
+  - [x] Extract distinct approved CDN media links from bounded gallery HTML/JSON without inventing post IDs — src/extractor/imagechest.rs decodes_public_page_json_and_filters_untrusted_or_duplicate_media, local_public_gallery_fetches_one_page_without_media_downloads; CI 40047578834
+  - [x] Emit alphanumeric gallery identity in typed file messages and valid deferred profile-gallery queues — src/extractor/imagechest.rs typed_gallery_messages_preserve_alphanumeric_gallery_identity and profile_routes_and_gallery_queue_ids_are_strictly_validated; CI 40047578834
+  - [x] Enforce public profile pagination, request caps and response guards with loopback fixtures — src/extractor/imagechest.rs profile_queue_paginates_locally_without_following_server_urls, rejects_declared_oversized_gallery_before_reading_body; CI 40047578834
+  - [ ] Reproduce authenticated access, complete gallery/user metadata and filename/archive settings with live upstream differential acceptance
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
