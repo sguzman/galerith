@@ -1,6 +1,5 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
-pub mod eightmuses;
 pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
@@ -9,6 +8,7 @@ pub mod danbooru;
 pub mod desktopography;
 pub mod directlink;
 pub mod e621;
+pub mod eightmuses;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourarchive;
@@ -83,7 +83,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
-    ("8muses", "bounded public encoded album images and child queues"),
+    (
+        "8muses",
+        "bounded public encoded album images and child queues",
+    ),
     (
         "4archive",
         "public archived thread originals and bounded board queues",
@@ -1007,7 +1010,10 @@ mod tests {
                 "4chanarchives",
             ),
             ("https://4chanarchives.com/board/a/", "4chanarchives"),
-            ("https://comics.8muses.com/comics/album/Artist/Album", "8muses"),
+            (
+                "https://comics.8muses.com/comics/album/Artist/Album",
+                "8muses",
+            ),
             (
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
