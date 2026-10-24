@@ -1,5 +1,6 @@
-//! Conservative public ImageChest gallery preview. No API access token or
-//! account/user profile support is implied by this read-only HTML adapter.
+//! Conservative public ImageChest gallery and user-index previews.
+//! Public HTML and deferred profile queues are read-only; authenticated API
+//! access, account operations and full upstream compatibility are not ported.
 use crate::{
     message::{media_metadata, queued_url, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
@@ -90,11 +91,28 @@ fn user_gallery_queues(
         return Err("ImageChest profile index exceeds the record limit".into());
     }
     for post in posts {
-        let Some(id) = post.get("id").and_then(Value::as_str) else {
-            continue;
+        // The pinned upstream user extractor yields the API's 'link' field.
+        // Validate it independently rather than trusting an arbitrary host.
+        // A valid ID alone is allowed for older public listing shapes.
+        let linked = post
+            .get("link")
+            .and_then(Value::as_str)
+            .and_then(match_url);
+        let id = match (post.get("id"), linked) {
+            (Some(Value::String(id)), Some(gallery))
+                if valid_id(id) && gallery.id == *id =>
+            {
+                id.clone()
+            }
+            (None, Some(gallery)) => gallery.id,
+            (Some(Value::String(id)), None)
+                if post.get("link").is_none() && valid_id(id) =>
+            {
+                id.clone()
+            }
+            _ => continue,
         };
-        if !valid_id(id)
-            || post
+        if post
                 .get("privacy")
                 .and_then(Value::as_str)
                 .is_some_and(|privacy| privacy != "public")
@@ -105,7 +123,7 @@ fn user_gallery_queues(
         {
             continue;
         }
-        if !seen.insert(id.to_owned()) {
+        if !seen.insert(id.clone()) {
             continue;
         }
         let mut metadata = Metadata::new();
@@ -377,6 +395,36 @@ mod tests {
             &mut queue,
         )
         .is_err());
+    }
+
+    #[test]
+    fn profile_links_must_be_canonical_and_agree_with_record_identity() {
+        let index = json!({"data":[
+            {"link":"https://imgchest.com/p/abc123xyz45", "title":"Link only"},
+            {"id":"def456uvw78", "link":"https://www.imgchest.com/p/def456uvw78"},
+            {"id":"ghi789jkl01", "link":"https://attacker.example/p/ghi789jkl01"},
+            {"id":"mno012pqr34", "link":"https://imgchest.com/p/not_the_id"},
+            {"id":"stu345vwx67", "link":"https://imgchest.com/p/stu345vwx67?auth=secret"},
+            {"id":"yzA678bcd90", "link":false}
+        ]});
+        let mut seen = HashSet::new();
+        let mut output = Vec::new();
+        assert_eq!(
+            user_gallery_queues(&index, "alice", &mut seen, &mut output).unwrap(),
+            6
+        );
+        assert_eq!(output.len(), 2);
+        let urls: Vec<_> = output
+            .iter()
+            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(
+            urls,
+            [
+                "https://imgchest.com/p/abc123xyz45",
+                "https://imgchest.com/p/def456uvw78"
+            ]
+        );
     }
 
     #[tokio::test]
