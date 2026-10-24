@@ -9,6 +9,7 @@ pub mod desktopography;
 pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
+pub mod thirtyfivephoto;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourarchive;
@@ -87,6 +88,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "8muses",
         "bounded public encoded album images and child queues",
     ),
+    ("35photo", "guarded public image originals and listing queues"),
     (
         "4archive",
         "public archived thread originals and bounded board queues",
@@ -250,6 +252,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("4chanarchives")
     } else if eightmuses::match_url(input).is_some() {
         Some("8muses")
+    } else if thirtyfivephoto::match_url(input).is_some() {
+        Some("35photo")
     } else if gelbooru::match_url(input).is_some() {
         Some("gelbooru")
     } else if bluesky::match_url(input).is_some() {
@@ -411,6 +415,9 @@ pub async fn resolve(
     }
     if let Some(album) = eightmuses::match_url(input) {
         return eightmuses::resolve(client, album).await;
+    }
+    if let Some(target) = thirtyfivephoto::match_url(input) {
+        return thirtyfivephoto::resolve(client, target).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board(client, &board, max_pages).await;
@@ -623,6 +630,9 @@ pub async fn resolve_messages(
     }
     if let Some(album) = eightmuses::match_url(input) {
         return eightmuses::resolve_messages(client, album, max_pages).await;
+    }
+    if let Some(target) = thirtyfivephoto::match_url(input) {
+        return thirtyfivephoto::resolve_messages(client, target, max_pages).await;
     }
     if let Some(board) = fourchan::match_board_url(input) {
         return fourchan::resolve_board_messages(client, &board, max_pages).await;
@@ -1005,6 +1015,8 @@ mod tests {
             ("https://dec.2chan.net/12/res/12345.htm", "2chan"),
             ("https://4archive.org/board/a/thread/12345", "4archive"),
             ("https://4archive.org/board/a/", "4archive"),
+            ("https://35photo.pro/photo_12345/", "35photo"),
+            ("https://35photo.pro/tags/sunset/", "35photo"),
             (
                 "https://4chanarchives.com/board/a/thread/12345",
                 "4chanarchives",
