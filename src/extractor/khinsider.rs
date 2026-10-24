@@ -4,6 +4,7 @@ use crate::{
     message::{media_metadata, ExtractorMessage, Metadata},
     safe_filename, MediaItem,
 };
+use percent_encoding::percent_decode_str;
 use reqwest::Client;
 use std::{error::Error, time::Duration};
 use url::Url;
@@ -143,23 +144,43 @@ fn track_pages(page: &str, slug: &str) -> Result<Vec<Url>, Box<dyn Error + Send 
     Ok(tracks)
 }
 
-fn trusted_audio(url: &Url) -> bool {
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    let host = host.to_ascii_lowercase();
+fn trusted_audio_filename(url: &Url) -> Option<(String, String)> {
+    let host = url.host_str()?.to_ascii_lowercase();
     let recognized = ["khinsider.com", "vgmsite.com", "vgmtreasurechest.com"]
         .iter()
         .any(|root| host == *root || host.ends_with(&format!(".{root}")));
-    recognized
-        && url.scheme() == "https"
-        && url.username().is_empty()
-        && url.password().is_none()
-        && url.port().is_none()
-        && url.query().is_none()
-        && url.fragment().is_none()
-        && !url.path().contains('%')
-        && !url.path().contains("..")
+    if !recognized
+        || url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let mut basename = None;
+    for segment in url.path_segments()? {
+        let decoded = percent_decode_str(segment).decode_utf8().ok()?;
+        if decoded == "." || decoded == ".."
+            || decoded.contains('/')
+            || decoded.contains('\\')
+            || decoded.chars().any(char::is_control)
+        {
+            return None;
+        }
+        basename = Some(decoded.into_owned());
+    }
+    let basename = basename?;
+    let extension = basename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if !matches!(extension.as_str(), "mp3" | "flac" | "ogg" | "wav" | "m4a") {
+        return None;
+    }
+    let filename = safe_filename(&basename);
+    if filename.is_empty() || matches!(filename.as_str(), "." | "..") {
+        return None;
+    }
+    Some((filename, extension))
 }
 
 fn decode_track(
@@ -181,24 +202,9 @@ fn decode_track(
             continue;
         };
         let Ok(url) = Url::parse(raw) else { continue };
-        if !trusted_audio(&url) {
-            continue;
+        if let Some((filename, extension)) = trusted_audio_filename(&url) {
+            candidates.push((url, filename, extension));
         }
-        let Some(last) = url.path_segments().and_then(|mut s| s.next_back()) else {
-            continue;
-        };
-        let Some((_, ext)) = last.rsplit_once('.') else {
-            continue;
-        };
-        let ext = ext.to_ascii_lowercase();
-        if !matches!(ext.as_str(), "mp3" | "flac" | "ogg" | "wav" | "m4a") {
-            continue;
-        }
-        let name = safe_filename(last);
-        if name.is_empty() || matches!(name.as_str(), "." | "..") {
-            continue;
-        }
-        candidates.push((url, name, ext));
     }
     if candidates.is_empty() {
         return Err("KHInsider track has no trusted public audio original".into());
@@ -384,6 +390,30 @@ mod tests {
             &meta,
         );
         assert!(forged.is_err());
+    }
+
+    #[test]
+    fn percent_encoded_song_names_are_decoded_without_path_escape() {
+        let source = Url::parse(
+            "https://dl.vgmsite.com/music/01%20Opening%20%E9%9F%B3%E6%A5%BD.mp3",
+        )
+        .unwrap();
+        assert_eq!(
+            trusted_audio_filename(&source),
+            Some(("01 Opening 音楽.mp3".into(), "mp3".into()))
+        );
+        for unsafe_url in [
+            "https://dl.vgmsite.com/music/%2Fsecret.mp3",
+            "https://dl.vgmsite.com/music/%5csecret.mp3",
+            "https://dl.vgmsite.com/music/%00secret.mp3",
+            "https://dl.vgmsite.com/music/%FF.mp3",
+            "https://fakevgmsite.com/music/song.mp3",
+        ] {
+            assert!(
+                trusted_audio_filename(&Url::parse(unsafe_url).unwrap()).is_none(),
+                "{unsafe_url}"
+            );
+        }
     }
 
     #[tokio::test]
