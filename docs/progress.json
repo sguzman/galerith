@@ -3376,7 +3376,7 @@
               "id": "T564",
               "emoji": "🎵",
               "name": "KHInsider bounded soundtrack albums and original track media",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned KHInsider album URLs, rejecting untrusted hosts, credentials and traversal",
@@ -3399,7 +3399,12 @@
                   "evidence": "src/extractor/khinsider.rs bounded_album_and_two_track_pages_resolve_three_local_http_requests; src/extractor/mod.rs routed registry; CI 40131835976"
                 },
                 {
-                  "title": "Match pinned optional covers and format-all selection, complete album metadata/archive/filenames, async performance, all track site variations and live upstream differential parity",
+                  "title": "Bound concurrent soundtrack track-page requests to four in-flight, preserve pacing and source order when responses finish out of order",
+                  "passed": true,
+                  "evidence": "src/extractor/khinsider.rs concurrent_song_pages_reassemble_in_source_order_when_second_finishes_first and bounded_album_and_two_track_pages_resolve_three_local_http_requests; full CI 40132207607"
+                },
+                {
+                  "title": "Match configurable format/cover outputs, all album metadata/filename/archive options, complete track variants and live pinned upstream differential parity",
                   "passed": false
                 }
               ]

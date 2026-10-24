@@ -657,12 +657,13 @@
   - [x] Enforce first-party people-picture child URLs, deduplication and bounded multi-page traversal with HTTP fixture — src/extractor/listal.rs people_images_queue_first_seen_numeric_ids_without_external_links and bounded_people_listing_follows_valid_next_page_and_deduplicates_ids; src/extractor/mod.rs routed fixture; full Linux CI 40130699655
   - [x] Parse visible source timestamps with Gregorian leap-year validation and no fabricated timezone — src/extractor/listal.rs source_date_parser_rejects_impossible_calendar_dates_and_offsets and single_original_preserves_source_image_dimensions_and_author; Linux CI 40131128031
   - [ ] Match complete pinned filename/directory/archive metadata, all people listing and image variants, and live differential parity
-- 🎵 **T564** KHInsider bounded soundtrack albums and original track media — `████████░░ 80%`
+- 🎵 **T564** KHInsider bounded soundtrack albums and original track media — `████████░░ 83%`
   - [x] Recognize pinned KHInsider album URLs, rejecting untrusted hosts, credentials and traversal — src/extractor/khinsider.rs matches_only_pinned_album_origins_and_validated_slugs; CI 40131835976
   - [x] Read bounded public album song rows and preserve ordered first-party track page routes and available source metadata — src/extractor/khinsider.rs preserves_album_song_order_and_rejects_out_of_album_tracks; CI 40131835976
   - [x] Choose trusted original MP3 media or available first format fallback with safe Unicode/percent-decoded filenames — src/extractor/khinsider.rs default_mp3_selects_mp3_then_first_fallback_with_trusted_media and percent_encoded_song_names_are_decoded_without_path_escape; CI 40131835976
   - [x] Bound source HTML, track/format count and request pacing with real three-request HTTP album-to-track regression and typed dispatcher — src/extractor/khinsider.rs bounded_album_and_two_track_pages_resolve_three_local_http_requests; src/extractor/mod.rs routed registry; CI 40131835976
-  - [ ] Match pinned optional covers and format-all selection, complete album metadata/archive/filenames, async performance, all track site variations and live upstream differential parity
+  - [x] Bound concurrent soundtrack track-page requests to four in-flight, preserve pacing and source order when responses finish out of order — src/extractor/khinsider.rs concurrent_song_pages_reassemble_in_source_order_when_second_finishes_first and bounded_album_and_two_track_pages_resolve_three_local_http_requests; full CI 40132207607
+  - [ ] Match configurable format/cover outputs, all album metadata/filename/archive options, complete track variants and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
