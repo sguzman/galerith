@@ -261,6 +261,8 @@ async fn fetch_html(
     Ok(String::from_utf8(bytes)?)
 }
 
+/// Keep up to four read-only source-page requests in flight, paced globally.
+/// Network completion order does not change the album's source track order.
 async fn records_at_base(
     client: &Client,
     album: &Album,
@@ -274,19 +276,45 @@ async fn records_at_base(
     .await?;
     let tracks = track_pages(&page, &album.slug)?;
     let meta = metadata(&page, &album.slug);
-    let mut result = Vec::new();
-    for (i, track) in tracks.iter().enumerate() {
+    const MAX_INFLIGHT: usize = 4;
+    let mut pending = tokio::task::JoinSet::new();
+    let mut ordered = std::iter::repeat_with(|| None)
+        .take(tracks.len())
+        .collect::<Vec<Option<Vec<(MediaItem, Metadata)>>>>();
+    for (i, track) in tracks.into_iter().enumerate() {
+        if pending.len() >= MAX_INFLIGHT {
+            let (index, media) = pending
+                .join_next()
+                .await
+                .ok_or("KHInsider track join unexpectedly empty")???;
+            ordered[index] = Some(media);
+        }
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(TRACK_SPACING_MS)).await;
         }
-        let endpoint = if base.scheme() == "http" {
-            // Used only by a loopback fixture; production always uses HTTPS.
-            base.join(track.path())?
-        } else {
-            track.clone()
-        };
-        let html = fetch_html(client, endpoint, base).await?;
-        result.extend(decode_track(&html, &album.slug, i + 1, &meta)?);
+        let client = client.clone();
+        let base = base.clone();
+        let album_slug = album.slug.clone();
+        let album_meta = meta.clone();
+        pending.spawn(async move {
+            let endpoint = if base.scheme() == "http" {
+                // Used only by a loopback fixture; production uses HTTPS.
+                base.join(track.path())?
+            } else {
+                track
+            };
+            let html = fetch_html(&client, endpoint, &base).await?;
+            let files = decode_track(&html, &album_slug, i + 1, &album_meta)?;
+            Ok::<_, Box<dyn Error + Send + Sync>>((i, files))
+        });
+    }
+    while let Some(joined) = pending.join_next().await {
+        let (index, files) = joined??;
+        ordered[index] = Some(files);
+    }
+    let mut result = Vec::new();
+    for entry in ordered {
+        result.extend(entry.ok_or("KHInsider album track did not produce a result")?);
     }
     Ok(result)
 }
@@ -414,6 +442,50 @@ mod tests {
                 "{unsafe_url}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn concurrent_song_pages_reassemble_in_source_order_when_second_finishes_first() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut handlers = tokio::task::JoinSet::new();
+            for _ in 0..3 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                handlers.spawn(async move {
+                    let mut request = [0u8; 4096];
+                    let size = socket.read(&mut request).await.unwrap();
+                    let line = String::from_utf8_lossy(&request[..size]);
+                    let path = line.split_whitespace().nth(1).unwrap();
+                    let body = match path {
+                        "/game-soundtracks/album/game-ost" => album_html(),
+                        "/game-soundtracks/album/game-ost/track-1" =>
+                            r#"<p><a href="https://dl.vgmsite.com/first.mp3">First</a></p>"#,
+                        "/game-soundtracks/album/game-ost/track-2" =>
+                            r#"<p><a href="https://dl.vgmsite.com/second.mp3">Second</a></p>"#,
+                        _ => panic!("unrecognized KHInsider fixture route: {path}"),
+                    };
+                    if path.ends_with("track-1") {
+                        tokio::time::sleep(Duration::from_millis(430)).await;
+                    }
+                    let reply = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    socket.write_all(reply.as_bytes()).await.unwrap();
+                });
+            }
+            while let Some(joined) = handlers.join_next().await {
+                joined.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let album = match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
+        let result = records_at_base(&Client::new(), &album, &base).await.unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0.filename, "game-ost_001_first.mp3");
+        assert_eq!(result[1].0.filename, "game-ost_002_second.mp3");
+        server.await.unwrap();
     }
 
     #[tokio::test]
