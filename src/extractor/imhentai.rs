@@ -153,11 +153,15 @@ fn parse_gallery(
         let mut parts = value.split(',');
         let ext = extension(parts.next().unwrap_or(""))
             .ok_or("IMHentai media extension is unsupported")?;
-        let width: u32 = parts.next().ok_or("IMHentai media width missing")?.parse()?;
-        let height: u32 = parts.next().ok_or("IMHentai media height missing")?.parse()?;
-        if parts.next().is_some()
-            || !(1..=50000).contains(&width)
-            || !(1..=50000).contains(&height)
+        let width: u32 = parts
+            .next()
+            .ok_or("IMHentai media width missing")?
+            .parse()?;
+        let height: u32 = parts
+            .next()
+            .ok_or("IMHentai media height missing")?
+            .parse()?;
+        if parts.next().is_some() || !(1..=50000).contains(&width) || !(1..=50000).contains(&height)
         {
             return Err("IMHentai image dimensions or field count invalid".into());
         }
@@ -197,7 +201,10 @@ async fn records(
         .send()
         .await?
         .error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("IMHentai source HTML exceeds safety limit".into());
     }
     let mut bytes = Vec::new();
@@ -285,8 +292,14 @@ mod tests {
         let html = r#"<h1>A &amp; B</h1><img data-src="https://img.imhentai.xxx/galleries/12345/1t.jpg"><script>$.parseJSON('{"2":"p,900,1000","1":"j,500,600","3":"w,400,800"}')</script>"#;
         let media = parse_gallery(html, &gallery).unwrap();
         assert_eq!(media.len(), 3);
-        assert_eq!(media[0].0.url, "https://img.imhentai.xxx/galleries/12345/1.jpg");
-        assert_eq!(media[1].0.url, "https://img.imhentai.xxx/galleries/12345/2.png");
+        assert_eq!(
+            media[0].0.url,
+            "https://img.imhentai.xxx/galleries/12345/1.jpg"
+        );
+        assert_eq!(
+            media[1].0.url,
+            "https://img.imhentai.xxx/galleries/12345/2.png"
+        );
         assert_eq!(media[2].0.filename, "12345_3.webp");
         assert_eq!(media[1].1["width"], 900);
         assert_eq!(media[0].1["gallery_id"], 12345);
@@ -318,8 +331,7 @@ mod tests {
             let mut bytes = [0u8; 4096];
             let n = socket.read(&mut bytes).await.unwrap();
             assert!(
-                String::from_utf8_lossy(&bytes[..n])
-                    .starts_with("GET /gallery/12345/ HTTP/1.1")
+                String::from_utf8_lossy(&bytes[..n]).starts_with("GET /gallery/12345/ HTTP/1.1")
             );
             let html = r#"<img data-src="https://img.imhentai.xxx/galleries/12345/1t.jpg"><script>$.parseJSON('{"1":"j,800,1200"}')</script>"#;
             let reply = format!(
