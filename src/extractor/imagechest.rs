@@ -94,28 +94,21 @@ fn user_gallery_queues(
         // The pinned upstream user extractor yields the API's 'link' field.
         // Validate it independently rather than trusting an arbitrary host.
         // A valid ID alone is allowed for older public listing shapes.
-        let linked = post
-            .get("link")
-            .and_then(Value::as_str)
-            .and_then(match_url);
+        let linked = post.get("link").and_then(Value::as_str).and_then(match_url);
         let id = match (post.get("id"), linked) {
-            (Some(Value::String(id)), Some(gallery))
-                if valid_id(id) && gallery.id == *id =>
-            {
+            (Some(Value::String(id)), Some(gallery)) if valid_id(id) && gallery.id == *id => {
                 id.clone()
             }
             (None, Some(gallery)) => gallery.id,
-            (Some(Value::String(id)), None)
-                if post.get("link").is_none() && valid_id(id) =>
-            {
+            (Some(Value::String(id)), None) if post.get("link").is_none() && valid_id(id) => {
                 id.clone()
             }
             _ => continue,
         };
         if post
-                .get("privacy")
-                .and_then(Value::as_str)
-                .is_some_and(|privacy| privacy != "public")
+            .get("privacy")
+            .and_then(Value::as_str)
+            .is_some_and(|privacy| privacy != "public")
             || post
                 .get("username")
                 .and_then(Value::as_str)
@@ -416,7 +409,12 @@ mod tests {
         assert_eq!(output.len(), 2);
         let urls: Vec<_> = output
             .iter()
-            .map(|event| serde_json::to_value(event).unwrap()["url"].as_str().unwrap().to_owned())
+            .map(|event| {
+                serde_json::to_value(event).unwrap()["url"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
             .collect();
         assert_eq!(
             urls,
