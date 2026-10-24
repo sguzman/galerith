@@ -135,7 +135,7 @@ fn parse_document(html: &str) -> Option<Value> {
     None
 }
 
-fn bounded_id(document: &Value, name: &str) -> Option<&str> {
+fn bounded_id<'a>(document: &'a Value, name: &str) -> Option<&'a str> {
     let id = document.get(name)?.as_str()?;
     ((1..=96).contains(&id.len())
         && id
