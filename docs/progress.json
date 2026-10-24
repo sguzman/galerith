@@ -3413,7 +3413,7 @@
               "id": "T565",
               "emoji": "📚",
               "name": "Keenspot guarded standard webcomic navigation and originals",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned public comic subdomains and explicit comic page URLs with trusted host validation",
@@ -3436,7 +3436,12 @@
                   "evidence": "src/extractor/keenspot.rs bounded_two_comic_page_traversal_stays_on_origin_and_keeps_order; src/extractor/mod.rs routed fixture; full CI 40132748097"
                 },
                 {
-                  "title": "Reproduce all pinned special comic navigation layouts, external embedded media, output/archive formats, unbounded archive paging and live differential parity",
+                  "title": "Identify pinned alternate Brawl, Porcelain, Lastblood, Twokinds, Flipside and standard first-day archive navigators with source-scoped next links and multi-page HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/keenspot.rs pinned_alternate_first_and_next_navigators_are_selected and alternate_first_day_next_id_comic_pages_preserve_http_source_order; full CI 40134553570"
+                },
+                {
+                  "title": "Match every special comic layout's full original media semantics, external embeds, archive names and unbounded history, with live pinned differential parity",
                   "passed": false
                 }
               ]
