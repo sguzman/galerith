@@ -16,7 +16,9 @@ pub struct Target {
 
 fn valid_id(value: &str) -> bool {
     (1..=80).contains(&value.len())
-        && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 pub fn match_url(input: &str) -> Option<Target> {
@@ -68,15 +70,23 @@ fn media_from_page(
     {
         return Err("Picstate media link has unsupported origin".into());
     }
-    let segments: Vec<_> = url.path_segments().ok_or("Picstate media URL has no path")?.collect();
+    let segments: Vec<_> = url
+        .path_segments()
+        .ok_or("Picstate media URL has no path")?
+        .collect();
     let [kind, source_id, filename] = segments.as_slice() else {
         return Err("Picstate public media path differs from expected shape".into());
     };
     if !matches!(*kind, "file" | "files") || *source_id != id {
         return Err("Picstate original media source ID does not match page".into());
     }
-    let ext = filename.rsplit_once('.').ok_or("Picstate media lacks extension")?.1;
-    if filename.is_empty() || filename.len() > 240 || filename.contains('%')
+    let ext = filename
+        .rsplit_once('.')
+        .ok_or("Picstate media lacks extension")?
+        .1;
+    if filename.is_empty()
+        || filename.len() > 240
+        || filename.contains('%')
         || !matches!(
             ext.to_ascii_lowercase().as_str(),
             "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
@@ -89,14 +99,19 @@ fn media_from_page(
         .split_once("alt=\"")
         .and_then(|(_, rest)| rest.split_once('"'))
         .map(|(value, _)| value)
-        .filter(|value| !value.is_empty()
-            && value.len() <= 230
-            && !value.contains('/') && !value.contains('\\')
-            && !value.chars().any(char::is_control))
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 230
+                && !value.contains('/')
+                && !value.contains('\\')
+                && !value.chars().any(char::is_control)
+        })
         .map(|value| {
             let has_ext = value.rsplit_once('.').is_some_and(|(_, suffix)| {
-                matches!(suffix.to_ascii_lowercase().as_str(),
-                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+                matches!(
+                    suffix.to_ascii_lowercase().as_str(),
+                    "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+                )
             });
             let name = if has_ext {
                 value.to_owned()
@@ -115,7 +130,10 @@ fn media_from_page(
     let mut meta = media_metadata(&file);
     meta.insert("subcategory".into(), "image".into());
     meta.insert("token".into(), id.into());
-    meta.insert("post_url".into(), format!("https://picstate.com/view/full/{id}").into());
+    meta.insert(
+        "post_url".into(),
+        format!("https://picstate.com/view/full/{id}").into(),
+    );
     Ok((file, meta))
 }
 
@@ -129,7 +147,10 @@ async fn at_base(
         .send()
         .await?
         .error_for_status()?;
-    if response.content_length().is_some_and(|v| v > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|v| v > MAX_HTML_BYTES as u64)
+    {
         return Err("Picstate public HTML exceeds byte limit".into());
     }
     let mut body = Vec::new();
@@ -156,8 +177,13 @@ pub async fn resolve_messages(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let (item, meta) = at_base(client, &target.id, &Url::parse("https://picstate.com/")?).await?;
     Ok(vec![
-        ExtractorMessage::Directory { metadata: meta.clone() },
-        ExtractorMessage::Url { url: item.url, metadata: meta },
+        ExtractorMessage::Directory {
+            metadata: meta.clone(),
+        },
+        ExtractorMessage::Url {
+            url: item.url,
+            metadata: meta,
+        },
     ])
 }
 
@@ -192,7 +218,10 @@ mod tests {
     fn trusted_original_image_and_source_identity_are_required() {
         let body = r#"<div id="image_container"><img src="https://picstate.com/file/23416694_sfyue/test-___-_22__.png" alt="test-___-_22__"></div>"#;
         let (item, meta) = media_from_page(body, "23416694_sfyue").unwrap();
-        assert_eq!(item.url, "https://picstate.com/file/23416694_sfyue/test-___-_22__.png");
+        assert_eq!(
+            item.url,
+            "https://picstate.com/file/23416694_sfyue/test-___-_22__.png"
+        );
         assert_eq!(item.filename, "test-___-_22__.png");
         assert_eq!(meta["token"], "23416694_sfyue");
         assert!(media_from_page(body, "different_id").is_err());
@@ -214,10 +243,8 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut bytes = [0_u8; 4096];
             let n = stream.read(&mut bytes).await.unwrap();
-            assert!(
-                String::from_utf8_lossy(&bytes[..n])
-                    .starts_with("GET /view/full/21812181_qxtpb HTTP/1.1")
-            );
+            assert!(String::from_utf8_lossy(&bytes[..n])
+                .starts_with("GET /view/full/21812181_qxtpb HTTP/1.1"));
             let body = r#"<div id="image_container"><img src="https://picstate.com/files/21812181_qxtpb/0.jpg" alt="0"></div>"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -226,7 +253,9 @@ mod tests {
             stream.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = at_base(&Client::new(), "21812181_qxtpb", &base).await.unwrap();
+        let (file, _) = at_base(&Client::new(), "21812181_qxtpb", &base)
+            .await
+            .unwrap();
         assert_eq!(file.filename, "0.jpg");
         server.await.unwrap();
     }
