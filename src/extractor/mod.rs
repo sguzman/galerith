@@ -191,6 +191,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public prompt-image searches over POST cursor API",
     ),
     ("moebooru", "post, tag, pool and popular JSON routes"),
+    ("3dbooru", "pinned Behoimi post, tag, pool and popular Moebooru routes"),
     ("philomena", "images, tags, searches and galleries"),
     ("photovogue", "public photographer photo API feeds"),
     (
@@ -237,6 +238,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("philomena")
     } else if photovogue::match_url(input).is_some() {
         Some("photovogue")
+    } else if moebooru::is_3dbooru(input) {
+        Some("3dbooru")
     } else if moebooru::match_url(input).is_some() {
         Some("moebooru")
     } else if gelbooru_v02::match_url(input).is_some() {
@@ -1158,6 +1161,7 @@ mod tests {
             ),
             ("https://pixeldrain.com/api/list/album1/zip", "pixeldrain"),
             ("https://yande.re/post/show/123", "moebooru"),
+            ("http://behoimi.org/post/show/44", "3dbooru"),
             ("https://derpibooru.org/images/123", "philomena"),
             ("https://pixeldrain.com/u/File12", "pixeldrain"),
         ];

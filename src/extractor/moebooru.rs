@@ -112,6 +112,10 @@ pub fn match_url(input: &str) -> Option<Target> {
     })
 }
 
+pub fn is_3dbooru(input: &str) -> bool {
+    match_url(input).is_some_and(|target| target.category == "3dbooru")
+}
+
 async fn source_json(
     client: &Client,
     endpoint: Url,
@@ -127,12 +131,15 @@ async fn source_json(
     }
     // Pinned Behoimi adapter needs a fixed source referer and no compression.
     let mut response = client
-        .get(endpoint)
+        .get(endpoint.clone())
         .header("Referer", "http://behoimi.org/post/show/")
         .header("Accept-Encoding", "identity")
         .send()
         .await?
         .error_for_status()?;
+    if response.url().origin() != endpoint.origin() {
+        return Err("3dbooru public API redirected outside its source origin".into());
+    }
     if response
         .content_length()
         .is_some_and(|size| size > MOEBOORU_JSON_RESPONSE_LIMIT as u64)
