@@ -9,7 +9,6 @@ pub mod desktopography;
 pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
-pub mod thirtyfivephoto;
 pub mod fappic;
 pub mod foolfuuka;
 pub mod fourarchive;
@@ -53,6 +52,7 @@ pub mod postimg;
 pub mod silverpic;
 pub mod speakerdeck;
 pub mod telegraph;
+pub mod thirtyfivephoto;
 pub mod turboimagehost;
 pub mod twoch;
 pub mod twochan;
@@ -88,7 +88,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "8muses",
         "bounded public encoded album images and child queues",
     ),
-    ("35photo", "guarded public image originals and listing queues"),
+    (
+        "35photo",
+        "guarded public image originals and listing queues",
+    ),
     (
         "4archive",
         "public archived thread originals and bounded board queues",
