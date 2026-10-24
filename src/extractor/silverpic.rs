@@ -27,12 +27,18 @@ fn safe_page(name: &str) -> bool {
 
 pub fn match_url(input: &str) -> Option<Target> {
     let lower = input.to_ascii_lowercase();
-    if ["/../", "/./", "%2e", "%2f", "%5c"].iter().any(|t| lower.contains(t)) {
+    if ["/../", "/./", "%2e", "%2f", "%5c"]
+        .iter()
+        .any(|t| lower.contains(t))
+    {
         return None;
     }
     let url = Url::parse(input).ok()?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("silverpic.net" | "www.silverpic.net" | "silverpic.com" | "www.silverpic.com"))
+        || !matches!(
+            url.host_str(),
+            Some("silverpic.net" | "www.silverpic.net" | "silverpic.com" | "www.silverpic.com")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -46,7 +52,9 @@ pub fn match_url(input: &str) -> Option<Target> {
         return None;
     };
     if !(10..=80).contains(&token.len())
-        || !token.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        || !token
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         || !safe_page(name)
     {
         return None;
@@ -59,7 +67,10 @@ pub fn match_url(input: &str) -> Option<Target> {
 
 fn attribute<'a>(tag: &'a str, key: &str) -> Option<&'a str> {
     let marker = format!(" {key}=\"");
-    tag.split_once(&marker)?.1.split_once('"').map(|(value, _)| value)
+    tag.split_once(&marker)?
+        .1
+        .split_once('"')
+        .map(|(value, _)| value)
 }
 
 fn decode_safe_name(alt: &str, ext: &str) -> Option<String> {
@@ -78,7 +89,10 @@ fn decode_safe_name(alt: &str, ext: &str) -> Option<String> {
         return None;
     }
     let named = if title.rsplit_once('.').is_some_and(|(_, suffix)| {
-        matches!(suffix.to_ascii_lowercase().as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        matches!(
+            suffix.to_ascii_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     }) {
         title
     } else {
@@ -87,22 +101,37 @@ fn decode_safe_name(alt: &str, ext: &str) -> Option<String> {
     Some(safe_filename(&named))
 }
 
-fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+fn parse_page(
+    html: &str,
+    target: &Target,
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     // Restrict every selected attribute to the single original image element.
-    let (_, after_start) = html.split_once("<img src=\"/img/")
+    let (_, after_start) = html
+        .split_once("<img src=\"/img/")
         .ok_or("Silverpic original image element is absent")?;
-    let (attrs, _) = after_start.split_once('>')
+    let (attrs, _) = after_start
+        .split_once('>')
         .ok_or("Silverpic original image element is incomplete")?;
-    let (filename, suffix) = attrs.split_once('"')
+    let (filename, suffix) = attrs
+        .split_once('"')
         .ok_or("Silverpic original image path is incomplete")?;
-    if filename.is_empty() || filename.len() > 240 || filename.contains('%')
-        || filename.contains('/') || filename.contains('\\') || filename.contains("..")
+    if filename.is_empty()
+        || filename.len() > 240
+        || filename.contains('%')
+        || filename.contains('/')
+        || filename.contains('\\')
+        || filename.contains("..")
     {
         return Err("Silverpic original image filename is unsafe".into());
     }
-    let extension = filename.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase())
+    let extension = filename
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase())
         .ok_or("Silverpic original image extension is absent")?;
-    if !matches!(extension.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return Err("Silverpic original image extension is unsupported".into());
     }
     let root = Url::parse("https://silverpic.net/")?;
@@ -119,7 +148,10 @@ fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<
     let mut metadata = media_metadata(&media);
     metadata.insert("subcategory".into(), "image".into());
     metadata.insert("token".into(), target.token.clone().into());
-    metadata.insert("post_url".into(), format!("https://silverpic.net/{}/{}", target.token, target.page).into());
+    metadata.insert(
+        "post_url".into(),
+        format!("https://silverpic.net/{}/{}", target.token, target.page).into(),
+    );
     for axis in ["width", "height"] {
         if let Some(value) = attribute(suffix, axis)
             .and_then(|number| number.parse::<u32>().ok())
@@ -131,10 +163,17 @@ fn parse_page(html: &str, target: &Target) -> Result<(MediaItem, Metadata), Box<
     Ok((media, metadata))
 }
 
-async fn at_base(client: &Client, target: &Target, base: &Url) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+async fn at_base(
+    client: &Client,
+    target: &Target,
+    base: &Url,
+) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/{}", target.token, target.page))?;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|length| length > MAX_HTML_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_HTML_BYTES as u64)
+    {
         return Err("Silverpic public HTML response exceeds byte limit".into());
     }
     let mut body = Vec::new();
@@ -147,29 +186,46 @@ async fn at_base(client: &Client, target: &Target, base: &Url) -> Result<(MediaI
     parse_page(std::str::from_utf8(&body)?, target)
 }
 
-pub async fn resolve(client: &Client, target: Target) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let (file, _) = at_base(client, &target, &Url::parse("https://silverpic.net/")?).await?;
     Ok(vec![file])
 }
 
-pub async fn resolve_messages(client: &Client, target: Target) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve_messages(
+    client: &Client,
+    target: Target,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let (file, metadata) = at_base(client, &target, &Url::parse("https://silverpic.net/")?).await?;
     Ok(vec![
-        ExtractorMessage::Directory { metadata: metadata.clone() },
-        ExtractorMessage::Url { url: file.url, metadata },
+        ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        },
+        ExtractorMessage::Url {
+            url: file.url,
+            metadata,
+        },
     ])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_public_urls_and_rejected_auth_or_traversal() {
         assert_eq!(
             match_url("https://silverpic.net/a1b2c3d4e5f6/NAME.EXT.html"),
-            Some(Target { token: "a1b2c3d4e5f6".into(), page: "NAME.EXT.html".into() })
+            Some(Target {
+                token: "a1b2c3d4e5f6".into(),
+                page: "NAME.EXT.html".into()
+            })
         );
         assert!(match_url("https://www.silverpic.com/a1b2c3d4e5f6/name.jpg.html").is_some());
         for bad in [
@@ -213,8 +269,9 @@ mod tests {
         }
         let (media, meta) = parse_page(
             r#"<img src="/img/file.png" alt="../unsafe" width="999999999999" height="-1">"#,
-            &target
-        ).unwrap();
+            &target,
+        )
+        .unwrap();
         assert_eq!(media.filename, "file.png");
         assert!(meta.get("width").is_none());
         assert!(meta.get("height").is_none());
@@ -228,12 +285,12 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut bytes = [0_u8; 4096];
             let n = stream.read(&mut bytes).await.unwrap();
-            assert!(String::from_utf8_lossy(&bytes[..n]).starts_with(
-                "GET /a1b2c3d4e5f6/picture.jpg.html HTTP/1.1"
-            ));
+            assert!(String::from_utf8_lossy(&bytes[..n])
+                .starts_with("GET /a1b2c3d4e5f6/picture.jpg.html HTTP/1.1"));
             let html = r#"<img src="/img/image.webp" alt="Valid" width="1200" height="800">"#;
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}", html.len()
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                html.len()
             );
             stream.write_all(response.as_bytes()).await.unwrap();
         });
