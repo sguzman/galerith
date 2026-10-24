@@ -80,7 +80,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
     ("2ch", "pinned 2ch public threads and bounded board queues"),
-    ("2chen", "pinned 2chen public thread HTML and catalog queues"),
+    (
+        "2chen",
+        "pinned 2chen public thread HTML and catalog queues",
+    ),
     ("bluesky", "public ATProto posts, profile media and feeds"),
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
