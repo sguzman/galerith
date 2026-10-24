@@ -27,6 +27,7 @@ pub mod lightroom;
 pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
+pub mod picstate;
 pub mod pixeldrain;
 pub mod postimg;
 pub mod speakerdeck;
@@ -75,6 +76,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Pixhost image pages and safe gallery queues",
     ),
     ("imagepond", "public ImagePond single-file OG media pages"),
+    ("picstate", "public Picstate original image pages"),
     ("imxto", "pinned Imxto single images and guarded galleries"),
     ("imageshack", "public ImageShack individual image REST API"),
     ("imgbb", "public image pages and first-page albums"),
@@ -158,6 +160,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("pixhost")
     } else if imxto::match_url(input).is_some() {
         Some("imxto")
+    } else if picstate::match_url(input).is_some() {
+        Some("picstate")
     } else if imagepond::match_url(input).is_some() || imagepond::match_queue_url(input).is_some() {
         Some("imagepond")
     } else if imageshack::match_url(input).is_some()
@@ -266,6 +270,9 @@ pub async fn resolve(
     if let Some(target) = imxto::match_url(input) {
         return imxto::resolve(client, target).await;
     }
+    if let Some(target) = picstate::match_url(input) {
+        return picstate::resolve(client, target).await;
+    }
     if imagechest::match_user_url(input).is_some() {
         return Err(
             "ImageChest profile traversal requires --follow-queues or --dump-messages".into(),
@@ -370,6 +377,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = imxto::match_url(input) {
         return imxto::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = picstate::match_url(input) {
+        return picstate::resolve_messages(client, target).await;
     }
     if let Some(target) = imagepond::match_url(input) {
         return imagepond::resolve_messages(client, target).await;
@@ -688,6 +698,7 @@ mod tests {
             ("https://pixhost.to/gallery/jSMFq", "pixhost"),
             ("https://imx.to/i/1qdeva", "imxto"),
             ("https://imx.to/g/ozdy", "imxto"),
+            ("https://picstate.com/view/full/23416694_sfyue", "picstate"),
             ("https://imgchest.com/u/Public_User", "imagechest"),
             ("https://www.imagepond.net/i/abc123", "imagepond"),
             ("https://www.imagepond.net/a/gallery123", "imagepond"),
