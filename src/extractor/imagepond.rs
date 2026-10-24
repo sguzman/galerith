@@ -93,10 +93,31 @@ pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
     }
 }
 
+fn public_album_title(html: &str) -> Option<String> {
+    let heading = html.split_once("<h1")?.1;
+    let content = heading.split_once('>')?.1.split_once('<')?.0.trim();
+    if content.is_empty() || content.len() > 256 || content.chars().any(char::is_control) {
+        return None;
+    }
+    let title = content
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'");
+    if title.chars().any(char::is_control) {
+        return None;
+    }
+    Some(title)
+}
+
 fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMessage> {
     // Preserve document order across normal file anchors and the literal
     // pinned Chevereto album fallback. JavaScript is never evaluated.
     let root = Url::parse("https://www.imagepond.net/").expect("fixed public origin");
+    let album_title = if matches!(target, QueueTarget::Album(_)) {
+        public_album_title(html)
+    } else {
+        None
+    };
     let mut candidates = Vec::new();
     for (position, _) in html.match_indices("<a") {
         let Some(after_tag) = html.get(position + 2..) else {
@@ -153,6 +174,9 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
         match target {
             QueueTarget::Album(id) => {
                 metadata.insert("album_id".into(), id.clone().into());
+                if let Some(title) = &album_title {
+                    metadata.insert("album".into(), title.clone().into());
+                }
             }
             QueueTarget::User(name) => {
                 metadata.insert("username".into(), name.clone().into());
@@ -517,6 +541,18 @@ mod tests {
             collect_queue_messages(html, &QueueTarget::User("alice".into())).len(),
             1
         );
+    }
+
+    #[test]
+    fn public_album_title_is_sanitized_and_inherited_by_deferred_children() {
+        let html = r#"<h1 class="title">Public &amp; Safe</h1><a href="/i/one123">One</a>"#;
+        let list = collect_queue_messages(html, &QueueTarget::Album("gallery123".into()));
+        assert_eq!(list.len(), 1);
+        let item = serde_json::to_value(&list[0]).unwrap();
+        assert_eq!(item["metadata"]["album"], "Public & Safe");
+        assert_eq!(item["metadata"]["album_id"], "gallery123");
+        assert!(public_album_title("<h1><script>unsafe</script></h1>").is_none());
+        assert!(public_album_title("<h1>bad\u{0001}title</h1>").is_none());
     }
 
     #[test]
