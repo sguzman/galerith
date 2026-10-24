@@ -3812,6 +3812,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T577",
+              "emoji": "📸",
+              "name": "500px bounded expanded public single-photo originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route first-party 500px and web.500px.com public numeric photo pages, rejecting hostile host/path/credential/query forms",
+                  "passed": true,
+                  "evidence": "src/extractor/fivehundredpx.rs matches_only_public_single_photos_and_pinned_origins; CI 40144519987"
+                },
+                {
+                  "title": "Read pinned /v1/photos expanded metadata and choose the last source image rendition with matching photo ID",
+                  "passed": true,
+                  "evidence": "src/extractor/fivehundredpx.rs last_expanded_image_is_selected_with_source_backed_metadata; CI 40144519987"
+                },
+                {
+                  "title": "Require trusted HTTPS 500px CDN media hosts and bounded API body, extensions, source names and available user/tags metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/fivehundredpx.rs record/at_base and hostile media unit cases; CI 40144519987"
+                },
+                {
+                  "title": "Wire native flat and typed extractor events with one-request local source API HTTP regression and pinned Origin/query fields",
+                  "passed": true,
+                  "evidence": "src/extractor/fivehundredpx.rs bounded_expanded_photo_api_fetches_one_local_source_request; src/extractor/mod.rs native routing; CI 40144519987"
+                },
+                {
+                  "title": "Support pinned authenticated CSRF/cookie handling, GraphQL user/gallery/favorites and pagination, full naming/archive metadata and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

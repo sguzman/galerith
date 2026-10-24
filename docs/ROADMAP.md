@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 65%` across 134 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 135 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -740,6 +740,12 @@
   - [x] Preserve pinned Behoimi Referer and identity encoding request headers with strict API response cap and same-origin redirect validation — src/extractor/moebooru.rs source_json and behoimi_3dbooru_uses_index_json_and_pinned_request_headers; CI 40143946115
   - [x] Verify public image extraction with offline HTTP request path/header and native dispatch regression — src/extractor/moebooru.rs behoimi_3dbooru_uses_index_json_and_pinned_request_headers; src/extractor/mod.rs route fixtures; full CI 40143946115
   - [ ] Match full pinned 3dbooru metadata, age/permissions, files, filename/archive/directory options and live endpoint differential parity
+- 📸 **T577** 500px bounded expanded public single-photo originals — `████████░░ 80%`
+  - [x] Route first-party 500px and web.500px.com public numeric photo pages, rejecting hostile host/path/credential/query forms — src/extractor/fivehundredpx.rs matches_only_public_single_photos_and_pinned_origins; CI 40144519987
+  - [x] Read pinned /v1/photos expanded metadata and choose the last source image rendition with matching photo ID — src/extractor/fivehundredpx.rs last_expanded_image_is_selected_with_source_backed_metadata; CI 40144519987
+  - [x] Require trusted HTTPS 500px CDN media hosts and bounded API body, extensions, source names and available user/tags metadata — src/extractor/fivehundredpx.rs record/at_base and hostile media unit cases; CI 40144519987
+  - [x] Wire native flat and typed extractor events with one-request local source API HTTP regression and pinned Origin/query fields — src/extractor/fivehundredpx.rs bounded_expanded_photo_api_fetches_one_local_source_request; src/extractor/mod.rs native routing; CI 40144519987
+  - [ ] Support pinned authenticated CSRF/cookie handling, GraphQL user/gallery/favorites and pagination, full naming/archive metadata and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

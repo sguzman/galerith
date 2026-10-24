@@ -107,9 +107,14 @@
     {
       "path": "gallery_dl/extractor/500px.py",
       "module": "500px",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fivehundredpx.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public single-photo 500px preview: 500px.com and web.500px.com /photo/ID routes, pinned expanded /v1/photos query options, source ID verification, highest provided images[-1] HTTPS rendition, bounded 2 MiB JSON and 32 renditions, trusted 500px CDN hosts, metadata, typed directory/URL messages and one-request offline HTTP fixture. Full Linux CI 40144519987 passed. GraphQL user/gallery/favorite, cookies/CSRF and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/8chan.py",
