@@ -18,8 +18,12 @@ pub struct Image {
 fn valid_host(host: &str) -> bool {
     matches!(
         host,
-        "imagetwist.com" | "www.imagetwist.com" | "phun.imagetwist.com"
-            | "imagehaha.com" | "www.imagehaha.com" | "phun.imagehaha.com"
+        "imagetwist.com"
+            | "www.imagetwist.com"
+            | "phun.imagetwist.com"
+            | "imagehaha.com"
+            | "www.imagehaha.com"
+            | "phun.imagehaha.com"
     )
 }
 
@@ -65,9 +69,9 @@ pub fn match_url(input: &str) -> Option<Image> {
 fn safe_hint(value: &str) -> bool {
     (5..=220).contains(&value.len())
         && !value.contains("..")
-        && value.bytes().all(|b| {
-            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
-        })
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
         && value.rsplit_once('.').is_some_and(|(_, extension)| {
             matches!(
                 extension.to_ascii_lowercase().as_str(),
@@ -98,7 +102,10 @@ fn media_url(raw: &str) -> Option<(Url, String)> {
     if filename.is_empty()
         || filename.len() > 240
         || filename.contains('%')
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -152,7 +159,10 @@ fn parse_page(
             return Err("Imagetwist reports an unavailable original image".into());
         }
         if let Some((url, fallback)) = media_url(link) {
-            let ext = fallback.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("jpg");
+            let ext = fallback
+                .rsplit_once('.')
+                .map(|(_, ext)| ext)
+                .unwrap_or("jpg");
             let filename = attrs
                 .split_once("alt=\"")
                 .and_then(|(_, s)| s.split_once('"'))
@@ -172,7 +182,10 @@ fn parse_page(
     let mut metadata = media_metadata(&file);
     metadata.insert("subcategory".into(), "image".into());
     metadata.insert("token".into(), image.token.clone().into());
-    metadata.insert("post_url".into(), format!("https://{}/{}", image.host, image.token).into());
+    metadata.insert(
+        "post_url".into(),
+        format!("https://{}/{}", image.host, image.token).into(),
+    );
     Ok((file, metadata))
 }
 
@@ -261,7 +274,8 @@ mod tests {
     #[test]
     fn original_media_keeps_safe_filename_and_rejects_placeholder() {
         let image = match_url("https://imagetwist.com/f1i2s4vhvbrq").unwrap();
-        let html = r#"<img src="https://img.imagetwist.com/files/original.png" alt="test &amp; image">"#;
+        let html =
+            r#"<img src="https://img.imagetwist.com/files/original.png" alt="test &amp; image">"#;
         let (file, metadata) = parse_page(html, &image).unwrap();
         assert_eq!(file.filename, "test & image.png");
         assert_eq!(metadata["token"], "f1i2s4vhvbrq");
@@ -284,8 +298,7 @@ mod tests {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = [0u8; 4096];
             let n = socket.read(&mut bytes).await.unwrap();
-            assert!(String::from_utf8_lossy(&bytes[..n])
-                .starts_with("GET /f1i2s4vhvbrq HTTP/1.1"));
+            assert!(String::from_utf8_lossy(&bytes[..n]).starts_with("GET /f1i2s4vhvbrq HTTP/1.1"));
             let html = r#"<img src="https://img.imagetwist.com/files/original.png" alt="Public">"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",

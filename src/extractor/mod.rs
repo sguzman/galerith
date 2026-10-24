@@ -19,8 +19,8 @@ pub mod imagechest;
 pub mod imagehosts;
 pub mod imagepond;
 pub mod imageshack;
-pub mod imagevenue;
 pub mod imagetwist;
+pub mod imagevenue;
 pub mod imgadult;
 pub mod imgbb;
 pub mod imgbox;
@@ -77,7 +77,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "imagevenue",
         "pinned public ImageVenue single-image preview",
     ),
-    ("imagetwist", "pinned public Imagetwist and Imagehaha originals"),
+    (
+        "imagetwist",
+        "pinned public Imagetwist and Imagehaha originals",
+    ),
     (
         "foolfuuka",
         "archive threads, boards, galleries and searches",
