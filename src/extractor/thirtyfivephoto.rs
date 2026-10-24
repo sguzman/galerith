@@ -303,8 +303,13 @@ fn list_ids(html: &str, seen: &mut HashSet<String>, out: &mut Vec<ExtractorMessa
 fn parse_ajax_ids(markup: &str) -> Vec<String> {
     let mut ids = HashSet::new();
     for block in markup.split("/photo_").skip(1).take(4000) {
-        let raw = block.bytes().take_while(u8::is_ascii_digit).collect::<Vec<_>>();
-        let Ok(id) = std::str::from_utf8(&raw) else { continue };
+        let raw = block
+            .bytes()
+            .take_while(u8::is_ascii_digit)
+            .collect::<Vec<_>>();
+        let Ok(id) = std::str::from_utf8(&raw) else {
+            continue;
+        };
         if !numeric(id) || !block[raw.len()..].starts_with('/') {
             continue;
         }
@@ -322,8 +327,12 @@ fn enqueue_ids(
     queue: &mut Vec<ExtractorMessage>,
 ) {
     for id in ids {
-        if queue.len() >= MAX_CHILDREN { break; }
-        if !seen.insert(id.clone()) { continue; }
+        if queue.len() >= MAX_CHILDREN {
+            break;
+        }
+        if !seen.insert(id.clone()) {
+            continue;
+        }
         let mut meta = Metadata::new();
         meta.insert("category".into(), "35photo".into());
         meta.insert("subcategory".into(), "listing".into());
@@ -334,7 +343,9 @@ fn enqueue_ids(
 }
 
 fn numeric_field(value: &Value) -> Option<String> {
-    let val = value.as_str().map(ToOwned::to_owned)
+    let val = value
+        .as_str()
+        .map(ToOwned::to_owned)
         .or_else(|| value.as_u64().map(|n| n.to_string()))?;
     numeric(&val).then_some(val)
 }
@@ -353,7 +364,9 @@ async fn ajax_listing(
     let mut queue = Vec::new();
     let mut seen_ids = HashSet::new();
     let mut cursor = if mode == "genre" {
-        let Some(last) = first_ids.last() else { return Ok(queue) };
+        let Some(last) = first_ids.last() else {
+            return Ok(queue);
+        };
         last.clone()
     } else {
         "999999999".to_owned()
@@ -361,7 +374,9 @@ async fn ajax_listing(
     enqueue_ids(first_ids, scope, &mut seen_ids, &mut queue);
     let mut visited_cursors = HashSet::new();
     for page in 0..max_pages.clamp(1, MAX_LIST_PAGES) {
-        if queue.len() >= MAX_CHILDREN { break; }
+        if queue.len() >= MAX_CHILDREN {
+            break;
+        }
         if !visited_cursors.insert(cursor.clone()) {
             return Err("35photo AJAX pagination repeated a cursor".into());
         }
@@ -371,23 +386,29 @@ async fn ajax_listing(
         let mut url = page_base.join("show_block.php")?;
         {
             let mut pairs = url.query_pairs_mut();
-            pairs.append_pair("type", "getNextPageData")
+            pairs
+                .append_pair("type", "getNextPageData")
                 .append_pair("page", mode);
             if mode == "photoUser" {
                 pairs.append_pair("user_id", key);
             } else {
-                pairs.append_pair("community_id", key)
+                pairs
+                    .append_pair("community_id", key)
                     .append_pair("photo_rating", "50");
             }
             pairs.append_pair("lastId", &cursor);
         }
-        let response = client.get(url.clone())
+        let response = client
+            .get(url.clone())
             .header("Referer", "https://35photo.pro")
             .header("X-Requested-With", "XMLHttpRequest")
-            .send().await?;
+            .send()
+            .await?;
         let body = read_bounded(response, &url).await?;
         let data: Value = serde_json::from_slice(&body)?;
-        let markup = data.get("data").and_then(Value::as_str)
+        let markup = data
+            .get("data")
+            .and_then(Value::as_str)
             .ok_or("35photo AJAX response missing public data HTML")?;
         if markup.len() > MAX_BODY {
             return Err("35photo AJAX HTML exceeds bounded response".into());
@@ -440,7 +461,9 @@ async fn at_base(
                 let text = String::from_utf8(body)?;
                 let previous = output.len();
                 list_ids(&text, &mut seen, &mut output, &scope);
-                if output.len() == previous || output.len() >= MAX_CHILDREN { break; }
+                if output.len() == previous || output.len() >= MAX_CHILDREN {
+                    break;
+                }
             }
             Ok((Vec::new(), output))
         }
@@ -448,32 +471,47 @@ async fn at_base(
             let url = page_base.join(&format!("{name}/"))?;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
-            let (_, tail) = html.split_once("/user_")
+            let (_, tail) = html
+                .split_once("/user_")
                 .ok_or("35photo public user profile lacks a source user ID")?;
-            let raw = tail.split_once(".xml")
+            let raw = tail
+                .split_once(".xml")
                 .map(|(first, _)| first)
                 .ok_or("35photo public user profile lacks source XML identifier")?;
             if !numeric(raw) {
                 return Err("35photo public user source ID invalid".into());
             }
             let queue = ajax_listing(
-                client, page_base, &format!("user:{name}"),
-                "photoUser", raw, Vec::new(), max_pages,
-            ).await?;
+                client,
+                page_base,
+                &format!("user:{name}"),
+                "photoUser",
+                raw,
+                Vec::new(),
+                max_pages,
+            )
+            .await?;
             Ok((Vec::new(), queue))
         }
         Target::Genre(id) => {
             let url = page_base.join(&format!("genre_{id}/"))?;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
-            let block = html.split_once(" class=\"photo")
+            let block = html
+                .split_once(" class=\"photo")
                 .map(|(_, following)| following)
                 .unwrap_or("");
             let first = parse_ajax_ids(block);
             let queue = ajax_listing(
-                client, page_base, &format!("genre:{id}"),
-                "genre", &id, first, max_pages,
-            ).await?;
+                client,
+                page_base,
+                &format!("genre:{id}"),
+                "genre",
+                &id,
+                first,
+                max_pages,
+            )
+            .await?;
             Ok((Vec::new(), queue))
         }
     }
@@ -592,7 +630,9 @@ mod tests {
     #[test]
     fn ajax_photo_identifiers_sort_numerically_and_reject_truncated_paths() {
         assert_eq!(
-            parse_ajax_ids(r#"/photo_9/ /photo_23/ /photo_23/ /photo_7/ /photo_0/ /photo_35fake/ /photo_22"#),
+            parse_ajax_ids(
+                r#"/photo_9/ /photo_23/ /photo_23/ /photo_7/ /photo_0/ /photo_35fake/ /photo_22"#
+            ),
             vec!["23", "9", "7"]
         );
     }
@@ -629,12 +669,18 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let (_, user) = at_base(
-            &Client::new(), &base, &base, Target::User("alice".into()), 2,
-        ).await.unwrap();
+            &Client::new(),
+            &base,
+            &base,
+            Target::User("alice".into()),
+            2,
+        )
+        .await
+        .unwrap();
         assert_eq!(user.len(), 3);
-        let (_, genre) = at_base(
-            &Client::new(), &base, &base, Target::Genre("12".into()), 2,
-        ).await.unwrap();
+        let (_, genre) = at_base(&Client::new(), &base, &base, Target::Genre("12".into()), 2)
+            .await
+            .unwrap();
         assert_eq!(genre.len(), 3);
         assert_eq!(
             serde_json::to_value(&genre[2]).unwrap()["url"],
