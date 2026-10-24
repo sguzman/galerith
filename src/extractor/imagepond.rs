@@ -85,9 +85,18 @@ fn collect_queue_messages(html: &str, target: &QueueTarget) -> Vec<ExtractorMess
     let root = Url::parse("https://www.imagepond.net/").expect("fixed public origin");
     let mut seen = HashSet::new();
     let mut messages = Vec::new();
-    for (position, _) in html.match_indices("href=\"") {
-        let suffix = &html[position + "href=\"".len()..];
-        let Some(raw_href) = suffix.split_once('"').map(|(href, _)| href) else {
+    for element in html.split("<a").skip(1) {
+        let Some((attributes, _)) = element.split_once('>') else {
+            continue;
+        };
+        if !attributes.starts_with(char::is_whitespace) {
+            continue;
+        }
+        let Some(raw_href) = attributes
+            .split_once("href=\"")
+            .and_then(|(_, suffix)| suffix.split_once('"'))
+            .map(|(href, _)| href)
+        else {
             continue;
         };
         let Ok(url) = root.join(&raw_href.replace("&amp;", "&")) else {
@@ -463,7 +472,7 @@ mod tests {
 
     #[test]
     fn queue_scanner_never_rewrites_foreign_link_or_plain_text_into_child() {
-        let html = r#"<a href="https://malicious.example/i/fake123">External</a><script>let example="/video/ghost123";</script><a href="/i/good123">Valid</a><a href="//evil.example/video/bad123">Not ours</a><a href="/i/../hidden">Traversal</a><a href="/img/picture123?token=secret">Token</a><a href="https://imagepond.net/video/real456">Valid video</a>"#;
+        let html = r#"<a href="https://malicious.example/i/fake123">External</a><script>let example="/video/ghost123";let synthetic='href="/i/forged123"';</script><a href="/i/good123">Valid</a><a href="//evil.example/video/bad123">Not ours</a><a href="/i/../hidden">Traversal</a><a href="/img/picture123?token=secret">Token</a><a href="https://imagepond.net/video/real456">Valid video</a>"#;
         let events = collect_queue_messages(html, &QueueTarget::User("alice".into()));
         let urls: Vec<_> = events
             .iter()
