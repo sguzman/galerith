@@ -13,6 +13,7 @@ const MAX_JSON: usize = 2 * 1024 * 1024;
 const MAX_FILES: usize = 160;
 const MAX_CHILDREN: usize = 128;
 const MAX_BOARD_PAGES: u16 = 4;
+type ThreadRecords = (Metadata, Vec<(MediaItem, Metadata)>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
@@ -138,7 +139,7 @@ fn parse_thread(
     board: &str,
     id: &str,
     root: &Url,
-) -> Result<(Metadata, Vec<(MediaItem, Metadata)>), Box<dyn Error + Send + Sync>> {
+) -> Result<ThreadRecords, Box<dyn Error + Send + Sync>> {
     let posts = data
         .pointer("/threads/0/posts")
         .and_then(Value::as_array)
@@ -351,7 +352,7 @@ async fn thread_at(
     base: &Url,
     board: &str,
     id: &str,
-) -> Result<(Metadata, Vec<(MediaItem, Metadata)>), Box<dyn Error + Send + Sync>> {
+) -> Result<ThreadRecords, Box<dyn Error + Send + Sync>> {
     let data = json_at(client, base.join(&format!("{board}/res/{id}.json"))?).await?;
     parse_thread(&data, board, id, base)
 }
