@@ -66,7 +66,10 @@ fn valid_username(value: &str) -> bool {
         && value
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
-        && !matches!(value, "i" | "img" | "image" | "video" | "a" | "album" | "user")
+        && !matches!(
+            value,
+            "i" | "img" | "image" | "video" | "a" | "album" | "user"
+        )
 }
 
 pub fn match_queue_url(input: &str) -> Option<QueueTarget> {
