@@ -328,10 +328,7 @@ fn booru_tag_search(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https"
-        || !source.username().is_empty()
-        || source.password().is_some()
-    {
+    if source.scheme() != "https" || !source.username().is_empty() || source.password().is_some() {
         return None;
     }
     match (item.extractor, source.host_str()?, source.path()) {
@@ -2011,8 +2008,8 @@ mod tests {
 
     #[tokio::test]
     async fn account_specific_favorite_lock_serializes_rotating_media_urls() {
-        let root = std::env::temp_dir()
-            .join(format!("galerith-favorite-lock-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-favorite-lock-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let db = root.join("native.sqlite");
@@ -2226,8 +2223,7 @@ mod tests {
 
     #[test]
     fn upstream_tag_archive_import_is_hashed_idempotent_and_offline_usable() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-tag-import-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-tag-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("reference.sqlite");
