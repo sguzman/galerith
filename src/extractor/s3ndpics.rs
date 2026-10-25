@@ -222,6 +222,7 @@ async fn at_base(
         Target::Search { key, value } => ("20", vec![(key.clone(), value.clone())]),
         Target::Post(_) => unreachable!(),
     };
+    let mut total_posts = 0usize;
     for page in 1..=max_pages.clamp(1, MAX_PAGES) {
         if page > 1 {
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -240,6 +241,10 @@ async fn at_base(
         if posts.len() > MAX_ROWS_PER_PAGE {
             return Err("S3ndpics listing exceeds bounded posts per page".into());
         }
+        total_posts += posts.len();
+        if total_posts > MAX_POSTS {
+            return Err("S3ndpics listing exceeds bounded post count".into());
+        }
         for post in posts {
             records_for_post(post, &mut records)?;
             if records.len() > MAX_FILES {
@@ -248,7 +253,7 @@ async fn at_base(
         }
         let total_pages = json.pointer("/pagination/pages").and_then(Value::as_u64)
             .ok_or("S3ndpics listing lacks pagination page count")?;
-        if posts.is_empty() || page as u64 >= total_pages || records.len() >= MAX_FILES {
+        if posts.is_empty() || page as u64 >= total_pages || records.len() >= MAX_FILES || total_posts >= MAX_POSTS {
             break;
         }
     }
