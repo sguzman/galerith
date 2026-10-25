@@ -481,38 +481,38 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             let message_future = async {
                 if cli.expand_queues {
                     let selection = JobSelection {
-                    files: cli
-                        .message_file_range
-                        .as_deref()
-                        .map(IndexRange::parse)
-                        .transpose()?,
-                    children: cli
-                        .message_child_range
-                        .as_deref()
-                        .map(IndexRange::parse)
-                        .transpose()?,
-                    directories: cli
-                        .message_directory_range
-                        .as_deref()
-                        .map(IndexRange::parse)
-                        .transpose()?,
-                    source_posts: cli
-                        .message_source_post_range
-                        .as_deref()
-                        .map(IndexRange::parse)
-                        .transpose()?,
-                };
-                resolve_messages_traversing_selected(
-                    &client,
-                    &url,
-                    cli.max_pages,
-                    cli.max_queue_children.unwrap_or(8),
-                    cli.queue_depth.unwrap_or(1),
-                    &selection,
-                )
-                .await
-            } else {
-                resolve_messages(&client, &url, cli.max_pages).await
+                        files: cli
+                            .message_file_range
+                            .as_deref()
+                            .map(IndexRange::parse)
+                            .transpose()?,
+                        children: cli
+                            .message_child_range
+                            .as_deref()
+                            .map(IndexRange::parse)
+                            .transpose()?,
+                        directories: cli
+                            .message_directory_range
+                            .as_deref()
+                            .map(IndexRange::parse)
+                            .transpose()?,
+                        source_posts: cli
+                            .message_source_post_range
+                            .as_deref()
+                            .map(IndexRange::parse)
+                            .transpose()?,
+                    };
+                    resolve_messages_traversing_selected(
+                        &client,
+                        &url,
+                        cli.max_pages,
+                        cli.max_queue_children.unwrap_or(8),
+                        cli.queue_depth.unwrap_or(1),
+                        &selection,
+                    )
+                    .await
+                } else {
+                    resolve_messages(&client, &url, cli.max_pages).await
                 }
             };
             let events = if let Some(cache) = &public_cache {
