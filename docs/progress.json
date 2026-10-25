@@ -4083,6 +4083,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T585",
+              "emoji": "🎧",
+              "name": "Audiochan public direct-audio originals and user discovery queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match only public Audiochan single-audio and user routes with scoped first-party URLs and hostile path/query rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/audiochan.rs public_audio_and_user_routes_reject_bad_origins_and_queries; src/extractor/mod.rs native fixture; full CI 40154632481"
+                },
+                {
+                  "title": "Read pinned source audioFile direct originals, title/slug/ID, dates, tags, nested description and credited user into typed media metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/audiochan.rs media_original_and_nested_text_tags_preserve_source_identity; full CI 40154632481"
+                },
+                {
+                  "title": "Reject unsupported segmented-stream and untrusted media URLs without false success, and emit bounded, deduplicated deferred user audio queues",
+                  "passed": true,
+                  "evidence": "src/extractor/audiochan.rs media_original_and_nested_text_tags_preserve_source_identity, source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481"
+                },
+                {
+                  "title": "Bound first-party public audio/user JSON API, preserve request headers and verify one-/two-page loops via real HTTP fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/audiochan.rs public_audio_get_and_user_queues_preserve_pinned_api_headers and source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481"
+                },
+                {
+                  "title": "Support stream_url segmented fallback, public collections/search, configurable media headers, complete naming/date/archive semantics and live pinned upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

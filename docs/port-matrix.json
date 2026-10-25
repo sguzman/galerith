@@ -236,9 +236,14 @@
     {
       "path": "gallery_dl/extractor/audiochan.py",
       "module": "audiochan",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/audiochan.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded independent Audiochan public /a/SLUG direct original and /u/USER deferred audio queue subset. Source API audioFile ID/filename/original, title/slug, nested description, category:name tags, optional credited user and raw ISO date strings. Trusted HTTPS *.audiochan.com media, 2 MiB JSON response cap, pinned Origin/Sec-Fetch headers and 4 user pages/12 records per page/48 children, 1-second pacing, first-seen slug dedup. Real local 3-request audio+user and two-page user GET fixtures; full Rust formatting, Clippy, tests and release CI 40154632481 passed. Segmented stream_url fallback, collections, search, exact output templates and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/bbc.py",

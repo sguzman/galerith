@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 142 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 143 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -791,6 +791,12 @@
   - [x] Implement pinned 1000-image start/count/object JSON API pagination with 2 MiB bounded source GETs, dedup and real 1000+1-item HTTP regression — src/extractor/comicvine.rs thousand_image_page_continues_at_correct_source_offset_and_deduplicates and public_gallery_and_api_use_two_bounded_local_gets; CI 40154046581
   - [x] Normalize valid Gregorian English dateCreated values as timezone-free ISO calendar dates, rejecting impossible day/month combinations — src/extractor/comicvine.rs comicvine_english_calendar_date_rejects_invalid_month_and_leap_day; CI 40154046581
   - [ ] Match complete pinned image CDN/format variants, full metadata/templates/archive and uncapped historical pages with live upstream differential parity
+- 🎧 **T585** Audiochan public direct-audio originals and user discovery queues — `████████░░ 80%`
+  - [x] Match only public Audiochan single-audio and user routes with scoped first-party URLs and hostile path/query rejection — src/extractor/audiochan.rs public_audio_and_user_routes_reject_bad_origins_and_queries; src/extractor/mod.rs native fixture; full CI 40154632481
+  - [x] Read pinned source audioFile direct originals, title/slug/ID, dates, tags, nested description and credited user into typed media metadata — src/extractor/audiochan.rs media_original_and_nested_text_tags_preserve_source_identity; full CI 40154632481
+  - [x] Reject unsupported segmented-stream and untrusted media URLs without false success, and emit bounded, deduplicated deferred user audio queues — src/extractor/audiochan.rs media_original_and_nested_text_tags_preserve_source_identity, source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481
+  - [x] Bound first-party public audio/user JSON API, preserve request headers and verify one-/two-page loops via real HTTP fixtures — src/extractor/audiochan.rs public_audio_get_and_user_queues_preserve_pinned_api_headers and source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481
+  - [ ] Support stream_url segmented fallback, public collections/search, configurable media headers, complete naming/date/archive semantics and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
