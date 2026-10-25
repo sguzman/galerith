@@ -47,8 +47,7 @@ fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
     cmd.env("PYTHONPATH", root);
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
-    serde_json::from_str(&spawn(cmd, "pinned gallery-dl"))
-        .expect("upstream typed-message JSON")
+    serde_json::from_str(&spawn(cmd, "pinned gallery-dl")).expect("upstream typed-message JSON")
 }
 
 fn same_field(native: &Value, reference: &Value, field: &str, label: &str) {
@@ -105,8 +104,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 same_field(metadata, reference, key, url);
             }
             assert_eq!(
-                metadata["stem"],
-                reference["filename"],
+                metadata["stem"], reference["filename"],
                 "{url}: pinned filename stem"
             );
         }
