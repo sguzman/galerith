@@ -542,7 +542,34 @@ impl Archive {
         source_url: &str,
     ) -> Result<bool, rusqlite::Error> {
         let Some(id) = direct_booru_post(item, source_url) else {
-            return self.contains(item);
+            if self.contains(item)? {
+                return Ok(true);
+            }
+            // Old builds mislabeled e926 source downloads as e621 even for
+            // tag/pool/favorite feeds. Preserve *exact* downloaded URL hashes
+            // when the original input can be verified as the e926 site.
+            if item.extractor == "e926" {
+                let verified = url::Url::parse(source_url)
+                    .ok()
+                    .is_some_and(|source| {
+                        source.scheme() == "https"
+                            && source.host_str() == Some("e926.net")
+                            && source.username().is_empty()
+                            && source.password().is_none()
+                    });
+                if verified {
+                    let old: i64 = self.connection.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = 'e621' AND identity = ?1)",
+                        params![legacy_url_key(item)],
+                        |row| row.get(0),
+                    )?;
+                    if old != 0 {
+                        self.record(item)?;
+                        return Ok(true);
+                    }
+                }
+            }
+            return Ok(false);
         };
         let stable_key = direct_post_key(id);
         let recorded: i64 = self.connection.query_row(
@@ -1308,6 +1335,55 @@ mod tests {
         assert!(!archive
             .contains_for_source(&rotated, "https://e621.net/posts/901")
             .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn e926_feed_legacy_recovery_requires_exact_url_and_verified_site() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-e926-feed-legacy-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let media = MediaItem {
+            url: "https://static1.e926.net/data/12.jpg?sig=old".into(),
+            filename: "12.jpg".into(),
+            extractor: "e926",
+            post_id: Some(12),
+        };
+        let rotated = MediaItem {
+            url: "https://static1.e926.net/data/12.jpg?sig=new".into(),
+            ..media.clone()
+        };
+        archive
+            .connection
+            .execute(
+                "INSERT INTO downloads (category, identity) VALUES ('e621', ?1)",
+                params![legacy_url_key(&media)],
+            )
+            .unwrap();
+        let feed = "https://e926.net/posts?tags=artist";
+        assert!(!archive
+            .contains_for_source(&media, "https://e621.net/posts?tags=artist")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://user:pass@e926.net/posts?tags=artist")
+            .unwrap());
+        assert!(archive.contains_for_source(&media, feed).unwrap());
+        assert!(!archive.contains_for_source(&rotated, feed).unwrap());
+        assert!(archive.contains(&media).unwrap());
+        let native: i64 = archive
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM downloads WHERE category = 'e926'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(native, 1);
         drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
