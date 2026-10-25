@@ -1882,6 +1882,167 @@ mod tests {
     }
 
     #[test]
+    fn account_specific_e621_favorites_do_not_confuse_users_posts_or_feeds() {
+        let root = std::env::temp_dir().join(format!("galerith-e621-favs-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.example.org/88.jpg?sig=first".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://other-cdn.example.org/88.png?sig=second".into(),
+            ..original.clone()
+        };
+        let favorites = "https://e621.net/favorites?user_id=42";
+        assert_eq!(e621_favorite(&original, favorites), Some((42, 88)));
+        archive.record_for_source(&original, favorites).unwrap();
+        assert!(archive.contains_for_source(&rotated, favorites).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://e621.net/favorites?page=2&user_id=42")
+            .unwrap());
+        for other in [
+            "https://e621.net/favorites?user_id=43",
+            "https://e621.net/favorites",
+            "https://e621.net/posts/88",
+            "https://e621.net/pools/42",
+            "https://e926.net/favorites?user_id=42",
+            "https://attacker.example/favorites?user_id=42",
+            "https://e621.net/favorites?user_id=042",
+            "https://e621.net/favorites?user_id=42&user_id=43",
+            "https://user:secret@e621.net/favorites?user_id=42",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, other).unwrap(), "{other}");
+        }
+        let different_post = MediaItem {
+            post_id: Some(89),
+            ..rotated
+        };
+        assert!(!archive.contains_for_source(&different_post, favorites).unwrap());
+        assert!(canonical_favorite_archive_suffix("f_42_88"));
+        for key in ["f__88", "f_0_88", "f_42_0", "f_042_88", "f_42_088", "f_42_88_1"] {
+            assert!(!canonical_favorite_archive_suffix(key), "{key}");
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imported_e621_favorites_remain_private_and_available_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-favs-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let foreign = root.join("reference.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('e621f_42_88');
+                 INSERT INTO archive VALUES ('e926f_42_88');
+                 INSERT INTO archive VALUES ('e6aif_42_88');
+                 INSERT INTO archive VALUES ('e621f__88');
+                 INSERT INTO archive VALUES ('e621t_fox_88');",
+            )
+            .unwrap();
+        drop(source);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(foreign).unwrap();
+        let saved = fs::read(&native).unwrap();
+        assert!(!saved
+            .windows(b"e621f_42_88".len())
+            .any(|chunk| chunk == b"e621f_42_88"));
+        let archive = Archive::open(&native).unwrap();
+        for (category, host) in [
+            ("e621", "e621.net"),
+            ("e926", "e926.net"),
+            ("e6ai", "e6ai.net"),
+        ] {
+            let media = MediaItem {
+                url: "https://cdn.example.org/88.png?changed=1".into(),
+                filename: "88.png".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            assert!(archive
+                .contains_for_source(&media, &format!("https://{host}/favorites?user_id=42"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&media, &format!("https://{host}/favorites?user_id=43"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&media, &format!("https://{host}/posts/88"))
+                .unwrap());
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn named_favorite_table_requires_actual_matching_site_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-favs-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE selected(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO selected VALUES ('f_42_88');
+                 INSERT INTO selected VALUES ('e621f_42_88');",
+            )
+            .unwrap();
+        drop(source);
+        let media = MediaItem {
+            url: "https://cdn.example.net/new.jpg".into(),
+            filename: "new.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let bare = Archive::open_with_reference_table(
+            &root.join("bare.sqlite"),
+            Some(&foreign),
+            "selected",
+        )
+        .unwrap();
+        assert_eq!(bare.import_reference().unwrap(), (0, 0));
+        assert!(!bare
+            .contains_for_source(&media, "https://e621.net/favorites?user_id=42")
+            .unwrap());
+        drop(bare);
+        let native_path = root.join("native.sqlite");
+        let native = Archive::open_with_reference_options(
+            &native_path,
+            Some(&foreign),
+            Some("selected"),
+            Some("e621"),
+        )
+        .unwrap();
+        assert_eq!(native.import_reference().unwrap(), (1, 1));
+        assert!(native
+            .contains_for_source(&media, "https://e621.net/favorites?user_id=42")
+            .unwrap());
+        drop(native);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native_path).unwrap();
+        assert!(offline
+            .contains_for_source(&media, "https://e621.net/favorites?user_id=42")
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
