@@ -1,6 +1,7 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod agnph;
+pub mod ahottie;
 pub mod architizer;
 pub mod arena;
 pub mod basic_hosts;
@@ -82,6 +83,7 @@ use std::error::Error;
 /// Only previews with a dispatcher implementation appear here. This is not
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
+    ("ahottie", "public bounded Ahottie albums and tag/search queues"),
     ("agnph", "bounded public Agn.ph XML posts and tag searches"),
     (
         "architizer",
@@ -246,7 +248,9 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if agnph::match_url(input).is_some() {
+    if ahottie::match_url(input).is_some() {
+        Some("ahottie")
+    } else if agnph::match_url(input).is_some() {
         Some("agnph")
     } else if architizer::match_url(input).is_some() {
         Some("architizer")
@@ -402,6 +406,9 @@ pub async fn resolve(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Some(target) = ahottie::match_url(input) {
+        return ahottie::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve(client, target, max_pages).await;
     }
@@ -650,6 +657,9 @@ pub async fn resolve_messages(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if let Some(target) = ahottie::match_url(input) {
+        return ahottie::resolve_messages(client, target, max_pages).await;
+    }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve_messages(client, target, max_pages).await;
     }
@@ -1068,6 +1078,7 @@ mod tests {
             ("https://are.na/alice/cassette-futurism", "arena"),
             ("https://architizer.com/projects/urban-house", "architizer"),
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
+            ("https://ahottie.top/albums/Album12", "ahottie"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
             ("https://2ch.org/a/", "2ch"),
