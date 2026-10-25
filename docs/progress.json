@@ -4179,6 +4179,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T588",
+              "emoji": "🗞️",
+              "name": "Vanilla Rock public article image originals and tag/category queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned public Vanilla Rock posts, category and tag sources with strict source hostname/path validation",
+                  "passed": true,
+                  "evidence": "src/extractor/vanillarock.rs routes_public_post_and_listing_urls_without_traversal; full Linux CI 40156584743"
+                },
+                {
+                  "title": "Read ordered first-party article images and visible title, date, ordinal/count into typed source metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/vanillarock.rs public_post_extracts_ordered_originals_and_source_metadata; CI 40156584743"
+                },
+                {
+                  "title": "Deduplicate validated source listing children, reject forged media and category link origins, and block raw traversal before URL normalization",
+                  "passed": true,
+                  "evidence": "src/extractor/vanillarock.rs listing_links_deduplicate_and_continuations_are_origin_scoped and routes_public_post_and_listing_urls_without_traversal; CI 40156584743"
+                },
+                {
+                  "title": "Limit per-source HTML to 2 MiB, posts to 160 originals and tag pagination to four pages/128 queued posts with single- and two-page loopback HTTP fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/vanillarock.rs bounded_single_post_and_two_page_listing_http_fixtures; src/extractor/mod.rs dispatch; CI 40156584743"
+                },
+                {
+                  "title": "Match all upstream post/gallery image hosts, rich date/tags, full filename/archive/directory rules, unrestricted listing pagination and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 61 · Not ported: 211.**
+**Complete: 0 · Partial: 62 · Not ported: 210.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -253,7 +253,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/utils/scrolller_graphql.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/utils/twitter_article.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/utils/twitter_transaction_id.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/vanillarock.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/vanillarock.py` | 🟡 Partial | `src/extractor/vanillarock.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/vichan.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/vipergirls.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/vk.py` | ⚪ Not ported | — |

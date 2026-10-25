@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 145 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 146 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -809,6 +809,12 @@
   - [x] Read user sound-details links as first-seen typed deferred queue entries, excluding other-user and external references — src/extractor/soundgasm.rs user_discovery_is_deferred_first_seen_and_foreign_links_excluded; CI 40155976406
   - [x] Read only bounded 2 MiB public audio/profile HTML with real loopback GET fixtures and native dispatch — src/extractor/soundgasm.rs public_audio_and_user_listing_each_read_one_bounded_http_page; src/extractor/mod.rs routed URL fixture; full CI 40155976406
   - [ ] Match all upstream source player and rich HTML text variants, eager user extraction, filename/archive/directory templates, media transport details and live differential parity
+- 🗞️ **T588** Vanilla Rock public article image originals and tag/category queues — `████████░░ 80%`
+  - [x] Route pinned public Vanilla Rock posts, category and tag sources with strict source hostname/path validation — src/extractor/vanillarock.rs routes_public_post_and_listing_urls_without_traversal; full Linux CI 40156584743
+  - [x] Read ordered first-party article images and visible title, date, ordinal/count into typed source metadata — src/extractor/vanillarock.rs public_post_extracts_ordered_originals_and_source_metadata; CI 40156584743
+  - [x] Deduplicate validated source listing children, reject forged media and category link origins, and block raw traversal before URL normalization — src/extractor/vanillarock.rs listing_links_deduplicate_and_continuations_are_origin_scoped and routes_public_post_and_listing_urls_without_traversal; CI 40156584743
+  - [x] Limit per-source HTML to 2 MiB, posts to 160 originals and tag pagination to four pages/128 queued posts with single- and two-page loopback HTTP fixtures — src/extractor/vanillarock.rs bounded_single_post_and_two_page_listing_http_fixtures; src/extractor/mod.rs dispatch; CI 40156584743
+  - [ ] Match all upstream post/gallery image hosts, rich date/tags, full filename/archive/directory rules, unrestricted listing pagination and live pinned differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

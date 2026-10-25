@@ -2059,9 +2059,14 @@
     {
       "path": "gallery_dl/extractor/vanillarock.py",
       "module": "vanillarock",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/vanillarock.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Vanilla Rock public posts and bounded tag/category queue subset: strict post/listing routes, validated first-party main-img originals and source title/date metadata, 2 MiB HTML cap, 160 image/4 listing page/128 child caps, raw traversal rejection ahead of URL normalization, first-seen scoped post queues, one direct article GET and two-page loopback listing tests. Full CI 40156584743 passed formatting, Clippy, 497 tests and release build. Rich tags, complete naming/archive, alternative galleries/CDNs and live upstream differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/vichan.py",
