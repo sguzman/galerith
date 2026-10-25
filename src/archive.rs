@@ -1577,7 +1577,8 @@ mod tests {
         source
             .execute_batch(
                 "CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
-                 INSERT INTO named VALUES ('p_42_88');",
+                 INSERT INTO named VALUES ('p_42_88');
+                 INSERT INTO named VALUES ('e621p_42_88');",
             )
             .unwrap();
         drop(source);
