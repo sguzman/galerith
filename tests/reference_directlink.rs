@@ -388,3 +388,24 @@ fn pinned_danbooru_favorite_group_template_is_not_a_post_or_pool() {
         "fg_{favgroup[id]}_{id}|p_{pool[id]}_{id}|{id}"
     );
 }
+
+#[test]
+fn pinned_e621_family_favorite_archive_template_includes_user_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for e621 favorite template");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.e621 import E621FavoriteExtractor,E621PostExtractor,E621PoolExtractor; print('|'.join((E621FavoriteExtractor.archive_fmt,E621PostExtractor.archive_fmt,E621PoolExtractor.archive_fmt)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned E621 favorite archive template").trim(),
+        "f_{user_id}_{id}|{id}|p_{pool[id]}_{id}"
+    );
+}
