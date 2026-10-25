@@ -1915,15 +1915,27 @@ mod tests {
             "https://e621.net/favorites?user_id=42&user_id=43",
             "https://user:secret@e621.net/favorites?user_id=42",
         ] {
-            assert!(!archive.contains_for_source(&rotated, other).unwrap(), "{other}");
+            assert!(
+                !archive.contains_for_source(&rotated, other).unwrap(),
+                "{other}"
+            );
         }
         let different_post = MediaItem {
             post_id: Some(89),
             ..rotated
         };
-        assert!(!archive.contains_for_source(&different_post, favorites).unwrap());
+        assert!(!archive
+            .contains_for_source(&different_post, favorites)
+            .unwrap());
         assert!(canonical_favorite_archive_suffix("f_42_88"));
-        for key in ["f__88", "f_0_88", "f_42_0", "f_042_88", "f_42_088", "f_42_88_1"] {
+        for key in [
+            "f__88",
+            "f_0_88",
+            "f_42_0",
+            "f_042_88",
+            "f_42_088",
+            "f_42_88_1",
+        ] {
             assert!(!canonical_favorite_archive_suffix(key), "{key}");
         }
         drop(archive);
