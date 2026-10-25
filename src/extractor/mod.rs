@@ -59,6 +59,7 @@ pub mod picarto;
 pub mod picazor;
 pub mod picstate;
 pub mod pictoa;
+pub mod piczel;
 pub mod pixeldrain;
 pub mod postimg;
 pub mod silverpic;
@@ -262,6 +263,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("picazor", "bounded public user files and source media"),
     ("pictoa", "guarded public image originals and album queues"),
+    ("piczel", "bounded Piczel user, folder and image JSON galleries"),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
@@ -445,6 +447,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("picazor")
     } else if pictoa::match_url(input).is_some() {
         Some("pictoa")
+    } else if piczel::match_url(input).is_some() {
+        Some("piczel")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -722,6 +726,9 @@ pub async fn resolve(
     if let Some(target) = pictoa::match_url(input) {
         return pictoa::resolve(client, target).await;
     }
+    if let Some(target) = piczel::match_url(input) {
+        return piczel::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -861,6 +868,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = pictoa::match_url(input) {
         return pictoa::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = piczel::match_url(input) {
+        return piczel::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1339,6 +1349,9 @@ mod tests {
             ("https://picazor.com/en/example", "picazor"),
             ("https://www.pictoa.com/albums/Art-12345.html", "pictoa"),
             ("https://www.pictoa.com/albums/Art-12345/678.html", "pictoa"),
+            ("https://piczel.tv/gallery/artist", "piczel"),
+            ("https://piczel.tv/gallery/artist/123", "piczel"),
+            ("https://piczel.tv/gallery/image/456", "piczel"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
