@@ -81,7 +81,10 @@ use std::error::Error;
 /// Only previews with a dispatcher implementation appear here. This is not
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
-    ("architizer", "public Architizer project images and firm project queues"),
+    (
+        "architizer",
+        "public Architizer project images and firm project queues",
+    ),
     ("directlink", "direct HTTP(S) media URL subset"),
     (
         "arena",
