@@ -290,6 +290,82 @@ fn failed_download_is_not_archived_and_can_be_retried_on_next_invocation() {
 }
 
 #[test]
+fn truncated_transfer_resumes_with_if_range_without_poisoning_archive() {
+    let dir = temp("interrupted-resume");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/partial.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let mut buffer = [0_u8; 2048];
+        let request_len = first.read(&mut buffer).unwrap();
+        assert!(String::from_utf8_lossy(&buffer[..request_len]).contains("/partial.jpg"));
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"resumable\"\r\nConnection: close\r\n\r\n1234",
+            )
+            .unwrap();
+        drop(first);
+        let (mut second, _) = listener.accept().unwrap();
+        let request_len = second.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..request_len]).to_ascii_lowercase();
+        assert!(request.contains("range: bytes=4-"), "{request}");
+        assert!(request.contains("if-range: \"resumable\""), "{request}");
+        second
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nContent-Range: bytes 4-7/8\r\nETag: \"resumable\"\r\nConnection: close\r\n\r\n5678",
+            )
+            .unwrap();
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let failed = invoke();
+    assert!(!failed.status.success());
+    assert!(!dir.join("partial.jpg").exists());
+    assert_eq!(fs::read(dir.join("partial.jpg.part")).unwrap(), b"1234");
+    let first_count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(first_count, 0);
+
+    let resumed = invoke();
+    assert!(
+        resumed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&resumed.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("partial.jpg")).unwrap(), b"12345678");
+    assert!(!dir.join("partial.jpg.part").exists());
+    let recorded: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(recorded, 1);
+    fs::remove_file(dir.join("partial.jpg")).unwrap();
+    let skipped = invoke();
+    assert!(
+        skipped.status.success(),
+        "{}",
+        String::from_utf8_lossy(&skipped.stderr)
+    );
+    assert!(String::from_utf8_lossy(&skipped.stdout).contains("archived partial.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn process_crash_releases_archive_lock_and_next_run_can_download() {
     let dir = temp("crash-recovery");
     let _ = fs::remove_dir_all(&dir);
