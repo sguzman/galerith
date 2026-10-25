@@ -403,6 +403,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bounded_user_api_follows_two_pages_with_first_seen_work_ids() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                (
+                    "/api/v1/users/artist/works?page=1&per_page=20",
+                    r#"{"works":[{"id":12,"type":"image"}],"meta":{"current_page":1,"total_pages":2}}"#,
+                ),
+                (
+                    "/api/v1/users/artist/works?page=2&per_page=20",
+                    r#"{"works":[{"id":12,"type":"image"},{"id":34,"type":"image"}],"meta":{"current_page":2,"total_pages":2}}"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = [0u8; 4096];
+                let n = socket.read(&mut buf).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&buf[..n])
+                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                );
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/api/")).unwrap();
+        let children = at_user(&Client::new(), &base, "artist", 4).await.unwrap();
+        let urls = children
+            .iter()
+            .map(|value| serde_json::to_value(value).unwrap()["url"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            urls,
+            vec!["https://foriio.com/works/12", "https://foriio.com/works/34"]
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn public_work_and_user_queue_read_bounded_local_api() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
