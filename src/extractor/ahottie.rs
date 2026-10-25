@@ -157,6 +157,43 @@ fn safe_image(raw: &str) -> Option<(String, String)> {
     Some((u.to_string(), ext))
 }
 
+/// Read source-visible gallery tags from the tag icon's enclosing section.
+fn visible_tags(html: &str) -> Vec<String> {
+    let Some(section) = html
+        .split_once("<i ")
+        .and_then(|(_, right)| right.split_once("</div>"))
+        .map(|(inside, _)| inside)
+    else {
+        return Vec::new();
+    };
+    let mut tags = Vec::new();
+    let mut seen = HashSet::new();
+    for anchor in section.split("<a ").skip(1).take(80) {
+        let Some((_, content)) = anchor.split_once('>') else {
+            continue;
+        };
+        let Some((label, _)) = content.split_once("</a>") else {
+            continue;
+        };
+        let label = label.trim();
+        if label.is_empty()
+            || label.len() > 100
+            || label.contains('<')
+            || label.chars().any(char::is_control)
+        {
+            continue;
+        }
+        let label = label
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'");
+        if seen.insert(label.clone()) {
+            tags.push(label);
+        }
+    }
+    tags
+}
+
 fn gallery_page(
     html: &str,
     id: &str,
@@ -177,6 +214,13 @@ fn gallery_page(
             .filter(|s| s.len() <= 64 && !s.chars().any(char::is_control))
         {
             meta.insert("date_source".into(), date.into());
+        }
+        let tags = visible_tags(html);
+        if !tags.is_empty() {
+            meta.insert(
+                "tags".into(),
+                serde_json::Value::Array(tags.into_iter().map(serde_json::Value::String).collect()),
+            );
         }
     }
     let section = html
@@ -454,6 +498,26 @@ mod tests {
         assert_eq!(out[1].1["gallery_id"], "Gallery1");
         assert_eq!(out[0].1["title"], "Landscape");
         assert_eq!(out[0].1["date_source"], "2025-09-10T10:00:00Z");
+    }
+
+    #[test]
+    fn source_gallery_tag_container_deduplicates_visible_tag_labels() {
+        let html = r#"<title>Gallery | Ahottie</title><i class="tags"></i><a href="/tags/city">City</a><a href="/tags/sky">Sky &amp; Water</a><a href="/tags/city">City</a></div><time datetime="2025-09-10T10:00:00Z"></time><div>" src="https://images.ahottie.top/1.jpg"></div>"#;
+        let mut out = Vec::new();
+        gallery_page(
+            html,
+            "Gallery1",
+            &mut Metadata::new(),
+            &mut HashSet::new(),
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].1["tags"], serde_json::json!(["City", "Sky & Water"]));
+        assert_eq!(
+            visible_tags(r#"<i class="tags"></i><a href="/tags/city">City</a><script>x</script></div>"#),
+            vec!["City"]
+        );
     }
 
     #[test]
