@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 66 · Not ported: 206.**
+**Complete: 0 · Partial: 67 · Not ported: 205.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -120,7 +120,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/kemono.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/khinsider.py` | 🟡 Partial | `src/extractor/khinsider.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/komikcast.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/koofr.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/koofr.py` | 🟡 Partial | `src/extractor/koofr.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/leakgallery.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/lensdump.py` | 🟡 Partial | `src/extractor/lensdump.rs`, `src/extractor/lensdump/user.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/lexica.py` | 🟡 Partial | `src/extractor/lexica.rs`, `src/extractor/mod.rs` |

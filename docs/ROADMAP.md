@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 150 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 151 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -839,6 +839,12 @@
   - [x] Validate first-party media originals and bounded pagination cursor evolution, post and variant counts — src/extractor/piczel.rs original, pagination_rejects_cursor_skips_and_bounds; CI 40198813205
   - [x] Verify user and folder paginated source API plus individual image endpoint with real HTTP fixture and native dispatcher — src/extractor/piczel.rs public_user_gallery_two_json_pages_keep_multi_media_order and folder_and_image_modes_fetch_exact_first_party_endpoints; src/extractor/mod.rs; CI 40198813205
   - [ ] Match full upstream URL/CDN variations, date and overlay metadata, all folder/archive naming, unlimited source pagination and live differential parity
+- 📁 **T593** Koofr public shared files and bounded recursive folders — `████████░░ 80%`
+  - [x] Recognize pinned Koofr app/shared link origins and safe public link IDs, refusing credentials, private queries and forged hosts — src/extractor/koofr.rs pinned_public_share_origins_only; full Linux CI 40200014555
+  - [x] Resolve source-backed public shared file metadata and canonical download URLs with guarded first-party media origin, filename and path handling — src/extractor/koofr.rs strict_origin_and_filename_guards_reject_malicious_content and one_public_shared_file_uses_only_public_index_endpoint; full CI 40200014555
+  - [x] Traverse bounded public subdirectories and preserve source item ordering, hash, modified time, size and typed directory/URL events — src/extractor/koofr.rs bounded_two_directory_bundle_pages_keep_source_paths_and_order; native src/extractor/mod.rs integration; full CI 40200014555
+  - [x] Enforce 2 MiB JSON response, 160-file/48-entry/32-directory/4-level limits and fixed first-party API requests with local HTTP fixtures — src/extractor/koofr.rs response_json, at_base, one_public_shared_file_uses_only_public_index_endpoint and bounded_two_directory_bundle_pages_keep_source_paths_and_order; full CI 40200014555
+  - [ ] Match pinned short k00.fr redirect aliases, optional shared passwords, complete metadata/file templating, all publicUrlBase/CDN variations and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
