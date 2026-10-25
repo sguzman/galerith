@@ -12,6 +12,19 @@ pub async fn fetch_json_limited(
     endpoint: Url,
     max_bytes: usize,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    if crate::cache::Cache::allows(&endpoint) {
+        if let Some(cache) = crate::cache::Cache::current() {
+            return cache.fetch_json(client, endpoint, max_bytes).await;
+        }
+    }
+    fetch_json_uncached(client, endpoint, max_bytes).await
+}
+
+pub(crate) async fn fetch_json_uncached(
+    client: &Client,
+    endpoint: Url,
+    max_bytes: usize,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }

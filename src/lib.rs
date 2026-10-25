@@ -1,6 +1,7 @@
 //! Initial extractor contracts. A complete port remains the MVP gate.
 //! This module implements only direct media URL recognition, not site galleries.
 pub mod archive;
+pub mod cache;
 pub mod config;
 pub mod cookies;
 pub mod download;

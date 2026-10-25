@@ -1,6 +1,7 @@
 use clap::Parser;
 use galerith::{
     archive::Archive,
+    cache::Cache,
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
@@ -264,6 +265,14 @@ struct Cli {
     )]
     archive_import: bool,
 
+    /// Opt-in private SQLite cache for public pool/favorite-group API metadata
+    #[arg(long = "cache-db", value_name = "FILE", conflicts_with_all = ["cookies", "archive_import"])]
+    cache_db: Option<PathBuf>,
+
+    /// Freshness lifetime for public collection metadata (1-86400 seconds)
+    #[arg(long = "cache-ttl", value_name = "SECONDS", requires = "cache_db")]
+    cache_ttl: Option<u64>,
+
     /// Overwrite existing media instead of skipping
     #[arg(long)]
     no_skip: bool,
@@ -461,11 +470,17 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(IndexRange::parse)
             .transpose()?,
     };
+    let public_cache = cli
+        .cache_db
+        .as_deref()
+        .map(|path| Cache::open(path, cli.cache_ttl.unwrap_or(300)))
+        .transpose()?;
     let mut failed = 0usize;
     for url in urls {
         if cli.dump_messages {
-            let events = if cli.expand_queues {
-                let selection = JobSelection {
+            let message_future = async {
+                if cli.expand_queues {
+                    let selection = JobSelection {
                     files: cli
                         .message_file_range
                         .as_deref()
@@ -498,6 +513,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 .await
             } else {
                 resolve_messages(&client, &url, cli.max_pages).await
+                }
+            };
+            let events = if let Some(cache) = &public_cache {
+                cache.clone().scope(message_future).await
+            } else {
+                message_future.await
             };
             match events {
                 Ok(events) => {
@@ -516,10 +537,17 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             continue;
         }
-        let extraction = if cli.follow_queues {
-            resolve_media_job_selected(&client, &url, cli.max_pages, &job_selection).await
+        let extraction_future = async {
+            if cli.follow_queues {
+                resolve_media_job_selected(&client, &url, cli.max_pages, &job_selection).await
+            } else {
+                resolve(&client, &url, cli.max_pages).await
+            }
+        };
+        let extraction = if let Some(cache) = &public_cache {
+            cache.clone().scope(extraction_future).await
         } else {
-            resolve(&client, &url, cli.max_pages).await
+            extraction_future.await
         };
         let items = match extraction {
             Ok(items) => items,
