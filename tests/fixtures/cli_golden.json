@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "baseline": "7f226f74108501c8ac3120548370f68f19e6f9b3",
+  "scope": "galerith-cli-offline",
+  "cases": [
+    {
+      "id": "directlink-flat-json",
+      "args": [
+        "--dump-json",
+        "https://example.org/assets/night%20sky.png?size=original"
+      ],
+      "expect": {
+        "kind": "json_subset",
+        "value": {
+          "url": "https://example.org/assets/night%20sky.png?size=original",
+          "filename": "night sky.png",
+          "extractor": "directlink"
+        }
+      }
+    },
+    {
+      "id": "directlink-custom-filename",
+      "args": [
+        "-f",
+        "{category}_{stem}.{extension}",
+        "--dump-json",
+        "https://example.org/image.webp"
+      ],
+      "expect": {
+        "kind": "json_subset",
+        "value": {
+          "filename": "directlink_image.webp",
+          "extractor": "directlink"
+        }
+      }
+    },
+    {
+      "id": "directlink-typed-messages",
+      "args": [
+        "--dump-messages",
+        "https://example.org/photo.webp"
+      ],
+      "expect": {
+        "kind": "json_lines",
+        "value": [
+          {
+            "type": "directory",
+            "metadata": {
+              "category": "directlink",
+              "filename": "photo.webp"
+            }
+          },
+          {
+            "type": "url",
+            "url": "https://example.org/photo.webp",
+            "metadata": {
+              "category": "directlink",
+              "filename": "photo.webp"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "directlink-ordered-url",
+      "args": [
+        "--get-urls",
+        "https://example.org/photo.png?size=large"
+      ],
+      "expect": {
+        "kind": "stdout",
+        "text": "https://example.org/photo.png?size=large\n"
+      }
+    },
+    {
+      "id": "directlink-first-range",
+      "args": [
+        "--range",
+        "1",
+        "--get-urls",
+        "https://example.org/image.jpg"
+      ],
+      "expect": {
+        "kind": "stdout",
+        "text": "https://example.org/image.jpg\n"
+      }
+    },
+    {
+      "id": "directlink-absent-range",
+      "args": [
+        "--range",
+        "2",
+        "--get-urls",
+        "https://example.org/image.jpg"
+      ],
+      "expect": {
+        "kind": "stdout",
+        "text": ""
+      }
+    },
+    {
+      "id": "unsupported-gallery-redaction",
+      "args": [
+        "--simulate",
+        "https://example.org/gallery/42?api_key=SYNTHETIC_ONLY_MARKER"
+      ],
+      "expect": {
+        "kind": "error_contains",
+        "text": "no implemented extractor",
+        "absent": [
+          "SYNTHETIC_ONLY_MARKER"
+        ]
+      }
+    },
+    {
+      "id": "malformed-file-range",
+      "args": [
+        "--range",
+        "1:5:0",
+        "--get-urls",
+        "https://example.org/media.jpg"
+      ],
+      "expect": {
+        "kind": "error_contains",
+        "text": "error",
+        "absent": []
+      }
+    }
+  ]
+}
