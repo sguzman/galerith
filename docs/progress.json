@@ -4307,6 +4307,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T592",
+              "emoji": "🎨",
+              "name": "Piczel public user, folder and single-image gallery API family",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned Piczel user/gallery, folder and individual image paths with exact first-party validation",
+                  "passed": true,
+                  "evidence": "src/extractor/piczel.rs matches_pinned_public_user_folder_and_single_post_url_forms; CI 40198813205"
+                },
+                {
+                  "title": "Emit source-backed post directory and ordered media events with multi-image numbering, tags, folder and user metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/piczel.rs source_multi_post_directory_and_url_events_keep_order_and_identity and single_image_preserves_date_and_rejects_foreign_media; CI 40198813205"
+                },
+                {
+                  "title": "Validate first-party media originals and bounded pagination cursor evolution, post and variant counts",
+                  "passed": true,
+                  "evidence": "src/extractor/piczel.rs original, pagination_rejects_cursor_skips_and_bounds; CI 40198813205"
+                },
+                {
+                  "title": "Verify user and folder paginated source API plus individual image endpoint with real HTTP fixture and native dispatcher",
+                  "passed": true,
+                  "evidence": "src/extractor/piczel.rs public_user_gallery_two_json_pages_keep_multi_media_order and folder_and_image_modes_fetch_exact_first_party_endpoints; src/extractor/mod.rs; CI 40198813205"
+                },
+                {
+                  "title": "Match full upstream URL/CDN variations, date and overlay metadata, all folder/archive naming, unlimited source pagination and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

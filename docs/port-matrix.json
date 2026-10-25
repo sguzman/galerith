@@ -1485,9 +1485,14 @@
     {
       "path": "gallery_dl/extractor/piczel.py",
       "module": "piczel",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/piczel.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded pinned Piczel user, folder and image JSON API subset: URL patterns, single and multi-image post directories and ordered URLs, source post id/title/user/folder/tags/date source, first-party original validation, 2 MiB JSON, 4 pages/48 posts per page/16 images per post/160 originals, monotonic next_page, and three read-only API families with real user two-page and folder/single-image HTTP fixtures. CI 40198813205 passed format, Clippy, tests and release build. All full upstream media/date/archive and live parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/pillowfort.py",

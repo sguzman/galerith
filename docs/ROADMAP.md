@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 149 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 150 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -833,6 +833,12 @@
   - [x] Preserve source album titles and supported category tags, first-seen deduplicated image child URLs and bounded HTML — src/extractor/pictoa.rs album_queues_first_party_children_with_dedup_and_source_tags, album_children and source_html; CI 40198045711
   - [x] Bound album paging to four first-party pages and 128 children, reject off-origin/skipped page links, verify two-page HTTP fixture — src/extractor/pictoa.rs album_continuation_rejects_forged_origins_and_page_jumps and two_public_album_pages_yield_ordered_deduplicated_child_queues; CI 40198045711
   - [ ] Match complete upstream URL host aliases, HTML markup/pagination dialects, rich metadata, filename/archive templates and live pinned differential parity
+- 🎨 **T592** Piczel public user, folder and single-image gallery API family — `████████░░ 80%`
+  - [x] Route pinned Piczel user/gallery, folder and individual image paths with exact first-party validation — src/extractor/piczel.rs matches_pinned_public_user_folder_and_single_post_url_forms; CI 40198813205
+  - [x] Emit source-backed post directory and ordered media events with multi-image numbering, tags, folder and user metadata — src/extractor/piczel.rs source_multi_post_directory_and_url_events_keep_order_and_identity and single_image_preserves_date_and_rejects_foreign_media; CI 40198813205
+  - [x] Validate first-party media originals and bounded pagination cursor evolution, post and variant counts — src/extractor/piczel.rs original, pagination_rejects_cursor_skips_and_bounds; CI 40198813205
+  - [x] Verify user and folder paginated source API plus individual image endpoint with real HTTP fixture and native dispatcher — src/extractor/piczel.rs public_user_gallery_two_json_pages_keep_multi_media_order and folder_and_image_modes_fetch_exact_first_party_endpoints; src/extractor/mod.rs; CI 40198813205
+  - [ ] Match full upstream URL/CDN variations, date and overlay metadata, all folder/archive naming, unlimited source pagination and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
