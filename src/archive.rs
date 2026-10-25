@@ -267,7 +267,10 @@ fn canonical_favorite_archive_suffix(suffix: &str) -> bool {
 
 /// Pinned Moebooru categories with native post, pool and tag resolvers.
 fn is_moebooru_category(category: &str) -> bool {
-    matches!(category, "yandere" | "konachan" | "sakugabooru" | "lolibooru")
+    matches!(
+        category,
+        "yandere" | "konachan" | "sakugabooru" | "lolibooru"
+    )
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -639,8 +642,7 @@ fn moebooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
 }
 
 fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
-    booru_archive_scope(item, source_url)
-        .or_else(|| moebooru_archive_scope(item, source_url))
+    booru_archive_scope(item, source_url).or_else(|| moebooru_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -2914,9 +2916,7 @@ mod tests {
         let native = root.join("native.sqlite");
         let source = Connection::open(&foreign).unwrap();
         source
-            .execute_batch(
-                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;",
-            )
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
             .unwrap();
         for category in ["yandere", "konachan", "sakugabooru", "lolibooru"] {
             for suffix in ["88", "p_77_88", "t_blue fox_88"] {
@@ -2951,11 +2951,7 @@ mod tests {
                 extractor: category,
                 post_id: Some(88),
             };
-            for route in [
-                "/post/show/88",
-                "/pool/show/77",
-                "/post?tags=blue+fox",
-            ] {
+            for route in ["/post/show/88", "/pool/show/77", "/post?tags=blue+fox"] {
                 let source_url = format!("https://{host}{route}");
                 assert!(
                     archive.contains_for_source(&item, &source_url).unwrap(),
@@ -2973,10 +2969,7 @@ mod tests {
                     .unwrap());
             }
             assert!(!archive
-                .contains_for_source(
-                    &item,
-                    &format!("https://{host}:9443/post/show/88")
-                )
+                .contains_for_source(&item, &format!("https://{host}:9443/post/show/88"))
                 .unwrap());
         }
         drop(archive);
@@ -2985,10 +2978,7 @@ mod tests {
 
     #[test]
     fn moebooru_named_archive_requires_a_proven_category_prefix() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-moe-prefix-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("galerith-moe-prefix-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("source.sqlite");
