@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 57%`
+## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 59%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████░░░░ 63%`
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
 
-### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 52%`
+### 🗃️ P3 — Paths, archive and persistence — `██████░░░░ 55%`
 
 - 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -93,11 +93,11 @@
   - [ ] Platform filename rules and normalization
   - [ ] Reference-compatible filesystem tests
   - [x] Verify safe named-field, escaped brace and ID-width format subset — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418
-- 🧾 **T302** SQLite archive, cache and duplicate rules — `████░░░░░░ 40%`
+- 🧾 **T302** SQLite archive, cache and duplicate rules — `██████░░░░ 60%`
   - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)
   - [x] Keep multiple originals with the same source post ID distinct without storing signed URLs, and fail safe for ambiguous legacy post-only records — src/archive.rs multiple_originals_sharing_a_post_id_are_not_suppressed and legacy_post_only_keys_do_not_falsely_suppress_other_media; full Linux CI 40218601459
   - [ ] Archive ID semantics across extractors
-  - [ ] Cache expiry/locking/recovery
+  - [x] Cache expiry/locking/recovery — src/cache.rs TTL=0/nonzero, stale/invalid-row recovery, redirected-response nonpersistence, advisory-lock single-flight and killed-worker recovery; src/extractor/http_json.rs real reader integration; tests/cache_cli.rs cache isolation; full Linux CI 40243416911 and 40243609804
   - [ ] Migration and retry fixtures
 - 📋 **T303** Metadata sidecars and extension handling — `████░░░░░░ 40%`
   - [x] Metadata model for extractors — src/lib.rs

@@ -448,14 +448,15 @@
                 },
                 {
                   "title": "Cache expiry/locking/recovery",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/cache.rs TTL=0/nonzero, stale/invalid-row recovery, redirected-response nonpersistence, advisory-lock single-flight and killed-worker recovery; src/extractor/http_json.rs real reader integration; tests/cache_cli.rs cache isolation; full Linux CI 40243416911 and 40243609804"
                 },
                 {
                   "title": "Migration and retry fixtures",
                   "passed": false
                 }
               ],
-              "progress": 40
+              "progress": 60
             },
             {
               "id": "T303",
