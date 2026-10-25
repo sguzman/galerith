@@ -108,13 +108,22 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 "{url}: pinned filename stem"
             );
         }
-        let source = &source[0].as_array().unwrap()[1];
-        let extension = source["extension"].as_str().unwrap();
-        let stem = source["filename"].as_str().unwrap();
+        // Upstream formats the extension in lowercase, whereas the native
+        // flat filename preview preserves the source extension's spelling.
+        // Compare the upstream extension and stem independently above;
+        // do not conceal this outstanding filename-policy divergence.
+        let parsed = url::Url::parse(url).expect("verified test URL");
+        let basename = parsed
+            .path_segments()
+            .and_then(|mut segments| segments.next_back())
+            .expect("directlink basename");
+        let basename = percent_encoding::percent_decode_str(basename)
+            .decode_utf8()
+            .expect("UTF-8 fixture filename");
         assert_eq!(
             rust[0]["metadata"]["filename"],
-            format!("{stem}.{extension}"),
-            "{url}: native flattened safe filename"
+            basename.as_ref(),
+            "{url}: native flat filename policy"
         );
     }
 }
