@@ -63,6 +63,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
                 }
+                if is_booru_pool_category(category) && canonical_pool_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -85,11 +88,33 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "e926",
         "e6ai",
     ] {
-        if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
+        if prefix == category
+            && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
+                || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare)))
+        {
             return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn is_booru_pool_category(category: &str) -> bool {
+    matches!(category, "danbooru" | "e621" | "e926" | "e6ai")
+}
+
+/// The upstream pool template is p_{pool[id]}_{id}, with numeric IDs
+/// sourced from the pool object and the post. Never parse tag/favorite rows.
+fn canonical_pool_archive_suffix(suffix: &str) -> bool {
+    let Some((pool, post)) = suffix.strip_prefix("p_").and_then(|rest| rest.split_once('_'))
+    else {
+        return false;
+    };
+    let (Ok(pool_id), Ok(post_id)) = (pool.parse::<u64>(), post.parse::<u64>()) else {
+        return false;
+    };
+    pool_id > 0
+        && post_id > 0
+        && suffix == format!("p_{pool_id}_{post_id}")
 }
 
 fn valid_directlink_format(path: &str) -> bool {
@@ -147,6 +172,46 @@ fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
 
 fn direct_post_key(id: u64) -> String {
     format!("direct-post-id:{id}")
+}
+
+/// A gallery-dl pool extractor uses a *different archive ID* from its
+/// single-post extractor. The URL supplies the pool ID and the item holds
+/// the post ID; both must match a pinned pool class and canonical site.
+fn booru_pool(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
+    if !is_booru_pool_category(item.extractor) {
+        return None;
+    }
+    let post = item.post_id.filter(|id| *id > 0)?;
+    let parsed = url::Url::parse(source_url).ok()?;
+    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
+        return None;
+    }
+    match (item.extractor, parsed.host_str()?) {
+        ("danbooru", "danbooru.donmai.us")
+        | ("e621", "e621.net")
+        | ("e926", "e926.net")
+        | ("e6ai", "e6ai.net") => {}
+        _ => return None,
+    }
+    let segments: Vec<_> = parsed.path_segments()?.collect();
+    let pool = match segments.as_slice() {
+        ["pools", id] | ["pool", "show", id] => id.parse::<u64>().ok()?,
+        _ => return None,
+    };
+    (pool > 0).then_some((pool, post))
+}
+
+/// Scoped identity unifies native archive records, advisory locks and
+/// read-only upstream lookup for verified *individual posts or pools*.
+fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if let Some(id) = direct_booru_post(item, source_url) {
+        return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
+    }
+    let (pool, post) = booru_pool(item, source_url)?;
+    Some((
+        format!("pool-id:{pool}:post-id:{post}"),
+        format!("{}p_{pool}_{post}", item.extractor),
+    ))
 }
 
 fn philomena_id(item: &MediaItem) -> Option<u64> {
@@ -404,8 +469,8 @@ impl Archive {
         let mut hasher = Sha256::new();
         hasher.update(item.extractor.as_bytes());
         hasher.update([0]);
-        let stable_post = direct_booru_post(item, source_url).map(direct_post_key);
-        hasher.update(stable_post.as_deref().unwrap_or(&key(item)).as_bytes());
+        let stable_scope = booru_archive_scope(item, source_url).map(|(native, _)| native);
+        hasher.update(stable_scope.as_deref().unwrap_or(&key(item)).as_bytes());
         let stripe = hasher.finalize()[0] & 63;
         let file = fs::OpenOptions::new()
             .read(true)
@@ -541,7 +606,7 @@ impl Archive {
         item: &MediaItem,
         source_url: &str,
     ) -> Result<bool, rusqlite::Error> {
-        let Some(id) = direct_booru_post(item, source_url) else {
+        let Some((stable_key, normalized)) = booru_archive_scope(item, source_url) else {
             if self.contains(item)? {
                 return Ok(true);
             }
@@ -569,7 +634,6 @@ impl Archive {
             }
             return Ok(false);
         };
-        let stable_key = direct_post_key(id);
         let recorded: i64 = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = ?1 AND identity = ?2)",
             params![item.extractor, stable_key],
@@ -583,7 +647,7 @@ impl Archive {
             // downloaded. Promote it for future direct-post CDN rotations.
             self.connection.execute(
                 "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
-                params![item.extractor, direct_post_key(id)],
+                params![item.extractor, stable_key],
             )?;
             return Ok(true);
         }
@@ -602,7 +666,6 @@ impl Archive {
             }
         }
 
-        let normalized = format!("{}{id}", item.extractor);
         let migrated: i64 = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM imported_gallery_dl WHERE category = ?1 AND archive_sha256 = ?2)",
             params![item.extractor, archive_key_digest(&normalized)],
@@ -622,7 +685,11 @@ impl Archive {
             let configured = self.upstream_reference.as_ref().and_then(|_| {
                 self.upstream_reference_prefix
                     .as_deref()
-                    .map(|prefix| (prefix == item.extractor).then(|| format!("{prefix}{id}")))
+                    .map(|prefix| {
+                        (prefix == item.extractor)
+                            .then(|| normalized.strip_prefix(item.extractor).map(|id| format!("{prefix}{id}")))
+                            .flatten()
+                    })
             });
             let upstream_key = if self.upstream_reference.is_some() {
                 match configured {
@@ -658,7 +725,7 @@ impl Archive {
         item: &MediaItem,
         source_url: &str,
     ) -> Result<(), rusqlite::Error> {
-        let Some(id) = direct_booru_post(item, source_url) else {
+        let Some((stable_key, _)) = booru_archive_scope(item, source_url) else {
             return self.record(item);
         };
         let transaction = self.connection.unchecked_transaction()?;
@@ -668,7 +735,7 @@ impl Archive {
         )?;
         transaction.execute(
             "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
-            params![item.extractor, direct_post_key(id)],
+            params![item.extractor, stable_key],
         )?;
         transaction.commit()
     }
