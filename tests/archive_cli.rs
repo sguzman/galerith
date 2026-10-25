@@ -559,3 +559,66 @@ fn named_table_does_not_import_ambiguous_philomena_rows() {
     assert_eq!(counted, 1);
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn explicit_site_archive_prefix_migrates_unambiguous_philomena_ids() {
+    let dir = temp("site-prefix");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let foreign = dir.join("foreign.sqlite");
+    let source = rusqlite::Connection::open(&foreign).unwrap();
+    source
+        .execute_batch(
+            "CREATE TABLE other (entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO other VALUES ('123');
+             CREATE TABLE dedicated (entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO dedicated VALUES ('derpibooru123');",
+        )
+        .unwrap();
+    drop(source);
+    let source_bytes = fs::read(&foreign).unwrap();
+
+    let import = |table: &str, prefix: Option<&str>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command
+            .arg("--download-archive")
+            .arg(&native)
+            .arg("--gallery-dl-archive")
+            .arg(&foreign)
+            .arg("--gallery-dl-archive-table")
+            .arg(table);
+        if let Some(prefix) = prefix {
+            command.arg("--gallery-dl-archive-prefix").arg(prefix);
+        }
+        command.arg("--archive-import").output().unwrap()
+    };
+    let ambiguous = import("other", None);
+    assert!(
+        ambiguous.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ambiguous.stderr)
+    );
+    assert!(String::from_utf8_lossy(&ambiguous.stdout).contains("0 supported entries; 0 new"));
+
+    let unambiguous = import("dedicated", Some("derpibooru"));
+    assert!(
+        unambiguous.status.success(),
+        "{}",
+        String::from_utf8_lossy(&unambiguous.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&unambiguous.stdout).contains("1 supported entries; 1 new")
+    );
+    assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+    fs::remove_file(foreign).unwrap();
+
+    let saved = rusqlite::Connection::open(&native).unwrap();
+    let count: i64 = saved
+        .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_dir_all(dir).unwrap();
+}
