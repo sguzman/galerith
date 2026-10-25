@@ -420,18 +420,24 @@ mod tests {
         ));
         let _ = fs::remove_file(&path);
         let item = MediaItem {
-            url: "https://cdn.example.org/lock/5.jpg?token=hidden".into(),
+            url: "https://cdn.example.org/lock/5.jpg?token=old".into(),
             filename: "5.jpg".into(),
-            extractor: "archive-lock-test",
+            extractor: "derpibooru",
             post_id: Some(5),
         };
+        let rotated = MediaItem {
+            url: "https://another-cdn.example.org/5.png?token=new".into(),
+            filename: "5.png".into(),
+            ..item.clone()
+        };
+        assert_eq!(key(&item), key(&rotated));
         let first = Archive::open(&path).unwrap();
         let guard = first.lock_item(&item).await.unwrap().unwrap();
         assert!(!first.contains(&item).unwrap());
         let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         let (done_tx, done_rx) = std::sync::mpsc::channel();
         let next_path = path.clone();
-        let next_item = item.clone();
+        let next_item = rotated;
         let worker = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
