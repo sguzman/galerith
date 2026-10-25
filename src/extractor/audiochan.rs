@@ -395,6 +395,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn source_user_pagination_follows_has_more_and_deduplicates_audio_slugs() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                ("/users/alice", r#"{"data":{"username":"alice"}}"#),
+                (
+                    "/users/alice/audios?sfw_only=false&sort=new&page=1&limit=12",
+                    r#"{"data":[{"slug":"first"},{"slug":"second"}],"has_more":true}"#,
+                ),
+                (
+                    "/users/alice/audios?sfw_only=false&sort=new&page=2&limit=12",
+                    r#"{"data":[{"slug":"second"},{"slug":"third"}],"has_more":false}"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 8192];
+                let n = stream.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let jobs = user_at_base(&Client::new(), &base, "alice", 4).await.unwrap();
+        let urls = jobs.iter().map(|message| {
+            serde_json::to_value(message).unwrap()["url"].as_str().unwrap().to_owned()
+        }).collect::<Vec<_>>();
+        assert_eq!(urls, [
+            "https://audiochan.com/a/first",
+            "https://audiochan.com/a/second",
+            "https://audiochan.com/a/third",
+        ]);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn public_audio_get_and_user_queues_preserve_pinned_api_headers() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
