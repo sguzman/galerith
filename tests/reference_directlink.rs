@@ -206,6 +206,51 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 .any(|part| part == upstream_key.as_bytes()),
             "{url}: imported archive must not persist plaintext upstream IDs"
         );
+
+        // Upstream sets archive-prefix="" when archive-table is explicitly
+        // configured. Differential-check that site-independent directlink
+        // keys from the actual pinned source retain their meaning after
+        // safe, category-scoped native import.
+        let bare_key = upstream_key
+            .strip_prefix("directlink")
+            .expect("pinned category prefix");
+        let custom_path = db_dir.join(format!("custom-{case_index}.sqlite"));
+        let custom_source = rusqlite::Connection::open(&custom_path).unwrap();
+        custom_source
+            .execute_batch(
+                "CREATE TABLE named (entry TEXT PRIMARY KEY) WITHOUT ROWID;",
+            )
+            .unwrap();
+        custom_source
+            .execute(
+                "INSERT INTO named (entry) VALUES (?1)",
+                rusqlite::params![bare_key],
+            )
+            .unwrap();
+        drop(custom_source);
+        let source_bytes = std::fs::read(&custom_path).unwrap();
+        let custom_native = db_dir.join(format!("custom-native-{case_index}.sqlite"));
+        let named = galerith::archive::Archive::open_with_reference_options(
+            &custom_native,
+            Some(&custom_path),
+            Some("named"),
+            None,
+        )
+        .unwrap();
+        assert!(
+            named.contains(&item).unwrap(),
+            "{url}: named table default must omit the category prefix"
+        );
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(std::fs::read(&custom_path).unwrap(), source_bytes);
+        let detached = galerith::archive::Archive::open(&custom_native).unwrap();
+        assert!(
+            detached.contains(&item).unwrap(),
+            "{url}: named table imported key must work offline"
+        );
+        drop(detached);
+
         verified_cases.push(json!({
             "url": url,
             "reference_events": source,
@@ -214,6 +259,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             "archive_key_compatible": true,
             "external_archive_read_only": true,
             "offline_migration_recognized": true,
+            "named_table_prefix_semantics": "default_empty_verified",
             "known_divergence": "upstream formatted extension is lowercase; native flat filename retains original extension case"
         }));
     }
