@@ -407,6 +407,76 @@ mod tests {
         let _ = fs::remove_file(path);
     }
 
+    /// Invoked only by the parent recovery regression. Run in a separate
+    /// test-harness process so SIGKILL actually releases an OS file lock.
+    #[test]
+    fn locked_cache_process_helper() {
+        let Some(db) = std::env::var_os("GALERITH_TEST_CACHE_DB") else {
+            return;
+        };
+        let ready = std::env::var_os("GALERITH_TEST_CACHE_READY").unwrap();
+        let cache = Cache::open(Path::new(&db), 60).unwrap();
+        let url = Url::parse("https://e621.net/pools/901.json").unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let _ = cache
+                .fetch(&url, 1024, || async {
+                    fs::write(ready, b"locked").unwrap();
+                    std::future::pending::<Result<Value, Box<dyn Error + Send + Sync>>>().await
+                })
+                .await;
+        });
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn killed_process_releases_cache_lock_without_poisoning_database() {
+        let db = path("killed-worker");
+        let ready = path("killed-worker-ready");
+        let _ = fs::remove_file(&db);
+        let _ = fs::remove_file(&ready);
+        let parent_cache = Cache::open(&db, 60).unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "cache::tests::locked_cache_process_helper"])
+            .env("GALERITH_TEST_CACHE_DB", &db)
+            .env("GALERITH_TEST_CACHE_READY", &ready)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = tokio::time::Instant::now();
+        while !ready.exists() && start.elapsed() < Duration::from_secs(5) {
+            if let Some(status) = child.try_wait().unwrap() {
+                panic!("lock-holder process unexpectedly exited: {status}");
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        if !ready.exists() {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("cache lock-holder process did not become ready");
+        }
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/901.json").unwrap();
+        let recovered = tokio::time::timeout(
+            Duration::from_secs(5),
+            parent_cache.fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[901]}))
+            }),
+        )
+        .await
+        .expect("OS lock was not released after process termination")
+        .unwrap();
+        assert_eq!(recovered["post_ids"][0], 901);
+        drop(parent_cache);
+        let _ = fs::remove_file(db);
+        let _ = fs::remove_file(ready);
+    }
+
     #[tokio::test]
     async fn independent_handles_serialize_refresh_and_reopen() {
         let path = path("parallel");

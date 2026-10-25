@@ -25,9 +25,11 @@ pub(crate) async fn fetch_json_uncached(
     endpoint: Url,
     max_bytes: usize,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    Ok(fetch_json_uncached_with_final_url(client, endpoint, max_bytes)
-        .await?
-        .0)
+    Ok(
+        fetch_json_uncached_with_final_url(client, endpoint, max_bytes)
+            .await?
+            .0,
+    )
 }
 
 pub(crate) async fn fetch_json_uncached_with_final_url(
@@ -66,8 +68,10 @@ mod tests {
 
     #[tokio::test]
     async fn shared_reader_uses_opt_in_pool_cache_without_network() {
-        let path = std::env::temp_dir()
-            .join(format!("galerith-reader-cache-{}.sqlite", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "galerith-reader-cache-{}.sqlite",
+            std::process::id()
+        ));
         let _ = std::fs::remove_file(&path);
         let cache = crate::cache::Cache::open(&path, 300).unwrap();
         let endpoint = Url::parse("https://e621.net/pools/88.json").unwrap();
