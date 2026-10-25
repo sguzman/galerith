@@ -51,10 +51,10 @@ pub fn match_url(raw: &str) -> Option<Target> {
         {
             Some(Target::Manga((*slug).to_owned()))
         }
-        [("read" | "reader"), ("manga" | "series"), slug, chapter]
-        | [("read" | "reader"), ("manga" | "series"), slug, chapter, ""]
-        | [("read" | "reader"), ("manga" | "series"), slug, chapter, "1"]
-        | [("read" | "reader"), ("manga" | "series"), slug, chapter, "1", ""]
+        ["read" | "reader", "manga" | "series", slug, chapter]
+        | ["read" | "reader", "manga" | "series", slug, chapter, ""]
+        | ["read" | "reader", "manga" | "series", slug, chapter, "1"]
+        | ["read" | "reader", "manga" | "series", slug, chapter, "1", ""]
             if safe_component(slug) && safe_component(chapter) =>
         {
             Some(Target::Chapter {
