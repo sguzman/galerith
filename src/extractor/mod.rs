@@ -65,6 +65,7 @@ pub mod pictoa;
 pub mod piczel;
 pub mod pixeldrain;
 pub mod postimg;
+pub mod recursive;
 pub mod silverpic;
 pub mod slideshare;
 pub mod soundgasm;
@@ -120,6 +121,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Architizer project images and firm project queues",
     ),
     ("directlink", "direct HTTP(S) media URL subset"),
+    ("recursive", "bounded explicit local URL-list queue discovery"),
     (
         "arena",
         "bounded public Are.na channel images and attachments",
@@ -480,6 +482,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("wikimedia")
     } else if unsplash::match_url(input).is_some() {
         Some("unsplash")
+    } else if recursive::match_url(input).is_some() {
+        Some("recursive")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -777,6 +781,9 @@ pub async fn resolve(
     if let Some(target) = unsplash::match_url(input) {
         return unsplash::resolve(client, target, max_pages).await;
     }
+    if recursive::match_url(input).is_some() {
+        return Err("Recursive URL lists require --dump-messages or --follow-queues".into());
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -976,6 +983,9 @@ pub async fn resolve_messages(
     }
     if let Some(listing) = imageshack::match_listing_url(input) {
         return imageshack::resolve_listing_messages(client, listing, max_pages).await;
+    }
+    if let Some(source) = recursive::match_url(input) {
+        return recursive::resolve_messages(source).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
@@ -1330,6 +1340,7 @@ mod tests {
             ("https://imhentai.xxx/gallery/12345/", "imhentai"),
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
+            ("r:file:///tmp/gallery-links.txt", "recursive"),
             ("https://kabe-uchiroom.com/mypage/?id=12345", "kabeuchi"),
             ("https://bit.ly/abc_12", "urlshortener"),
             ("https://t.co/abc123", "urlshortener"),
