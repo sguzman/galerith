@@ -556,9 +556,14 @@
     {
       "path": "gallery_dl/extractor/fapachi.py",
       "module": "fapachi",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fapachi.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Fapachi post and user listing subset: validated fapachi.com and www routes, source media-img/data-src originals with safe first-party image/video links, source-backed user/post/extension, bounded 2 MiB HTML and four pages/128 first-seen child queues, strict next page origin/ordinal checks and one-second pacing. Real three-request post/two-page HTTP regression, formatting, Clippy, tests, upstream directlink oracle and release build passed CI 40212411120. Complete source naming/archive/metadata and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/fapello.py",

@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 157 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 158 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -883,6 +883,12 @@
   - [x] Emit bounded deduplicated typed child thread queues from public board catalog JSON without eager media downloads — src/extractor/jschan.rs catalog_queues_are_deferred_unique_canonical_threads; CI 40211638711
   - [x] Enforce 2 MiB JSON limits, 256-post/160-media/128-catalog caps, first-party API scope and two-request loopback thread/catalog fixtures — src/extractor/jschan.rs public_thread_and_board_json_use_bounded_loopback_http; src/extractor/mod.rs registered; full CI 40211638711
   - [ ] Match complete board/site variants, original filename and archive/directory templates, all post data and large-thread pagination, and live pinned upstream differential parity
+- 🖼️ **T600** Fapachi guarded public single post originals and user page queues — `████████░░ 80%`
+  - [x] Scope pinned first-party Fapachi post and user listing URLs with validated usernames, numeric IDs and page ordinals — src/extractor/fapachi.rs pins_first_party_posts_and_user_feed_routes_only; full Linux CI 40212411120
+  - [x] Extract first-party original post media from source media-img data-src, preserving user/post identities and extension — src/extractor/fapachi.rs post_original_preserves_id_filename_and_rejects_hostile_paths; CI 40212411120
+  - [x] Generate deduplicated, typed same-user deferred post queues while rejecting foreign links and forged Next-page hosts — src/extractor/fapachi.rs listing_queues_first_seen_same_user_original_posts; CI 40212411120
+  - [x] Enforce 2 MiB HTML, four user pages, 128 child queues and one-second page pacing with three-request post/two-page HTTP regression — src/extractor/fapachi.rs bounded_post_and_two_user_pages_use_three_loopback_gets; src/extractor/mod.rs routed fixture; full CI 40212411120
+  - [ ] Match complete upstream filename/directory/archive modes and post metadata, unlimited user history, other media/CDN layouts and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

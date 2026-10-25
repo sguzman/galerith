@@ -4573,6 +4573,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T600",
+              "emoji": "🖼️",
+              "name": "Fapachi guarded public single post originals and user page queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Scope pinned first-party Fapachi post and user listing URLs with validated usernames, numeric IDs and page ordinals",
+                  "passed": true,
+                  "evidence": "src/extractor/fapachi.rs pins_first_party_posts_and_user_feed_routes_only; full Linux CI 40212411120"
+                },
+                {
+                  "title": "Extract first-party original post media from source media-img data-src, preserving user/post identities and extension",
+                  "passed": true,
+                  "evidence": "src/extractor/fapachi.rs post_original_preserves_id_filename_and_rejects_hostile_paths; CI 40212411120"
+                },
+                {
+                  "title": "Generate deduplicated, typed same-user deferred post queues while rejecting foreign links and forged Next-page hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/fapachi.rs listing_queues_first_seen_same_user_original_posts; CI 40212411120"
+                },
+                {
+                  "title": "Enforce 2 MiB HTML, four user pages, 128 child queues and one-second page pacing with three-request post/two-page HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/fapachi.rs bounded_post_and_two_user_pages_use_three_loopback_gets; src/extractor/mod.rs routed fixture; full CI 40212411120"
+                },
+                {
+                  "title": "Match complete upstream filename/directory/archive modes and post metadata, unlimited user history, other media/CDN layouts and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
