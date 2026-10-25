@@ -18,6 +18,7 @@ pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
 pub mod fapachi;
+pub mod fapello;
 pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
@@ -187,6 +188,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "fapachi",
         "bounded public Fapachi post originals and user queues",
     ),
+    ("fapello", "public Fapello posts, models and path queues"),
     (
         "imagevenue",
         "pinned public ImageVenue single-image preview",
@@ -409,6 +411,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("fappic")
     } else if fapachi::match_url(input).is_some() {
         Some("fapachi")
+    } else if fapello::match_url(input).is_some() {
+        Some("fapello")
     } else if imagevenue::match_url(input).is_some() {
         Some("imagevenue")
     } else if imgclick::match_url(input).is_some() {
@@ -646,6 +650,9 @@ pub async fn resolve(
     }
     if let Some(target) = fapachi::match_url(input) {
         return fapachi::resolve(client, target).await;
+    }
+    if let Some(target) = fapello::match_url(input) {
+        return fapello::resolve(client, target).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve(client, target).await;
@@ -923,6 +930,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fapachi::match_url(input) {
         return fapachi::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = fapello::match_url(input) {
+        return fapello::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve_messages(client, target).await;
@@ -1388,6 +1398,8 @@ mod tests {
             ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://fapachi.com/model/media/12345", "fapachi"),
+            ("https://fapello.com/model/12345", "fapello"),
+            ("https://fapello.su/top-likes/", "fapello"),
             ("https://fapachi.com/model/page/2", "fapachi"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
             (
