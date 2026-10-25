@@ -194,9 +194,14 @@
     {
       "path": "gallery_dl/extractor/arena.py",
       "module": "arena",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/arena.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Are.na channel API subset: exact first-party channel owner/slug routing, /v2/channels/{slug} source metadata and /contents paging up to 4 pages of 100 blocks, 2 MiB JSON cap, 256-file cap, attachment then image original/display/large rendition priority, trusted first-party HTTPS file links, deduplication and source-backed user/channel/block information in typed events. Strict URL/source fixture and two-request loopback HTTP regression passed full Linux CI 40146310559. External asset hosts, full templates, unbounded pagination and live pinned differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/artstation.py",

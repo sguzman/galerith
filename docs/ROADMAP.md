@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 135 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 136 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -746,6 +746,12 @@
   - [x] Require trusted HTTPS 500px CDN media hosts and bounded API body, extensions, source names and available user/tags metadata — src/extractor/fivehundredpx.rs record/at_base and hostile media unit cases; CI 40144519987
   - [x] Wire native flat and typed extractor events with one-request local source API HTTP regression and pinned Origin/query fields — src/extractor/fivehundredpx.rs bounded_expanded_photo_api_fetches_one_local_source_request; src/extractor/mod.rs native routing; CI 40144519987
   - [ ] Support pinned authenticated CSRF/cookie handling, GraphQL user/gallery/favorites and pagination, full naming/archive metadata and live differential parity
+- 🧱 **T578** Are.na public channel images and attached media preview — `████████░░ 80%`
+  - [x] Recognize validated public Are.na channel user/name URLs without unsafe host, credential, query or encoded path variants — src/extractor/arena.rs routes_reject_foreign_hosts_queries_and_path_escapes; full CI 40146310559
+  - [x] Preserve public channel/user metadata and block IDs while preferring attached media then pinned image original/display/large renditions — src/extractor/arena.rs source_blocks_choose_attachments_then_image_renditions_and_deduplicate; full CI 40146310559
+  - [x] Scope direct originals to trusted first-party Are.na media domains and bound JSON/100-block pages, media count and deduplication — src/extractor/arena.rs source_media, request_json, append_contents, first-party and byte-bound tests; full CI 40146310559
+  - [x] Dispatch native flat and typed channel events via API channel metadata plus paged contents endpoint with local two-request HTTP verification — src/extractor/arena.rs public_channel_and_contents_make_two_bounded_api_requests; src/extractor/mod.rs routed registry fixture; full CI 40146310559
+  - [ ] Complete full pinned external attachment hosts, nested metadata and exact filename/archive/directory options, unrestricted pagination and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

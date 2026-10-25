@@ -3844,6 +3844,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T578",
+              "emoji": "🧱",
+              "name": "Are.na public channel images and attached media preview",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize validated public Are.na channel user/name URLs without unsafe host, credential, query or encoded path variants",
+                  "passed": true,
+                  "evidence": "src/extractor/arena.rs routes_reject_foreign_hosts_queries_and_path_escapes; full CI 40146310559"
+                },
+                {
+                  "title": "Preserve public channel/user metadata and block IDs while preferring attached media then pinned image original/display/large renditions",
+                  "passed": true,
+                  "evidence": "src/extractor/arena.rs source_blocks_choose_attachments_then_image_renditions_and_deduplicate; full CI 40146310559"
+                },
+                {
+                  "title": "Scope direct originals to trusted first-party Are.na media domains and bound JSON/100-block pages, media count and deduplication",
+                  "passed": true,
+                  "evidence": "src/extractor/arena.rs source_media, request_json, append_contents, first-party and byte-bound tests; full CI 40146310559"
+                },
+                {
+                  "title": "Dispatch native flat and typed channel events via API channel metadata plus paged contents endpoint with local two-request HTTP verification",
+                  "passed": true,
+                  "evidence": "src/extractor/arena.rs public_channel_and_contents_make_two_bounded_api_requests; src/extractor/mod.rs routed registry fixture; full CI 40146310559"
+                },
+                {
+                  "title": "Complete full pinned external attachment hosts, nested metadata and exact filename/archive/directory options, unrestricted pagination and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
