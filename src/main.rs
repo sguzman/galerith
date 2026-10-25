@@ -224,7 +224,7 @@ struct Cli {
     #[arg(long = "download-archive", value_name = "FILE")]
     download_archive: Option<PathBuf>,
 
-    /// Existing gallery-dl SQLite archive to consult read-only for direct links
+    /// Existing gallery-dl SQLite archive to consult read-only for supported IDs
     #[arg(
         long = "gallery-dl-archive",
         value_name = "FILE",

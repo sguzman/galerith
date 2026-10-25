@@ -36,7 +36,7 @@ These features are **implemented subsets**; the full port is still the first MVP
 | `--range` | 1-based single, inclusive, open-ended and stepped slice expressions | Early stopping and per-message file/post/child range semantics |
 | Config | Explicit `-c`, `--config-json`, `--config-yaml`, `--config-toml`, `-o` with nested overlay; filename/base-directory subset | Default discovery, complete option precedence and namespaces, CLI config diagnostics |
 | Cookies | Netscape cookies scoped by domain/path/TLS | Browser profile imports, login/token refresh |
-| Archive | Native SQLite on successful downloads | gallery-dl archive schema, IDs, migration and cache controls |
+| Archive | Native SQLite on successful downloads; read-only lookup of a separate gallery-dl SQLite archive for default directlink keys and Philomena image IDs, with same-file/symlink/hard-link rejection | All other extractor archive IDs, custom tables/formats, write-interchange, migration and cache-expiry behavior |
 | Resume | Range/If-Range validation, interrupted partials and bounded numeric/HTTP-date Retry-After | Full source-specific retry/mtime and rate policies |
 | Network & pacing | `--user-agent`, `--proxy`, `--http-timeout`, constant `--sleep` | Advanced TLS/IPv4/IPv6, complete proxy and pacing dialects |
 | `--write-metadata` | Atomic `<media-filename>.json` sidecar with redacted source URL, available fields only | Upstream metadata content, modes, event pipeline and filename rules |
