@@ -132,12 +132,18 @@ async fn keeps_valid_http_last_modified_as_output_mtime() {
     let item = extract_direct_media(&format!("http://{addr}/dated.png")).unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
-        .build().unwrap();
+        .build()
+        .unwrap();
     assert_eq!(
-        download(&client, &item, &options(dir.clone())).await.unwrap(),
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
         DownloadOutcome::Saved(dir.join("dated.png")),
     );
-    let actual = fs::metadata(dir.join("dated.png")).unwrap().modified().unwrap();
+    let actual = fs::metadata(dir.join("dated.png"))
+        .unwrap()
+        .modified()
+        .unwrap();
     let expected = httpdate::parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT").unwrap();
     assert!(actual.duration_since(expected).unwrap() < Duration::from_secs(2));
     assert_eq!(fs::read(dir.join("dated.png")).unwrap(), b"TIME");

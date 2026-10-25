@@ -301,7 +301,11 @@ pub async fn download(
         // Prefer the current response. Only a validated 206 append can inherit
         // the saved Last-Modified timestamp from the initial response.
         let source_mtime = header(&response, LAST_MODIFIED)
-            .or_else(|| append.then(|| prior.as_ref()?.last_modified.clone()).flatten())
+            .or_else(|| {
+                append
+                    .then(|| prior.as_ref()?.last_modified.clone())
+                    .flatten()
+            })
             .and_then(|value| httpdate::parse_http_date(&value).ok());
         let expected_body = resume_range
             .map(|(body, _)| body)
