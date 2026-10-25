@@ -58,14 +58,20 @@ fn decode_links(source: &str) -> Result<Vec<ExtractorMessage>, Box<dyn Error + S
         let bytes = &source.as_bytes()[start..];
         let width = bytes
             .iter()
-            .position(|byte| byte.is_ascii_whitespace() || matches!(byte, b'"' | b'\'' | b'<' | b'>'))
+            .position(|byte| {
+                byte.is_ascii_whitespace() || matches!(byte, b'"' | b'\'' | b'<' | b'>')
+            })
             .unwrap_or(bytes.len());
         if width == 0 {
             return Err("Recursive URL cursor did not advance".into());
         }
         cursor = start + width;
-        let Some(raw) = source.get(start..cursor) else { continue };
-        let Ok(parsed) = Url::parse(raw) else { continue };
+        let Some(raw) = source.get(start..cursor) else {
+            continue;
+        };
+        let Ok(parsed) = Url::parse(raw) else {
+            continue;
+        };
         if !matches!(parsed.scheme(), "http" | "https")
             || !parsed.username().is_empty()
             || parsed.password().is_some()
@@ -147,13 +153,22 @@ mod tests {
     #[tokio::test]
     async fn local_file_is_bounded_and_queues_only_read_only_links() {
         let mut path = std::env::temp_dir();
-        path.push(format!("galerith-recursive-fixture-{}.txt", std::process::id()));
-        tokio::fs::write(&path, "https://example.org/first\nhttps://example.org/second\n")
-            .await.unwrap();
+        path.push(format!(
+            "galerith-recursive-fixture-{}.txt",
+            std::process::id()
+        ));
+        tokio::fs::write(
+            &path,
+            "https://example.org/first\nhttps://example.org/second\n",
+        )
+        .await
+        .unwrap();
         let url = format!("r:{}", Url::from_file_path(&path).unwrap());
         let events = resolve_messages(match_url(&url).unwrap()).await.unwrap();
         assert_eq!(events.len(), 2);
-        tokio::fs::write(&path, vec![b'a'; MAX_BYTES + 1]).await.unwrap();
+        tokio::fs::write(&path, vec![b'a'; MAX_BYTES + 1])
+            .await
+            .unwrap();
         assert!(resolve_messages(match_url(&url).unwrap()).await.is_err());
         tokio::fs::remove_file(path).await.unwrap();
     }

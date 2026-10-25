@@ -121,7 +121,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Architizer project images and firm project queues",
     ),
     ("directlink", "direct HTTP(S) media URL subset"),
-    ("recursive", "bounded explicit local URL-list queue discovery"),
+    (
+        "recursive",
+        "bounded explicit local URL-list queue discovery",
+    ),
     (
         "arena",
         "bounded public Are.na channel images and attachments",
