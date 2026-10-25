@@ -28,7 +28,9 @@ pub fn match_url(raw: &str) -> Option<Code> {
         return None;
     };
     if !(1..=96).contains(&code.len())
-        || !code.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        || !code
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
     {
         return None;
     }
@@ -45,7 +47,9 @@ async fn short_at_base(
     if !response.status().is_redirection() {
         return Err("Koofr short URL is not a supported public redirect".into());
     }
-    let raw_location = response.headers().get(LOCATION)
+    let raw_location = response
+        .headers()
+        .get(LOCATION)
         .ok_or("Koofr short URL has no redirect destination")?
         .to_str()?;
     if raw_location.len() > 512 {
@@ -70,13 +74,15 @@ async fn resolve_code(code: &Code) -> Result<Share, Box<dyn Error + Send + Sync>
 }
 
 pub async fn resolve(
-    client: &Client, code: Code,
+    client: &Client,
+    code: Code,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     super::resolve(client, resolve_code(&code).await?).await
 }
 
 pub async fn resolve_messages(
-    client: &Client, code: Code,
+    client: &Client,
+    code: Code,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     super::resolve_messages(client, resolve_code(&code).await?).await
 }
@@ -84,11 +90,17 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn short_codes_reject_forged_hosts_and_private_fields() {
-        assert_eq!(match_url("https://k00.fr/Example7"), Some(Code("Example7".into())));
+        assert_eq!(
+            match_url("https://k00.fr/Example7"),
+            Some(Code("Example7".into()))
+        );
         for invalid in [
             "https://evilk00.fr/Example7",
             "https://k00.fr/Example7?token=secret",
@@ -109,8 +121,7 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0u8; 4096];
             let n = stream.read(&mut request).await.unwrap();
-            assert!(String::from_utf8_lossy(&request[..n])
-                .starts_with("GET /Example7 HTTP/1.1"));
+            assert!(String::from_utf8_lossy(&request[..n]).starts_with("GET /Example7 HTTP/1.1"));
             let response = format!(
                 "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             );
@@ -125,13 +136,24 @@ mod tests {
 
     #[tokio::test]
     async fn one_redirect_uses_canonical_public_link_without_following() {
-        let target = fixture("https://app.koofr.net/links/1234-abc").await.unwrap();
-        assert_eq!(target, super::super::match_url("https://koofr.net/links/1234-abc").unwrap());
+        let target = fixture("https://app.koofr.net/links/1234-abc")
+            .await
+            .unwrap();
+        assert_eq!(
+            target,
+            super::super::match_url("https://koofr.net/links/1234-abc").unwrap()
+        );
     }
 
     #[tokio::test]
     async fn foreign_and_private_destinations_are_rejected_without_following() {
-        assert!(fixture("https://evilkoofr.net/links/1234-abc").await.is_err());
-        assert!(fixture("https://app.koofr.net/links/1234-abc?password=private").await.is_err());
+        assert!(fixture("https://evilkoofr.net/links/1234-abc")
+            .await
+            .is_err());
+        assert!(
+            fixture("https://app.koofr.net/links/1234-abc?password=private")
+                .await
+                .is_err()
+        );
     }
 }
