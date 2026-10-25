@@ -1461,9 +1461,14 @@
     {
       "path": "gallery_dl/extractor/picazor.py",
       "module": "picazor",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/picazor.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent pinned Picazor public files subset: /LANG/USER profile route, read-only JSON /api/files/USER/sfiles with source-pinned Referer, 2 MiB response, 4-page/48-items-per-page and 160-media bounds, source id/order and original path, one directory event with available subject, supported image/video extensions. Path normalization and double encoding adversarial regressions plus real two-page HTTP fixture; CI 40197408931 passed formatting, Clippy, tests, roadmap and release build. Remaining source types/metadata/full output parity and live compatibility unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/pictoa.py",

@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 147 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 148 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -821,6 +821,12 @@
   - [x] Bound Picarto public JSON API response, page count, source post count and media output — src/extractor/picarto.rs read_json, decode_page and at_api bounds; CI 40157062846
   - [x] Integrate typed source URL/directory events and preserve order through real two-page JSON API loopback HTTP regression — src/extractor/picarto.rs bounded_json_api_pagination_preserves_source_post_and_variation_order and src/extractor/mod.rs dispatch; CI 40157062846
   - [ ] Match complete source channel/page metadata, dates, absent-image directory events, variation overlays, filenames and archive, and live pinned differential parity
+- 🗂️ **T590** Picazor bounded public user files and source image ordering — `████████░░ 80%`
+  - [x] Recognize pinned language/user routes, rejecting lookalike hosts and unsafe/secret URL parts — src/extractor/picazor.rs pinned_languages_and_users_reject_foreign_hosts_or_private_urls; CI 40197408931
+  - [x] Parse source-backed file id/order, original image and video URLs, first subject/directory metadata, skipping missing file paths — src/extractor/picazor.rs original_files_preserve_source_order_and_skip_missing_paths; CI 40197408931
+  - [x] Reject foreign, encoded, double-encoded and normalized traversal paths while validating bounded public media extensions — src/extractor/picazor.rs file_origins_and_encoded_path_escapes_are_rejected; CI 40197408931
+  - [x] Bound paginated JSON and media emission, preserve pinned Referer header and ordered directory/URL events through offline HTTP test — src/extractor/picazor.rs bounded_user_file_api_fetches_source_order_with_pinned_referer and src/extractor/mod.rs dispatcher; CI 40197408931
+  - [ ] Match unrestricted public history, all file types and source metadata, exact filename/archive/folder templates, browser compatibility and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -4243,6 +4243,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T590",
+              "emoji": "🗂️",
+              "name": "Picazor bounded public user files and source image ordering",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned language/user routes, rejecting lookalike hosts and unsafe/secret URL parts",
+                  "passed": true,
+                  "evidence": "src/extractor/picazor.rs pinned_languages_and_users_reject_foreign_hosts_or_private_urls; CI 40197408931"
+                },
+                {
+                  "title": "Parse source-backed file id/order, original image and video URLs, first subject/directory metadata, skipping missing file paths",
+                  "passed": true,
+                  "evidence": "src/extractor/picazor.rs original_files_preserve_source_order_and_skip_missing_paths; CI 40197408931"
+                },
+                {
+                  "title": "Reject foreign, encoded, double-encoded and normalized traversal paths while validating bounded public media extensions",
+                  "passed": true,
+                  "evidence": "src/extractor/picazor.rs file_origins_and_encoded_path_escapes_are_rejected; CI 40197408931"
+                },
+                {
+                  "title": "Bound paginated JSON and media emission, preserve pinned Referer header and ordered directory/URL events through offline HTTP test",
+                  "passed": true,
+                  "evidence": "src/extractor/picazor.rs bounded_user_file_api_fetches_source_order_with_pinned_referer and src/extractor/mod.rs dispatcher; CI 40197408931"
+                },
+                {
+                  "title": "Match unrestricted public history, all file types and source metadata, exact filename/archive/folder templates, browser compatibility and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
