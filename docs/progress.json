@@ -4842,7 +4842,12 @@
                   "evidence": "tests/fixtures/cli_golden.json pinned to upstream source hash and tests/oracle_cli.rs deterministic eight-case offline CLI output/redaction contract; full Linux Rust CI 40205524617 (format, Clippy, roadmap, tests, release build) passed; docs/ORACLE_CLI.md explicitly excludes upstream runtime comparison"
                 },
                 {
-                  "title": "Deterministic extractor comparisons",
+                  "title": "Run isolated pinned upstream directlink reference against actual native typed events with verified SHA and no source-site traffic",
+                  "passed": true,
+                  "evidence": "tests/reference_directlink.rs (four public offline directlink URLs, real Python reference CLI only in CI, compare directory/URL order, origin/path/source fields); .github/workflows/ci.yml pinned-gallery-dl checkout SHA and combined CI status; full Rust and pinned reference CI 40206360597 passed"
+                },
+                {
+                  "title": "Prove deterministic pinned upstream differential equivalence across supported extractor families and complete filename/archive semantics",
                   "passed": false
                 },
                 {
@@ -4850,7 +4855,7 @@
                   "passed": false
                 }
               ],
-              "progress": 50
+              "progress": 60
             },
             {
               "id": "T1002",
