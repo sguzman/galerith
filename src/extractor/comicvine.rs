@@ -342,18 +342,29 @@ mod tests {
                     )
                 })
             }).collect::<Vec<_>>()
-        }).to_string();
+        })
+        .to_string();
         let second = serde_json::json!({
             "images": [
                 {"id":1000,"original":"https://comicvine.gamespot.com/a/uploads/original/1000.jpg"},
                 {"id":1001,"original":"https://comicvine.gamespot.com/a/uploads/original/1001.jpg"}
             ]
-        }).to_string();
+        })
+        .to_string();
         let server = tokio::spawn(async move {
             for (path, body) in [
-                ("/covers/123-45/images/", r#"<div data-gallery-id="g12">"#.to_owned()),
-                ("/js/image-data.json?images=g12&start=0&count=1000&object=123-45", first),
-                ("/js/image-data.json?images=g12&start=1000&count=1000&object=123-45", second),
+                (
+                    "/covers/123-45/images/",
+                    r#"<div data-gallery-id="g12">"#.to_owned(),
+                ),
+                (
+                    "/js/image-data.json?images=g12&start=0&count=1000&object=123-45",
+                    first,
+                ),
+                (
+                    "/js/image-data.json?images=g12&start=1000&count=1000&object=123-45",
+                    second,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut request = [0_u8; 4096];
