@@ -358,6 +358,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tag_pagination_reads_two_source_pages_and_preserves_media_order() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut first = String::from("<posts offset=\"0\" count=\"46\">");
+            for id in 1..=45 {
+                first.push_str(&format!(
+                    "<post><id>{id}</id><file_url>https://img.agn.ph/files/{id}.jpg</file_url></post>"
+                ));
+            }
+            first.push_str("</posts>");
+            let second = "<posts offset=\"45\" count=\"46\"><post><id>46</id><file_url>https://img.agn.ph/files/46.jpg</file_url></post></posts>";
+            for (route, body) in [
+                ("/gallery/post/?search=fox&api=xml&page=1", first.as_str()),
+                ("/gallery/post/?search=fox&api=xml&page=2", second),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..n])
+                        .starts_with(&format!("GET {route} HTTP/1.1"))
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let items = at_base(
+            &Client::new(),
+            &base,
+            Target::Search {
+                tags: "fox".into(),
+                start: 1,
+            },
+            3,
+        )
+        .await
+        .unwrap();
+        assert_eq!(items.len(), 46);
+        assert_eq!(items[0].0.filename, "1.jpg");
+        assert_eq!(items[44].0.filename, "45.jpg");
+        assert_eq!(items[45].0.filename, "46.jpg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn single_post_and_tag_xml_use_public_bounded_api_requests() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
