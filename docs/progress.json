@@ -4509,6 +4509,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T598",
+              "emoji": "🖼️",
+              "name": "Urlgalleries public gallery source image-page queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned blog/galleries with numeric IDs and optional title slugs, refusing host lookalikes and unsafe source fields",
+                  "passed": true,
+                  "evidence": "src/extractor/urlgalleries.rs pinned_public_gallery_routes_reject_forged_sources_and_queries; full Linux CI 40210181020"
+                },
+                {
+                  "title": "Read first-party source album sections and bounded ordered image-page links with visible source gallery metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/urlgalleries.rs gallery_section_extracts_ordered_first_party_image_pages and source_metadata; CI 40210181020"
+                },
+                {
+                  "title": "Resolve bounded per-image HTML into validated public HTTP(S) original URLs as typed deferred child queues, not eager files",
+                  "passed": true,
+                  "evidence": "src/extractor/urlgalleries.rs trusted_external, at_base and bounded_public_gallery_and_image_pages_emit_typed_original_queues; CI 40210181020"
+                },
+                {
+                  "title": "Enforce 2 MiB source page HTML/48-queue cap, request pacing and URL origin restrictions in three-request loopback HTTP fixture and native dispatcher",
+                  "passed": true,
+                  "evidence": "src/extractor/urlgalleries.rs bounded_public_gallery_and_image_pages_emit_typed_original_queues; src/extractor/mod.rs dispatcher; full CI 40210181020"
+                },
+                {
+                  "title": "Reproduce unrestricted full original media delegation, complete gallery metadata/tags/archive/naming, all blog/gallery layouts and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

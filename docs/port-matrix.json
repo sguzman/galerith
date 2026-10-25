@@ -1982,9 +1982,14 @@
     {
       "path": "gallery_dl/extractor/urlgalleries.py",
       "module": "urlgalleries",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/urlgalleries.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Urlgalleries blog gallery partial port: strict first-party /BLOG/ID[/SLUG] routing, source ?a=10000 album section HTML, source metadata and per-image IMAGE_URL pages, bounded 2 MiB response and 48 child queue pages, 300 ms pacing, strict first-party source links and public HTTP(S) external originals with deferred typed queues rather than eager media. One album plus two image-page real loopback HTTP test, format/Clippy/tests/release and separate pinned directlink oracle CI 40210181020 passed. Exact full metadata/tags/archive, unconstrained galleries and live differential behavior remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/urlshortener.py",

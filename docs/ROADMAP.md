@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 155 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 156 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -871,6 +871,12 @@
   - [x] Reject source media traversal and unsupported extensions while retaining first-party HTTPS CDN paths and bound JSON/post/media response sizes — src/extractor/s3ndpics.rs valid_file_path, file_url, records_for_post, get_json and hostile file fixtures; CI 40209522247
   - [x] Support bounded public user listing pagination and search APIs with a two-page local HTTP regression and typed directory/URL messages — src/extractor/s3ndpics.rs public_user_api_paginates_two_source_pages_and_retains_order; src/extractor/mod.rs routed registry; full Rust and directlink oracle CI 40209522247
   - [ ] Match complete search parameter dialect, all original file types, exact upstream date/filename/archive/user structures, unbounded history and live differential parity
+- 🖼️ **T598** Urlgalleries public gallery source image-page queues — `████████░░ 80%`
+  - [x] Recognize pinned blog/galleries with numeric IDs and optional title slugs, refusing host lookalikes and unsafe source fields — src/extractor/urlgalleries.rs pinned_public_gallery_routes_reject_forged_sources_and_queries; full Linux CI 40210181020
+  - [x] Read first-party source album sections and bounded ordered image-page links with visible source gallery metadata — src/extractor/urlgalleries.rs gallery_section_extracts_ordered_first_party_image_pages and source_metadata; CI 40210181020
+  - [x] Resolve bounded per-image HTML into validated public HTTP(S) original URLs as typed deferred child queues, not eager files — src/extractor/urlgalleries.rs trusted_external, at_base and bounded_public_gallery_and_image_pages_emit_typed_original_queues; CI 40210181020
+  - [x] Enforce 2 MiB source page HTML/48-queue cap, request pacing and URL origin restrictions in three-request loopback HTTP fixture and native dispatcher — src/extractor/urlgalleries.rs bounded_public_gallery_and_image_pages_emit_typed_original_queues; src/extractor/mod.rs dispatcher; full CI 40210181020
+  - [ ] Reproduce unrestricted full original media delegation, complete gallery metadata/tags/archive/naming, all blog/gallery layouts and live pinned differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
