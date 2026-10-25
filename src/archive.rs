@@ -58,12 +58,18 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "e621",
             "e926",
             "e6ai",
+            "yandere",
+            "konachan",
+            "sakugabooru",
+            "lolibooru",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
                 }
-                if is_booru_pool_category(category) && canonical_pool_archive_suffix(id) {
+                if (is_booru_pool_category(category) || is_moebooru_category(category))
+                    && canonical_pool_archive_suffix(id)
+                {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "danbooru" && canonical_favorite_group_archive_suffix(id) {
@@ -72,7 +78,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if is_e621_favorite_category(category) && canonical_favorite_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if is_booru_pool_category(category) && canonical_tag_archive_suffix(id) {
+                if (is_booru_pool_category(category) || is_moebooru_category(category))
+                    && canonical_tag_archive_suffix(id)
+                {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "danbooru" && canonical_media_asset_archive_suffix(id) {
@@ -102,13 +110,19 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "e621",
         "e926",
         "e6ai",
+        "yandere",
+        "konachan",
+        "sakugabooru",
+        "lolibooru",
     ] {
         if prefix == category
             && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
-                || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare))
+                || ((is_booru_pool_category(category) || is_moebooru_category(category))
+                    && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
                 || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare))
-                || (is_booru_pool_category(category) && canonical_tag_archive_suffix(bare))
+                || ((is_booru_pool_category(category) || is_moebooru_category(category))
+                    && canonical_tag_archive_suffix(bare))
                 || (category == "danbooru" && canonical_media_asset_archive_suffix(bare))
                 || (is_booru_pool_category(category) && canonical_popular_archive_suffix(bare)))
         {
@@ -249,6 +263,11 @@ fn canonical_favorite_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     user_id > 0 && post_id > 0 && suffix == format!("f_{user_id}_{post_id}")
+}
+
+/// Pinned Moebooru categories with native post, pool and tag resolvers.
+fn is_moebooru_category(category: &str) -> bool {
+    matches!(category, "yandere" | "konachan" | "sakugabooru" | "lolibooru")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -555,6 +574,75 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
 /// Scoped identity unifies native archive records, advisory locks and
 /// read-only upstream lookup for verified posts, pools, favorite groups,
 /// tag searches, popular collections, media assets and explicit favorites.
+/// Pinned Moebooru post={id}, pool=p_{pool}_{id}, tag=t_{search_tags}_{id}.
+/// Never share an ID among unrelated collections or search queries.
+fn moebooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if !is_moebooru_category(item.extractor) {
+        return None;
+    }
+    let post = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    match (item.extractor, source.host_str()?) {
+        ("yandere", "yande.re")
+        | ("konachan", "konachan.com")
+        | ("konachan", "konachan.net")
+        | ("sakugabooru", "sakugabooru.com")
+        | ("sakugabooru", "www.sakugabooru.com")
+        | ("lolibooru", "lolibooru.moe") => {}
+        _ => return None,
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    match segments.as_slice() {
+        ["post", "show", id] => {
+            let source_id = id.parse::<u64>().ok()?;
+            if source_id != post {
+                return None;
+            }
+            Some((direct_post_key(post), format!("{}{post}", item.extractor)))
+        }
+        ["pool", "show", id] => {
+            let pool = id.parse::<u64>().ok().filter(|id| *id > 0)?;
+            Some((
+                format!("pool-id:{pool}:post-id:{post}"),
+                format!("{}p_{pool}_{post}", item.extractor),
+            ))
+        }
+        ["post"] => {
+            let mut tags = None;
+            for (key, value) in source.query_pairs() {
+                if key == "tags" {
+                    if tags.is_some() {
+                        return None;
+                    }
+                    let value = value.into_owned();
+                    if value.len() > 1024 || value.chars().any(char::is_control) {
+                        return None;
+                    }
+                    tags = Some(value);
+                }
+            }
+            let normalized = format!("{}t_{}_{post}", item.extractor, tags?);
+            Some((
+                format!("tag-sha256:{}", archive_key_digest(&normalized)),
+                normalized,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    booru_archive_scope(item, source_url)
+        .or_else(|| moebooru_archive_scope(item, source_url))
+}
+
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
@@ -852,7 +940,7 @@ impl Archive {
         let mut hasher = Sha256::new();
         hasher.update(item.extractor.as_bytes());
         hasher.update([0]);
-        let stable_scope = booru_archive_scope(item, source_url).map(|(native, _)| native);
+        let stable_scope = verified_archive_scope(item, source_url).map(|(native, _)| native);
         hasher.update(stable_scope.as_deref().unwrap_or(&key(item)).as_bytes());
         let stripe = hasher.finalize()[0] & 63;
         let file = fs::OpenOptions::new()
@@ -989,7 +1077,7 @@ impl Archive {
         item: &MediaItem,
         source_url: &str,
     ) -> Result<bool, rusqlite::Error> {
-        let Some((stable_key, normalized)) = booru_archive_scope(item, source_url) else {
+        let Some((stable_key, normalized)) = verified_archive_scope(item, source_url) else {
             if self.contains(item)? {
                 return Ok(true);
             }
@@ -1104,7 +1192,7 @@ impl Archive {
         item: &MediaItem,
         source_url: &str,
     ) -> Result<(), rusqlite::Error> {
-        let Some((stable_key, _)) = booru_archive_scope(item, source_url) else {
+        let Some((stable_key, _)) = verified_archive_scope(item, source_url) else {
             return self.record(item);
         };
         let transaction = self.connection.unchecked_transaction()?;
