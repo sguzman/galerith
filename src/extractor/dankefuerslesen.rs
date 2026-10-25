@@ -114,9 +114,7 @@ fn chapter_numbers(key: &str) -> Option<(u64, String)> {
     if major.is_empty() || major.len() > 16 || !major.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    if !minor.is_empty()
-        && (minor.len() > 17 || !minor[1..].bytes().all(|b| b.is_ascii_digit()))
-    {
+    if !minor.is_empty() && (minor.len() > 17 || !minor[1..].bytes().all(|b| b.is_ascii_digit())) {
         return None;
     }
     Some((number, minor))
@@ -415,7 +413,10 @@ mod tests {
         );
         assert_eq!(media[1].0.filename, "002_002.png");
         assert_eq!(media[0].1["title"], "Opening");
-        assert_eq!(media[0].1["group"], serde_json::json!(["Scanners", "Friends"]));
+        assert_eq!(
+            media[0].1["group"],
+            serde_json::json!(["Scanners", "Friends"])
+        );
         assert_eq!(media[0].1["group_source"], "Scanners & Friends");
         assert_eq!(media[0].1["group_id"], 12);
         assert_eq!(media[0].1["chapter"], 1);
