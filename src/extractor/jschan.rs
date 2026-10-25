@@ -14,6 +14,8 @@ const MAX_POSTS: usize = 256;
 const MAX_FILES: usize = 160;
 const MAX_FILE_PER_POST: usize = 12;
 const MAX_CATALOG: usize = 128;
+type MediaRecords = Vec<(MediaItem, Metadata)>;
+
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Target {
@@ -138,7 +140,7 @@ fn thread_records(
     root: &Value,
     board: &str,
     requested: u64,
-) -> Result<(Metadata, Vec<(MediaItem, Metadata)>), Box<dyn Error + Send + Sync>> {
+) -> Result<(Metadata, MediaRecords), Box<dyn Error + Send + Sync>> {
     let id = root
         .get("postId")
         .and_then(scalar_id)
