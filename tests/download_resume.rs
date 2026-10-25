@@ -125,6 +125,9 @@ async fn persists_verified_partial_across_invocations() {
         DownloadOutcome::Saved(path.join("b.png"))
     );
     assert_eq!(fs::read(path.join("b.png")).unwrap(), b"12345678");
+    let expected = httpdate::parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT").unwrap();
+    let actual = fs::metadata(path.join("b.png")).unwrap().modified().unwrap();
+    assert!(actual.duration_since(expected).unwrap() < Duration::from_secs(2));
     server.await.unwrap();
     clean(&path);
 }

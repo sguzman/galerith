@@ -298,6 +298,11 @@ pub async fn download(
             fs::write(&metadata, serde_json::to_vec(&info)?).await?;
         }
 
+        // Prefer the current response. Only a validated 206 append can inherit
+        // the saved Last-Modified timestamp from the initial response.
+        let source_mtime = header(&response, LAST_MODIFIED)
+            .or_else(|| append.then(|| prior.as_ref()?.last_modified.clone()).flatten())
+            .and_then(|value| httpdate::parse_http_date(&value).ok());
         let expected_body = resume_range
             .map(|(body, _)| body)
             .or_else(|| response.content_length());
@@ -346,6 +351,19 @@ pub async fn download(
             return Err(err);
         }
         fs::rename(&part, &target).await?;
+        if let Some(modified) = source_mtime {
+            // Last-Modified is optional, and unsupported filesystem timestamp
+            // operations must never turn an already-committed media file into
+            // an apparent download failure.
+            match fs::OpenOptions::new().write(true).open(&target).await {
+                Ok(file) => {
+                    if let Err(err) = file.into_std().await.set_modified(modified) {
+                        eprintln!("galerith: cannot preserve source modification time: {err}");
+                    }
+                }
+                Err(err) => eprintln!("galerith: cannot set source modification time: {err}"),
+            }
+        }
         // Metadata is auxiliary; a successful media file must stay saved even
         // if sidecar cleanup is interrupted.
         let _ = fs::remove_file(&metadata).await;

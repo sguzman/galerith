@@ -114,3 +114,33 @@ async fn leaves_no_target_on_404() {
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[tokio::test]
+async fn keeps_valid_http_last_modified_as_output_mtime() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nConnection: close\r\n\r\nTIME"
+        ).await.unwrap();
+    });
+    let dir = test_dir("last-modified");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/dated.png")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build().unwrap();
+    assert_eq!(
+        download(&client, &item, &options(dir.clone())).await.unwrap(),
+        DownloadOutcome::Saved(dir.join("dated.png")),
+    );
+    let actual = fs::metadata(dir.join("dated.png")).unwrap().modified().unwrap();
+    let expected = httpdate::parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT").unwrap();
+    assert!(actual.duration_since(expected).unwrap() < Duration::from_secs(2));
+    assert_eq!(fs::read(dir.join("dated.png")).unwrap(), b"TIME");
+    server.await.unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+}
