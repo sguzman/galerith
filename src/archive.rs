@@ -3773,7 +3773,10 @@ mod tests {
             .connection
             .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 2, "source-scoped records cannot create URL-only keys");
+        assert_eq!(
+            count, 2,
+            "source-scoped records cannot create URL-only keys"
+        );
         drop(archive);
 
         let wallpaper = MediaItem {
@@ -3827,7 +3830,9 @@ mod tests {
             post_id: Some(101),
             ..media.clone()
         };
-        archive.record_for_source(&another, "https://danbooru.donmai.us/posts/101").unwrap();
+        archive
+            .record_for_source(&another, "https://danbooru.donmai.us/posts/101")
+            .unwrap();
         assert!(!archive
             .contains_for_source(&media, "https://danbooru.donmai.us/posts?tags=cat")
             .unwrap());
