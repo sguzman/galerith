@@ -374,8 +374,7 @@ fn pinned_danbooru_favorite_group_template_is_not_a_post_or_pool() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
-    let root =
-        env::var("GALERITH_PINNED_REFERENCE_ROOT").expect("pinned source required");
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT").expect("pinned source required");
     let mut command = Command::new("python3");
     command.args([
         "-c",
