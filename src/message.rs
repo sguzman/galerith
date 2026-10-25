@@ -71,12 +71,8 @@ pub fn from_upstream_tuple(
         Some(UpstreamMessageId::Directory) => {
             Err("upstream Directory second tuple member must be empty")
         }
-        Some(UpstreamMessageId::Url) => {
-            Ok(ExtractorMessage::Url { url, metadata })
-        }
-        Some(UpstreamMessageId::Queue) => {
-            Ok(ExtractorMessage::Queue { url, metadata })
-        }
+        Some(UpstreamMessageId::Url) => Ok(ExtractorMessage::Url { url, metadata }),
+        Some(UpstreamMessageId::Queue) => Ok(ExtractorMessage::Queue { url, metadata }),
         None => Err("unsupported or obsolete gallery-dl message identifier"),
     }
 }
@@ -405,9 +401,18 @@ mod tests {
         assert_eq!(UpstreamMessageId::Directory as u8, 2);
         assert_eq!(UpstreamMessageId::Url as u8, 3);
         assert_eq!(UpstreamMessageId::Queue as u8, 6);
-        assert_eq!(UpstreamMessageId::from_code(2), Some(UpstreamMessageId::Directory));
-        assert_eq!(UpstreamMessageId::from_code(3), Some(UpstreamMessageId::Url));
-        assert_eq!(UpstreamMessageId::from_code(6), Some(UpstreamMessageId::Queue));
+        assert_eq!(
+            UpstreamMessageId::from_code(2),
+            Some(UpstreamMessageId::Directory)
+        );
+        assert_eq!(
+            UpstreamMessageId::from_code(3),
+            Some(UpstreamMessageId::Url)
+        );
+        assert_eq!(
+            UpstreamMessageId::from_code(6),
+            Some(UpstreamMessageId::Queue)
+        );
         for obsolete in [0, 1, 4, 5, 7, 8, 255] {
             assert_eq!(UpstreamMessageId::from_code(obsolete), None);
             assert!(from_upstream_tuple(obsolete, String::new(), Metadata::new()).is_err());
@@ -415,7 +420,9 @@ mod tests {
         let mut metadata = Metadata::new();
         metadata.insert("test".into(), json!(42));
         for message in [
-            ExtractorMessage::Directory { metadata: metadata.clone() },
+            ExtractorMessage::Directory {
+                metadata: metadata.clone(),
+            },
             ExtractorMessage::Url {
                 url: "https://example.org/file.jpg".into(),
                 metadata: metadata.clone(),
