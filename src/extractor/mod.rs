@@ -7,6 +7,7 @@ pub mod arena;
 pub mod audiochan;
 pub mod basic_hosts;
 pub mod bluesky;
+pub mod bbc;
 pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod comicvine;
@@ -151,6 +152,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("2chan", "pinned 2chan public Futaba thread originals"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
+    ("bbc", "guarded BBC programme galleries and deferred gallery queues"),
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
@@ -463,6 +465,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("koofr")
     } else if hatenablog::match_url(input).is_some() {
         Some("hatenablog")
+    } else if bbc::match_url(input).is_some() {
+        Some("bbc")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -752,6 +756,9 @@ pub async fn resolve(
     if let Some(target) = hatenablog::match_url(input) {
         return hatenablog::resolve(client, target, max_pages).await;
     }
+    if let Some(target) = bbc::match_url(input) {
+        return bbc::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -903,6 +910,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = hatenablog::match_url(input) {
         return hatenablog::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = bbc::match_url(input) {
+        return bbc::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
