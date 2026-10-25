@@ -60,6 +60,7 @@ pub mod pixeldrain;
 pub mod postimg;
 pub mod silverpic;
 pub mod speakerdeck;
+pub mod slideshare;
 pub mod telegraph;
 pub mod thirtyfivephoto;
 pub mod turboimagehost;
@@ -245,6 +246,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public Postimages files and bounded gallery queues",
     ),
     ("speakerdeck", "public presentation slide images via oEmbed"),
+    ("slideshare", "public Next.js presentation slide images"),
     ("silverpic", "pinned public Silverpic original-image subset"),
     (
         "telegraph",
@@ -412,6 +414,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("telegraph")
     } else if speakerdeck::match_url(input).is_some() {
         Some("speakerdeck")
+    } else if slideshare::match_url(input).is_some() {
+        Some("slideshare")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -671,6 +675,9 @@ pub async fn resolve(
     if let Some(target) = speakerdeck::match_url(input) {
         return speakerdeck::resolve(client, target).await;
     }
+    if let Some(target) = slideshare::match_url(input) {
+        return slideshare::resolve(client, target).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -792,6 +799,9 @@ pub async fn resolve_messages(
     }
     if let Some(publication) = issuu::match_url(input) {
         return issuu::resolve_messages(client, publication).await;
+    }
+    if let Some(target) = slideshare::match_url(input) {
+        return slideshare::resolve_messages(client, target).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1263,6 +1273,7 @@ mod tests {
             ("https://pixeldrain.com/d/root123", "pixeldrain"),
             ("https://telegra.ph/Article-03-04", "telegraph"),
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
+            ("https://www.slideshare.net/speaker/my-deck", "slideshare"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
