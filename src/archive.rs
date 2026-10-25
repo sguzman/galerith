@@ -427,7 +427,10 @@ fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
         ));
     }
     let asset = danbooru_media_asset(item, source_url)?;
-    Some((format!("media-asset-id:{asset}"), format!("danboorum{asset}")))
+    Some((
+        format!("media-asset-id:{asset}"),
+        format!("danboorum{asset}"),
+    ))
 }
 
 fn philomena_id(item: &MediaItem) -> Option<u64> {
