@@ -125,8 +125,7 @@ impl Archive {
                     use std::os::unix::fs::MetadataExt;
                     let native_info = fs::metadata(path)?;
                     let source_info = fs::metadata(reference_path)?;
-                    native_info.dev() == source_info.dev()
-                        && native_info.ino() == source_info.ino()
+                    native_info.dev() == source_info.dev() && native_info.ino() == source_info.ino()
                 };
                 #[cfg(not(unix))]
                 let same_inode = false;
