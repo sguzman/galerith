@@ -1,5 +1,6 @@
 //! Guarded public Koofr shared-link preview from pinned koofr.py.
-//! Does not authenticate, resolve k00.fr redirects, or download protected links.
+//! Does not authenticate or download password-protected links.
+pub mod short;
 use crate::{
     message::{media_metadata, ExtractorMessage, Metadata},
     safe_filename, MediaItem,

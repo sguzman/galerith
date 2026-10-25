@@ -454,7 +454,7 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("pictoa")
     } else if piczel::match_url(input).is_some() {
         Some("piczel")
-    } else if koofr::match_url(input).is_some() {
+    } else if koofr::match_url(input).is_some() || koofr::short::match_url(input).is_some() {
         Some("koofr")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
@@ -739,6 +739,9 @@ pub async fn resolve(
     if let Some(share) = koofr::match_url(input) {
         return koofr::resolve(client, share).await;
     }
+    if let Some(code) = koofr::short::match_url(input) {
+        return koofr::short::resolve(client, code).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -884,6 +887,9 @@ pub async fn resolve_messages(
     }
     if let Some(share) = koofr::match_url(input) {
         return koofr::resolve_messages(client, share).await;
+    }
+    if let Some(code) = koofr::short::match_url(input) {
+        return koofr::short::resolve_messages(client, code).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1364,6 +1370,7 @@ mod tests {
             ("https://www.pictoa.com/albums/Art-12345/678.html", "pictoa"),
             ("https://piczel.tv/gallery/artist", "piczel"),
             ("https://app.koofr.net/links/1234-abc", "koofr"),
+            ("https://k00.fr/Example7", "koofr"),
             ("https://piczel.tv/gallery/artist/123", "piczel"),
             ("https://piczel.tv/gallery/image/456", "piczel"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
