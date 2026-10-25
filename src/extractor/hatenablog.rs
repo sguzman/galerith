@@ -206,7 +206,9 @@ fn source_iso_date(raw: &str) -> Option<String> {
     }
     let (date, clock_and_zone) = raw.split_once('T')?;
     let date_parts = date.split('-').collect::<Vec<_>>();
-    let [year, month, day] = date_parts.as_slice() else { return None };
+    let [year, month, day] = date_parts.as_slice() else {
+        return None;
+    };
     if year.len() != 4 || month.len() != 2 || day.len() != 2 {
         return None;
     }
@@ -233,7 +235,9 @@ fn source_iso_date(raw: &str) -> Option<String> {
         (&clock_and_zone[..index], &clock_and_zone[index..])
     };
     let fields = clock.split(':').collect::<Vec<_>>();
-    let [hours, minutes, seconds] = fields.as_slice() else { return None };
+    let [hours, minutes, seconds] = fields.as_slice() else {
+        return None;
+    };
     if hours.len() != 2 || minutes.len() != 2 {
         return None;
     }
@@ -245,7 +249,8 @@ fn source_iso_date(raw: &str) -> Option<String> {
     }
     let seconds_number = seconds_value.parse::<u32>().ok()?;
     if let Some((_, fraction)) = seconds.split_once('.') {
-        if fraction.is_empty() || fraction.len() > 9
+        if fraction.is_empty()
+            || fraction.len() > 9
             || !fraction.bytes().all(|v| v.is_ascii_digit())
         {
             return None;
@@ -260,7 +265,8 @@ fn source_iso_date(raw: &str) -> Option<String> {
         let [zone_hour, zone_minute] = zone_parts.as_slice() else {
             return None;
         };
-        if zone_hour.len() != 2 || zone_minute.len() != 2
+        if zone_hour.len() != 2
+            || zone_minute.len() != 2
             || zone_hour.parse::<u32>().ok()? > 23
             || zone_minute.parse::<u32>().ok()? > 59
         {
