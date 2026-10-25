@@ -84,7 +84,13 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let mut verified_cases = Vec::with_capacity(URLS.len());
-    for url in URLS {
+    let db_dir = env::temp_dir().join(format!(
+        "galerith-pinned-archive-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&db_dir);
+    std::fs::create_dir_all(&db_dir).unwrap();
+    for (case_index, url) in URLS.iter().enumerate() {
         let rust = native_events(url);
         let source = pinned_events(root, url);
         assert_eq!(rust.len(), 2, "{url}: native event count");
@@ -135,14 +141,54 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             basename.as_ref(),
             "{url}: native flat filename policy"
         );
+        // Derive the archive entry from the *actual pinned upstream*
+        // extractor metadata. Then verify that Galerith recognizes it via
+        // a gallery-dl-shaped SQLite archive without modifying that table.
+        let source_fields = source[0]
+            .as_array()
+            .and_then(|tuple| tuple.last())
+            .expect("pinned directory metadata");
+        let upstream_key = format!(
+            "directlink{}/{}/{}.{}",
+            source_fields["domain"].as_str().unwrap(),
+            source_fields["path"].as_str().unwrap(),
+            source_fields["filename"].as_str().unwrap(),
+            source_fields["extension"].as_str().unwrap()
+        );
+        let archive_path = db_dir.join(format!("case-{case_index}.sqlite"));
+        let connection = rusqlite::Connection::open(&archive_path).unwrap();
+        connection
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO archive(entry) VALUES (?1)",
+                rusqlite::params![upstream_key],
+            )
+            .unwrap();
+        drop(connection);
+        let native_archive = galerith::archive::Archive::open(&archive_path).unwrap();
+        let item = galerith::extract_direct_media(url).unwrap();
+        assert!(
+            native_archive.contains(&item).unwrap(),
+            "{url}: pinned directlink archive key must be recognized"
+        );
+        let unchanged: i64 = rusqlite::Connection::open(&archive_path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM archive", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(unchanged, 1, "foreign archive must remain untouched");
+        drop(native_archive);
         verified_cases.push(json!({
             "url": url,
             "reference_events": source,
             "native_events": rust,
-            "status": "source_fields_match",
+            "status": "source_fields_and_readonly_archive_match",
+            "archive_key_compatible": true,
             "known_divergence": "upstream formatted extension is lowercase; native flat filename retains original extension case"
         }));
     }
+    std::fs::remove_dir_all(&db_dir).unwrap();
     if let Ok(report_path) = env::var("GALERITH_ORACLE_REPORT_PATH") {
         let path = Path::new(&report_path);
         std::fs::create_dir_all(path.parent().expect("oracle report parent"))
@@ -153,7 +199,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             "scope": "pinned-directlink-offline-source-metadata",
             "cases": verified_cases,
             "limitations": [
-                "Source metadata equivalence only, not full filename/archive semantics",
+                "Source metadata and default directlink archive read-compatibility only, not general filename/archive semantics",
                 "No non-directlink extractor or live source website was contacted",
                 "Only repository CI executes the original upstream Python interpreter"
             ]
