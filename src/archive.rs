@@ -87,6 +87,21 @@ fn has_upstream_table(connection: &Connection) -> Result<bool, rusqlite::Error> 
     Ok(found != 0)
 }
 
+/// The pinned Philomena extractors (Derpibooru, Ponybooru, Furbooru)
+/// inherit archive_fmt = "{id}" for post, search and gallery classes.
+/// These categories have one original per image ID. Do not generalize this
+/// to boorus whose tag, pool or favorite extractor keys have other formats.
+fn upstream_archive_key(item: &MediaItem) -> Option<String> {
+    match item.extractor {
+        "directlink" => upstream_directlink_key(item),
+        "derpibooru" | "ponybooru" | "furbooru" => {
+            let id = item.post_id.filter(|id| *id != 0)?;
+            Some(format!("{}{id}", item.extractor))
+        }
+        _ => None,
+    }
+}
+
 impl Archive {
     pub fn open(path: &Path) -> Result<Self, Box<dyn Error + Send + Sync>> {
         Self::open_with_reference(path, None)
@@ -219,7 +234,7 @@ impl Archive {
         if present != 0 {
             return Ok(true);
         }
-        if let Some(source_key) = upstream_directlink_key(item) {
+        if let Some(source_key) = upstream_archive_key(item) {
             // Explicit external reference takes precedence, then the
             // existing same-file fallback for legacy mixed databases.
             let source = self
@@ -539,6 +554,57 @@ mod tests {
             .unwrap();
         assert_eq!(native_table, 0);
         drop(existing);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn philomena_default_archive_ids_are_scoped_by_site_and_post() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-philomena-archive-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let reference = root.join("upstream.sqlite");
+        let original = Connection::open(&reference).unwrap();
+        original
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        for entry in ["derpibooru123", "ponybooru456", "furbooru789"] {
+            original
+                .execute("INSERT INTO archive(entry) VALUES (?1)", params![entry])
+                .unwrap();
+        }
+        drop(original);
+        let original_bytes = fs::read(&reference).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&reference)).unwrap();
+        for (site, id) in [("derpibooru", 123), ("ponybooru", 456), ("furbooru", 789)] {
+            let item = MediaItem {
+                url: format!("https://cdn.example.net/rotated/{id}.png?auth=changed"),
+                filename: format!("{id}.png"),
+                extractor: site,
+                post_id: Some(id),
+            };
+            assert!(archive.contains(&item).unwrap(), "{site}:{id}");
+            let mut other = item.clone();
+            other.post_id = Some(id + 1);
+            assert!(!archive.contains(&other).unwrap());
+            other.post_id = None;
+            assert!(!archive.contains(&other).unwrap());
+            other.post_id = Some(id);
+            other.extractor = "danbooru";
+            assert!(!archive.contains(&other).unwrap());
+        }
+        let wrong_site = MediaItem {
+            url: "https://cdn.example.net/123.jpg".into(),
+            filename: "123.jpg".into(),
+            extractor: "ponybooru",
+            post_id: Some(123),
+        };
+        assert!(!archive.contains(&wrong_site).unwrap());
+        drop(archive);
+        assert_eq!(fs::read(&reference).unwrap(), original_bytes);
         fs::remove_dir_all(root).unwrap();
     }
 
