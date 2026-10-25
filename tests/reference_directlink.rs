@@ -167,7 +167,11 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             )
             .unwrap();
         drop(connection);
-        let native_archive = galerith::archive::Archive::open(&archive_path).unwrap();
+        let upstream_bytes = std::fs::read(&archive_path).unwrap();
+        let native_path = db_dir.join(format!("native-{case_index}.sqlite"));
+        let native_archive =
+            galerith::archive::Archive::open_with_reference(&native_path, Some(&archive_path))
+                .unwrap();
         let item = galerith::extract_direct_media(url).unwrap();
         assert!(
             native_archive.contains(&item).unwrap(),
@@ -179,12 +183,18 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             .unwrap();
         assert_eq!(unchanged, 1, "foreign archive must remain untouched");
         drop(native_archive);
+        assert_eq!(
+            std::fs::read(&archive_path).unwrap(),
+            upstream_bytes,
+            "{url}: external upstream archive bytes must not change"
+        );
         verified_cases.push(json!({
             "url": url,
             "reference_events": source,
             "native_events": rust,
             "status": "source_fields_and_readonly_archive_match",
             "archive_key_compatible": true,
+            "external_archive_read_only": true,
             "known_divergence": "upstream formatted extension is lowercase; native flat filename retains original extension case"
         }));
     }
