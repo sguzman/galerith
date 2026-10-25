@@ -2,10 +2,7 @@
 use std::{fs, path::PathBuf, process::Command};
 
 fn temp(name: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "galerith-cache-cli-{name}-{}",
-        std::process::id()
-    ))
+    std::env::temp_dir().join(format!("galerith-cache-cli-{name}-{}", std::process::id()))
 }
 
 #[test]
@@ -16,9 +13,27 @@ fn cache_options_reject_unsafe_combinations_before_opening_database() {
     let db = dir.join("cache.sqlite");
     for args in [
         vec!["--cache-ttl", "5", "https://example.org/file.jpg"],
-        vec!["--cache-db", db.to_str().unwrap(), "--cache-ttl", "0", "https://example.org/file.jpg"],
-        vec!["--cache-db", db.to_str().unwrap(), "--cache-ttl", "86401", "https://example.org/file.jpg"],
-        vec!["--cache-db", db.to_str().unwrap(), "--cookies", "dummy.txt", "https://example.org/file.jpg"],
+        vec![
+            "--cache-db",
+            db.to_str().unwrap(),
+            "--cache-ttl",
+            "0",
+            "https://example.org/file.jpg",
+        ],
+        vec![
+            "--cache-db",
+            db.to_str().unwrap(),
+            "--cache-ttl",
+            "86401",
+            "https://example.org/file.jpg",
+        ],
+        vec![
+            "--cache-db",
+            db.to_str().unwrap(),
+            "--cookies",
+            "dummy.txt",
+            "https://example.org/file.jpg",
+        ],
     ] {
         let result = Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args(args)
@@ -62,7 +77,9 @@ fn cache_is_explicit_and_has_independent_sqlite_schema() {
         .unwrap();
     assert_eq!(tables, 1);
     let records: i64 = conn
-        .query_row("SELECT COUNT(*) FROM public_collection_cache", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM public_collection_cache", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(records, 0, "direct media does not belong in metadata cache");
     drop(conn);
