@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 70 · Not ported: 202.**
+**Complete: 0 · Partial: 71 · Not ported: 201.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -197,7 +197,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/rule34us.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/rule34vault.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/rule34xyz.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/s3ndpics.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/s3ndpics.py` | 🟡 Partial | `src/extractor/s3ndpics.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/sankaku.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/sankakucomplex.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/scatbooru.py` | ⚪ Not ported | — |

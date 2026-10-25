@@ -4477,6 +4477,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T597",
+              "emoji": "📸",
+              "name": "S3ndpics bounded public post, user and search media",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match public S3ndpics post hex IDs, usernames and single-field search queries, rejecting forged hosts and credentials",
+                  "passed": true,
+                  "evidence": "src/extractor/s3ndpics.rs public_post_user_search_patterns_reject_private_or_forged_inputs; full Linux CI 40209522247"
+                },
+                {
+                  "title": "Decode source API post originals with ordered media files and source-backed IDs, dates, users and type metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/s3ndpics.rs public_post_preserves_file_order_and_source_metadata_and_rejects_unsafe_paths; CI 40209522247"
+                },
+                {
+                  "title": "Reject source media traversal and unsupported extensions while retaining first-party HTTPS CDN paths and bound JSON/post/media response sizes",
+                  "passed": true,
+                  "evidence": "src/extractor/s3ndpics.rs valid_file_path, file_url, records_for_post, get_json and hostile file fixtures; CI 40209522247"
+                },
+                {
+                  "title": "Support bounded public user listing pagination and search APIs with a two-page local HTTP regression and typed directory/URL messages",
+                  "passed": true,
+                  "evidence": "src/extractor/s3ndpics.rs public_user_api_paginates_two_source_pages_and_retains_order; src/extractor/mod.rs routed registry; full Rust and directlink oracle CI 40209522247"
+                },
+                {
+                  "title": "Match complete search parameter dialect, all original file types, exact upstream date/filename/archive/user structures, unbounded history and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

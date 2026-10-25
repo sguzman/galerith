@@ -1679,9 +1679,14 @@
     {
       "path": "gallery_dl/extractor/s3ndpics.py",
       "module": "s3ndpics",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/s3ndpics.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent bounded pinned S3ndpics public post/user/search JSON extractor; strict /post/hex /user/NAME /search?tag|tags|q routes, first-party /api posts and username discovery, source-backed media files/users/dates, fixed trusted https://s3.s3nd.pics/s3nd-pics originals, source-order typed media, no redirect production client, 2 MiB JSON cap, 4-page/128-post/160-media/48-row/16-file bounds, 500 ms pacing and 3-request loopback two-page user fixture. Full Rust and pinned directlink oracle CI 40209522247 passed. Full query/file/metadata/archive/live upstream parity not accepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/sankaku.py",

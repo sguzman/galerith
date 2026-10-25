@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 154 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 155 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -865,6 +865,12 @@
   - [x] Bound public HTTP(S) source downloads with pinned public-only DNS, no proxies, no redirects and 2 MiB response limit — src/extractor/recursive.rs fetch_remote, read_remote_response, public_address and remote_response_reader_caps_body_and_rejects_foreign_redirects; CI 40208717387
   - [x] Integrate typed recursive queues into native routing without changing flat media-download defaults and pass full Rust and pinned directlink oracle CI — src/extractor/mod.rs recursive dispatcher; full Rust and pinned upstream directlink jobs passed CI 40208717387
   - [ ] Match unrestricted pinned remote source/network/child behavior, all scheme variants, global queue/filter nesting and live gallery-dl differential parity
+- 📸 **T597** S3ndpics bounded public post, user and search media — `████████░░ 80%`
+  - [x] Match public S3ndpics post hex IDs, usernames and single-field search queries, rejecting forged hosts and credentials — src/extractor/s3ndpics.rs public_post_user_search_patterns_reject_private_or_forged_inputs; full Linux CI 40209522247
+  - [x] Decode source API post originals with ordered media files and source-backed IDs, dates, users and type metadata — src/extractor/s3ndpics.rs public_post_preserves_file_order_and_source_metadata_and_rejects_unsafe_paths; CI 40209522247
+  - [x] Reject source media traversal and unsupported extensions while retaining first-party HTTPS CDN paths and bound JSON/post/media response sizes — src/extractor/s3ndpics.rs valid_file_path, file_url, records_for_post, get_json and hostile file fixtures; CI 40209522247
+  - [x] Support bounded public user listing pagination and search APIs with a two-page local HTTP regression and typed directory/URL messages — src/extractor/s3ndpics.rs public_user_api_paginates_two_source_pages_and_retains_order; src/extractor/mod.rs routed registry; full Rust and directlink oracle CI 40209522247
+  - [ ] Match complete search parameter dialect, all original file types, exact upstream date/filename/archive/user structures, unbounded history and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
