@@ -264,7 +264,7 @@ mod tests {
             ]{
                 let (mut socket,_)=listener.accept().await.unwrap();
                 let mut buf=[0u8;4096];let n=socket.read(&mut buf).await.unwrap();
-                assert!(String::from_utf8_lossy(&buf[..n]).starts_with(&format!("GET {path} HTTP/1.1"));
+                assert!(String::from_utf8_lossy(&buf[..n]).starts_with(&format!("GET {path} HTTP/1.1")));
                 let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
