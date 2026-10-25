@@ -2990,6 +2990,142 @@ mod tests {
     }
 
     #[test]
+    fn gelbooru_families_use_private_site_scoped_post_and_tag_archive_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-gel-archive-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let native = root.join("native.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        for category in [
+            "gelbooru", "rule34", "safebooru", "tbib", "hypnohub", "xbooru",
+        ] {
+            for suffix in ["88", "t_blue fox_88"] {
+                upstream
+                    .execute(
+                        "INSERT INTO archive(entry) VALUES (?1)",
+                        [format!("{category}{suffix}")],
+                    )
+                    .unwrap();
+            }
+        }
+        drop(upstream);
+        let foreign_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (12, 12));
+        assert_eq!(archive.import_reference().unwrap(), (12, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), foreign_bytes);
+        fs::remove_file(foreign).unwrap();
+        let stored = fs::read(&native).unwrap();
+        assert!(!stored.windows(b"blue fox".len()).any(|x| x == b"blue fox"));
+        let archive = Archive::open(&native).unwrap();
+        for (category, host) in [
+            ("gelbooru", "gelbooru.com"),
+            ("rule34", "rule34.xxx"),
+            ("safebooru", "safebooru.org"),
+            ("tbib", "tbib.org"),
+            ("hypnohub", "hypnohub.net"),
+            ("xbooru", "xbooru.com"),
+        ] {
+            let media = MediaItem {
+                url: format!("https://cdn.example.org/{category}/88.jpg?rotated=yes"),
+                filename: "88.jpg".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            for kind in ["view&id=88", "list&tags=blue+fox"] {
+                let input = format!("https://{host}/index.php?page=post&s={kind}");
+                assert!(
+                    archive.contains_for_source(&media, &input).unwrap(),
+                    "missing pinned category key for {input}"
+                );
+            }
+            for route in [
+                "/index.php?page=post&s=view&id=89",
+                "/index.php?page=post&s=list&tags=blue+cat",
+                "/index.php?page=post&s=list&tags=blue+fox&tags=blue+fox",
+                "/index.php?page=pool&s=show&id=77",
+            ] {
+                assert!(!archive
+                    .contains_for_source(&media, &format!("https://{host}{route}"))
+                    .unwrap());
+            }
+            assert!(!archive
+                .contains_for_source(
+                    &media,
+                    &format!("https://{host}:9443/index.php?page=post&s=view&id=88"),
+                )
+                .unwrap());
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn gelbooru_named_import_requires_matching_category_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-gel-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE entries(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO entries VALUES ('88');
+                 INSERT INTO entries VALUES ('safebooru88');
+                 INSERT INTO entries VALUES ('safeboorut_blue fox_88');",
+            )
+            .unwrap();
+        drop(upstream);
+        let media = MediaItem {
+            url: "https://cdn.example.org/88.jpg?new=1".into(),
+            filename: "88.jpg".into(),
+            extractor: "safebooru",
+            post_id: Some(88),
+        };
+        let no_prefix = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "entries",
+        )
+        .unwrap();
+        assert_eq!(no_prefix.import_reference().unwrap(), (0, 0));
+        drop(no_prefix);
+        let native = root.join("native.sqlite");
+        let exact = Archive::open_with_reference_options(
+            &native,
+            Some(&foreign),
+            Some("entries"),
+            Some("safebooru"),
+        )
+        .unwrap();
+        assert_eq!(exact.import_reference().unwrap(), (2, 2));
+        assert!(exact
+            .contains_for_source(
+                &media,
+                "https://safebooru.org/index.php?page=post&s=view&id=88",
+            )
+            .unwrap());
+        drop(exact);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline
+            .contains_for_source(
+                &media,
+                "https://safebooru.org/index.php?page=post&s=list&tags=blue+fox",
+            )
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn moebooru_post_pool_and_tags_have_independent_private_archive_ids() {
         let root =
             std::env::temp_dir().join(format!("galerith-moe-archive-{}", std::process::id()));
