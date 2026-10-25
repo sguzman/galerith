@@ -67,16 +67,20 @@ pub fn match_url(raw: &str) -> Option<Target> {
         ["gallery", "post"] | ["gallery", "post", ""] => {
             let mut tags = String::new();
             let mut page = 1;
+            let mut seen_search = false;
+            let mut seen_page = false;
             if u.query().is_some() {
                 for (k, v) in u.query_pairs() {
                     match k.as_ref() {
-                        "search" if tags.is_empty() => {
+                        "search" if !seen_search => {
                             if !safe_search(&v) {
                                 return None;
                             }
+                            seen_search = true;
                             tags = v.into_owned();
                         }
-                        "page" if page == 1 => {
+                        "page" if !seen_page => {
+                            seen_page = true;
                             page = v.parse().ok()?;
                         }
                         _ => return None,
@@ -331,6 +335,8 @@ mod tests {
             "https://agn.ph/gallery/post/show/0",
             "https://agn.ph:8443/gallery/post/show/10",
             "https://agn.ph/gallery/post/?search=fox&page=5",
+            "https://agn.ph/gallery/post/?search=&search=fox",
+            "https://agn.ph/gallery/post/?search=fox&page=1&page=2",
             "https://agn.ph/gallery/post/?search=fox&password=secret",
             "https://user:pass@agn.ph/gallery/post/show/10",
         ] {
