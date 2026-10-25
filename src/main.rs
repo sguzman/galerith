@@ -560,12 +560,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             // completed this same media item while we were waiting. Retain
             // the guard through transfer and durable archive insertion.
             let _archive_guard = if let Some(ref archive) = archive {
-                archive.lock_item(&item).await?
+                archive.lock_item_for_source(&item, &url).await?
             } else {
                 None
             };
             if let Some(ref archive) = archive {
-                if archive.contains(&item)? {
+                if archive.contains_for_source(&item, &url)? {
                     if !cli.quiet {
                         println!("archived {}", item.filename);
                     }
@@ -591,7 +591,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         if record_download {
                             if let Some(ref archive) = archive {
-                                archive.record(&item)?;
+                                archive.record_for_source(&item, &url)?;
                             }
                         }
                         if !cli.quiet {
@@ -604,7 +604,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         if record_skip {
                             if let Some(ref archive) = archive {
-                                archive.record(&item)?;
+                                archive.record_for_source(&item, &url)?;
                             }
                         }
                         if !cli.quiet {

@@ -50,7 +50,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 return Some(("directlink", entry.to_owned()));
             }
         }
-        for category in ["derpibooru", "ponybooru", "furbooru"] {
+        for category in ["derpibooru", "ponybooru", "furbooru", "danbooru", "e621", "e6ai"] {
             if let Some(id) = entry.strip_prefix(category) {
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
@@ -68,7 +68,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
     // A numeric ID is only unambiguous if the supplied source prefix itself
     // names the exact pinned category. Other custom prefixes might combine
     // several boorus with overlapping numeric IDs; skip rather than guess.
-    for category in ["derpibooru", "ponybooru", "furbooru"] {
+    for category in ["derpibooru", "ponybooru", "furbooru", "danbooru", "e621", "e6ai"] {
         if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
             return Some((category, format!("{category}{bare}")));
         }
@@ -100,6 +100,41 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
             Some(format!("{prefix}{}", default.strip_prefix(item.extractor)?))
         }
     }
+}
+
+/// Confirm a pinned Danbooru/E621 *post extractor* from the original
+/// input URL. A tag search, pool, favorites or popular feed may contain
+/// the same post ID but uses a different upstream archive template.
+fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
+    let parsed = url::Url::parse(source_url).ok()?;
+    if parsed.scheme() != "https"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return None;
+    }
+    let host = parsed.host_str()?;
+    match (item.extractor, host) {
+        ("danbooru", "danbooru.donmai.us")
+        | ("e621", "e621.net")
+        | ("e6ai", "e6ai.net") => {}
+        // The current e926 preview emits category e621, while the pinned
+        // source uses e926. Do not accidentally import e621 history as e926.
+        _ => return None,
+    }
+    let segments: Vec<_> = parsed.path_segments()?.collect();
+    let url_id = match segments.as_slice() {
+        ["posts", id] | ["post", "show", id] => id.parse::<u64>().ok()?,
+        ["p", short] if matches!(item.extractor, "e621" | "e6ai") => {
+            u64::from_str_radix(short, 32).ok()?
+        }
+        _ => return None,
+    };
+    (url_id > 0 && item.post_id == Some(url_id)).then_some(url_id)
+}
+
+fn direct_post_key(id: u64) -> String {
+    format!("direct-post-id:{id}")
 }
 
 fn philomena_id(item: &MediaItem) -> Option<u64> {
@@ -340,6 +375,16 @@ impl Archive {
         &self,
         item: &MediaItem,
     ) -> Result<Option<ArchiveItemLock>, Box<dyn Error + Send + Sync>> {
+        self.lock_item_for_source(item, "").await
+    }
+
+    /// A verified direct post must reserve its stable ID even when its
+    /// CDN URL or signed token has changed between workers.
+    pub async fn lock_item_for_source(
+        &self,
+        item: &MediaItem,
+        source_url: &str,
+    ) -> Result<Option<ArchiveItemLock>, Box<dyn Error + Send + Sync>> {
         let Some(directory) = &self.lock_directory else {
             return Ok(None);
         };
@@ -347,7 +392,8 @@ impl Archive {
         let mut hasher = Sha256::new();
         hasher.update(item.extractor.as_bytes());
         hasher.update([0]);
-        hasher.update(key(item).as_bytes());
+        let stable_post = direct_booru_post(item, source_url).map(direct_post_key);
+        hasher.update(stable_post.as_deref().unwrap_or(&key(item)).as_bytes());
         let stripe = hasher.finalize()[0] & 63;
         let file = fs::OpenOptions::new()
             .read(true)
@@ -474,6 +520,106 @@ impl Archive {
             }
         }
         Ok(false)
+    }
+
+    /// Source-aware skip check for only the verified direct-post format.
+    /// Never treat a feed/pool/favorite entry as a plain post archive key.
+    pub fn contains_for_source(
+        &self,
+        item: &MediaItem,
+        source_url: &str,
+    ) -> Result<bool, rusqlite::Error> {
+        let Some(id) = direct_booru_post(item, source_url) else {
+            return self.contains(item);
+        };
+        let stable_key = direct_post_key(id);
+        let recorded: i64 = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = ?1 AND identity = ?2)",
+            params![item.extractor, stable_key],
+            |row| row.get(0),
+        )?;
+        if recorded != 0 {
+            return Ok(true);
+        }
+        if self.contains(item)? {
+            // A prior exact source-URL hash proves the same media was
+            // downloaded. Promote it for future direct-post CDN rotations.
+            self.connection.execute(
+                "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
+                params![item.extractor, direct_post_key(id)],
+            )?;
+            return Ok(true);
+        }
+
+        let normalized = format!("{}{id}", item.extractor);
+        let migrated: i64 = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM imported_gallery_dl WHERE category = ?1 AND archive_sha256 = ?2)",
+            params![item.extractor, archive_key_digest(&normalized)],
+            |row| row.get(0),
+        )?;
+        if migrated != 0 {
+            return Ok(true);
+        }
+        let source = self
+            .upstream_reference
+            .as_ref()
+            .or_else(|| self.upstream_directlink_archive.then_some(&self.connection));
+        if let Some(source) = source {
+            // Numeric keys without a category prefix are ambiguous when
+            // a table is shared. Permit only a matching category-specific
+            // explicit prefix, or the implicit category-prefixed default.
+            let configured = self.upstream_reference.as_ref().and_then(|_| {
+                self.upstream_reference_prefix
+                    .as_deref()
+                    .map(|prefix| (prefix == item.extractor).then(|| format!("{prefix}{id}")))
+            });
+            let upstream_key = if self.upstream_reference.is_some() {
+                match configured {
+                    Some(Some(key)) => Some(key),
+                    Some(None) => None,
+                    None => Some(normalized),
+                }
+            } else {
+                Some(normalized)
+            };
+            if let Some(upstream_key) = upstream_key {
+                let table = if self.upstream_reference.is_some() {
+                    &self.upstream_reference_table
+                } else {
+                    "archive"
+                };
+                let query = format!(
+                    "SELECT EXISTS(SELECT 1 FROM {} WHERE entry = ?1)",
+                    archive_table_identifier(table)
+                );
+                let upstream: i64 =
+                    source.query_row(&query, params![upstream_key], |row| row.get(0))?;
+                return Ok(upstream != 0);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Preserve direct-post stable identity only after an accepted file
+    /// event, while keeping old URL-hash archive rows compatible.
+    pub fn record_for_source(
+        &self,
+        item: &MediaItem,
+        source_url: &str,
+    ) -> Result<(), rusqlite::Error> {
+        let Some(id) = direct_booru_post(item, source_url) else {
+            return self.record(item);
+        };
+        let transaction = self.connection.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
+            params![item.extractor, key(item)],
+        )?;
+        transaction.execute(
+            "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
+            params![item.extractor, direct_post_key(id)],
+        )?;
+        transaction.commit()
     }
 
     /// Call only after a successful download and completion rename. Merely
