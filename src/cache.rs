@@ -244,6 +244,7 @@ impl Cache {
         Ok(fresh)
     }
 
+    #[cfg(test)]
     pub(crate) async fn fetch<F, Fut>(
         &self,
         endpoint: &Url,
