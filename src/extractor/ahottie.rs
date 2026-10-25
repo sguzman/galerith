@@ -515,7 +515,9 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].1["tags"], serde_json::json!(["City", "Sky & Water"]));
         assert_eq!(
-            visible_tags(r#"<i class="tags"></i><a href="/tags/city">City</a><script>x</script></div>"#),
+            visible_tags(
+                r#"<i class="tags"></i><a href="/tags/city">City</a><script>x</script></div>"#
+            ),
             vec!["City"]
         );
     }
