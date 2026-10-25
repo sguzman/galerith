@@ -54,6 +54,7 @@ pub mod lightroom;
 pub mod listal;
 pub mod moebooru;
 pub mod philomena;
+pub mod picarto;
 pub mod photovogue;
 pub mod picstate;
 pub mod pixeldrain;
@@ -253,6 +254,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "soundgasm",
         "public audio originals and bounded user discovery",
     ),
+    ("picarto", "public channel gallery JSON and bounded variations"),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
@@ -430,6 +432,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("soundgasm")
     } else if vanillarock::match_url(input).is_some() {
         Some("vanillarock")
+    } else if picarto::match_url(input).is_some() {
+        Some("picarto")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -698,6 +702,9 @@ pub async fn resolve(
     if let Some(target) = vanillarock::match_url(input) {
         return vanillarock::resolve(client, target).await;
     }
+    if let Some(target) = picarto::match_url(input) {
+        return picarto::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -828,6 +835,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = vanillarock::match_url(input) {
         return vanillarock::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = picarto::match_url(input) {
+        return picarto::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1302,6 +1312,7 @@ mod tests {
             ("https://www.slideshare.net/speaker/my-deck", "slideshare"),
             ("https://soundgasm.net/u/alice/first", "soundgasm"),
             ("https://vanilla-rock.com/my-post", "vanillarock"),
+            ("https://picarto.tv/artist/gallery", "picarto"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
