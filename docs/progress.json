@@ -4046,6 +4046,43 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T584",
+              "emoji": "🖼️",
+              "name": "ComicVine public tag-gallery images and bounded JSON pagination",
+              "progress": 83,
+              "checks": [
+                {
+                  "title": "Match pinned first-party ComicVine tag/object gallery URLs, rejecting hostile origins, traversal and private query forms",
+                  "passed": true,
+                  "evidence": "src/extractor/comicvine.rs gallery_routes_validate_public_origin_and_id; src/extractor/mod.rs native routing fixture; CI 40154046581"
+                },
+                {
+                  "title": "Read public gallery ID and image-data original URLs via trusted HTTPS media hosts, retaining source tag/object identity",
+                  "passed": true,
+                  "evidence": "src/extractor/comicvine.rs source_tags_dates_media_and_duplicate_images_are_bounded and public_gallery_and_api_use_two_bounded_local_gets; CI 40154046581"
+                },
+                {
+                  "title": "Preserve source image IDs, metadata tags, creation date strings and stable unique originals, rejecting encoded-path and foreign media",
+                  "passed": true,
+                  "evidence": "src/extractor/comicvine.rs source_tags_dates_media_and_duplicate_images_are_bounded; CI 40154046581"
+                },
+                {
+                  "title": "Implement pinned 1000-image start/count/object JSON API pagination with 2 MiB bounded source GETs, dedup and real 1000+1-item HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/comicvine.rs thousand_image_page_continues_at_correct_source_offset_and_deduplicates and public_gallery_and_api_use_two_bounded_local_gets; CI 40154046581"
+                },
+                {
+                  "title": "Normalize valid Gregorian English dateCreated values as timezone-free ISO calendar dates, rejecting impossible day/month combinations",
+                  "passed": true,
+                  "evidence": "src/extractor/comicvine.rs comicvine_english_calendar_date_rejects_invalid_month_and_leap_day; CI 40154046581"
+                },
+                {
+                  "title": "Match complete pinned image CDN/format variants, full metadata/templates/archive and uncapped historical pages with live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 141 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 142 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -784,6 +784,13 @@
   - [x] Preserve pinned numeric chapters/minors, source group IDs/names and neutral language metadata across original images and typed chapter queues — src/extractor/dankefuerslesen.rs chapter_numbers_reject_malformed_parts_and_preserve_minor_fragments and chapter_originals_and_manga_queues_preserve_validated_source_metadata; full CI 40153155133
   - [x] Bound source series API JSON to 2 MiB, page originals to 240, chapter queues to 128 and verify public one-request loopback HTTP route — src/extractor/dankefuerslesen.rs bounded_public_series_json_reads_one_api_request_per_entry and guarded chapter_media/chapter_queue; full CI 40153155133
   - [ ] Match configurable ZIP chapter archives, source-order multi-group selection, exact release datetime and metadata/file/archive templates, full histories and live upstream differential parity
+- 🖼️ **T584** ComicVine public tag-gallery images and bounded JSON pagination — `████████░░ 83%`
+  - [x] Match pinned first-party ComicVine tag/object gallery URLs, rejecting hostile origins, traversal and private query forms — src/extractor/comicvine.rs gallery_routes_validate_public_origin_and_id; src/extractor/mod.rs native routing fixture; CI 40154046581
+  - [x] Read public gallery ID and image-data original URLs via trusted HTTPS media hosts, retaining source tag/object identity — src/extractor/comicvine.rs source_tags_dates_media_and_duplicate_images_are_bounded and public_gallery_and_api_use_two_bounded_local_gets; CI 40154046581
+  - [x] Preserve source image IDs, metadata tags, creation date strings and stable unique originals, rejecting encoded-path and foreign media — src/extractor/comicvine.rs source_tags_dates_media_and_duplicate_images_are_bounded; CI 40154046581
+  - [x] Implement pinned 1000-image start/count/object JSON API pagination with 2 MiB bounded source GETs, dedup and real 1000+1-item HTTP regression — src/extractor/comicvine.rs thousand_image_page_continues_at_correct_source_offset_and_deduplicates and public_gallery_and_api_use_two_bounded_local_gets; CI 40154046581
+  - [x] Normalize valid Gregorian English dateCreated values as timezone-free ISO calendar dates, rejecting impossible day/month combinations — src/extractor/comicvine.rs comicvine_english_calendar_date_rejects_invalid_month_and_leap_day; CI 40154046581
+  - [ ] Match complete pinned image CDN/format variants, full metadata/templates/archive and uncapped historical pages with live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

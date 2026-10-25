@@ -377,9 +377,14 @@
     {
       "path": "gallery_dl/extractor/comicvine.py",
       "module": "comicvine",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/comicvine.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent bounded public ComicVine tag gallery adapter: strict tag/object/first-party gallery routes, 2 MiB gallery/JSON response cap, pinned /js/image-data.json?images&start&count=1000&object paging up to 3 pages/3000 originals, trusted HTTPS media origin/path check, dedup/source metadata, English dateCreated Gregorian calendar normalization without invented timezone. Offline one-page and real 1000-image/second-page loopback HTTP tests; full formatting, strict Clippy, tests and release CI 40154046581 passed. Complete original CDN variants, archive/filename and live pinned differential parity not accepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/common.py",
