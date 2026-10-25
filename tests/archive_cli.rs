@@ -256,6 +256,85 @@ fn concurrent_cli_processes_do_not_fetch_the_same_archived_media_twice() {
 }
 
 #[test]
+fn rate_limited_retry_respects_archive_commit_only_after_success() {
+    let dir = temp("rate-limit-retry");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let archive = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/limited.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for response in [
+            b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .as_slice(),
+            b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS"
+                .as_slice(),
+        ] {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((socket, _)) => break socket,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "429 retry request never arrived"
+                        );
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                    Err(error) => panic!("rate-limited listener error: {error}"),
+                }
+            };
+            socket.set_nonblocking(false).unwrap();
+            let mut buffer = [0_u8; 1024];
+            let count = socket.read(&mut buffer).unwrap();
+            assert!(String::from_utf8_lossy(&buffer[..count]).contains("/limited.jpg"));
+            socket.write_all(response).unwrap();
+        }
+    });
+    let invoke = |retries: &str| {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&archive)
+            .args(["--http-timeout", "3", "--retries", retries])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let exhausted = invoke("0");
+    assert!(!exhausted.status.success());
+    assert!(!dir.join("limited.jpg").exists());
+    let empty: i64 = rusqlite::Connection::open(&archive)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(empty, 0, "exhausted 429 must not be archived");
+
+    let recovered = invoke("1");
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("limited.jpg")).unwrap(), b"PASS");
+    let count: i64 = rusqlite::Connection::open(&archive)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(dir.join("limited.jpg")).unwrap();
+    let skipped = invoke("0");
+    assert!(skipped.status.success());
+    assert!(String::from_utf8_lossy(&skipped.stdout).contains("archived limited.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn failed_download_is_not_archived_and_can_be_retried_on_next_invocation() {
     let dir = temp("failed-retry");
     let _ = fs::remove_dir_all(&dir);
