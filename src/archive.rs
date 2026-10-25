@@ -316,7 +316,11 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
 /// the same post ID but uses a different upstream archive template.
 fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
     let parsed = url::Url::parse(source_url).ok()?;
-    if parsed.scheme() != "https" || parsed.port().is_some() || !parsed.username().is_empty() || parsed.password().is_some() {
+    if parsed.scheme() != "https"
+        || parsed.port().is_some()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
         return None;
     }
     let host = parsed.host_str()?;
@@ -351,7 +355,11 @@ fn booru_pool(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     }
     let post = item.post_id.filter(|id| *id > 0)?;
     let parsed = url::Url::parse(source_url).ok()?;
-    if parsed.scheme() != "https" || parsed.port().is_some() || !parsed.username().is_empty() || parsed.password().is_some() {
+    if parsed.scheme() != "https"
+        || parsed.port().is_some()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
         return None;
     }
     match (item.extractor, parsed.host_str()?) {
@@ -377,7 +385,8 @@ fn danbooru_favorite_group(item: &MediaItem, source_url: &str) -> Option<(u64, u
     }
     let post_id = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || source.port().is_some()
+    if source.scheme() != "https"
+        || source.port().is_some()
         || source.host_str() != Some("danbooru.donmai.us")
         || !source.username().is_empty()
         || source.password().is_some()
@@ -401,7 +410,8 @@ fn e621_favorite(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     }
     let post = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || source.port().is_some()
+    if source.scheme() != "https"
+        || source.port().is_some()
         || !source.username().is_empty()
         || source.password().is_some()
         || source.path() != "/favorites"
@@ -436,7 +446,11 @@ fn booru_tag_search(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || source.port().is_some() || !source.username().is_empty() || source.password().is_some() {
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
         return None;
     }
     match (item.extractor, source.host_str()?, source.path()) {
@@ -474,7 +488,8 @@ fn danbooru_media_asset(item: &MediaItem, source_url: &str) -> Option<u64> {
     }
     let id = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || source.port().is_some()
+    if source.scheme() != "https"
+        || source.port().is_some()
         || source.host_str() != Some("danbooru.donmai.us")
         || !source.username().is_empty()
         || source.password().is_some()
@@ -496,7 +511,11 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || source.port().is_some() || !source.username().is_empty() || source.password().is_some() {
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
         return None;
     }
     let source_path = source.path();
@@ -2799,10 +2818,8 @@ mod tests {
 
     #[test]
     fn alternate_https_ports_cannot_reuse_scoped_booru_archive_ids() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-bool-alt-port-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-bool-alt-port-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
