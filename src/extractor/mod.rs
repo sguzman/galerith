@@ -2,6 +2,7 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod agnph;
 pub mod ahottie;
+pub mod audiochan;
 pub mod architizer;
 pub mod arena;
 pub mod basic_hosts;
@@ -95,6 +96,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "comicvine",
         "bounded public ComicVine tag gallery originals",
     ),
+    ("audiochan", "public Audiochan originals and bounded user queues"),
     (
         "dankefuerslesen",
         "public Danke manga chapters and deferred series queues",
@@ -269,6 +271,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("foriio")
     } else if comicvine::match_url(input).is_some() {
         Some("comicvine")
+    } else if audiochan::match_url(input).is_some() {
+        Some("audiochan")
     } else if dankefuerslesen::match_url(input).is_some() {
         Some("dankefuerslesen")
     } else if agnph::match_url(input).is_some() {
@@ -435,6 +439,9 @@ pub async fn resolve(
     }
     if let Some(gallery) = comicvine::match_url(input) {
         return comicvine::resolve(client, gallery).await;
+    }
+    if let Some(target) = audiochan::match_url(input) {
+        return audiochan::resolve(client, target).await;
     }
     if let Some(target) = dankefuerslesen::match_url(input) {
         return dankefuerslesen::resolve(client, target).await;
@@ -695,6 +702,9 @@ pub async fn resolve_messages(
     }
     if let Some(gallery) = comicvine::match_url(input) {
         return comicvine::resolve_messages(client, gallery).await;
+    }
+    if let Some(target) = audiochan::match_url(input) {
+        return audiochan::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = dankefuerslesen::match_url(input) {
         return dankefuerslesen::resolve_messages(client, target).await;
@@ -1123,6 +1133,8 @@ mod tests {
                 "https://comicvine.gamespot.com/covers/123-45/images/",
                 "comicvine",
             ),
+            ("https://audiochan.com/a/hello", "audiochan"),
+            ("https://audiochan.com/u/alice", "audiochan"),
             (
                 "https://danke.moe/read/manga/series/1/1/",
                 "dankefuerslesen",
