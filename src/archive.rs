@@ -2276,8 +2276,8 @@ mod tests {
         drop(source);
         let source_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (5, 5));
-        assert_eq!(archive.import_reference().unwrap(), (5, 0));
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (4, 0));
         drop(archive);
         assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
         fs::remove_file(foreign).unwrap();
@@ -2762,8 +2762,8 @@ mod tests {
         drop(upstream);
         let bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (4, 4));
-        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
+        assert_eq!(archive.import_reference().unwrap(), (5, 0));
         drop(archive);
         assert_eq!(fs::read(&foreign).unwrap(), bytes);
         fs::remove_file(foreign).unwrap();
