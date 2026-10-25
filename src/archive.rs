@@ -601,6 +601,38 @@ mod tests {
     }
 
     #[test]
+    fn failed_archive_import_rolls_back_all_native_rows() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-import-rollback-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native_path = root.join("native.sqlite");
+        let source_path = root.join("malformed.sqlite");
+        let foreign = Connection::open(&source_path).unwrap();
+        // SQLite's ordinary TEXT PRIMARY KEY column can still accept BLOB
+        // values. A malformed source must not leave a half-imported history.
+        foreign
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY);
+                 INSERT INTO archive(entry) VALUES ('directlinkexample.org/valid.jpg');
+                 INSERT INTO archive(entry) VALUES (X'FF');",
+            )
+            .unwrap();
+        drop(foreign);
+        let initial = fs::read(&source_path).unwrap();
+        let native = Archive::open_with_reference(&native_path, Some(&source_path)).unwrap();
+        assert!(native.import_reference().is_err());
+        let count: i64 = native
+            .connection
+            .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "failed imports must be atomic");
+        drop(native);
+        assert_eq!(fs::read(&source_path).unwrap(), initial);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_supported_keys_are_private_idempotent_and_survive_reference_removal() {
         let root = std::env::temp_dir().join(format!("galerith-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
