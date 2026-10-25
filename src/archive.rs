@@ -78,6 +78,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "danbooru" && canonical_media_asset_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if is_booru_pool_category(category) && canonical_popular_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -106,12 +109,69 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
                 || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare))
                 || (is_booru_pool_category(category) && canonical_tag_archive_suffix(bare))
-                || (category == "danbooru" && canonical_media_asset_archive_suffix(bare)))
+                || (category == "danbooru" && canonical_media_asset_archive_suffix(bare))
+                || (is_booru_pool_category(category) && canonical_popular_archive_suffix(bare)))
         {
             return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn validated_calendar_date(date: &str) -> Option<(u32, u32, u32)> {
+    let bytes = date.as_bytes();
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || !bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let year = date[..4].parse::<u32>().ok()?;
+    let month = date[5..7].parse::<u32>().ok()?;
+    let day = date[8..].parse::<u32>().ok()?;
+    if year == 0 || !(1..=12).contains(&month) {
+        return None;
+    }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    (day > 0 && day <= days).then_some((year, month, day))
+}
+
+fn canonical_popular_archive_suffix(suffix: &str) -> bool {
+    let Some((scale_date, id)) = suffix
+        .strip_prefix("P_")
+        .and_then(|value| value.rsplit_once('_'))
+    else {
+        return false;
+    };
+    let Some((scale, date)) = scale_date.split_once('_') else {
+        return false;
+    };
+    let Ok(post) = id.parse::<u64>() else {
+        return false;
+    };
+    if post == 0 {
+        return false;
+    }
+    let valid_date = match scale {
+        "d" => validated_calendar_date(date).is_some(),
+        "m" => {
+            let mut candidate = date.to_owned();
+            candidate.push_str("-01");
+            validated_calendar_date(&candidate).is_some()
+        }
+        _ => false,
+    };
+    valid_date && suffix == format!("P_{scale}_{date}_{post}")
 }
 
 fn canonical_media_asset_archive_suffix(suffix: &str) -> bool {
@@ -394,9 +454,53 @@ fn danbooru_media_asset(item: &MediaItem, source_url: &str) -> Option<u64> {
     }
 }
 
+/// Pinned popular extractors use P_{scale[0]}_{date}_{id}. Daily and
+/// monthly scales can be reproduced from an explicitly dated source URL.
+/// Omit current-day defaults and weekly date rounding until verified.
+fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
+    if !is_booru_pool_category(item.extractor) || item.post_id.is_none_or(|id| id == 0) {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    let source_path = source.path();
+    match (item.extractor, source.host_str()?, source_path) {
+        ("danbooru", "danbooru.donmai.us", "/popular")
+        | ("danbooru", "danbooru.donmai.us", "/explore/posts/popular")
+        | ("e621", "e621.net", "/explore/posts/popular")
+        | ("e926", "e926.net", "/explore/posts/popular")
+        | ("e6ai", "e6ai.net", "/explore/posts/popular") => {}
+        _ => return None,
+    }
+    let mut scale = None;
+    let mut date = None;
+    for (key, value) in source.query_pairs() {
+        match key.as_ref() {
+            "scale" if scale.is_none() => scale = Some(value.into_owned()),
+            "date" if date.is_none() => date = Some(value.into_owned()),
+            "scale" | "date" => return None,
+            _ => {}
+        }
+    }
+    let scale = scale?;
+    let date = date?;
+    validated_calendar_date(&date)?;
+    let (initial, normalized_date) = match scale.as_str() {
+        "day" => ("d", date),
+        "month" => ("m", date[..7].to_owned()),
+        _ => return None,
+    };
+    Some(format!("{}P_{initial}_{normalized_date}_{}", item.extractor, item.post_id?))
+}
+
 /// Scoped identity unifies native archive records, advisory locks and
 /// read-only upstream lookup for verified posts, pools, favorite groups,
-/// tag searches, media assets and account-specific e621-family favorites.
+/// tag searches, popular collections, media assets and explicit favorites.
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
@@ -426,10 +530,16 @@ fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
             normalized,
         ));
     }
-    let asset = danbooru_media_asset(item, source_url)?;
+    if let Some(asset) = danbooru_media_asset(item, source_url) {
+        return Some((
+            format!("media-asset-id:{asset}"),
+            format!("danboorum{asset}"),
+        ));
+    }
+    let normalized = booru_popular(item, source_url)?;
     Some((
-        format!("media-asset-id:{asset}"),
-        format!("danboorum{asset}"),
+        format!("popular-sha256:{}", archive_key_digest(&normalized)),
+        normalized,
     ))
 }
 
