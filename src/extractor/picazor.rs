@@ -77,6 +77,16 @@ fn original(root: &Url, raw: &str) -> Option<(String, String, String)> {
     {
         return None;
     }
+    // Check raw components before URL parsing can normalize dot segments away.
+    for segment in raw.split('/').skip(1) {
+        let decoded = percent_decode_str(segment).decode_utf8().ok()?;
+        if decoded == "." || decoded == ".." || decoded.contains('/')
+            || decoded.contains('\\') || decoded.contains('%')
+            || decoded.chars().any(char::is_control)
+        {
+            return None;
+        }
+    }
     let url = root.join(raw).ok()?;
     if url.origin() != root.origin() || !url.username().is_empty()
         || url.password().is_some() || url.query().is_some() || url.fragment().is_some()
@@ -298,6 +308,9 @@ mod tests {
             "/files/%2fsecret.jpg",
             "/files/%5csecret.jpg",
             "/files/%2e%2e/private.jpg",
+            "/files/../private.jpg",
+            "/files/%252e%252e/private.jpg",
+            "/files/%252fsecret.jpg",
             "/files/%00nul.png",
             "/files/anything.php",
             "/files/photo.png?token=secret",
