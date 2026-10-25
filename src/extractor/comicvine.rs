@@ -330,6 +330,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn thousand_image_page_continues_at_correct_source_offset_and_deduplicates() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let first = serde_json::json!({
+            "images": (1..=1000_u64).map(|id| {
+                serde_json::json!({
+                    "id": id,
+                    "original": format!(
+                        "https://comicvine.gamespot.com/a/uploads/original/{id}.jpg"
+                    )
+                })
+            }).collect::<Vec<_>>()
+        }).to_string();
+        let second = serde_json::json!({
+            "images": [
+                {"id":1000,"original":"https://comicvine.gamespot.com/a/uploads/original/1000.jpg"},
+                {"id":1001,"original":"https://comicvine.gamespot.com/a/uploads/original/1001.jpg"}
+            ]
+        }).to_string();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                ("/covers/123-45/images/", r#"<div data-gallery-id="g12">"#.to_owned()),
+                ("/js/image-data.json?images=g12&start=0&count=1000&object=123-45", first),
+                ("/js/image-data.json?images=g12&start=1000&count=1000&object=123-45", second),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 4096];
+                let count = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..count])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let gallery = match_url("https://comicvine.gamespot.com/covers/123-45/images/").unwrap();
+        let originals = at_base(&Client::new(), &base, &gallery).await.unwrap();
+        assert_eq!(originals.len(), 1001);
+        assert_eq!(originals[0].0.filename, "1_1.jpg");
+        assert_eq!(originals[999].0.filename, "1000_1000.jpg");
+        assert_eq!(originals[1000].0.filename, "1001_1001.jpg");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn public_gallery_and_api_use_two_bounded_local_gets() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
