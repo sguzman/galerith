@@ -19,7 +19,6 @@ pub mod e621;
 pub mod eightmuses;
 pub mod fapachi;
 pub mod fapello;
-pub mod fuskator;
 pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
@@ -27,6 +26,7 @@ pub mod foriio;
 pub mod fourarchive;
 pub mod fourchan;
 pub mod fourchanarchives;
+pub mod fuskator;
 pub mod gelbooru;
 pub mod gelbooru_v02;
 pub mod hatenablog;
@@ -190,7 +190,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded public Fapachi post originals and user queues",
     ),
     ("fapello", "public Fapello posts, models and path queues"),
-    ("fuskator", "public gallery token and image JSON with search queues"),
+    (
+        "fuskator",
+        "public gallery token and image JSON with search queues",
+    ),
     (
         "imagevenue",
         "pinned public ImageVenue single-image preview",
