@@ -4381,7 +4381,7 @@
               "id": "T594",
               "emoji": "📝",
               "name": "Hatena Blog public entry originals, article directories and archive queues",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Route pinned Hatena Blog public entry, home, archive/category and search URLs on trusted blog domains and reject hostile queries",
@@ -4404,7 +4404,12 @@
                   "evidence": "src/extractor/hatenablog.rs imageless_article_emits_directory_and_multi_image_article_has_one_directory, source_entry_queues_reject_raw_traversal_before_url_normalization; Linux CI 40202535138"
                 },
                 {
-                  "title": "Match custom-domain alias URLs, all Hatena HTML/media variants, exact date and filename/archive/directory templates, unbounded pagination, and live upstream differential parity",
+                  "title": "Validate source RFC3339 publication dates against Gregorian calendar and time offsets, preserving original timezone and refusing impossible dates",
+                  "passed": true,
+                  "evidence": "src/extractor/hatenablog.rs source_iso_dates_validate_gregorian_calendar_without_losing_timezone and article_media_are_source_scoped_and_keep_entry_metadata; full Linux Rust CI 40203001697"
+                },
+                {
+                  "title": "Match all custom-domain alias URLs, complete Hatena HTML/media variants and filename/archive/directory templates, unrestricted feeds and live upstream differential parity",
                   "passed": false
                 }
               ]
