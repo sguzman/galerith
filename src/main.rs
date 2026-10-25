@@ -225,7 +225,11 @@ struct Cli {
     download_archive: Option<PathBuf>,
 
     /// Existing gallery-dl SQLite archive to consult read-only for direct links
-    #[arg(long = "gallery-dl-archive", value_name = "FILE", requires = "download_archive")]
+    #[arg(
+        long = "gallery-dl-archive",
+        value_name = "FILE",
+        requires = "download_archive"
+    )]
     gallery_dl_archive: Option<PathBuf>,
 
     /// Overwrite existing media instead of skipping
