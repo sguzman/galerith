@@ -140,11 +140,9 @@ fn decode_work(
     id: u64,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let work = root.get("work").ok_or("Foriio work object absent")?;
-    if work
-        .get("id")
-        .and_then(Value::as_u64)
-        .is_some_and(|actual| actual != id)
-    {
+    let actual = work.get("id").and_then(Value::as_u64)
+        .ok_or("Foriio public work lacks numeric source identity")?;
+    if actual != id {
         return Err("Foriio work ID differs from requested work".into());
     }
     let files = work
@@ -383,6 +381,8 @@ mod tests {
         assert_eq!(media[1].1["work_id"], 12345);
         assert_eq!(media[0].1["author"]["screen_name"], "creator");
         assert!(decode_work(&api, 54321).is_err());
+        let missing = serde_json::json!({"work":{"images":[{"id":1,"urls":{"list":"https://foriio.imgix.net/store/one.jpg"}}]}});
+        assert!(decode_work(&missing, 12345).is_err());
         let evil = serde_json::json!({"work":{"images":[{"id":1,"urls":{"list":"https://evilforiio.imgix.net/store/one.jpg"}}]}});
         assert!(decode_work(&evil, 12345).is_err());
     }
