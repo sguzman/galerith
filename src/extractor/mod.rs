@@ -1,5 +1,6 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
+pub mod arena;
 pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
@@ -80,6 +81,7 @@ use std::error::Error;
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("directlink", "direct HTTP(S) media URL subset"),
+    ("arena", "bounded public Are.na channel images and attachments"),
     (
         "urlshortener",
         "bounded bit.ly and t.co safe public link queues",
@@ -234,7 +236,9 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if urlshortener::match_url(input).is_some() {
+    if arena::match_url(input).is_some() {
+        Some("arena")
+    } else if urlshortener::match_url(input).is_some() {
         Some("urlshortener")
     } else if foolfuuka::match_url(input).is_some()
         || foolfuuka::match_board_url(input).is_some()
@@ -384,6 +388,9 @@ pub async fn resolve(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Some(channel) = arena::match_url(input) {
+        return arena::resolve(client, channel, max_pages).await;
+    }
     if urlshortener::match_url(input).is_some() {
         return Err("Shortened public links require --dump-messages or --follow-queues".into());
     }
@@ -623,6 +630,9 @@ pub async fn resolve_messages(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if let Some(channel) = arena::match_url(input) {
+        return arena::resolve_messages(client, channel, max_pages).await;
+    }
     if let Some(wallhaven::Target::Collections { user }) = wallhaven::match_url(input) {
         return wallhaven::queued_collections(client, &user, max_pages).await;
     }
@@ -1029,6 +1039,7 @@ mod tests {
     fn preview_registry_matches_routed_extractors() {
         let fixtures = [
             ("https://example.org/file.jpg", "directlink"),
+            ("https://are.na/alice/cassette-futurism", "arena"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
             ("https://2ch.org/a/", "2ch"),
