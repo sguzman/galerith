@@ -4147,6 +4147,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T587",
+              "emoji": "🎧",
+              "name": "Soundgasm public audio originals and user discovery queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize public Soundgasm u/user clip and profile URLs while rejecting forged hosts, credentials and unsafe path/query forms",
+                  "passed": true,
+                  "evidence": "src/extractor/soundgasm.rs accepts_pinned_user_and_sound_urls_only; CI 40155976406"
+                },
+                {
+                  "title": "Parse source audio title and description, supported setMedia CDN original and first-party safe audio filename",
+                  "passed": true,
+                  "evidence": "src/extractor/soundgasm.rs public_audio_uses_first_party_original_and_source_metadata; CI 40155976406"
+                },
+                {
+                  "title": "Read user sound-details links as first-seen typed deferred queue entries, excluding other-user and external references",
+                  "passed": true,
+                  "evidence": "src/extractor/soundgasm.rs user_discovery_is_deferred_first_seen_and_foreign_links_excluded; CI 40155976406"
+                },
+                {
+                  "title": "Read only bounded 2 MiB public audio/profile HTML with real loopback GET fixtures and native dispatch",
+                  "passed": true,
+                  "evidence": "src/extractor/soundgasm.rs public_audio_and_user_listing_each_read_one_bounded_http_page; src/extractor/mod.rs routed URL fixture; full CI 40155976406"
+                },
+                {
+                  "title": "Match all upstream source player and rich HTML text variants, eager user extraction, filename/archive/directory templates, media transport details and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

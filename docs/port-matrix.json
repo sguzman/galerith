@@ -1754,9 +1754,14 @@
     {
       "path": "gallery_dl/extractor/soundgasm.py",
       "module": "soundgasm",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/soundgasm.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Soundgasm public clip and user-list subset: strict u/user URL paths and first-party origin, supported setMedia CDN audio originals, safe title/description/extension metadata, bounded 2 MiB HTML and 128 deferred user children with duplicate/foreign-link filtering, real one-GET per audio and user loopback fixture. Full CI 40155976406 passed format, Clippy, tests and release build. Full original media variant coverage, eager user mode, filename/archive, unrestricted listings and live differential equivalence unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/speakerdeck.py",

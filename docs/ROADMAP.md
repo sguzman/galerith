@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 144 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 145 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -803,6 +803,12 @@
   - [x] Reject malicious CDN origins, unsafe image paths, zero/unbounded slide counts and unsupported Next.js hydration — src/extractor/slideshare.rs source_slides_preserve_image_numbering_metadata_and_trusted_cdn; full Linux CI 40155515706
   - [x] Bound HTML to 2 MiB and source slide count to 256 with real single-request loopback public presentation regression and typed native dispatch — src/extractor/slideshare.rs single_bounded_http_get_produces_three_slide_urls; src/extractor/mod.rs routing fixture; full CI 40155515706
   - [ ] Match complete original slideshow formats/hosts, unrestricted slide counts, exact filename/directory/archive and date semantics, redirect/content behavior, and live pinned upstream differential parity
+- 🎧 **T587** Soundgasm public audio originals and user discovery queues — `████████░░ 80%`
+  - [x] Recognize public Soundgasm u/user clip and profile URLs while rejecting forged hosts, credentials and unsafe path/query forms — src/extractor/soundgasm.rs accepts_pinned_user_and_sound_urls_only; CI 40155976406
+  - [x] Parse source audio title and description, supported setMedia CDN original and first-party safe audio filename — src/extractor/soundgasm.rs public_audio_uses_first_party_original_and_source_metadata; CI 40155976406
+  - [x] Read user sound-details links as first-seen typed deferred queue entries, excluding other-user and external references — src/extractor/soundgasm.rs user_discovery_is_deferred_first_seen_and_foreign_links_excluded; CI 40155976406
+  - [x] Read only bounded 2 MiB public audio/profile HTML with real loopback GET fixtures and native dispatch — src/extractor/soundgasm.rs public_audio_and_user_listing_each_read_one_bounded_http_page; src/extractor/mod.rs routed URL fixture; full CI 40155976406
+  - [ ] Match all upstream source player and rich HTML text variants, eager user extraction, filename/archive/directory templates, media transport details and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
