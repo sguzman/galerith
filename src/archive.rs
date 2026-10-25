@@ -234,7 +234,9 @@ impl Archive {
         let reference_table = table_option.unwrap_or("archive");
         let resolved_prefix = prefix_option.or_else(|| table_option.map(|_| ""));
         if resolved_prefix.is_some_and(|p| p.len() > 128 || p.contains('\0')) {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid archive prefix").into());
+            return Err(
+                io::Error::new(io::ErrorKind::InvalidInput, "invalid archive prefix").into(),
+            );
         }
         if reference_table.is_empty()
             || reference_table.len() > 128
@@ -396,7 +398,8 @@ impl Archive {
                     import_category(&entry, self.upstream_reference_prefix.as_deref())
                 {
                     matched += 1;
-                    inserted += insert.execute(params![category, archive_key_digest(&normalized)])?;
+                    inserted +=
+                        insert.execute(params![category, archive_key_digest(&normalized)])?;
                 }
             }
         }
@@ -459,10 +462,7 @@ impl Archive {
                     archive_table_identifier(table)
                 );
                 let lookup_key = if self.upstream_reference.is_some() {
-                    upstream_archive_key_configured(
-                        item,
-                        self.upstream_reference_prefix.as_deref(),
-                    )
+                    upstream_archive_key_configured(item, self.upstream_reference_prefix.as_deref())
                 } else {
                     Some(source_key)
                 };
@@ -752,12 +752,18 @@ mod tests {
     fn named_table_skips_ambiguous_numeric_ids_without_explicit_site_prefix() {
         assert_eq!(import_category("123", Some("")), None);
         assert_eq!(import_category("123", Some("shared_")), None);
-        assert_eq!(import_category("derpibooru123", None),
-            Some(("derpibooru", "derpibooru123".to_owned())));
-        assert_eq!(import_category("derpibooru123", Some("derpibooru")),
-            Some(("derpibooru", "derpibooru123".to_owned())));
-        assert_eq!(import_category("example.org//photo.jpg", Some("")),
-            Some(("directlink", "directlinkexample.org//photo.jpg".to_owned())));
+        assert_eq!(
+            import_category("derpibooru123", None),
+            Some(("derpibooru", "derpibooru123".to_owned()))
+        );
+        assert_eq!(
+            import_category("derpibooru123", Some("derpibooru")),
+            Some(("derpibooru", "derpibooru123".to_owned()))
+        );
+        assert_eq!(
+            import_category("example.org//photo.jpg", Some("")),
+            Some(("directlink", "directlinkexample.org//photo.jpg".to_owned()))
+        );
         assert!(upstream_archive_key_configured(
             &MediaItem {
                 url: "https://cdn.invalid/a.jpg".into(),
@@ -766,7 +772,8 @@ mod tests {
                 post_id: Some(123),
             },
             Some(""),
-        ).is_none());
+        )
+        .is_none());
     }
 
     #[test]

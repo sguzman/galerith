@@ -541,14 +541,20 @@ fn named_table_does_not_import_ambiguous_philomena_rows() {
         cmd.arg("--archive-import").output().unwrap()
     };
     let first = run(None);
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     assert!(String::from_utf8_lossy(&first.stdout).contains("1 supported entries; 1 new"));
     let second = run(None);
     assert!(second.status.success());
     assert!(String::from_utf8_lossy(&second.stdout).contains("1 supported entries; 0 new"));
     let counted: i64 = rusqlite::Connection::open(&native)
         .unwrap()
-        .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert_eq!(counted, 1);
     fs::remove_dir_all(dir).unwrap();
