@@ -28,7 +28,9 @@ fn safe_user(name: &str) -> bool {
 
 pub fn match_url(raw: &str) -> Option<User> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|bad| lower.contains(bad))
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|bad| lower.contains(bad))
         || raw.contains('%')
     {
         return None;
@@ -70,9 +72,12 @@ fn source_id(value: &Value) -> Option<String> {
 }
 
 fn original(root: &Url, raw: &str) -> Option<(String, String, String)> {
-    if !raw.starts_with('/') || raw.starts_with("//")
-        || raw.len() > 1024 || raw.contains('\\')
-        || raw.contains('?') || raw.contains('#')
+    if !raw.starts_with('/')
+        || raw.starts_with("//")
+        || raw.len() > 1024
+        || raw.contains('\\')
+        || raw.contains('?')
+        || raw.contains('#')
         || raw.chars().any(char::is_control)
     {
         return None;
@@ -80,23 +85,32 @@ fn original(root: &Url, raw: &str) -> Option<(String, String, String)> {
     // Check raw components before URL parsing can normalize dot segments away.
     for segment in raw.split('/').skip(1) {
         let decoded = percent_decode_str(segment).decode_utf8().ok()?;
-        if decoded == "." || decoded == ".." || decoded.contains('/')
-            || decoded.contains('\\') || decoded.contains('%')
+        if decoded == "."
+            || decoded == ".."
+            || decoded.contains('/')
+            || decoded.contains('\\')
+            || decoded.contains('%')
             || decoded.chars().any(char::is_control)
         {
             return None;
         }
     }
     let url = root.join(raw).ok()?;
-    if url.origin() != root.origin() || !url.username().is_empty()
-        || url.password().is_some() || url.query().is_some() || url.fragment().is_some()
+    if url.origin() != root.origin()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
     {
         return None;
     }
     let mut last = None;
     for segment in url.path_segments()? {
         let decoded = percent_decode_str(segment).decode_utf8().ok()?;
-        if decoded == "." || decoded == ".." || decoded.contains('/') || decoded.contains('\\')
+        if decoded == "."
+            || decoded == ".."
+            || decoded.contains('/')
+            || decoded.contains('\\')
             || decoded.chars().any(char::is_control)
         {
             return None;
@@ -132,12 +146,18 @@ fn decode_page(
         return Err("Picazor public files page exceeds the bounded size".into());
     }
     for post in posts {
-        let Some(raw) = post.get("path").and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+        let Some(raw) = post
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+        else {
             continue;
         };
         let (url, extension, _) = original(root, raw)
             .ok_or("Picazor file path is unsafe or outside supported original media")?;
-        let id = post.get("id").and_then(source_id)
+        let id = post
+            .get("id")
+            .and_then(source_id)
             .ok_or("Picazor original lacks a source-backed file id")?;
         let num = post
             .get("order")
@@ -161,7 +181,9 @@ fn decode_page(
         meta.insert("num".into(), num.into());
         meta.insert("extension".into(), extension.into());
         meta.insert("source_path".into(), raw.into());
-        if let Some(subject) = post.get("subject").and_then(Value::as_str)
+        if let Some(subject) = post
+            .get("subject")
+            .and_then(Value::as_str)
             .filter(|v| v.len() <= 240 && !v.chars().any(char::is_control))
         {
             meta.insert("subject".into(), subject.into());
@@ -196,7 +218,10 @@ async fn read_json(
     if response.url().origin() != endpoint.origin() {
         return Err("Picazor public API redirected outside its origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_JSON as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_JSON as u64)
+    {
         return Err("Picazor public API response exceeds the JSON cap".into());
     }
     let mut body = Vec::new();
@@ -223,7 +248,9 @@ async fn at_root(
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         let mut endpoint = root.join(&format!("api/files/{}/sfiles", user.name))?;
-        endpoint.query_pairs_mut().append_pair("page", &page.to_string());
+        endpoint
+            .query_pairs_mut()
+            .append_pair("page", &page.to_string());
         let posts = read_json(client, endpoint, &referer).await?;
         if decode_page(&posts, user, root, &mut output, &mut directory)? == 0 {
             break;
@@ -237,7 +264,13 @@ pub async fn resolve(
     user: User,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
-    let (_, media) = at_root(client, &Url::parse("https://picazor.com/")?, &user, max_pages).await?;
+    let (_, media) = at_root(
+        client,
+        &Url::parse("https://picazor.com/")?,
+        &user,
+        max_pages,
+    )
+    .await?;
     Ok(media.into_iter().map(|(item, _)| item).collect())
 }
 
@@ -246,27 +279,48 @@ pub async fn resolve_messages(
     user: User,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let (directory, media) =
-        at_root(client, &Url::parse("https://picazor.com/")?, &user, max_pages).await?;
+    let (directory, media) = at_root(
+        client,
+        &Url::parse("https://picazor.com/")?,
+        &user,
+        max_pages,
+    )
+    .await?;
     let mut events = Vec::new();
     if let Some(metadata) = directory {
         events.push(ExtractorMessage::Directory { metadata });
     }
-    events.extend(media.into_iter().map(|(item, metadata)| {
-        ExtractorMessage::Url { url: item.url, metadata }
-    }));
+    events.extend(
+        media
+            .into_iter()
+            .map(|(item, metadata)| ExtractorMessage::Url {
+                url: item.url,
+                metadata,
+            }),
+    );
     Ok(events)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn pinned_languages_and_users_reject_foreign_hosts_or_private_urls() {
-        assert_eq!(match_url("https://picazor.com/en/example").unwrap().name, "example");
-        assert_eq!(match_url("https://www.picazor.com/de/example/").unwrap().name, "example");
+        assert_eq!(
+            match_url("https://picazor.com/en/example").unwrap().name,
+            "example"
+        );
+        assert_eq!(
+            match_url("https://www.picazor.com/de/example/")
+                .unwrap()
+                .name,
+            "example"
+        );
         for bad in [
             "https://fakepicazor.com/en/example",
             "https://picazor.com/english/example",
@@ -290,7 +344,10 @@ mod tests {
         ]);
         let mut out = Vec::new();
         let mut directory = None;
-        assert_eq!(decode_page(&data, &user, &root, &mut out, &mut directory).unwrap(), 3);
+        assert_eq!(
+            decode_page(&data, &user, &root, &mut out, &mut directory).unwrap(),
+            3
+        );
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].0.url, "https://picazor.com/files/a%20b.png");
         assert_eq!(out[0].0.filename, "123_007.png");
@@ -325,7 +382,10 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (path, data) in [
-                ("/api/files/example/sfiles?page=1", r#"[{"id":100,"order":1,"path":"/files/first.jpg","subject":"User"}]"#),
+                (
+                    "/api/files/example/sfiles?page=1",
+                    r#"[{"id":100,"order":1,"path":"/files/first.jpg","subject":"User"}]"#,
+                ),
                 ("/api/files/example/sfiles?page=2", r#"[]"#),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
@@ -333,7 +393,9 @@ mod tests {
                 let count = socket.read(&mut bytes).await.unwrap();
                 let request = String::from_utf8_lossy(&bytes[..count]);
                 assert!(request.starts_with(&format!("GET {path} HTTP/1.1")));
-                assert!(request.to_ascii_lowercase().contains("referer: https://picazor.com/en/example"));
+                assert!(request
+                    .to_ascii_lowercase()
+                    .contains("referer: https://picazor.com/en/example"));
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{data}",
                     data.len()
