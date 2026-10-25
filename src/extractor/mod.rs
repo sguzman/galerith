@@ -6,8 +6,8 @@ pub mod architizer;
 pub mod arena;
 pub mod audiochan;
 pub mod basic_hosts;
-pub mod bluesky;
 pub mod bbc;
+pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod comicvine;
@@ -152,7 +152,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("2chan", "pinned 2chan public Futaba thread originals"),
     ("bluesky", "public ATProto posts, profile media and feeds"),
-    ("bbc", "guarded BBC programme galleries and deferred gallery queues"),
+    (
+        "bbc",
+        "guarded BBC programme galleries and deferred gallery queues",
+    ),
     ("catbox", "public Catbox files and albums"),
     ("comedywildlifephoto", "public competition gallery images"),
     ("danbooru", "public Danbooru post, tag and collection APIs"),
