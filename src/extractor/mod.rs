@@ -48,6 +48,7 @@ pub mod issuu;
 pub mod kabeuchi;
 pub mod keenspot;
 pub mod khinsider;
+pub mod hatenablog;
 pub mod koofr;
 pub mod lensdump;
 pub mod lexica;
@@ -269,6 +270,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded Piczel user, folder and image JSON galleries",
     ),
     ("koofr", "guarded public Koofr shared files and folders"),
+    ("hatenablog", "public Hatena Blog entries and archive discovery"),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
@@ -456,6 +458,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("piczel")
     } else if koofr::match_url(input).is_some() || koofr::short::match_url(input).is_some() {
         Some("koofr")
+    } else if hatenablog::match_url(input).is_some() {
+        Some("hatenablog")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -742,6 +746,9 @@ pub async fn resolve(
     if let Some(code) = koofr::short::match_url(input) {
         return koofr::short::resolve(client, code).await;
     }
+    if let Some(target) = hatenablog::match_url(input) {
+        return hatenablog::resolve(client, target, max_pages).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -890,6 +897,9 @@ pub async fn resolve_messages(
     }
     if let Some(code) = koofr::short::match_url(input) {
         return koofr::short::resolve_messages(client, code).await;
+    }
+    if let Some(target) = hatenablog::match_url(input) {
+        return hatenablog::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1371,6 +1381,8 @@ mod tests {
             ("https://piczel.tv/gallery/artist", "piczel"),
             ("https://app.koofr.net/links/1234-abc", "koofr"),
             ("https://k00.fr/Example7", "koofr"),
+            ("https://author.hatenablog.com/entry/2026/10/25/test", "hatenablog"),
+            ("https://author.hatenablog.com/archive", "hatenablog"),
             ("https://piczel.tv/gallery/artist/123", "piczel"),
             ("https://piczel.tv/gallery/image/456", "piczel"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
