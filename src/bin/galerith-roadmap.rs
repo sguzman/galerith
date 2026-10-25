@@ -268,11 +268,23 @@ fn render_readme_progress(
     let task_progress: Vec<u32> = ledger
         .milestones
         .iter()
-        .flat_map(|m| m.phases.iter().flat_map(|p| p.tasks.iter().map(|t| t.progress)))
+        .flat_map(|m| {
+            m.phases
+                .iter()
+                .flat_map(|p| p.tasks.iter().map(|t| t.progress))
+        })
         .collect();
     let overall = average(&task_progress);
-    let complete = matrix.modules.iter().filter(|m| m.status == "complete").count();
-    let partial = matrix.modules.iter().filter(|m| m.status == "partial").count();
+    let complete = matrix
+        .modules
+        .iter()
+        .filter(|m| m.status == "complete")
+        .count();
+    let partial = matrix
+        .modules
+        .iter()
+        .filter(|m| m.status == "partial")
+        .count();
     let missing = matrix.modules.len() - complete - partial;
     let expected_progress = format!(
         "**Overall MVP:** \u{60}{} {}%\u{60} ({} acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.",
