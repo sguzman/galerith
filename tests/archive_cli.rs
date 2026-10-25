@@ -461,3 +461,44 @@ fn offline_import_rejects_urls_and_missing_reference_before_creating_native() {
     assert!(!source.exists());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn offline_import_respects_selected_custom_foreign_table() {
+    let dir = temp("named-import");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let foreign = dir.join("foreign.sqlite");
+    let source = rusqlite::Connection::open(&foreign).unwrap();
+    source
+        .execute_batch(
+            "CREATE TABLE \\"stored items\\" (entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO \\"stored items\\" (entry) VALUES ('directlinkexample.org/item.jpg');",
+        )
+        .unwrap();
+    drop(source);
+    let before = fs::read(&foreign).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("--gallery-dl-archive")
+        .arg(&foreign)
+        .arg("--gallery-dl-archive-table")
+        .arg("stored items")
+        .arg("--archive-import")
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(String::from_utf8_lossy(&result.stdout).contains("1 supported entries; 1 new"));
+    assert_eq!(fs::read(&foreign).unwrap(), before);
+    fs::remove_file(foreign).unwrap();
+    let verify = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("https://example.org/item.jpg?signature=changed")
+        .output()
+        .unwrap();
+    assert!(verify.status.success(), "{}", String::from_utf8_lossy(&verify.stderr));
+    assert!(String::from_utf8_lossy(&verify.stdout).contains("archived item.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}

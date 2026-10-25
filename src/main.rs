@@ -232,6 +232,10 @@ struct Cli {
     )]
     gallery_dl_archive: Option<PathBuf>,
 
+    /// Named source archive table (default: archive)
+    #[arg(long = "gallery-dl-archive-table", value_name = "TABLE", requires = "gallery_dl_archive")]
+    gallery_dl_archive_table: Option<String>,
+
     /// Import recognized default gallery-dl archive entries once, offline
     #[arg(
         long = "archive-import",
@@ -297,7 +301,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .gallery_dl_archive
             .as_deref()
             .ok_or("missing reference archive")?;
-        let archive = Archive::open_with_reference(native, Some(source))?;
+        let archive = Archive::open_with_reference_table(
+            native,
+            Some(source),
+            cli.gallery_dl_archive_table.as_deref().unwrap_or("archive"),
+        )?;
         let (recognized, newly_imported) = archive.import_reference()?;
         println!("archive import: {recognized} supported entries; {newly_imported} new");
         return Ok(());
@@ -386,7 +394,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         } else {
             cli.download_archive
                 .as_ref()
-                .map(|path| Archive::open_with_reference(path, cli.gallery_dl_archive.as_deref()))
+                .map(|path| {
+                    Archive::open_with_reference_table(
+                        path,
+                        cli.gallery_dl_archive.as_deref(),
+                        cli.gallery_dl_archive_table.as_deref().unwrap_or("archive"),
+                    )
+                })
                 .transpose()?
         };
     let selected = cli
