@@ -47,6 +47,7 @@ pub mod imgur;
 pub mod imhentai;
 pub mod imxto;
 pub mod issuu;
+pub mod jschan;
 pub mod kabeuchi;
 pub mod keenspot;
 pub mod khinsider;
@@ -141,6 +142,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
+    ("jschan", "public 94chan thread attachments and deferred board catalog queues"),
     (
         "8muses",
         "bounded public encoded album images and child queues",
@@ -356,6 +358,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("gelbooru_v02")
     } else if fourchan::match_url(input).is_some() || fourchan::match_board_url(input).is_some() {
         Some("4chan")
+    } else if jschan::match_url(input).is_some() {
+        Some("jschan")
     } else if twoch::match_url(input).is_some() {
         Some("2ch")
     } else if twochen::match_url(input).is_some() {
@@ -566,6 +570,9 @@ pub async fn resolve(
     }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve(client, target).await;
+    }
+    if let Some(target) = jschan::match_url(input) {
+        return jschan::resolve(client, target).await;
     }
     if let Some(target) = twoch::match_url(input) {
         return twoch::resolve(client, target).await;
@@ -849,6 +856,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fourchan::match_url(input) {
         return fourchan::resolve_messages(client, target).await;
+    }
+    if let Some(target) = jschan::match_url(input) {
+        return jschan::resolve_messages(client, target).await;
     }
     if let Some(target) = twoch::match_url(input) {
         return twoch::resolve_messages(client, target, max_pages).await;
@@ -1307,6 +1317,8 @@ mod tests {
             ("https://danke.moe/read/manga/series", "dankefuerslesen"),
             ("https://foriio.com/artist", "foriio"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
+            ("https://94chan.org/a/thread/12345.html", "jschan"),
+            ("https://94chan.org/a/catalog.html", "jschan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
             ("https://2ch.org/a/", "2ch"),
             ("https://sturdychan.help/a/12345", "2chen"),
