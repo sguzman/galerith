@@ -364,15 +364,12 @@ mod tests {
         drop(original);
 
         let archive = Archive::open(&path).unwrap();
-        let old = extract_direct_media(
-            "https://example.org/images/photo.JPG?X-Amz-Signature=old",
-        )
-        .unwrap();
+        let old = extract_direct_media("https://example.org/images/photo.JPG?X-Amz-Signature=old")
+            .unwrap();
         assert!(archive.contains(&old).unwrap());
-        let rotated = extract_direct_media(
-            "https://example.org/images/photo.JPG?X-Amz-Signature=rotated",
-        )
-        .unwrap();
+        let rotated =
+            extract_direct_media("https://example.org/images/photo.JPG?X-Amz-Signature=rotated")
+                .unwrap();
         assert!(archive.contains(&rotated).unwrap());
         let another = extract_direct_media("https://example.org/images/other.jpg").unwrap();
         assert!(!archive.contains(&another).unwrap());
@@ -404,9 +401,9 @@ mod tests {
         drop(con);
         let archive = Archive::open(&path).unwrap();
         assert!(!archive.upstream_directlink_archive);
-        assert!(!archive.contains(
-            &extract_direct_media("https://example.org/image.jpg").unwrap()
-        ).unwrap());
+        assert!(!archive
+            .contains(&extract_direct_media("https://example.org/image.jpg").unwrap())
+            .unwrap());
         drop(archive);
         fs::remove_file(path).unwrap();
     }
