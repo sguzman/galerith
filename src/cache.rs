@@ -610,6 +610,91 @@ mod tests {
         });
     }
 
+    /// External writer for the two-live-process cache single-flight test.
+    #[test]
+    fn simultaneous_cache_writer_process_helper() {
+        let Some(db) = std::env::var_os("GALERITH_TEST_CACHE_WRITER_DB") else {
+            return;
+        };
+        let ready = std::env::var_os("GALERITH_TEST_CACHE_WRITER_READY").unwrap();
+        let cache = Cache::open(Path::new(&db), 60).unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/902.json").unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let value = cache
+                .fetch(&endpoint, 1024, || async {
+                    fs::write(ready, b"locked").unwrap();
+                    tokio::time::sleep(Duration::from_millis(350)).await;
+                    Ok(serde_json::json!({"post_ids":[902]}))
+                })
+                .await
+                .unwrap();
+            assert_eq!(value["post_ids"][0], 902);
+        });
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn separate_live_process_refreshes_one_shared_cache_key_once() {
+        let db = path("live-process-singleflight");
+        let ready = path("live-process-ready");
+        let _ = fs::remove_file(&db);
+        let _ = fs::remove_file(&ready);
+        let cache = Cache::open(&db, 60).unwrap();
+        let mut writer = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "cache::tests::simultaneous_cache_writer_process_helper"])
+            .env("GALERITH_TEST_CACHE_WRITER_DB", &db)
+            .env("GALERITH_TEST_CACHE_WRITER_READY", &ready)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = tokio::time::Instant::now();
+        while !ready.exists() && start.elapsed() < Duration::from_secs(5) {
+            if let Some(status) = writer.try_wait().unwrap() {
+                panic!("cache writer unexpectedly exited: {status}");
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        if !ready.exists() {
+            let _ = writer.kill();
+            let _ = writer.wait();
+            panic!("cache writer never acquired the shared key lock");
+        }
+        let endpoint = Url::parse("https://e621.net/pools/902.json").unwrap();
+        let unexpected_refreshes = AtomicUsize::new(0);
+        let result = tokio::time::timeout(
+            Duration::from_secs(6),
+            cache.fetch(&endpoint, 1024, || async {
+                unexpected_refreshes.fetch_add(1, Ordering::SeqCst);
+                Ok(serde_json::json!({"post_ids":[999]}))
+            }),
+        )
+        .await
+        .expect("concurrent cache lookup stalled")
+        .unwrap();
+        assert_eq!(result["post_ids"][0], 902);
+        assert_eq!(unexpected_refreshes.load(Ordering::SeqCst), 0);
+        assert!(writer.wait().unwrap().success());
+        let reopened = Cache::open(&db, 60).unwrap();
+        assert_eq!(
+            reopened
+                .fetch(&endpoint, 1024, || async {
+                    Err::<Value, Box<dyn Error + Send + Sync>>("unexpected fetch".into())
+                })
+                .await
+                .unwrap()["post_ids"][0],
+            902
+        );
+        drop(reopened);
+        drop(cache);
+        let _ = fs::remove_file(db);
+        let _ = fs::remove_file(ready);
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn killed_process_releases_cache_lock_without_poisoning_database() {
