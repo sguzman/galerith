@@ -259,11 +259,63 @@ fn main() {
     }
 }
 
+/// Keep the public README task percentage and module counts synchronized.
+fn render_readme_progress(
+    current: &str,
+    ledger: &Ledger,
+    matrix: &PortMatrix,
+) -> Result<String, Box<dyn Error>> {
+    let task_progress: Vec<u32> = ledger
+        .milestones
+        .iter()
+        .flat_map(|m| m.phases.iter().flat_map(|p| p.tasks.iter().map(|t| t.progress)))
+        .collect();
+    let overall = average(&task_progress);
+    let complete = matrix.modules.iter().filter(|m| m.status == "complete").count();
+    let partial = matrix.modules.iter().filter(|m| m.status == "partial").count();
+    let missing = matrix.modules.len() - complete - partial;
+    let expected_progress = format!(
+        "**Overall MVP:** \u{60}{} {}%\u{60} ({} acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.",
+        bar(overall), overall, task_progress.len()
+    );
+    let expected_catalog = format!(
+        "**Pinned extractor-source inventory:** {complete} complete · {partial} partial · {missing} not ported ({} upstream Python files).",
+        matrix.modules.len()
+    );
+    let mut progress_count = 0;
+    let mut catalog_count = 0;
+    let lines: Vec<String> = current
+        .lines()
+        .map(|line| {
+            if line.starts_with("**Overall MVP:** ") {
+                progress_count += 1;
+                expected_progress.clone()
+            } else if line.starts_with("**Pinned extractor-source inventory:** ") {
+                catalog_count += 1;
+                expected_catalog.clone()
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect();
+    if progress_count != 1 || catalog_count != 1 {
+        return Err("README needs exactly one progress line and one source-inventory line".into());
+    }
+    let mut output = lines.join("\n");
+    if current.ends_with('\n') {
+        output.push('\n');
+    }
+    Ok(output)
+}
+
 fn execute() -> Result<(), Box<dyn Error>> {
     let check = std::env::args().any(|arg| arg == "--check");
     let ledger: Ledger = serde_json::from_str(&fs::read_to_string("docs/progress.json")?)?;
     let matrix: PortMatrix = serde_json::from_str(&fs::read_to_string("docs/port-matrix.json")?)?;
     verify_or_write("docs/ROADMAP.md", &render_roadmap(&ledger)?, check)?;
     verify_or_write("docs/PORT_MATRIX.md", &render_matrix(&matrix)?, check)?;
+    let readme = fs::read_to_string("README.md")?;
+    let expected_readme = render_readme_progress(&readme, &ledger, &matrix)?;
+    verify_or_write("README.md", &expected_readme, check)?;
     Ok(())
 }

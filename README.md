@@ -6,7 +6,7 @@
 
 **Color:** `#90D8AA` · `oklch(82.22% 0.0973 155.6)` ([rationale](docs/COLOR.md)).
 
-> **Early bootstrap — not the MVP.** The MVP is complete native Rust gallery-dl feature and extractor compatibility. Current partial previews cover direct media links, Bluesky public posts/replies/media/search/feeds, Catbox, Imgbox, ImgBB, Imgpile, Imgth, ImageBam, ImageChest, ImagePond, ImageShack, Acidimg, Vipr, Imgspice, Imgdrive, Imgtaxi, Imgwallet, Imgadult, Silverpic, Imgpv, Fappic, ImageVenue, Imagetwist, Turboimagehost, Pixhost, Postimages, Imxto, Picstate, Pixeldrain, Telegraph, Speaker Deck, WallpaperCave, Wallhaven public wallpapers/search/uploads, user profiles and flattened collection indexes, Comedy Wildlife Photography, PhotoVogue, Webmshare, Desktopography, Lightroom, Unsplash, Lexica, Wikimedia Commons files/articles/categories, Danbooru, e621/e926/e6ai, Gelbooru, the five-host Gelbooru v0.2 XML family, Moebooru, Philomena, FoolFuuka archives (threads, bounded boards, galleries and search), and 4chan/4channel threads and bounded boards. None has complete upstream extractor parity or live-site acceptance.
+> **Early bootstrap — not the MVP.** The MVP requires complete Rust-native gallery-dl feature and extractor compatibility. Public and authenticated extractor support is tracked source-by-source in the [pinned parity matrix](docs/PORT_MATRIX.md); partial adapters and synthetic tests are not evidence of live-site compatibility. The single currently complete source-file entry is an independently tested helper, not completion of a gallery website.
 
 ## Native CLI preview
 
@@ -34,7 +34,9 @@ cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 
 ## Port tracking
 
-**Overall MVP:** `██████░░░░ 63%` (116 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `███████░░░ 69%` (160 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+
+**Pinned extractor-source inventory:** 1 complete · 76 partial · 195 not ported (272 upstream Python files).
 
 [🗺️ Roadmap](docs/ROADMAP.md) · [🔢 Evidence ledger](docs/progress.json) · [🧩 Every upstream extractor module](docs/PORT_MATRIX.md) · [🏁 MVP acceptance gate](docs/ACCEPTANCE.md) · [🏗️ Architecture](docs/ARCHITECTURE.md) · [📨 Message preview](docs/MESSAGE_PROTOCOL.md) · [🔎 Typed job filters](docs/JOB_FILTERS.md) · [🧱 Post scopes and pagination](docs/POST_SCOPES_AND_PAGING.md) · [🧵 4chan queue](docs/FOURCHAN_QUEUE.md) · [📌 Source baseline](docs/SOURCE_BASELINE.md) · [⚖️ Provenance](docs/PROVENANCE.md) · [🎨 Identity](docs/COLOR.md) · [📋 Issue queue](docs/ISSUES.md).
 
