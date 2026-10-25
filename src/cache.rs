@@ -645,7 +645,10 @@ mod tests {
         let _ = fs::remove_file(&ready);
         let cache = Cache::open(&db, 60).unwrap();
         let mut writer = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "cache::tests::simultaneous_cache_writer_process_helper"])
+            .args([
+                "--exact",
+                "cache::tests::simultaneous_cache_writer_process_helper",
+            ])
             .env("GALERITH_TEST_CACHE_WRITER_DB", &db)
             .env("GALERITH_TEST_CACHE_WRITER_READY", &ready)
             .stdout(std::process::Stdio::null())
