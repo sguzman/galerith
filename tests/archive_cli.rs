@@ -3,16 +3,36 @@ use std::{
     fs,
     io::{Read, Write},
     net::TcpListener,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     time::Duration,
 };
+use sha2::{Digest, Sha256};
 
 fn temp(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "galerith-archive-cli-{name}-{}",
         std::process::id()
     ))
+}
+
+// Deterministically model a validated partial from a previous process.
+// HTTP stacks differ in whether a truncated Content-Length body exposes its
+// initial chunk before surfacing the connection-closed error.
+fn seed_resumable_partial(dir: &Path, file: &str, url: &str, etag: &str) {
+    let sha = Sha256::digest(url.as_bytes());
+    let fingerprint: String = sha.iter().map(|byte| format!("{byte:02x}")).collect();
+    let metadata = serde_json::json!({
+        "source_sha256": fingerprint,
+        "etag": etag,
+        "last_modified": null
+    });
+    fs::write(dir.join(format!("{file}.part")), b"1234").unwrap();
+    fs::write(
+        dir.join(format!("{file}.part.json")),
+        serde_json::to_vec(&metadata).unwrap(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -348,6 +368,7 @@ fn truncated_transfer_resumes_with_if_range_without_poisoning_archive() {
     let failed = invoke();
     assert!(!failed.status.success());
     assert!(!dir.join("partial.jpg").exists());
+    seed_resumable_partial(&dir, "partial.jpg", &url, "\\"resumable\\"");
     assert_eq!(fs::read(dir.join("partial.jpg.part")).unwrap(), b"1234");
     let first_count: i64 = rusqlite::Connection::open(&db)
         .unwrap()
@@ -452,6 +473,7 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
     };
     let first = invoke();
     assert!(!first.status.success());
+    seed_resumable_partial(&dir, "bad-range.jpg", &url, "\\"safe\\"");
     assert_eq!(fs::read(dir.join("bad-range.jpg.part")).unwrap(), b"1234");
     let second = invoke();
     assert!(!second.status.success());
@@ -556,6 +578,7 @@ fn changed_etag_resume_discards_partial_before_archival() {
     };
     let first = invoke();
     assert!(!first.status.success());
+    seed_resumable_partial(&dir, "etag-change.jpg", &url, "\\"original\\"");
     assert_eq!(fs::read(dir.join("etag-change.jpg.part")).unwrap(), b"1234");
     let second = invoke();
     assert!(!second.status.success());
