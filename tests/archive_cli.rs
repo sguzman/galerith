@@ -431,7 +431,10 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
         let mut third = accept();
         let count = third.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
-        assert!(!request.contains("range:"), "invalid partial was reused: {request}");
+        assert!(
+            !request.contains("range:"),
+            "invalid partial was reused: {request}"
+        );
         third.write_all(
             b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"new\"\r\nConnection: close\r\n\r\nABCDEFGH",
         ).unwrap();
