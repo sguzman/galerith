@@ -4260,6 +4260,120 @@ mod tests {
     }
 
     #[test]
+    fn imgur_album_and_single_image_identities_keep_originals_separate() {
+        let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let media = MediaItem {
+            url: "https://i.imgur.com/abcdefg.jpg".into(),
+            filename: "imgur_abcde_001_abcdefg.jpg".into(),
+            extractor: "imgur",
+            post_id: None,
+        };
+        let other_original = MediaItem {
+            url: "https://i.imgur.com/qwertyu.jpg".into(),
+            filename: "imgur_abcde_002_qwertyu.jpg".into(),
+            ..media.clone()
+        };
+        let same_album = "https://imgur.com/a/abcde";
+        let other_album = "https://imgur.com/a/fghij";
+        let direct = "https://imgur.com/abcdefg";
+        assert_eq!(
+            imgur_archive_scope(&media, same_album).unwrap().1,
+            "imgurabcde_abcdefg"
+        );
+        assert_eq!(
+            imgur_archive_scope(&media, direct).unwrap().1,
+            "imgurabcdefg"
+        );
+        archive.record_for_source(&media, same_album).unwrap();
+        assert!(archive.contains_for_source(&media, same_album).unwrap());
+        assert!(!archive.contains_for_source(&other_original, same_album).unwrap());
+        assert!(!archive.contains_for_source(&media, other_album).unwrap());
+        assert!(!archive.contains_for_source(&media, direct).unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imgur.com/gallery/abcde")
+            .unwrap());
+        archive.record_for_source(&media, direct).unwrap();
+        assert!(archive.contains_for_source(&media, direct).unwrap());
+        for invalid in [
+            "https://imgur.com/abcde",
+            "https://imgur.com/abcdefg?auth=secret",
+            "https://imgur.com:9443/abcdefg",
+            "http://imgur.com/abcdefg",
+            "https://attacker.invalid/abcdefg",
+            "https://imgur.com/a/abcde?index=1",
+        ] {
+            assert!(!archive.contains_for_source(&media, invalid).unwrap());
+        }
+        let wrong_host = MediaItem {
+            url: "https://attacker.invalid/abcdefg.jpg".into(),
+            ..media.clone()
+        };
+        assert!(imgur_archive_scope(&wrong_host, direct).is_none());
+        assert!(canonical_imgur_archive_suffix("abcdefg"));
+        assert!(canonical_imgur_archive_suffix("abcde_abcdefg"));
+        for malformed in ["abcd", "abcdefgh", "abcd_abcdefg", "abcde_abcdefgh", "abcde_abcdefg_123"] {
+            assert!(!canonical_imgur_archive_suffix(malformed));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgur_reference_archive_migrates_only_canonical_image_and_album_ids() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgur-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("gallery-dl.sqlite");
+        let native = root.join("native.sqlite");
+        let upstream = Connection::open(&source).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('imgurabcdefg');
+                 INSERT INTO archive VALUES ('imgurabcde_abcdefg');
+                 INSERT INTO archive VALUES ('imgurfghij_abcdefg');
+                 INSERT INTO archive VALUES ('imgurabcd_abcdefg');
+                 INSERT INTO archive VALUES ('imgurabcde_abcdefgh');",
+            )
+            .unwrap();
+        drop(upstream);
+        let before = fs::read(&source).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        assert_eq!(fs::read(&source).unwrap(), before);
+        fs::remove_file(source).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://i.imgur.com/abcdefg.png".into(),
+            filename: "imgur_abcdefg.png".into(),
+            extractor: "imgur",
+            post_id: None,
+        };
+        for source in [
+            "https://imgur.com/abcdefg",
+            "https://imgur.com/a/abcde",
+            "https://imgur.com/a/fghij",
+        ] {
+            assert!(archive.contains_for_source(&media, source).unwrap());
+        }
+        assert!(!archive
+            .contains_for_source(&media, "https://imgur.com/a/abcdf")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"imgurabcde_abcdefg".len())
+            .any(|chunk| chunk == b"imgurabcde_abcdefg"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
