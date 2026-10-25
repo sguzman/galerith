@@ -654,9 +654,14 @@
     {
       "path": "gallery_dl/extractor/fuskator.py",
       "module": "fuskator",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fuskator.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Fuskator thumbs/expanded gallery and search/page preview. 2 MiB source HTML/JSON responses, 160 image/gallery cap, strict Fuskator CDN/original URL validation, source tags/hits/rating/image order, anonymous AJAX auth.aspx token POST and gal.aspx JSON query, synthetic three-request loopback gallery regression and bounded 4-page/128-child deferred search queues with last-page link test. Full Rust CI 40217072712 passed; live site/auth variants, full metadata and filename/archive/differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/gelbooru.py",

@@ -4637,6 +4637,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T605",
+              "emoji": "🖼️",
+              "name": "Fuskator public gallery originals and bounded search queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize source public Fuskator gallery thumbs/expanded and search/page routes, rejecting forged hosts, credentials, traversal and parameters",
+                  "passed": true,
+                  "evidence": "src/extractor/fuskator.rs public_fuskator_gallery_and_search_urls_reject_host_spoofing; CI 40217072712"
+                },
+                {
+                  "title": "Parse first-party public gallery JSON media originals preserving source title/gallery ID, ordered images, tags, hits and rating",
+                  "passed": true,
+                  "evidence": "src/extractor/fuskator.rs trusted_gallery_json_retains_source_metadata_and_ordered_images; CI 40217072712"
+                },
+                {
+                  "title": "Execute bounded gallery HTML GET, anonymous AJAX auth POST and image JSON GET sequence with real loopback HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/fuskator.rs album_html_anonymous_token_and_json_make_three_local_requests; full Linux CI 40217072712"
+                },
+                {
+                  "title": "Emit first-party deduplicated typed search gallery queues with last-link pagination, four-page/128-child bound, 2 MiB response cap and pacing",
+                  "passed": true,
+                  "evidence": "src/extractor/fuskator.rs bounded_search_deduplicates_scoped_gallery_anchors and bounded_search_next_page_uses_last_link_and_rejects_foreign_hosts; CI 40217072712"
+                },
+                {
+                  "title": "Match all live gallery/auth-source variants, full image metadata and filename/archive templates, unrestricted result pagination and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

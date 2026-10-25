@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 159 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -895,6 +895,12 @@
   - [x] Emit canonical first-party model/section deferred queues with stable duplicate suppression and traversal checks — src/extractor/fapello.rs bounded_ajax_discovery_deduplicates_first_party_model_posts_and_scopes_paths; CI 40216126190
   - [x] Limit source HTML to 2 MiB and listing discovery to 4 pages/128 children with paced real three-request HTTP fixture — src/extractor/fapello.rs original_and_two_ajax_page_requests_are_bounded_in_local_fixture, src/extractor/mod.rs routed; full CI 40216126190
   - [ ] Reproduce complete pinned source markup/metadata, output/archive formats, unbounded paging, and live upstream differential parity
+- 🖼️ **T605** Fuskator public gallery originals and bounded search queues — `████████░░ 80%`
+  - [x] Recognize source public Fuskator gallery thumbs/expanded and search/page routes, rejecting forged hosts, credentials, traversal and parameters — src/extractor/fuskator.rs public_fuskator_gallery_and_search_urls_reject_host_spoofing; CI 40217072712
+  - [x] Parse first-party public gallery JSON media originals preserving source title/gallery ID, ordered images, tags, hits and rating — src/extractor/fuskator.rs trusted_gallery_json_retains_source_metadata_and_ordered_images; CI 40217072712
+  - [x] Execute bounded gallery HTML GET, anonymous AJAX auth POST and image JSON GET sequence with real loopback HTTP regression — src/extractor/fuskator.rs album_html_anonymous_token_and_json_make_three_local_requests; full Linux CI 40217072712
+  - [x] Emit first-party deduplicated typed search gallery queues with last-link pagination, four-page/128-child bound, 2 MiB response cap and pacing — src/extractor/fuskator.rs bounded_search_deduplicates_scoped_gallery_anchors and bounded_search_next_page_uses_last_link_and_rejects_foreign_hosts; CI 40217072712
+  - [ ] Match all live gallery/auth-source variants, full image metadata and filename/archive templates, unrestricted result pagination and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
