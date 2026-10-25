@@ -493,3 +493,24 @@ fn pinned_moebooru_post_pool_and_tag_archive_templates() {
         "yandere88|yanderep_77_88|yanderet_blue fox_88|konachan88|konachanp_77_88|konachant_blue fox_88|sakugabooru88|sakugaboorup_77_88|sakugaboorut_blue fox_88|lolibooru88|loliboorup_77_88|loliboorut_blue fox_88"
     );
 }
+
+#[test]
+fn pinned_gelbooru_family_post_and_tag_archive_templates() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Gelbooru archive oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; hosts=('gelbooru.com','rule34.xxx','safebooru.org','tbib.org','hypnohub.net','xbooru.com'); urls=[('https://'+host+'/index.php?page=post&s='+route,kw) for host in hosts for route,kw in (('view&id=88',{'id':88}),('list&tags=blue+fox',{'search_tags':'blue fox','id':88}))]; print('|'.join(x.category+x.archive_fmt.format(**kw) for url,kw in urls for x in (extractor.find(url),)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Gelbooru site-specific archive formats").trim(),
+        "gelbooru88|gelboorut_blue fox_88|rule3488|rule34t_blue fox_88|safebooru88|safeboorut_blue fox_88|tbib88|tbibt_blue fox_88|hypnohub88|hypnohubt_blue fox_88|xbooru88|xboorut_blue fox_88"
+    );
+}
