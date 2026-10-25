@@ -62,6 +62,12 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "konachan",
             "sakugabooru",
             "lolibooru",
+            "gelbooru",
+            "rule34",
+            "safebooru",
+            "tbib",
+            "hypnohub",
+            "xbooru",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
@@ -78,7 +84,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if is_e621_favorite_category(category) && canonical_favorite_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if (is_booru_pool_category(category) || is_moebooru_category(category))
+                if (is_booru_pool_category(category)
+                    || is_moebooru_category(category)
+                    || is_gelbooru_category(category))
                     && canonical_tag_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -114,6 +122,12 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "konachan",
         "sakugabooru",
         "lolibooru",
+        "gelbooru",
+        "rule34",
+        "safebooru",
+        "tbib",
+        "hypnohub",
+        "xbooru",
     ] {
         if prefix == category
             && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
@@ -121,7 +135,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
                 || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare))
-                || ((is_booru_pool_category(category) || is_moebooru_category(category))
+                || ((is_booru_pool_category(category)
+                    || is_moebooru_category(category)
+                    || is_gelbooru_category(category))
                     && canonical_tag_archive_suffix(bare))
                 || (category == "danbooru" && canonical_media_asset_archive_suffix(bare))
                 || (is_booru_pool_category(category) && canonical_popular_archive_suffix(bare)))
@@ -266,6 +282,13 @@ fn canonical_favorite_archive_suffix(suffix: &str) -> bool {
 }
 
 /// Pinned Moebooru categories with native post, pool and tag resolvers.
+fn is_gelbooru_category(category: &str) -> bool {
+    matches!(
+        category,
+        "gelbooru" | "rule34" | "safebooru" | "tbib" | "hypnohub" | "xbooru"
+    )
+}
+
 fn is_moebooru_category(category: &str) -> bool {
     matches!(
         category,
@@ -641,8 +664,68 @@ fn moebooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     }
 }
 
+/// Source-verified Gelbooru/Gelbooru Beta v0.2 post and tag extractors:
+/// `{id}` for a direct post, `t_{search_tags}_{id}` for a tag search.
+/// Only the canonical query order and native-supported paths are accepted.
+fn gelbooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if !is_gelbooru_category(item.extractor) {
+        return None;
+    }
+    let post = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    match (item.extractor, source.host_str()?) {
+        ("gelbooru", "gelbooru.com")
+        | ("gelbooru", "www.gelbooru.com")
+        | ("rule34", "rule34.xxx")
+        | ("safebooru", "safebooru.org")
+        | ("tbib", "tbib.org")
+        | ("hypnohub", "hypnohub.net")
+        | ("xbooru", "xbooru.com") => {}
+        _ => return None,
+    }
+    if source.path() != "/index.php" && !(item.extractor == "gelbooru" && source.path() == "/") {
+        return None;
+    }
+    let query: Vec<_> = source.query_pairs().collect();
+    match query.as_slice() {
+        [(page, value), (action, kind), (field, id)]
+            if page == "page" && value == "post"
+                && action == "s" && kind == "view" && field == "id" =>
+        {
+            let parsed = id.parse::<u64>().ok()?;
+            if parsed != post {
+                return None;
+            }
+            Some((direct_post_key(post), format!("{}{post}", item.extractor)))
+        }
+        [(page, value), (action, kind), (field, tags)]
+            if page == "page" && value == "post"
+                && action == "s" && kind == "list" && field == "tags" =>
+        {
+            if tags.len() > 1024 || tags.chars().any(char::is_control) {
+                return None;
+            }
+            let normalized = format!("{}t_{tags}_{post}", item.extractor);
+            Some((
+                format!("tag-sha256:{}", archive_key_digest(&normalized)),
+                normalized,
+            ))
+        }
+        _ => None,
+    }
+}
+
 fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
-    booru_archive_scope(item, source_url).or_else(|| moebooru_archive_scope(item, source_url))
+    booru_archive_scope(item, source_url)
+        .or_else(|| moebooru_archive_scope(item, source_url))
+        .or_else(|| gelbooru_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
