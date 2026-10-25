@@ -69,9 +69,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "hypnohub",
             "xbooru",
             "wallhaven",
+            "4chan",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "4chan" && canonical_fourchan_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category != "wallhaven" && id.parse::<u64>().ok().is_some_and(|n| n > 0) {
@@ -133,9 +137,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "hypnohub",
         "xbooru",
         "wallhaven",
+        "4chan",
     ] {
         if prefix == category
-            && ((category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
+            && ((category == "4chan" && canonical_fourchan_archive_suffix(bare))
+                || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
                 || (category != "wallhaven" && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -306,7 +312,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
     is_booru_pool_category(category)
         || is_moebooru_category(category)
         || is_gelbooru_category(category)
-        || category == "wallhaven"
+        || matches!(category, "wallhaven" | "4chan")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -341,6 +347,96 @@ fn canonical_favorite_group_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     group_id > 0 && post_id > 0 && suffix == format!("fg_{group_id}_{post_id}")
+}
+
+fn valid_fourchan_board(board: &str) -> bool {
+    !board.is_empty()
+        && board.len() <= 8
+        && board
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn canonical_fourchan_archive_suffix(value: &str) -> bool {
+    let mut fields = value.split('_');
+    let (Some(board), Some(thread), Some(tim)) = (fields.next(), fields.next(), fields.next())
+    else {
+        return false;
+    };
+    if fields.next().is_some() || !valid_fourchan_board(board) {
+        return false;
+    }
+    let (Ok(thread_id), Ok(media_tim)) = (thread.parse::<u64>(), tim.parse::<u64>()) else {
+        return false;
+    };
+    thread_id > 0 && media_tim > 0 && value == format!("{board}_{thread_id}_{media_tim}")
+}
+
+/// Pinned gallery-dl 4chan archive template is {board}_{thread}_{tim}.
+/// MediaItem.post_id is the CDN tim, not the 4chan post number.
+fn fourchan_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "4chan" {
+        return None;
+    }
+    let tim = item.post_id.filter(|value| *value > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("boards.4chan.org" | "boards.4channel.org")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let components: Vec<_> = source
+        .path_segments()?
+        .filter(|component| !component.is_empty())
+        .collect();
+    let (board, thread) = match components.as_slice() {
+        [board, "thread", thread] => (*board, *thread),
+        [board, "thread", thread, slug] if slug.len() <= 200 => (*board, *thread),
+        _ => return None,
+    };
+    if !valid_fourchan_board(board) {
+        return None;
+    }
+    let thread_id = thread.parse::<u64>().ok().filter(|id| *id > 0)?;
+    if thread != thread_id.to_string() {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("i.4cdn.org")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let path: Vec<_> = media.path_segments()?.collect();
+    let media_filename = match path.as_slice() {
+        [media_board, filename] if *media_board == board => *filename,
+        _ => return None,
+    };
+    let (stem, extension) = media_filename.rsplit_once('.')?;
+    if extension.is_empty()
+        || extension.len() > 10
+        || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        || stem != tim.to_string()
+    {
+        return None;
+    }
+    Some((
+        format!("thread-board:{board}:thread:{thread_id}:tim:{tim}"),
+        format!("4chan{board}_{thread_id}_{tim}"),
+    ))
 }
 
 fn valid_wallhaven_id(id: &str) -> bool {
@@ -872,6 +968,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| moebooru_archive_scope(item, source_url))
         .or_else(|| gelbooru_archive_scope(item, source_url))
         .or_else(|| wallhaven_archive_scope(item, source_url))
+        .or_else(|| fourchan_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
