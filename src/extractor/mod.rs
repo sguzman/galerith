@@ -25,6 +25,7 @@ pub mod fourchan;
 pub mod fourchanarchives;
 pub mod gelbooru;
 pub mod gelbooru_v02;
+pub mod hatenablog;
 pub mod http_json;
 pub mod imagebam;
 pub mod imagechest;
@@ -48,7 +49,6 @@ pub mod issuu;
 pub mod kabeuchi;
 pub mod keenspot;
 pub mod khinsider;
-pub mod hatenablog;
 pub mod koofr;
 pub mod lensdump;
 pub mod lexica;
@@ -270,7 +270,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded Piczel user, folder and image JSON galleries",
     ),
     ("koofr", "guarded public Koofr shared files and folders"),
-    ("hatenablog", "public Hatena Blog entries and archive discovery"),
+    (
+        "hatenablog",
+        "public Hatena Blog entries and archive discovery",
+    ),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
@@ -1381,7 +1384,10 @@ mod tests {
             ("https://piczel.tv/gallery/artist", "piczel"),
             ("https://app.koofr.net/links/1234-abc", "koofr"),
             ("https://k00.fr/Example7", "koofr"),
-            ("https://author.hatenablog.com/entry/2026/10/25/test", "hatenablog"),
+            (
+                "https://author.hatenablog.com/entry/2026/10/25/test",
+                "hatenablog",
+            ),
             ("https://author.hatenablog.com/archive", "hatenablog"),
             ("https://piczel.tv/gallery/artist/123", "piczel"),
             ("https://piczel.tv/gallery/image/456", "piczel"),
