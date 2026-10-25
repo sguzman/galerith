@@ -80,6 +80,8 @@ pub fn match_url(raw: &str) -> Option<Target> {
     if ["%2e", "%2f", "%5c", "/../", "/./"]
         .iter()
         .any(|v| lower.contains(v))
+        || lower.ends_with("/..")
+        || lower.ends_with("/.")
     {
         return None;
     }
@@ -349,6 +351,13 @@ fn valid_continuation_query(url: &Url) -> bool {
 fn next_page(html: &str, current: &Url) -> Option<Url> {
     let raw = text_between(html, " class=\"pager-next\">", "</a>")?;
     let href = text_between(raw, "<a href=\"", "\"")?;
+    let lower = href.to_ascii_lowercase();
+    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|v| lower.contains(v))
+        || lower.ends_with("/..")
+        || lower.ends_with("/.")
+    {
+        return None;
+    }
     let url = current.join(href).ok()?;
     if url.origin() != current.origin()
         || !url.username().is_empty()
@@ -514,6 +523,8 @@ mod tests {
             "https://author.hatenablog.com:8080/archive",
             "https://name:pass@author.hatenablog.com/archive",
             "https://author.hatenablog.com/entry/../../secret",
+            "https://author.hatenablog.com/archive/..",
+            "https://author.hatenablog.com/archive/.",
             "https://author.hatenablog.com/archive?password=secret",
             "https://author.hatenablog.com/search?q=rust&secret=1",
         ] {
