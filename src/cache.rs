@@ -58,8 +58,8 @@ fn connection(path: &Path) -> Result<Connection, Box<dyn Error + Send + Sync>> {
 
 impl Cache {
     pub fn open(path: &Path, ttl: u64) -> Result<Arc<Self>, Box<dyn Error + Send + Sync>> {
-        if !(1..=86_400).contains(&ttl) || path == Path::new(":memory:") {
-            return Err("cache requires a file path and TTL between 1 and 86400 seconds".into());
+        if ttl > 86_400 || path == Path::new(":memory:") {
+            return Err("cache requires a file path and TTL between 0 and 86400 seconds".into());
         }
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
@@ -140,7 +140,7 @@ impl Cache {
             )
             .optional()?;
         if let Some((body, expires)) = row {
-            if expires > now()? && body.len() <= limit {
+            if (expires == 0 || expires > now()?) && body.len() <= limit {
                 if let Ok(value) = serde_json::from_slice(&body) {
                     if valid_collection(&value) {
                         return Ok(Some(value));
@@ -167,9 +167,13 @@ impl Cache {
         if body.len() > limit {
             return Err("cached response exceeds byte limit".into());
         }
-        let expires = now()?
-            .checked_add(i64::try_from(self.ttl)?)
-            .ok_or("expiry overflow")?;
+        let expires = if self.ttl == 0 {
+            0
+        } else {
+            now()?
+                .checked_add(i64::try_from(self.ttl)?)
+                .ok_or("expiry overflow")?
+        };
         connection(&self.path)?.execute(
             "INSERT INTO public_collection_cache(key_sha256, body_json, expires_at)
              VALUES (?1, ?2, ?3) ON CONFLICT(key_sha256) DO UPDATE SET
@@ -333,6 +337,40 @@ mod tests {
             })
             .unwrap();
         assert_eq!(count, 0);
+        drop(cache);
+        let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn zero_expiry_is_persisted_and_reused_without_expiration() {
+        let path = path("forever");
+        let _ = fs::remove_file(&path);
+        let cache = Cache::open(&path, 0).unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/91.json").unwrap();
+        let value = cache
+            .fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[91]}))
+            })
+            .await
+            .unwrap();
+        assert_eq!(value["post_ids"][0], 91);
+        let stored_expiry: i64 = connection(&path)
+            .unwrap()
+            .query_row(
+                "SELECT expires_at FROM public_collection_cache WHERE key_sha256=?1",
+                params![digest(endpoint.as_str())],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored_expiry, 0);
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        let reused = cache
+            .fetch(&endpoint, 1024, || async {
+                Err::<Value, Box<dyn Error + Send + Sync>>("must use permanent cache".into())
+            })
+            .await
+            .unwrap();
+        assert_eq!(reused, value);
         drop(cache);
         let _ = fs::remove_file(path);
     }

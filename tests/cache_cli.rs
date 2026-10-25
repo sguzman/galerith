@@ -17,13 +17,6 @@ fn cache_options_reject_unsafe_combinations_before_opening_database() {
             "--cache-db",
             db.to_str().unwrap(),
             "--cache-ttl",
-            "0",
-            "https://example.org/file.jpg",
-        ],
-        vec![
-            "--cache-db",
-            db.to_str().unwrap(),
-            "--cache-ttl",
             "86401",
             "https://example.org/file.jpg",
         ],
@@ -56,7 +49,7 @@ fn cache_is_explicit_and_has_independent_sqlite_schema() {
             "--cache-db",
             db.to_str().unwrap(),
             "--cache-ttl",
-            "60",
+            "0",
             "--get-urls",
             "https://example.org/photo.jpg",
         ])
