@@ -239,8 +239,20 @@ impl Cache {
         if !Self::allows(&endpoint) {
             return crate::extractor::http_json::fetch_json_uncached(client, endpoint, limit).await;
         }
-        self.fetch(&endpoint, limit, || {
-            crate::extractor::http_json::fetch_json_uncached(client, endpoint.clone(), limit)
+        self.fetch(&endpoint, limit, || async {
+            let (value, final_url) =
+                crate::extractor::http_json::fetch_json_uncached_with_final_url(
+                    client,
+                    endpoint.clone(),
+                    limit,
+                )
+                .await?;
+            // Reqwest follows redirects by default. Never cache a response
+            // from a different endpoint under the original permitted key.
+            if final_url != endpoint {
+                return Err("redirected collection metadata is not cacheable".into());
+            }
+            Ok(value)
         })
         .await
     }

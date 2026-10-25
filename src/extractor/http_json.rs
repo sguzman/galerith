@@ -25,10 +25,21 @@ pub(crate) async fn fetch_json_uncached(
     endpoint: Url,
     max_bytes: usize,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    Ok(fetch_json_uncached_with_final_url(client, endpoint, max_bytes)
+        .await?
+        .0)
+}
+
+pub(crate) async fn fetch_json_uncached_with_final_url(
+    client: &Client,
+    endpoint: Url,
+    max_bytes: usize,
+) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let final_url = response.url().clone();
     if response
         .content_length()
         .is_some_and(|size| size > max_bytes as u64)
@@ -42,7 +53,7 @@ pub(crate) async fn fetch_json_uncached(
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(serde_json::from_slice(&body)?)
+    Ok((serde_json::from_slice(&body)?, final_url))
 }
 
 #[cfg(test)]
