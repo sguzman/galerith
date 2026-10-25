@@ -426,9 +426,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 })
                 .transpose()?
         };
-    let record_download = cli.archive_event.as_deref().is_none_or(|events| {
-        events.split(',').any(|event| event == "file")
-    });
+    let record_download = cli
+        .archive_event
+        .as_deref()
+        .is_none_or(|events| events.split(',').any(|event| event == "file"));
     let record_skip = cli
         .archive_event
         .as_deref()
