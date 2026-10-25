@@ -321,14 +321,22 @@ fn queue_entries(
 }
 
 fn valid_continuation_query(url: &Url) -> bool {
-    let Some(query) = url.query() else { return true };
-    if query.len() > 180 { return false }
+    let Some(query) = url.query() else {
+        return true;
+    };
+    if query.len() > 180 {
+        return false;
+    }
     let pairs = url.query_pairs().collect::<Vec<_>>();
-    if pairs.is_empty() || pairs.len() > 2 { return false }
+    if pairs.is_empty() || pairs.len() > 2 {
+        return false;
+    }
     let mut page = false;
     let mut search = false;
     for (key, value) in pairs {
-        if value.is_empty() || value.len() > 120 { return false }
+        if value.is_empty() || value.len() > 120 {
+            return false;
+        }
         match key.as_ref() {
             "page" if !page && value.bytes().all(|b| b.is_ascii_digit()) => page = true,
             "q" if !search && url.path() == "/search" => search = true,
