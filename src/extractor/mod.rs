@@ -142,7 +142,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded bit.ly and t.co safe public link queues",
     ),
     ("4chan", "4chan/4channel threads and bounded boards"),
-    ("jschan", "public 94chan thread attachments and deferred board catalog queues"),
+    (
+        "jschan",
+        "public 94chan thread attachments and deferred board catalog queues",
+    ),
     (
         "8muses",
         "bounded public encoded album images and child queues",
