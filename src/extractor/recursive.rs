@@ -119,7 +119,10 @@ fn public_address(ip: IpAddr) -> bool {
 }
 
 async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let host = url.host_str().ok_or("Recursive remote URL has no host")?.to_owned();
+    let host = url
+        .host_str()
+        .ok_or("Recursive remote URL has no host")?
+        .to_owned();
     let port = url
         .port_or_known_default()
         .ok_or("Recursive URL has no port")?;
@@ -359,12 +362,24 @@ mod tests {
             }
         });
         let client = Client::builder().redirect(Policy::none()).build().unwrap();
-        let page = client.get(format!("http://{addr}/list")).send().await.unwrap();
+        let page = client
+            .get(format!("http://{addr}/list"))
+            .send()
+            .await
+            .unwrap();
         let body = String::from_utf8(read_remote_response(page).await.unwrap()).unwrap();
         assert_eq!(decode_links(&body).unwrap().len(), 1);
-        let redirect = client.get(format!("http://{addr}/redirect")).send().await.unwrap();
+        let redirect = client
+            .get(format!("http://{addr}/redirect"))
+            .send()
+            .await
+            .unwrap();
         assert!(read_remote_response(redirect).await.is_err());
-        let oversized = client.get(format!("http://{addr}/oversized")).send().await.unwrap();
+        let oversized = client
+            .get(format!("http://{addr}/oversized"))
+            .send()
+            .await
+            .unwrap();
         assert!(read_remote_response(oversized).await.is_err());
         server.await.unwrap();
     }
