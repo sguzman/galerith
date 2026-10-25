@@ -104,11 +104,46 @@ fn chapter_key(chapter: &str) -> String {
     chapter.replace('-', ".")
 }
 
+fn chapter_numbers(key: &str) -> Option<(u64, String)> {
+    let (major, minor) = if let Some((major, minor)) = key.rsplit_once('.') {
+        (major, format!(".{minor}"))
+    } else {
+        (key, String::new())
+    };
+    let number = major.parse::<u64>().ok()?;
+    if major.is_empty() || major.len() > 16 || !major.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    if !minor.is_empty()
+        && (minor.len() > 17 || !minor[1..].bytes().all(|b| b.is_ascii_digit()))
+    {
+        return None;
+    }
+    Some((number, minor))
+}
+
+fn add_chapter_fields(metadata: &mut Metadata, source: &Value, key: &str) {
+    if let Some((number, minor)) = chapter_numbers(key) {
+        metadata.insert("chapter".into(), number.into());
+        metadata.insert("chapter_minor".into(), minor.into());
+    }
+    if let Some(volume) = source.get("volume") {
+        if let Some(number) = volume
+            .as_u64()
+            .or_else(|| volume.as_str().and_then(|v| v.parse::<u64>().ok()))
+        {
+            metadata.insert("volume".into(), number.into());
+        }
+    }
+}
+
 fn source_metadata(value: &Value, slug: &str) -> Metadata {
     let mut result = Metadata::new();
     result.insert("category".into(), "dankefuerslesen".into());
     result.insert("subcategory".into(), "chapter".into());
     result.insert("manga_slug".into(), slug.into());
+    result.insert("lang".into(), Value::Null);
+    result.insert("language".into(), Value::Null);
     for key in ["title", "author", "artist", "description"] {
         if let Some(field) = value
             .get(key)
@@ -161,8 +196,13 @@ fn chapter_media(
         .filter(|folder| safe_component(folder))
         .ok_or("Danke chapter media folder is unsafe")?;
     let mut metadata = source_metadata(source, slug);
-    metadata.insert("chapter_key".into(), normalized.into());
-    metadata.insert("group_id".into(), group_id.clone().into());
+    metadata.insert("chapter_key".into(), normalized.clone().into());
+    add_chapter_fields(&mut metadata, data, &normalized);
+    if let Ok(group_number) = group_id.parse::<u64>() {
+        metadata.insert("group_id".into(), group_number.into());
+    } else {
+        metadata.insert("group_id_source".into(), group_id.clone().into());
+    }
     metadata.insert("count".into(), files.len().into());
     metadata.insert(
         "post_url".into(),
@@ -175,24 +215,28 @@ fn chapter_media(
     {
         metadata.insert("title".into(), title.into());
     }
-    if let Some(volume) = data
-        .get("volume")
-        .filter(|v| v.is_string() || v.is_number())
-    {
-        metadata.insert("volume".into(), volume.clone());
-    }
     if let Some(date) = data
         .pointer(&format!("/release_date/{group_id}"))
         .filter(|v| v.is_string() || v.is_number())
     {
         metadata.insert("release_date_source".into(), date.clone());
+        if let Some(unix) = date
+            .as_i64()
+            .or_else(|| date.as_str().and_then(|v| v.parse::<i64>().ok()))
+        {
+            metadata.insert("timestamp".into(), unix.into());
+        }
     }
     if let Some(group) = source
         .pointer(&format!("/groups/{group_id}"))
         .and_then(Value::as_str)
         .filter(|v| v.len() <= 200 && !v.chars().any(char::is_control))
     {
-        metadata.insert("group".into(), group.into());
+        metadata.insert("group_source".into(), group.into());
+        metadata.insert(
+            "group".into(),
+            Value::Array(group.split(" & ").map(|name| Value::from(name)).collect()),
+        );
     }
     let mut out = Vec::new();
     for (index, entry) in files.iter().enumerate() {
@@ -259,6 +303,7 @@ fn chapter_queue(
         let mut metadata = source_metadata(source, slug);
         metadata.insert("subcategory".into(), "manga".into());
         metadata.insert("chapter_key".into(), key.clone().into());
+        add_chapter_fields(&mut metadata, data, key);
         if let Some(title) = data
             .get("title")
             .and_then(Value::as_str)
@@ -370,17 +415,40 @@ mod tests {
         );
         assert_eq!(media[1].0.filename, "002_002.png");
         assert_eq!(media[0].1["title"], "Opening");
-        assert_eq!(media[0].1["group"], "Scanners & Friends");
+        assert_eq!(media[0].1["group"], serde_json::json!(["Scanners", "Friends"]));
+        assert_eq!(media[0].1["group_source"], "Scanners & Friends");
+        assert_eq!(media[0].1["group_id"], 12);
+        assert_eq!(media[0].1["chapter"], 1);
+        assert_eq!(media[0].1["chapter_minor"], "");
+        assert!(media[0].1["language"].is_null());
         assert_eq!(media[0].1["release_date_source"], 1770000000);
+        assert_eq!(media[0].1["timestamp"], 1770000000);
         let children = chapter_queue(&fixture(), "series").unwrap();
         assert_eq!(children.len(), 2);
         assert_eq!(
             serde_json::to_value(&children[1]).unwrap()["url"],
             "https://danke.moe/read/manga/series/2-1/1/"
         );
+        let queued = serde_json::to_value(&children[1]).unwrap();
+        assert_eq!(queued["metadata"]["chapter"], 2);
+        assert_eq!(queued["metadata"]["chapter_minor"], ".1");
+        assert!(queued["metadata"]["lang"].is_null());
         let mut unsafe_source = fixture();
         unsafe_source["chapters"]["1"]["groups"]["12"][0] = "../private.jpg".into();
         assert!(chapter_media(&unsafe_source, "series", "1").is_err());
+    }
+
+    #[test]
+    fn chapter_numbers_reject_malformed_parts_and_preserve_minor_fragments() {
+        assert_eq!(chapter_numbers("12.3"), Some((12, ".3".into())));
+        assert_eq!(chapter_numbers("12"), Some((12, String::new())));
+        for value in ["", "x", "12.x", "1..2", "12.-1", "12345678901234567"] {
+            assert_eq!(chapter_numbers(value), None, "{value}");
+        }
+        let mut value = fixture();
+        value["chapters"]["1"]["volume"] = "12".into();
+        let records = chapter_media(&value, "series", "1").unwrap();
+        assert_eq!(records[0].1["volume"], 12);
     }
 
     #[tokio::test]
