@@ -138,7 +138,9 @@ fn accepted_media(root: &str, raw: &str) -> Option<(Url, String, String)> {
     // Validate the raw reference before URL normalization can erase dot segments.
     let lower = raw.to_ascii_lowercase();
     if lower.contains("..")
-        || ["%2e", "%2f", "%5c"].iter().any(|part| lower.contains(part))
+        || ["%2e", "%2f", "%5c"]
+            .iter()
+            .any(|part| lower.contains(part))
     {
         return None;
     }
