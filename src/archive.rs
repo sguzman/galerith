@@ -1726,6 +1726,96 @@ mod tests {
     }
 
     #[test]
+    fn favorite_group_archive_is_distinct_from_posts_pools_and_other_groups() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-favgroup-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let archive = Archive::open(&db).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.example.org/88.jpg?token=one".into(),
+            filename: "88.jpg".into(),
+            extractor: "danbooru",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://other.example.org/88.png?token=two".into(),
+            ..original.clone()
+        };
+        let group = "https://danbooru.donmai.us/favorite_groups/77";
+        assert_eq!(danbooru_favorite_group(&original, group), Some((77, 88)));
+        archive.record_for_source(&original, group).unwrap();
+        assert!(archive.contains_for_source(&rotated, group).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://danbooru.donmai.us/favorite_group/show/77")
+            .unwrap());
+        for unrelated in [
+            "https://danbooru.donmai.us/favorite_groups/78",
+            "https://danbooru.donmai.us/pools/77",
+            "https://danbooru.donmai.us/posts/88",
+            "https://danbooru.donmai.us/posts?tags=fox",
+            "https://safebooru.donmai.us/favorite_groups/77",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, unrelated).unwrap());
+        }
+        assert!(canonical_favorite_group_archive_suffix("fg_77_88"));
+        for invalid in ["fg_0_88", "fg_77_0", "fg_077_88", "fg_77_088", "p_77_88"] {
+            assert!(!canonical_favorite_group_archive_suffix(invalid));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imported_favorite_groups_are_available_offline_without_false_post_hits() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-favgroup-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let foreign = root.join("reference.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danboorufg_77_88');
+                 INSERT INTO archive VALUES ('danboorup_77_88');
+                 INSERT INTO archive VALUES ('danboorut_dog_88');",
+            )
+            .unwrap();
+        drop(source);
+        let original_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), original_bytes);
+        fs::remove_file(foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://new-cdn.example.org/88.png".into(),
+            filename: "88.png".into(),
+            extractor: "danbooru",
+            post_id: Some(88),
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/favorite_groups/77")
+            .unwrap());
+        assert!(archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/pools/77")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/posts/88")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/favorite_groups/78")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
