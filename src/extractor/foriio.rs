@@ -421,8 +421,7 @@ mod tests {
                 let mut buf = [0u8; 4096];
                 let n = socket.read(&mut buf).await.unwrap();
                 assert!(
-                    String::from_utf8_lossy(&buf[..n])
-                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                    String::from_utf8_lossy(&buf[..n]).starts_with(&format!("GET {path} HTTP/1.1"))
                 );
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -435,7 +434,12 @@ mod tests {
         let children = at_user(&Client::new(), &base, "artist", 4).await.unwrap();
         let urls = children
             .iter()
-            .map(|value| serde_json::to_value(value).unwrap()["url"].as_str().unwrap().to_owned())
+            .map(|value| {
+                serde_json::to_value(value).unwrap()["url"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             urls,
