@@ -696,8 +696,11 @@ fn gelbooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     let query: Vec<_> = source.query_pairs().collect();
     match query.as_slice() {
         [(page, value), (action, kind), (field, id)]
-            if page == "page" && value == "post"
-                && action == "s" && kind == "view" && field == "id" =>
+            if page == "page"
+                && value == "post"
+                && action == "s"
+                && kind == "view"
+                && field == "id" =>
         {
             let parsed = id.parse::<u64>().ok()?;
             if parsed != post {
@@ -706,8 +709,11 @@ fn gelbooru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
             Some((direct_post_key(post), format!("{}{post}", item.extractor)))
         }
         [(page, value), (action, kind), (field, tags)]
-            if page == "page" && value == "post"
-                && action == "s" && kind == "list" && field == "tags" =>
+            if page == "page"
+                && value == "post"
+                && action == "s"
+                && kind == "list"
+                && field == "tags" =>
         {
             if tags.len() > 1024 || tags.chars().any(char::is_control) {
                 return None;
@@ -3002,7 +3008,12 @@ mod tests {
             .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
             .unwrap();
         for category in [
-            "gelbooru", "rule34", "safebooru", "tbib", "hypnohub", "xbooru",
+            "gelbooru",
+            "rule34",
+            "safebooru",
+            "tbib",
+            "hypnohub",
+            "xbooru",
         ] {
             for suffix in ["88", "t_blue fox_88"] {
                 upstream
@@ -3068,8 +3079,7 @@ mod tests {
 
     #[test]
     fn gelbooru_named_import_requires_matching_category_prefix() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-gel-prefix-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-gel-prefix-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("reference.sqlite");
