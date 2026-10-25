@@ -4838,7 +4838,8 @@
                 },
                 {
                   "title": "Automated golden CLI corpus",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/fixtures/cli_golden.json pinned to upstream source hash and tests/oracle_cli.rs deterministic eight-case offline CLI output/redaction contract; full Linux Rust CI 40205524617 (format, Clippy, roadmap, tests, release build) passed; docs/ORACLE_CLI.md explicitly excludes upstream runtime comparison"
                 },
                 {
                   "title": "Deterministic extractor comparisons",
@@ -4849,7 +4850,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             },
             {
               "id": "T1002",

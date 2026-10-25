@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 153 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 153 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -943,14 +943,14 @@
   - [ ] Automatic config lookup and all upstream namespaces
   - [ ] Upstream differential configuration tests
 
-## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 26%`
+## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 31%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.
 
-### 🧪 P10 — Differential quality assurance — `███░░░░░░░ 33%`
+### 🧪 P10 — Differential quality assurance — `████░░░░░░ 42%`
 
-- 🔍 **T1001** Pin and run comparison oracle — `███░░░░░░░ 25%`
+- 🔍 **T1001** Pin and run comparison oracle — `█████░░░░░ 50%`
   - [x] Document upstream baseline — docs/SOURCE_BASELINE.md
-  - [ ] Automated golden CLI corpus
+  - [x] Automated golden CLI corpus — tests/fixtures/cli_golden.json pinned to upstream source hash and tests/oracle_cli.rs deterministic eight-case offline CLI output/redaction contract; full Linux Rust CI 40205524617 (format, Clippy, roadmap, tests, release build) passed; docs/ORACLE_CLI.md explicitly excludes upstream runtime comparison
   - [ ] Deterministic extractor comparisons
   - [ ] Signed reproducible reports
 - 🧫 **T1002** Stress, errors and recovery — `█████░░░░░ 50%`
