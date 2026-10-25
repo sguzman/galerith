@@ -153,14 +153,11 @@ fn popular_week_monday(date: &str) -> Option<String> {
     let (mut year, mut month, day) = validated_calendar_date(date)?;
     let previous_year = i64::from(year) - i64::from(month < 3);
     let offsets = [0_i64, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
-    let sunday_weekday = (
-        previous_year
-            + previous_year / 4
-            - previous_year / 100
-            + previous_year / 400
-            + offsets[(month - 1) as usize]
-            + i64::from(day)
-    ) % 7;
+    let sunday_weekday = (previous_year + previous_year / 4 - previous_year / 100
+        + previous_year / 400
+        + offsets[(month - 1) as usize]
+        + i64::from(day))
+        % 7;
     let days_from_monday = (sunday_weekday + 6) % 7;
     let mut monday_day = i64::from(day) - days_from_monday;
     if monday_day <= 0 {
