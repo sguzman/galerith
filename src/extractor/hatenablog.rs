@@ -320,18 +320,34 @@ fn queue_entries(
     }
 }
 
+fn valid_continuation_query(url: &Url) -> bool {
+    let Some(query) = url.query() else { return true };
+    if query.len() > 180 { return false }
+    let pairs = url.query_pairs().collect::<Vec<_>>();
+    if pairs.is_empty() || pairs.len() > 2 { return false }
+    let mut page = false;
+    let mut search = false;
+    for (key, value) in pairs {
+        if value.is_empty() || value.len() > 120 { return false }
+        match key.as_ref() {
+            "page" if !page && value.bytes().all(|b| b.is_ascii_digit()) => page = true,
+            "q" if !search && url.path() == "/search" => search = true,
+            _ => return false,
+        }
+    }
+    true
+}
+
 fn next_page(html: &str, current: &Url) -> Option<Url> {
     let raw = text_between(html, " class=\"pager-next\">", "</a>")?;
     let href = text_between(raw, "<a href=\"", "\"")?;
     let url = current.join(href).ok()?;
     if url.origin() != current.origin()
-        || url.username() != ""
+        || !url.username().is_empty()
         || url.password().is_some()
         || url.fragment().is_some()
         || !safe_archive_path(url.path())
-        || url
-            .query()
-            .is_some_and(|_| !matches!(match_url(url.as_str()), Some(Target::Listing { .. })))
+        || !valid_continuation_query(&url)
     {
         return None;
     }
