@@ -353,8 +353,8 @@ fn pinned_danbooru_and_e621_pool_archive_templates_are_pool_scoped() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
-    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
-        .expect("pinned reference source is required");
+    let root =
+        env::var("GALERITH_PINNED_REFERENCE_ROOT").expect("pinned reference source is required");
     let mut command = Command::new("python3");
     command.args([
         "-c",
