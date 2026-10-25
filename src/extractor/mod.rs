@@ -81,7 +81,10 @@ use std::error::Error;
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ("directlink", "direct HTTP(S) media URL subset"),
-    ("arena", "bounded public Are.na channel images and attachments"),
+    (
+        "arena",
+        "bounded public Are.na channel images and attachments",
+    ),
     (
         "urlshortener",
         "bounded bit.ly and t.co safe public link queues",
