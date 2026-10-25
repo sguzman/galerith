@@ -50,7 +50,14 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 return Some(("directlink", entry.to_owned()));
             }
         }
-        for category in ["derpibooru", "ponybooru", "furbooru", "danbooru", "e621", "e6ai"] {
+        for category in [
+            "derpibooru",
+            "ponybooru",
+            "furbooru",
+            "danbooru",
+            "e621",
+            "e6ai",
+        ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
@@ -68,7 +75,14 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
     // A numeric ID is only unambiguous if the supplied source prefix itself
     // names the exact pinned category. Other custom prefixes might combine
     // several boorus with overlapping numeric IDs; skip rather than guess.
-    for category in ["derpibooru", "ponybooru", "furbooru", "danbooru", "e621", "e6ai"] {
+    for category in [
+        "derpibooru",
+        "ponybooru",
+        "furbooru",
+        "danbooru",
+        "e621",
+        "e6ai",
+        ] {
         if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
             return Some((category, format!("{category}{bare}")));
         }
@@ -107,17 +121,12 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
 /// the same post ID but uses a different upstream archive template.
 fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
     let parsed = url::Url::parse(source_url).ok()?;
-    if parsed.scheme() != "https"
-        || !parsed.username().is_empty()
-        || parsed.password().is_some()
-    {
+    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
         return None;
     }
     let host = parsed.host_str()?;
     match (item.extractor, host) {
-        ("danbooru", "danbooru.donmai.us")
-        | ("e621", "e621.net")
-        | ("e6ai", "e6ai.net") => {}
+        ("danbooru", "danbooru.donmai.us") | ("e621", "e621.net") | ("e6ai", "e6ai.net") => {}
         // The current e926 preview emits category e621, while the pinned
         // source uses e926. Do not accidentally import e621 history as e926.
         _ => return None,
@@ -1099,6 +1108,155 @@ mod tests {
             .unwrap();
         assert_eq!(native_table, 0);
         drop(existing);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn booru_post_source_scope_prevents_feed_and_cross_site_false_matches() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-direct-post-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://static.e621.net/data/88.jpg?token=old".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://static.e621.net/data/88.jpg?token=new".into(),
+            ..original.clone()
+        };
+        let direct = "https://e621.net/posts/88";
+        assert!(!archive.contains_for_source(&rotated, direct).unwrap());
+        archive.record_for_source(&original, direct).unwrap();
+        assert!(archive.contains_for_source(&rotated, direct).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://e621.net/posts?tags=wolf")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://e621.net/pools/88")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://e621.net/posts/89")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://e926.net/posts/88")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://attacker.invalid/posts/88")
+            .unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://e621.net/p/2o")
+            .unwrap());
+        let wrong_category = MediaItem {
+            extractor: "danbooru",
+            ..rotated.clone()
+        };
+        assert!(!archive.contains_for_source(&wrong_category, direct).unwrap());
+        assert!(!archive
+            .contains_for_source(&wrong_category, "https://danbooru.donmai.us/posts/88")
+            .unwrap());
+        let wrong_post = MediaItem {
+            post_id: Some(89),
+            ..rotated
+        };
+        assert!(!archive.contains_for_source(&wrong_post, direct).unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn booru_post_exact_legacy_url_is_promoted_without_guessing_rotations() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-direct-post-legacy-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let item = MediaItem {
+            url: "https://assets.example.org/danbooru/99.png?sig=first".into(),
+            filename: "99.png".into(),
+            extractor: "danbooru",
+            post_id: Some(99),
+        };
+        let rotated = MediaItem {
+            url: "https://assets.example.org/danbooru/99.png?sig=second".into(),
+            ..item.clone()
+        };
+        let original_post = "https://danbooru.donmai.us/posts/99";
+        archive.record(&item).unwrap();
+        assert!(!archive.contains_for_source(&rotated, original_post).unwrap());
+        assert!(archive.contains_for_source(&item, original_post).unwrap());
+        assert!(archive.contains_for_source(&rotated, original_post).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://danbooru.donmai.us/posts?tags=rating:s")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imported_booru_post_ids_need_verified_post_scope() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-direct-post-import-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let foreign = root.join("gallery-dl.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danbooru123');
+                 INSERT INTO archive VALUES ('e621234');
+                 INSERT INTO archive VALUES ('e6ai345');
+                 INSERT INTO archive VALUES ('danboorut_fox_123');",
+            )
+            .unwrap();
+        drop(upstream);
+        let original_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        let samples = [
+            ("danbooru", "https://danbooru.donmai.us/posts/123", 123),
+            ("e621", "https://e621.net/posts/234", 234),
+            ("e6ai", "https://e6ai.net/posts/345", 345),
+        ];
+        for (category, source, id) in samples {
+            let media = MediaItem {
+                url: format!("https://cdn.example.org/{id}.jpg?token=fresh"),
+                filename: format!("{id}.jpg"),
+                extractor: category,
+                post_id: Some(id),
+            };
+            assert!(archive.contains_for_source(&media, source).unwrap());
+            let feed = source.replace("/posts/", "/posts?tags=");
+            assert!(!archive.contains_for_source(&media, &feed).unwrap());
+        }
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), original_bytes);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.example.org/234.jpg?token=changed".into(),
+            filename: "234.jpg".into(),
+            extractor: "e621",
+            post_id: Some(234),
+        };
+        assert!(reopened
+            .contains_for_source(&media, "https://e621.net/posts/234")
+            .unwrap());
+        assert!(!reopened
+            .contains_for_source(&media, "https://e621.net/posts?tags=fox")
+            .unwrap());
+        drop(reopened);
         fs::remove_dir_all(root).unwrap();
     }
 

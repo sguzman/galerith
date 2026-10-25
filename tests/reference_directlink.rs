@@ -305,3 +305,24 @@ fn pinned_philomena_archive_format_is_the_image_id() {
         "{id}"
     );
 }
+
+#[test]
+fn pinned_danbooru_e621_post_archive_templates_differ_from_feeds() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.danbooru import DanbooruPostExtractor, DanbooruTagExtractor, DanbooruPoolExtractor; from gallery_dl.extractor.e621 import E621PostExtractor, E621TagExtractor, E621FavoriteExtractor; print('|'.join([DanbooruPostExtractor.archive_fmt, DanbooruTagExtractor.archive_fmt, DanbooruPoolExtractor.archive_fmt, E621PostExtractor.archive_fmt, E621TagExtractor.archive_fmt, E621FavoriteExtractor.archive_fmt]))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Danbooru/E621 archive templates").trim(),
+        "{id}|t_{search_tags}_{id}|p_{pool[id]}_{id}|{id}|t_{search_tags}_{id}|f_{user_id}_{id}"
+    );
+}
