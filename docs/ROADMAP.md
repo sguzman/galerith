@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 146 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 147 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -119,7 +119,7 @@
   - [ ] Full upstream metadata and output formats
   - [ ] Reference golden metadata comparisons
 
-## 🧩 M2 — Extractor framework and site families — `████████░░ 76%`
+## 🧩 M2 — Extractor framework and site families — `████████░░ 77%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
 ### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
@@ -815,6 +815,12 @@
   - [x] Deduplicate validated source listing children, reject forged media and category link origins, and block raw traversal before URL normalization — src/extractor/vanillarock.rs listing_links_deduplicate_and_continuations_are_origin_scoped and routes_public_post_and_listing_urls_without_traversal; CI 40156584743
   - [x] Limit per-source HTML to 2 MiB, posts to 160 originals and tag pagination to four pages/128 queued posts with single- and two-page loopback HTTP fixtures — src/extractor/vanillarock.rs bounded_single_post_and_two_page_listing_http_fixtures; src/extractor/mod.rs dispatch; CI 40156584743
   - [ ] Match all upstream post/gallery image hosts, rich date/tags, full filename/archive/directory rules, unrestricted listing pagination and live pinned differential parity
+- 🎨 **T589** Picarto bounded public gallery posts and original variations — `████████░░ 80%`
+  - [x] Route pinned Picarto gallery public channel names and reject foreign origins, credentials and unsafe URLs — src/extractor/picarto.rs matches_pinned_gallery_routes_not_lookalikes_or_private_queries; CI 40157062846
+  - [x] Read source-backed gallery image and variation originals with safe filenames and post-owned ID metadata — src/extractor/picarto.rs gallery_preserves_main_and_variation_image_metadata_with_trusted_names; CI 40157062846
+  - [x] Bound Picarto public JSON API response, page count, source post count and media output — src/extractor/picarto.rs read_json, decode_page and at_api bounds; CI 40157062846
+  - [x] Integrate typed source URL/directory events and preserve order through real two-page JSON API loopback HTTP regression — src/extractor/picarto.rs bounded_json_api_pagination_preserves_source_post_and_variation_order and src/extractor/mod.rs dispatch; CI 40157062846
+  - [ ] Match complete source channel/page metadata, dates, absent-image directory events, variation overlays, filenames and archive, and live pinned differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

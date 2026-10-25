@@ -1449,9 +1449,14 @@
     {
       "path": "gallery_dl/extractor/picarto.py",
       "module": "picarto",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/picarto.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded Picarto public gallery subset: exact channel-gallery query and bounded 4 pages/30 posts per page/160 media outputs, 2 MiB JSON response, validated original/variation images, source owned post IDs, typed metadata, real loopback 2-page HTTP fixture. Strict Rust CI 40157062846 passed formatting, Clippy, tests, release build. Missing-image directory semantics, full fields/dates/formatting and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/picazor.py",

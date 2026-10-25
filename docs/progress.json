@@ -4211,6 +4211,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T589",
+              "emoji": "🎨",
+              "name": "Picarto bounded public gallery posts and original variations",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned Picarto gallery public channel names and reject foreign origins, credentials and unsafe URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/picarto.rs matches_pinned_gallery_routes_not_lookalikes_or_private_queries; CI 40157062846"
+                },
+                {
+                  "title": "Read source-backed gallery image and variation originals with safe filenames and post-owned ID metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/picarto.rs gallery_preserves_main_and_variation_image_metadata_with_trusted_names; CI 40157062846"
+                },
+                {
+                  "title": "Bound Picarto public JSON API response, page count, source post count and media output",
+                  "passed": true,
+                  "evidence": "src/extractor/picarto.rs read_json, decode_page and at_api bounds; CI 40157062846"
+                },
+                {
+                  "title": "Integrate typed source URL/directory events and preserve order through real two-page JSON API loopback HTTP regression",
+                  "passed": true,
+                  "evidence": "src/extractor/picarto.rs bounded_json_api_pagination_preserves_source_post_and_variation_order and src/extractor/mod.rs dispatch; CI 40157062846"
+                },
+                {
+                  "title": "Match complete source channel/page metadata, dates, absent-image directory events, variation overlays, filenames and archive, and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
