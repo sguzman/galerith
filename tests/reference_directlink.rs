@@ -535,3 +535,24 @@ fn pinned_wallhaven_archive_classes_are_source_scoped() {
         "wallhaven94x38z|wallhavens_blue sky_94x38z|wallhavenu_example-1_94x38z|wallhaven94x38z"
     );
 }
+
+#[test]
+fn pinned_fourchan_archive_format_is_board_thread_media_tim() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for 4chan archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://boards.4chan.org/a/thread/123','https://boards.4channel.org/b/thread/124'); print('|'.join(ex.category+ex.archive_fmt.format(board=ex.board,thread=ex.thread,tim=456) for ex in (extractor.find(url) for url in urls)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned 4chan board/thread/tim archive template").trim(),
+        "4chana_123_456|4chanb_124_456"
+    );
+}
