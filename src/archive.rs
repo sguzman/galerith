@@ -549,14 +549,12 @@ impl Archive {
             // tag/pool/favorite feeds. Preserve *exact* downloaded URL hashes
             // when the original input can be verified as the e926 site.
             if item.extractor == "e926" {
-                let verified = url::Url::parse(source_url)
-                    .ok()
-                    .is_some_and(|source| {
-                        source.scheme() == "https"
-                            && source.host_str() == Some("e926.net")
-                            && source.username().is_empty()
-                            && source.password().is_none()
-                    });
+                let verified = url::Url::parse(source_url).ok().is_some_and(|source| {
+                    source.scheme() == "https"
+                        && source.host_str() == Some("e926.net")
+                        && source.username().is_empty()
+                        && source.password().is_none()
+                });
                 if verified {
                     let old: i64 = self.connection.query_row(
                         "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = 'e621' AND identity = ?1)",
@@ -1341,10 +1339,8 @@ mod tests {
 
     #[test]
     fn e926_feed_legacy_recovery_requires_exact_url_and_verified_site() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-e926-feed-legacy-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-e926-feed-legacy-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
