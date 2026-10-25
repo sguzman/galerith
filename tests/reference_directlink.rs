@@ -430,3 +430,24 @@ fn pinned_tag_extractors_use_full_query_in_archive_id() {
         "t_{search_tags}_{id}|{id}|t_{search_tags}_{id}"
     );
 }
+
+#[test]
+fn pinned_danbooru_media_asset_id_is_distinct_from_post_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for media-asset ID oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.danbooru import DanbooruMediaassetExtractor,DanbooruPostExtractor; print('|'.join((DanbooruMediaassetExtractor.archive_fmt,DanbooruPostExtractor.archive_fmt)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned media asset archive template").trim(),
+        "m{id}|{id}"
+    );
+}
