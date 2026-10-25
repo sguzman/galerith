@@ -126,7 +126,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "recursive",
         "bounded explicit local URL-list queue discovery",
     ),
-    ("s3ndpics", "bounded public S3ndpics post, user and search files"),
+    (
+        "s3ndpics",
+        "bounded public S3ndpics post, user and search files",
+    ),
     (
         "arena",
         "bounded public Are.na channel images and attachments",
@@ -1354,7 +1357,10 @@ mod tests {
             ("https://issuu.com/press/docs/fall-2026", "issuu"),
             ("https://www.listal.com/viewimage/12345678", "listal"),
             ("r:file:///tmp/gallery-links.txt", "recursive"),
-            ("https://s3nd.pics/post/0123456789abcdef01234567", "s3ndpics"),
+            (
+                "https://s3nd.pics/post/0123456789abcdef01234567",
+                "s3ndpics",
+            ),
             ("https://s3nd.pics/user/sample", "s3ndpics"),
             ("https://kabe-uchiroom.com/mypage/?id=12345", "kabeuchi"),
             ("https://bit.ly/abc_12", "urlshortener"),
