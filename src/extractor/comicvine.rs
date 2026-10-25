@@ -118,6 +118,34 @@ fn trusted_original(raw: &str) -> Option<(String, String)> {
     (!safe.is_empty() && !matches!(safe.as_str(), "." | "..")).then(|| (url.to_string(), safe))
 }
 
+/// Parse the pinned English source date without inventing a clock or offset.
+fn source_calendar_date(raw: &str) -> Option<String> {
+    let (weekday, remaining) = raw.split_once(", ")?;
+    if !matches!(weekday, "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun") {
+        return None;
+    }
+    let mut parts = remaining.split_whitespace();
+    let month = match parts.next()? {
+        "Jan" => 1_u32, "Feb" => 2, "Mar" => 3, "Apr" => 4,
+        "May" => 5, "Jun" => 6, "Jul" => 7, "Aug" => 8,
+        "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
+        _ => return None,
+    };
+    let day: u32 = parts.next()?.parse().ok()?;
+    let year_str = parts.next()?;
+    if year_str.len() != 4 || parts.next().is_some() { return None; }
+    let year: u32 = year_str.parse().ok()?;
+    if year == 0 { return None; }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let last_day = match month {
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => 31,
+    };
+    (day > 0 && day <= last_day).then(|| format!("{year:04}-{month:02}-{day:02}"))
+}
+
 fn read_posts(
     root: &Value,
     gallery: &Gallery,
@@ -165,6 +193,9 @@ fn read_posts(
             .filter(|s| s.len() <= 80 && !s.chars().any(char::is_control))
         {
             metadata.insert("date_source".into(), date.into());
+            if let Some(normalized) = source_calendar_date(date) {
+                metadata.insert("date".into(), normalized.into());
+            }
         }
         if let Some(tags) = post.get("tags").and_then(Value::as_array) {
             let labels = tags
@@ -319,6 +350,7 @@ mod tests {
         assert_eq!(records[0].0.filename, "42_cover one.jpg");
         assert_eq!(records[0].1["tags"], serde_json::json!(["Cover"]));
         assert_eq!(records[0].1["date_source"], "Mon, Jan 01 2024");
+        assert_eq!(records[0].1["date"], "2024-01-01");
         assert_eq!(records[1].1["num"], 2);
         for bad in [
             "https://comicvine.gamespot.com/a/uploads/original/%2fsecret.jpg",
@@ -326,6 +358,22 @@ mod tests {
             "https://comicvine.gamespot.com/a/uploads/original/%FF.jpg",
         ] {
             assert!(trusted_original(bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn comicvine_english_calendar_date_rejects_invalid_month_and_leap_day() {
+        assert_eq!(source_calendar_date("Thu, Feb 29 2024"), Some("2024-02-29".into()));
+        assert_eq!(source_calendar_date("Tue, Feb 29 2000"), Some("2000-02-29".into()));
+        for bad in [
+            "Wed, Feb 29 2023",
+            "Mon, Feb 29 1900",
+            "Tue, Apr 31 2026",
+            "Mon, Not 01 2026",
+            "Mon, Jan 01 2026 23:00",
+            "Mon, Jan 00 2026",
+        ] {
+            assert_eq!(source_calendar_date(bad), None, "{bad}");
         }
     }
 
