@@ -1727,8 +1727,7 @@ mod tests {
 
     #[test]
     fn favorite_group_archive_is_distinct_from_posts_pools_and_other_groups() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-favgroup-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-favgroup-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let db = root.join("native.sqlite");
@@ -1748,7 +1747,10 @@ mod tests {
         archive.record_for_source(&original, group).unwrap();
         assert!(archive.contains_for_source(&rotated, group).unwrap());
         assert!(archive
-            .contains_for_source(&rotated, "https://danbooru.donmai.us/favorite_group/show/77")
+            .contains_for_source(
+                &rotated,
+                "https://danbooru.donmai.us/favorite_group/show/77"
+            )
             .unwrap());
         for unrelated in [
             "https://danbooru.donmai.us/favorite_groups/78",
