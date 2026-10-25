@@ -4445,6 +4445,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T596",
+              "emoji": "🔁",
+              "name": "Recursive local and public remote URL-list queue sources",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route explicitly selected local file and pinned remote recursive URL aliases without admitting private hosts, credentials or traversal",
+                  "passed": true,
+                  "evidence": "src/extractor/recursive.rs pinned_recursive_sources_support_explicit_local_and_public_remote and public_dns_guard_rejects_special_use_ip_ranges; CI 40208717387"
+                },
+                {
+                  "title": "Read bounded UTF-8 local files and preserve first-seen, repeated HTTP(S) child queue records without implicit downloads",
+                  "passed": true,
+                  "evidence": "src/extractor/recursive.rs ordered_url_file_preserves_duplicates_and_suppresses_unsafe_origins and local_file_is_bounded_and_queues_only_read_only_links; CI 40208717387"
+                },
+                {
+                  "title": "Bound public HTTP(S) source downloads with pinned public-only DNS, no proxies, no redirects and 2 MiB response limit",
+                  "passed": true,
+                  "evidence": "src/extractor/recursive.rs fetch_remote, read_remote_response, public_address and remote_response_reader_caps_body_and_rejects_foreign_redirects; CI 40208717387"
+                },
+                {
+                  "title": "Integrate typed recursive queues into native routing without changing flat media-download defaults and pass full Rust and pinned directlink oracle CI",
+                  "passed": true,
+                  "evidence": "src/extractor/mod.rs recursive dispatcher; full Rust and pinned upstream directlink jobs passed CI 40208717387"
+                },
+                {
+                  "title": "Match unrestricted pinned remote source/network/child behavior, all scheme variants, global queue/filter nesting and live gallery-dl differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

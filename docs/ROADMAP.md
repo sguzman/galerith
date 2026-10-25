@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 153 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 154 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -859,6 +859,12 @@
   - [x] Emit deferred same-programme first-party gallery child queues with stable deduplication and scoped public URLs — src/extractor/bbc.rs deferred_programme_children_deduplicate_without_forged_or_other_programme_urls; CI 40204015367
   - [x] Enforce 2 MiB HTML byte caps and four-page/128-child programme bounds, with local public gallery and two-page queue HTTP tests — src/extractor/bbc.rs one_bounded_gallery_http_get_emits_source_images and two_programme_gallery_pages_queue_first_seen_children; CI 40204015367
   - [ ] Reproduce configurable width, source fallback renditions, full source metadata/filename/archive/directory conventions, unrestricted gallery history and live upstream differential parity
+- 🔁 **T596** Recursive local and public remote URL-list queue sources — `████████░░ 80%`
+  - [x] Route explicitly selected local file and pinned remote recursive URL aliases without admitting private hosts, credentials or traversal — src/extractor/recursive.rs pinned_recursive_sources_support_explicit_local_and_public_remote and public_dns_guard_rejects_special_use_ip_ranges; CI 40208717387
+  - [x] Read bounded UTF-8 local files and preserve first-seen, repeated HTTP(S) child queue records without implicit downloads — src/extractor/recursive.rs ordered_url_file_preserves_duplicates_and_suppresses_unsafe_origins and local_file_is_bounded_and_queues_only_read_only_links; CI 40208717387
+  - [x] Bound public HTTP(S) source downloads with pinned public-only DNS, no proxies, no redirects and 2 MiB response limit — src/extractor/recursive.rs fetch_remote, read_remote_response, public_address and remote_response_reader_caps_body_and_rejects_foreign_redirects; CI 40208717387
+  - [x] Integrate typed recursive queues into native routing without changing flat media-download defaults and pass full Rust and pinned directlink oracle CI — src/extractor/mod.rs recursive dispatcher; full Rust and pinned upstream directlink jobs passed CI 40208717387
+  - [ ] Match unrestricted pinned remote source/network/child behavior, all scheme variants, global queue/filter nesting and live gallery-dl differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

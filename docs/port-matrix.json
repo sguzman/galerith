@@ -1632,9 +1632,14 @@
     {
       "path": "gallery_dl/extractor/recursive.py",
       "module": "recursive",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/recursive.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent bounded recursive public URL-list adapter at pinned gallery-dl commit: r:/recursive: file:/// local files and public HTTP(S) remote lists, UTF-8 parsing, ordered duplicate-preserving typed URL queues, 2 MiB input and 128 child bounds, public FQDN and special-IP/DNS checks, pinned DNS address, no proxies or HTTP redirects, loopback body/redirect/size regression and local-file size fixture. Full Rust and pinned directlink oracle CI 40208717387 passed. Full upstream unlimited remote/local behavior and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/reddit.py",
