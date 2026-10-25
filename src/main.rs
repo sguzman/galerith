@@ -269,7 +269,7 @@ struct Cli {
     #[arg(long = "cache-db", value_name = "FILE", conflicts_with_all = ["cookies", "archive_import"])]
     cache_db: Option<PathBuf>,
 
-    /// Freshness lifetime for public collection metadata (1-86400 seconds)
+    /// Freshness lifetime in seconds (0 = never expire; maximum 86400)
     #[arg(long = "cache-ttl", value_name = "SECONDS", requires = "cache_db")]
     cache_ttl: Option<u64>,
 
@@ -284,6 +284,37 @@ struct Cli {
     /// Suppress per-file status messages
     #[arg(short = 'q', long)]
     quiet: bool,
+}
+
+// Cache and download/reference archives must never alias: otherwise opening
+// the cache may create tables or prune entries in an unrelated database.
+fn same_cache_archive_file(left: &std::path::Path, right: &std::path::Path) -> std::io::Result<bool> {
+    if left.exists() && right.exists() {
+        if std::fs::canonicalize(left)? == std::fs::canonicalize(right)? {
+            return Ok(true);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let a = std::fs::metadata(left)?;
+            let b = std::fs::metadata(right)?;
+            return Ok(a.dev() == b.dev() && a.ino() == b.ino());
+        }
+        #[cfg(not(unix))]
+        {
+            return Ok(false);
+        }
+    }
+    // If either file is not created yet, compare the *parent directory*
+    // after resolving symlinks, to catch ./ and symlinked directory aliases.
+    let left_parent = left.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    let right_parent = right.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    if left.file_name() == right.file_name() {
+        if let (Ok(a), Ok(b)) = (std::fs::canonicalize(left_parent), std::fs::canonicalize(right_parent)) {
+            return Ok(a == b);
+        }
+    }
+    Ok(left == right)
 }
 
 #[tokio::main]
@@ -318,6 +349,16 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             println!("{name} ({description}; partial parity)");
         }
         return Ok(());
+    }
+    if let Some(cache) = cli.cache_db.as_deref() {
+        for archive in [
+            cli.download_archive.as_deref(),
+            cli.gallery_dl_archive.as_deref(),
+        ].into_iter().flatten() {
+            if same_cache_archive_file(cache, archive)? {
+                return Err("--cache-db must be separate from native and gallery-dl archive files".into());
+            }
+        }
     }
     if cli.archive_import {
         if !cli.urls.is_empty() || !cli.input_files.is_empty() {

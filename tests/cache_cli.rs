@@ -78,3 +78,88 @@ fn cache_is_explicit_and_has_independent_sqlite_schema() {
     drop(conn);
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn cache_rejects_archive_file_aliases_without_mutating_original() {
+    let dir = temp("archive-alias");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let foreign = dir.join("foreign.sqlite");
+    let reference = rusqlite::Connection::open(&foreign).unwrap();
+    reference
+        .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID; INSERT INTO archive VALUES ('directlinkexample.org//test.jpg');")
+        .unwrap();
+    drop(reference);
+    let bytes = fs::read(&foreign).unwrap();
+    let native = dir.join("native.sqlite");
+    for reference_arg in ["--gallery-dl-archive", "--download-archive"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args([
+                "--cache-db",
+                foreign.to_str().unwrap(),
+                reference_arg,
+                foreign.to_str().unwrap(),
+                "--get-urls",
+                "https://example.org/test.jpg",
+            ])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("--cache-db must be separate"));
+        assert_eq!(fs::read(&foreign).unwrap(), bytes);
+    }
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--cache-db",
+            native.to_str().unwrap(),
+            "--download-archive",
+            native.to_str().unwrap(),
+            "--get-urls",
+            "https://example.org/test.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!native.exists());
+    #[cfg(unix)]
+    {
+        let sym = dir.join("sym.sqlite");
+        let hard = dir.join("hard.sqlite");
+        std::os::unix::fs::symlink(&foreign, &sym).unwrap();
+        fs::hard_link(&foreign, &hard).unwrap();
+        for alias in [&sym, &hard] {
+            let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+                .args([
+                    "--cache-db",
+                    alias.to_str().unwrap(),
+                    "--gallery-dl-archive",
+                    foreign.to_str().unwrap(),
+                    "--get-urls",
+                    "https://example.org/test.jpg",
+                ])
+                .output()
+                .unwrap();
+            assert!(!output.status.success());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("--cache-db must be separate"));
+            assert_eq!(fs::read(&foreign).unwrap(), bytes);
+        }
+    }
+    let subdir = dir.join("sub");
+    fs::create_dir_all(&subdir).unwrap();
+    let child = subdir.join("new.sqlite");
+    let relative = subdir.join("./new.sqlite");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--cache-db",
+            child.to_str().unwrap(),
+            "--download-archive",
+            relative.to_str().unwrap(),
+            "--get-urls",
+            "https://example.org/test.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!child.exists());
+    fs::remove_dir_all(dir).unwrap();
+}
