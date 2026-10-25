@@ -205,10 +205,10 @@ fn next_page(html: &str, user: &str, page: u16) -> bool {
         return false;
     };
     for chunk in html.split("<a ").skip(1).take(4000) {
-        let Some((attrs, label)) = chunk.split_once("</a>") else {
+        let Some((attrs, _)) = chunk.split_once("</a>") else {
             continue;
         };
-        if !label.contains(">Next page") {
+        if !attrs.contains(">Next page") {
             continue;
         }
         let Some(href) = anchor_href(attrs) else {
