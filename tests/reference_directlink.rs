@@ -556,3 +556,24 @@ fn pinned_fourchan_archive_format_is_board_thread_media_tim() {
         "4chana_123_456|4chanb_124_456"
     );
 }
+
+#[test]
+fn pinned_imgur_image_and_album_archive_ids_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Imgur archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; sources=('https://imgur.com/abcdefg','https://imgur.com/a/abcde'); args=({'id':'abcdefg'},{'album':{'id':'abcde'},'id':'abcdefg'}); print('|'.join(ex.category+ex.archive_fmt.format(**kw) for ex,kw in zip((extractor.find(url) for url in sources),args)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Imgur image/album archive templates").trim(),
+        "imgurabcdefg|imgurabcde_abcdefg"
+    );
+}
