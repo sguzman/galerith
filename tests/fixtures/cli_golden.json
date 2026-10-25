@@ -122,7 +122,7 @@
       ],
       "expect": {
         "kind": "error_contains",
-        "text": "error",
+        "text": "range must contain positive ascending indices",
         "absent": []
       }
     }
