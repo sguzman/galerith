@@ -9,7 +9,11 @@ use url::Url;
 pub struct Code(String);
 
 pub fn match_url(raw: &str) -> Option<Code> {
-    if raw.contains('%') || ["/../", "/./", "/..", "/."].iter().any(|v| raw.ends_with(v) || raw.contains(v)) {
+    if raw.contains('%')
+        || ["/../", "/./", "/..", "/."]
+            .iter()
+            .any(|v| raw.ends_with(v) || raw.contains(v))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
