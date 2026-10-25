@@ -1,5 +1,6 @@
 //! An independently written extractor dispatcher. Only documented, tested subsets
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
+pub mod architizer;
 pub mod arena;
 pub mod basic_hosts;
 pub mod bluesky;
@@ -80,6 +81,7 @@ use std::error::Error;
 /// Only previews with a dispatcher implementation appear here. This is not
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
+    ("architizer", "public Architizer project images and firm project queues"),
     ("directlink", "direct HTTP(S) media URL subset"),
     (
         "arena",
@@ -239,7 +241,9 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
 ];
 
 pub fn extractor_name(input: &str) -> Option<&'static str> {
-    if arena::match_url(input).is_some() {
+    if architizer::match_url(input).is_some() {
+        Some("architizer")
+    } else if arena::match_url(input).is_some() {
         Some("arena")
     } else if urlshortener::match_url(input).is_some() {
         Some("urlshortener")
@@ -391,6 +395,9 @@ pub async fn resolve(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    if let Some(target) = architizer::match_url(input) {
+        return architizer::resolve(client, target).await;
+    }
     if let Some(channel) = arena::match_url(input) {
         return arena::resolve(client, channel, max_pages).await;
     }
@@ -633,6 +640,9 @@ pub async fn resolve_messages(
     input: &str,
     max_pages: u16,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+    if let Some(target) = architizer::match_url(input) {
+        return architizer::resolve_messages(client, target).await;
+    }
     if let Some(channel) = arena::match_url(input) {
         return arena::resolve_messages(client, channel, max_pages).await;
     }
@@ -1043,6 +1053,7 @@ mod tests {
         let fixtures = [
             ("https://example.org/file.jpg", "directlink"),
             ("https://are.na/alice/cassette-futurism", "arena"),
+            ("https://architizer.com/projects/urban-house", "architizer"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
             ("https://2ch.org/a/", "2ch"),
