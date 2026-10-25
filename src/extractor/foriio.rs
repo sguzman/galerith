@@ -22,17 +22,24 @@ pub enum Target {
 fn safe_slug(s: &str) -> bool {
     (1..=80).contains(&s.len())
         && s != "works"
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 pub fn match_url(raw: &str) -> Option<Target> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|x| lower.contains(x)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|x| lower.contains(x))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
     if !matches!(url.scheme(), "http" | "https")
-        || !matches!(url.host_str(), Some("foriio.com" | "www.foriio.com" | "fori.io" | "www.fori.io"))
+        || !matches!(
+            url.host_str(),
+            Some("foriio.com" | "www.foriio.com" | "fori.io" | "www.fori.io")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -63,14 +70,18 @@ async fn read_json(
     let url = base.join(path)?;
     let mut request = client.get(url);
     if list {
-        request = request.header("Origin", "https://foriio.com")
+        request = request
+            .header("Origin", "https://foriio.com")
             .header("Referer", "https://foriio.com/");
     }
     let mut response = request.send().await?.error_for_status()?;
     if response.url().origin() != base.origin() {
         return Err("Foriio API redirected off its exact origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_JSON as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_JSON as u64)
+    {
         return Err("Foriio API response exceeds byte limit".into());
     }
     let mut body = Vec::new();
@@ -84,49 +95,75 @@ async fn read_json(
 }
 
 fn scalar_id(v: &Value) -> Option<String> {
-    let s = v.as_str().map(ToOwned::to_owned).or_else(|| v.as_u64().map(|n| n.to_string()))?;
+    let s = v
+        .as_str()
+        .map(ToOwned::to_owned)
+        .or_else(|| v.as_u64().map(|n| n.to_string()))?;
     ((1..=96).contains(&s.len())
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
     .then_some(s)
 }
 
 fn original(source: &str) -> Option<(String, String)> {
     let url = Url::parse(source).ok()?;
-    if url.scheme() != "https" || url.host_str() != Some("foriio.imgix.net")
-        || !url.username().is_empty() || url.password().is_some()
-        || url.port().is_some() || url.fragment().is_some()
+    if url.scheme() != "https"
+        || url.host_str() != Some("foriio.imgix.net")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
     {
         return None;
     }
     let name = url.path_segments()?.next_back()?;
     if !(1..=180).contains(&name.len())
-        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
         || name.contains("..")
     {
         return None;
     }
     let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
         return None;
     }
     Some((format!("https://foriio.imgix.net/store/{name}"), ext))
 }
 
-fn decode_work(root: &Value, id: u64) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
+fn decode_work(
+    root: &Value,
+    id: u64,
+) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let work = root.get("work").ok_or("Foriio work object absent")?;
-    if work.get("id").and_then(Value::as_u64).is_some_and(|actual| actual != id) {
+    if work
+        .get("id")
+        .and_then(Value::as_u64)
+        .is_some_and(|actual| actual != id)
+    {
         return Err("Foriio work ID differs from requested work".into());
     }
-    let files = work.get("images").and_then(Value::as_array)
+    let files = work
+        .get("images")
+        .and_then(Value::as_array)
         .ok_or("Foriio video/audio/external work type not supported by public image adapter")?;
     if files.is_empty() || files.len() > MAX_IMAGES {
         return Err("Foriio public image work is empty or exceeds media cap".into());
     }
     let mut out = Vec::new();
     for (index, file) in files.iter().enumerate() {
-        let (url, ext) = file.pointer("/urls/list").and_then(Value::as_str).and_then(original)
+        let (url, ext) = file
+            .pointer("/urls/list")
+            .and_then(Value::as_str)
+            .and_then(original)
             .ok_or("Foriio image URL is not a trusted source thumbnail")?;
-        let file_id = file.get("id").and_then(scalar_id)
+        let file_id = file
+            .get("id")
+            .and_then(scalar_id)
             .ok_or("Foriio image file ID invalid")?;
         let item = MediaItem {
             url,
@@ -141,9 +178,14 @@ fn decode_work(root: &Value, id: u64) -> Result<Vec<(MediaItem, Metadata)>, Box<
         metadata.insert("num".into(), (index + 1).into());
         metadata.insert("count".into(), files.len().into());
         metadata.insert("extension".into(), ext.into());
-        metadata.insert("post_url".into(), format!("https://foriio.com/works/{id}").into());
+        metadata.insert(
+            "post_url".into(),
+            format!("https://foriio.com/works/{id}").into(),
+        );
         for key in ["title", "published_at", "type"] {
-            if let Some(s) = work.get(key).and_then(Value::as_str)
+            if let Some(s) = work
+                .get(key)
+                .and_then(Value::as_str)
                 .filter(|s| s.len() <= 240 && !s.chars().any(char::is_control))
             {
                 metadata.insert(key.into(), s.into());
@@ -153,7 +195,9 @@ fn decode_work(root: &Value, id: u64) -> Result<Vec<(MediaItem, Metadata)>, Box<
             metadata.insert("author".into(), author.clone());
         }
         for key in ["width", "height"] {
-            if let Some(value) = file.get(key).and_then(Value::as_u64)
+            if let Some(value) = file
+                .get(key)
+                .and_then(Value::as_u64)
                 .filter(|value| (1..=100_000).contains(value))
             {
                 metadata.insert(key.into(), value.into());
@@ -171,79 +215,125 @@ fn decode_user(
     seen: &mut HashSet<u64>,
     out: &mut Vec<ExtractorMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    let works = root.get("works").and_then(Value::as_array)
+    let works = root
+        .get("works")
+        .and_then(Value::as_array)
         .ok_or("Foriio user works array absent")?;
     if works.len() > 20 {
         return Err("Foriio user API exceeds pinned 20-work page".into());
     }
-    let meta = root.get("meta").ok_or("Foriio pagination metadata absent")?;
-    let current = meta.get("current_page").and_then(Value::as_u64).ok_or("No current page")?;
-    let total = meta.get("total_pages").and_then(Value::as_u64).ok_or("No total pages")?;
+    let meta = root
+        .get("meta")
+        .ok_or("Foriio pagination metadata absent")?;
+    let current = meta
+        .get("current_page")
+        .and_then(Value::as_u64)
+        .ok_or("No current page")?;
+    let total = meta
+        .get("total_pages")
+        .and_then(Value::as_u64)
+        .ok_or("No total pages")?;
     if current != u64::from(page) || total == 0 || current > total {
         return Err("Foriio user page metadata inconsistent with requested page".into());
     }
     for work in works {
-        if out.len() >= MAX_CHILDREN { break; }
-        let Some(id) = work.get("id").and_then(Value::as_u64).filter(|n| *n > 0) else { continue };
-        if !seen.insert(id) { continue }
+        if out.len() >= MAX_CHILDREN {
+            break;
+        }
+        let Some(id) = work.get("id").and_then(Value::as_u64).filter(|n| *n > 0) else {
+            continue;
+        };
+        if !seen.insert(id) {
+            continue;
+        }
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "foriio".into());
         metadata.insert("subcategory".into(), "user".into());
         metadata.insert("username".into(), user.into());
         metadata.insert("work_id".into(), id.into());
-        if let Some(kind) = work.get("type").and_then(Value::as_str)
+        if let Some(kind) = work
+            .get("type")
+            .and_then(Value::as_str)
             .filter(|s| s.len() <= 80 && !s.chars().any(char::is_control))
         {
             metadata.insert("type".into(), kind.into());
         }
-        out.push(queued_url(format!("https://foriio.com/works/{id}"), metadata));
+        out.push(queued_url(
+            format!("https://foriio.com/works/{id}"),
+            metadata,
+        ));
     }
     Ok(current < total)
 }
 
-async fn at_work(client: &Client, base: &Url, id: u64)
-    -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>>
-{
-    decode_work(&read_json(client, base, &format!("v1/works/{id}"), false).await?, id)
+async fn at_work(
+    client: &Client,
+    base: &Url,
+    id: u64,
+) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
+    decode_work(
+        &read_json(client, base, &format!("v1/works/{id}"), false).await?,
+        id,
+    )
 }
 
-async fn at_user(client: &Client, base: &Url, user: &str, max_pages: u16)
-    -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
-{
+async fn at_user(
+    client: &Client,
+    base: &Url,
+    user: &str,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut result = Vec::new();
     let mut seen = HashSet::new();
     for page in 1..=max_pages.clamp(1, MAX_PAGES) {
-        if page > 1 { tokio::time::sleep(Duration::from_secs(1)).await; }
+        if page > 1 {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
         let query = format!("v1/users/{user}/works?page={page}&per_page=20");
         let data = read_json(client, base, &query, true).await?;
         let more = decode_user(&data, page, user, &mut seen, &mut result)?;
-        if !more || result.len() >= MAX_CHILDREN { break }
+        if !more || result.len() >= MAX_CHILDREN {
+            break;
+        }
     }
     Ok(result)
 }
 
-pub async fn resolve(client: &Client, target: Target)
-    -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve(
+    client: &Client,
+    target: Target,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.foriio.com/api/")?;
     match target {
-        Target::Work(id) => Ok(at_work(client, &base, id).await?
-            .into_iter().map(|(item, _)| item).collect()),
-        Target::User(_) => Err("Foriio user listing requires --dump-messages or --follow-queues".into()),
+        Target::Work(id) => Ok(at_work(client, &base, id)
+            .await?
+            .into_iter()
+            .map(|(item, _)| item)
+            .collect()),
+        Target::User(_) => {
+            Err("Foriio user listing requires --dump-messages or --follow-queues".into())
+        }
     }
 }
 
-pub async fn resolve_messages(client: &Client, target: Target, max_pages: u16)
-    -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>>
-{
+pub async fn resolve_messages(
+    client: &Client,
+    target: Target,
+    max_pages: u16,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://api.foriio.com/api/")?;
     match target {
         Target::User(user) => at_user(client, &base, &user, max_pages).await,
         Target::Work(id) => {
             let mut result = Vec::new();
             for (item, metadata) in at_work(client, &base, id).await? {
-                result.push(ExtractorMessage::Directory { metadata: metadata.clone() });
-                result.push(ExtractorMessage::Url { url: item.url, metadata });
+                result.push(ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                });
+                result.push(ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                });
             }
             Ok(result)
         }
@@ -253,12 +343,21 @@ pub async fn resolve_messages(client: &Client, target: Target, max_pages: u16)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[test]
     fn routes_accept_pinned_work_and_user_forms_only() {
-        assert_eq!(match_url("https://foriio.com/works/12345"), Some(Target::Work(12345)));
-        assert_eq!(match_url("https://www.fori.io/artist"), Some(Target::User("artist".into())));
+        assert_eq!(
+            match_url("https://foriio.com/works/12345"),
+            Some(Target::Work(12345))
+        );
+        assert_eq!(
+            match_url("https://www.fori.io/artist"),
+            Some(Target::User("artist".into()))
+        );
         for bad in [
             "https://fakeforiio.com/works/1",
             "https://foriio.com/works/0",
@@ -273,10 +372,10 @@ mod tests {
     #[test]
     fn images_preserve_source_ids_and_reject_foreign_media() {
         let api = serde_json::json!({"work":{"id":12345,"title":"Art",
-            "author":{"id":8,"screen_name":"creator"},"images":[
-                {"id":10,"width":800,"urls":{"list":"https://foriio.imgix.net/store/first.png?resize=1"}},
-                {"id":20,"width":900,"urls":{"list":"https://foriio.imgix.net/store/second.jpg"}}
-            ]}});
+        "author":{"id":8,"screen_name":"creator"},"images":[
+            {"id":10,"width":800,"urls":{"list":"https://foriio.imgix.net/store/first.png?resize=1"}},
+            {"id":20,"width":900,"urls":{"list":"https://foriio.imgix.net/store/second.jpg"}}
+        ]}});
         let media = decode_work(&api, 12345).unwrap();
         assert_eq!(media.len(), 2);
         assert_eq!(media[0].0.url, "https://foriio.imgix.net/store/first.png");
@@ -296,7 +395,10 @@ mod tests {
         let mut seen = HashSet::new();
         assert!(decode_user(&value, 1, "artist", &mut seen, &mut out).unwrap());
         assert_eq!(out.len(), 2);
-        assert_eq!(serde_json::to_value(&out[1]).unwrap()["url"], "https://foriio.com/works/2");
+        assert_eq!(
+            serde_json::to_value(&out[1]).unwrap()["url"],
+            "https://foriio.com/works/2"
+        );
         assert!(decode_user(&value, 2, "artist", &mut seen, &mut out).is_err());
     }
 
@@ -306,10 +408,14 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (path, body) in [
-                ("/api/v1/works/12345",
-                 r#"{"work":{"id":12345,"images":[{"id":10,"urls":{"list":"https://foriio.imgix.net/store/a.jpg"}}]}}"#),
-                ("/api/v1/users/artist/works?page=1&per_page=20",
-                 r#"{"works":[{"id":12345,"type":"image"}],"meta":{"current_page":1,"total_pages":1}}"#),
+                (
+                    "/api/v1/works/12345",
+                    r#"{"work":{"id":12345,"images":[{"id":10,"urls":{"list":"https://foriio.imgix.net/store/a.jpg"}}]}}"#,
+                ),
+                (
+                    "/api/v1/users/artist/works?page=1&per_page=20",
+                    r#"{"works":[{"id":12345,"type":"image"}],"meta":{"current_page":1,"total_pages":1}}"#,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut data = [0u8; 4096];
@@ -324,8 +430,17 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/api/")).unwrap();
-        assert_eq!(at_work(&Client::new(), &base, 12345).await.unwrap().len(), 1);
-        assert_eq!(at_user(&Client::new(), &base, "artist", 4).await.unwrap().len(), 1);
+        assert_eq!(
+            at_work(&Client::new(), &base, 12345).await.unwrap().len(),
+            1
+        );
+        assert_eq!(
+            at_user(&Client::new(), &base, "artist", 4)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
         server.await.unwrap();
     }
 }

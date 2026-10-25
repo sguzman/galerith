@@ -2,7 +2,6 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod agnph;
 pub mod ahottie;
-pub mod foriio;
 pub mod architizer;
 pub mod arena;
 pub mod basic_hosts;
@@ -17,6 +16,7 @@ pub mod eightmuses;
 pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
+pub mod foriio;
 pub mod fourarchive;
 pub mod fourchan;
 pub mod fourchanarchives;
