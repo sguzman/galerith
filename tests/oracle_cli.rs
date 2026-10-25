@@ -34,7 +34,9 @@ fn assert_subset(actual: &Value, expected: &Value, label: &str) {
                 .unwrap_or_else(|| panic!("{label}: expected JSON object; got {actual}"));
             for (key, value) in map {
                 assert_subset(
-                    object.get(key).unwrap_or_else(|| panic!("{label}: missing field {key}")),
+                    object
+                        .get(key)
+                        .unwrap_or_else(|| panic!("{label}: missing field {key}")),
                     value,
                     &format!("{label}.{key}"),
                 );
@@ -59,14 +61,15 @@ fn offline_cli_golden_corpus_matches_explicit_expected_outputs() {
         .expect("parse pinned offline CLI golden corpus");
     assert_eq!(corpus.schema_version, 1);
     assert_eq!(corpus.scope, "galerith-cli-offline");
-    assert_eq!(
-        corpus.baseline,
-        "7f226f74108501c8ac3120548370f68f19e6f9b3"
-    );
+    assert_eq!(corpus.baseline, "7f226f74108501c8ac3120548370f68f19e6f9b3");
     assert!(corpus.cases.len() >= 8, "golden corpus unexpectedly shrank");
     let mut ids = std::collections::HashSet::new();
     for case in corpus.cases {
-        assert!(ids.insert(case.id.clone()), "duplicate corpus ID {}", case.id);
+        assert!(
+            ids.insert(case.id.clone()),
+            "duplicate corpus ID {}",
+            case.id
+        );
         let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args(&case.args)
             .output()
@@ -98,11 +101,23 @@ fn offline_cli_golden_corpus_matches_explicit_expected_outputs() {
                 assert_eq!(stdout, text, "{}: exact stdout regression", case.id);
             }
             Expected::ErrorContains { text, absent } => {
-                assert!(!output.status.success(), "{}: unexpectedly succeeded", case.id);
+                assert!(
+                    !output.status.success(),
+                    "{}: unexpectedly succeeded",
+                    case.id
+                );
                 let combined = format!("{stdout}{stderr}");
-                assert!(combined.contains(&text), "{}: expected diagnostic: {text}; got {combined}", case.id);
+                assert!(
+                    combined.contains(&text),
+                    "{}: expected diagnostic: {text}; got {combined}",
+                    case.id
+                );
                 for secret in absent {
-                    assert!(!combined.contains(&secret), "{}: leaked synthetic marker", case.id);
+                    assert!(
+                        !combined.contains(&secret),
+                        "{}: leaked synthetic marker",
+                        case.id
+                    );
                 }
             }
         }
