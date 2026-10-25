@@ -26,17 +26,34 @@ impl Drop for ArchiveItemLock {
     }
 }
 
-fn key(item: &MediaItem) -> String {
-    // Archive entries are recorded per downloaded media item, not per post.
-    // Posts may contain several distinct originals with the same post_id.
-    // Use the full source URL fingerprint to avoid incorrectly treating
-    // query-distinguished resources as the same media. Persist only the hash,
-    // never source URLs or signed query credentials.
+/// Only these pinned source categories guarantee one original per image
+/// ID, with the same {id} archive contract for posts/searches/galleries.
+fn philomena_id(item: &MediaItem) -> Option<u64> {
+    match item.extractor {
+        "derpibooru" | "ponybooru" | "furbooru" => item.post_id.filter(|id| *id != 0),
+        _ => None,
+    }
+}
+
+fn legacy_url_key(item: &MediaItem) -> String {
+    // Retain this older Galerith identity for backwards-compatible reads.
+    // Arbitrary posts can contain multiple originals and must still use a
+    // complete URL fingerprint rather than a post-only archive key.
     let digest = Sha256::digest(item.url.as_bytes());
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     match item.post_id {
         Some(id) => format!("post:{id}:url-sha256:{hex}"),
         None => format!("url-sha256:{hex}"),
+    }
+}
+
+fn key(item: &MediaItem) -> String {
+    // Stable native identity is safe for Philomena's single-image records,
+    // avoiding duplicate downloads after source URL/token rotation.
+    // Never generalize this to multi-original source posts.
+    match philomena_id(item) {
+        Some(id) => format!("image-id:{id}"),
+        None => legacy_url_key(item),
     }
 }
 
@@ -233,6 +250,18 @@ impl Archive {
         )?;
         if present != 0 {
             return Ok(true);
+        }
+        // Old Galerith Philomena downloads used the URL-based key. Preserve
+        // existing archive history through this targeted migration read.
+        if philomena_id(item).is_some() {
+            let old: i64 = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = ?1 AND identity = ?2)",
+                params![item.extractor, legacy_url_key(item)],
+                |row| row.get(0),
+            )?;
+            if old != 0 {
+                return Ok(true);
+            }
         }
         if let Some(source_key) = upstream_archive_key(item) {
             // Explicit external reference takes precedence, then the
@@ -555,6 +584,65 @@ mod tests {
         assert_eq!(native_table, 0);
         drop(existing);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn philomena_native_archive_survives_rotated_urls_and_old_digest_rows() {
+        let path = std::env::temp_dir().join(format!(
+            "galerith-philomena-native-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&path);
+        let archive = Archive::open(&path).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.example.net/123.jpg?token=old".into(),
+            filename: "123.jpg".into(),
+            extractor: "derpibooru",
+            post_id: Some(123),
+        };
+        let rotated = MediaItem {
+            url: "https://new-cdn.example.net/another/123.png?token=new".into(),
+            filename: "123.png".into(),
+            ..original.clone()
+        };
+        archive.record(&original).unwrap();
+        assert!(archive.contains(&rotated).unwrap());
+        assert_eq!(key(&original), "image-id:123");
+        let another_site = MediaItem {
+            extractor: "ponybooru",
+            ..original.clone()
+        };
+        assert!(!archive.contains(&another_site).unwrap());
+        let another_image = MediaItem {
+            post_id: Some(124),
+            ..original.clone()
+        };
+        assert!(!archive.contains(&another_image).unwrap());
+
+        let previously_saved = MediaItem {
+            extractor: "furbooru",
+            post_id: Some(991),
+            ..original.clone()
+        };
+        archive
+            .connection
+            .execute(
+                "INSERT INTO downloads (category, identity) VALUES (?1, ?2)",
+                params![previously_saved.extractor, legacy_url_key(&previously_saved)],
+            )
+            .unwrap();
+        assert!(archive.contains(&previously_saved).unwrap());
+        // The legacy URL digest cannot prove a *rotated* old URL belongs to
+        // the same original. That requires a new stable record or reference.
+        let unknown_rotation = MediaItem {
+            url: "https://cdn.example.net/991.jpg?token=changed".into(),
+            ..previously_saved.clone()
+        };
+        assert!(!archive.contains(&unknown_rotation).unwrap());
+        archive.record(&previously_saved).unwrap();
+        assert!(archive.contains(&unknown_rotation).unwrap());
+        drop(archive);
+        fs::remove_file(path).unwrap();
     }
 
     #[test]
