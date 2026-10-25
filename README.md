@@ -32,7 +32,7 @@ cargo run -- --sleep 0.15 -d ./media 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 ```
 
-The native preview includes resumable transfers and retries, cross-process download/archive locks, hash-only import of supported gallery-dl archive identities, source-scoped Danbooru/e621-family archive IDs, and an optional native SQLite public collection metadata cache (`--cache-db`, `--cache-ttl`). Gallery-dl's Python-pickled cache is not reused. Configuration supports explicit JSON, YAML and TOML files; complete archive and cache parity remains an acceptance gate.
+The native preview includes resumable transfers and retries, cross-process download/archive locks, hash-only import of supported gallery-dl archive identities, source-scoped Danbooru/e621-family and Moebooru archive IDs, and an optional native SQLite public collection metadata cache (`--cache-db`, `--cache-ttl`). Gallery-dl's Python-pickled cache is not reused. Configuration supports explicit JSON, YAML and TOML files; complete archive and cache parity remains an acceptance gate.
 
 ## Port tracking
 

@@ -472,3 +472,24 @@ fn pinned_dated_popular_archive_matches_runtime_metadata_formatting() {
         "danbooruP_d_2026-10-25_88|e621P_m_2026-10_88|e926P_d_2026-10-25_88|e6aiP_m_2026-10_88|danbooruP_w_2026-10-19_88|e621P_w_2026-12-28_88|e926P_w_2024-02-26_88|e6aiP_w_2026-10-19_88"
     );
 }
+
+#[test]
+fn pinned_moebooru_post_pool_and_tag_archive_templates() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Moebooru archive oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; hosts=('yande.re','konachan.net','www.sakugabooru.com','lolibooru.moe'); urls=[('https://'+host+route,kw) for host in hosts for route,kw in (('/post/show/88',{'id':88}),('/pool/show/77',{'pool':77,'id':88}),('/post?tags=blue+fox',{'search_tags':'blue fox','id':88}))]; print('|'.join(x.category+x.archive_fmt.format(**kw) for url,kw in urls for x in (extractor.find(url),)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Moebooru archive class formats").trim(),
+        "yandere88|yanderep_77_88|yanderet_blue fox_88|konachan88|konachanp_77_88|konachant_blue fox_88|sakugabooru88|sakugaboorup_77_88|sakugaboorut_blue fox_88|lolibooru88|loliboorup_77_88|loliboorut_blue fox_88"
+    );
+}
