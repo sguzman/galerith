@@ -56,6 +56,7 @@ pub mod moebooru;
 pub mod philomena;
 pub mod photovogue;
 pub mod picarto;
+pub mod picazor;
 pub mod picstate;
 pub mod pixeldrain;
 pub mod postimg;
@@ -258,6 +259,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "picarto",
         "public channel gallery JSON and bounded variations",
     ),
+    ("picazor", "bounded public user files and source media"),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
@@ -437,6 +439,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("vanillarock")
     } else if picarto::match_url(input).is_some() {
         Some("picarto")
+    } else if picazor::match_url(input).is_some() {
+        Some("picazor")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -708,6 +712,9 @@ pub async fn resolve(
     if let Some(target) = picarto::match_url(input) {
         return picarto::resolve(client, target, max_pages).await;
     }
+    if let Some(user) = picazor::match_url(input) {
+        return picazor::resolve(client, user, max_pages).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -841,6 +848,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = picarto::match_url(input) {
         return picarto::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(user) = picazor::match_url(input) {
+        return picazor::resolve_messages(client, user, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1316,6 +1326,7 @@ mod tests {
             ("https://soundgasm.net/u/alice/first", "soundgasm"),
             ("https://vanilla-rock.com/my-post", "vanillarock"),
             ("https://picarto.tv/artist/gallery", "picarto"),
+            ("https://picazor.com/en/example", "picazor"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
