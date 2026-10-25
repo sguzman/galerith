@@ -394,8 +394,7 @@ fn imgur_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
         return None;
     };
     let (id, extension) = filename.rsplit_once('.')?;
-    if !valid_imgur_id(id)
-        || !matches!(extension, "jpg" | "jpeg" | "png" | "gif" | "webp" | "mp4")
+    if !valid_imgur_id(id) || !matches!(extension, "jpg" | "jpeg" | "png" | "gif" | "webp" | "mp4")
     {
         return None;
     }
@@ -415,12 +414,8 @@ fn imgur_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
     }
     let path: Vec<_> = source.path_segments()?.collect();
     match path.as_slice() {
-        [source_id] if source_id == &id => {
-            Some((format!("image-id:{id}"), format!("imgur{id}")))
-        }
-        ["r", subreddit, source_id]
-            if !subreddit.is_empty() && source_id == &id =>
-        {
+        [source_id] if source_id == &id => Some((format!("image-id:{id}"), format!("imgur{id}"))),
+        ["r", subreddit, source_id] if !subreddit.is_empty() && source_id == &id => {
             Some((format!("image-id:{id}"), format!("imgur{id}")))
         }
         [source_filename] if source.host_str() == Some("i.imgur.com") => {
@@ -4289,7 +4284,9 @@ mod tests {
         );
         archive.record_for_source(&media, same_album).unwrap();
         assert!(archive.contains_for_source(&media, same_album).unwrap());
-        assert!(!archive.contains_for_source(&other_original, same_album).unwrap());
+        assert!(!archive
+            .contains_for_source(&other_original, same_album)
+            .unwrap());
         assert!(!archive.contains_for_source(&media, other_album).unwrap());
         assert!(!archive.contains_for_source(&media, direct).unwrap());
         assert!(!archive
@@ -4314,7 +4311,13 @@ mod tests {
         assert!(imgur_archive_scope(&wrong_host, direct).is_none());
         assert!(canonical_imgur_archive_suffix("abcdefg"));
         assert!(canonical_imgur_archive_suffix("abcde_abcdefg"));
-        for malformed in ["abcd", "abcdefgh", "abcd_abcdefg", "abcde_abcdefgh", "abcde_abcdefg_123"] {
+        for malformed in [
+            "abcd",
+            "abcdefgh",
+            "abcd_abcdefg",
+            "abcde_abcdefgh",
+            "abcde_abcdefg_123",
+        ] {
             assert!(!canonical_imgur_archive_suffix(malformed));
         }
         drop(archive);
