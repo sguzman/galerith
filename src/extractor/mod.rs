@@ -9,6 +9,7 @@ pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod danbooru;
+pub mod dankefuerslesen;
 pub mod desktopography;
 pub mod directlink;
 pub mod e621;
@@ -17,7 +18,6 @@ pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
 pub mod foriio;
-pub mod dankefuerslesen;
 pub mod fourarchive;
 pub mod fourchan;
 pub mod fourchanarchives;
@@ -90,7 +90,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public bounded Ahottie albums and tag/search queues",
     ),
     ("foriio", "public image works and bounded user-work queues"),
-    ("dankefuerslesen", "public Danke manga chapters and deferred series queues"),
+    (
+        "dankefuerslesen",
+        "public Danke manga chapters and deferred series queues",
+    ),
     ("agnph", "bounded public Agn.ph XML posts and tag searches"),
     (
         "architizer",
@@ -1103,7 +1106,10 @@ mod tests {
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
             ("https://ahottie.top/albums/Album12", "ahottie"),
             ("https://foriio.com/works/12345", "foriio"),
-            ("https://danke.moe/read/manga/series/1/1/", "dankefuerslesen"),
+            (
+                "https://danke.moe/read/manga/series/1/1/",
+                "dankefuerslesen",
+            ),
             ("https://danke.moe/read/manga/series", "dankefuerslesen"),
             ("https://foriio.com/artist", "foriio"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
