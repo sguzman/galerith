@@ -237,8 +237,7 @@ impl Cache {
         // Defense in depth: even callers bypassing the shared HTTP wrapper
         // must not persist credentials, unusual ports, or foreign responses.
         if !Self::allows(&endpoint) {
-            return crate::extractor::http_json::fetch_json_uncached(client, endpoint, limit)
-                .await;
+            return crate::extractor::http_json::fetch_json_uncached(client, endpoint, limit).await;
         }
         self.fetch(&endpoint, limit, || {
             crate::extractor::http_json::fetch_json_uncached(client, endpoint.clone(), limit)
