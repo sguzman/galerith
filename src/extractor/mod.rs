@@ -83,7 +83,10 @@ use std::error::Error;
 /// Only previews with a dispatcher implementation appear here. This is not
 /// the complete gallery-dl site list and does not imply full extractor parity.
 pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
-    ("ahottie", "public bounded Ahottie albums and tag/search queues"),
+    (
+        "ahottie",
+        "public bounded Ahottie albums and tag/search queues",
+    ),
     ("agnph", "bounded public Agn.ph XML posts and tag searches"),
     (
         "architizer",
