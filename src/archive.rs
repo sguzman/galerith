@@ -186,7 +186,8 @@ impl Archive {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "invalid gallery-dl archive table name",
-            ).into());
+            )
+            .into());
         }
         // Validate the upstream source before creating Galerith's own DB.
         // The READ_ONLY flag never creates a missing upstream file.
@@ -397,11 +398,8 @@ impl Archive {
                     "SELECT EXISTS(SELECT 1 FROM {} WHERE entry = ?1)",
                     archive_table_identifier(table)
                 );
-                let upstream: i64 = source.query_row(
-                    &query,
-                    params![source_key],
-                    |row| row.get(0),
-                )?;
+                let upstream: i64 =
+                    source.query_row(&query, params![source_key], |row| row.get(0))?;
                 return Ok(upstream != 0);
             }
         }
@@ -655,7 +653,10 @@ mod tests {
         source.execute_batch(&sql).unwrap();
         source
             .execute(
-                &format!("INSERT INTO {} (entry) VALUES (?1)", archive_table_identifier(custom)),
+                &format!(
+                    "INSERT INTO {} (entry) VALUES (?1)",
+                    archive_table_identifier(custom)
+                ),
                 params!["directlinkexample.org/photos/pinned.jpg"],
             )
             .unwrap();
@@ -664,8 +665,8 @@ mod tests {
 
         let archive =
             Archive::open_with_reference_table(&native, Some(&reference), custom).unwrap();
-        let item = extract_direct_media("https://example.org/photos/pinned.jpg?token=rotated")
-            .unwrap();
+        let item =
+            extract_direct_media("https://example.org/photos/pinned.jpg?token=rotated").unwrap();
         assert!(archive.contains(&item).unwrap());
         assert_eq!(archive.import_reference().unwrap(), (1, 1));
         drop(archive);

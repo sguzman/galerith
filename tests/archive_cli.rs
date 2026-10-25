@@ -488,7 +488,11 @@ fn offline_import_respects_selected_custom_foreign_table() {
         .arg("--archive-import")
         .output()
         .unwrap();
-    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert!(String::from_utf8_lossy(&result.stdout).contains("1 supported entries; 1 new"));
     assert_eq!(fs::read(&foreign).unwrap(), before);
     fs::remove_file(foreign).unwrap();
@@ -498,7 +502,11 @@ fn offline_import_respects_selected_custom_foreign_table() {
         .arg("https://example.org/item.jpg?signature=changed")
         .output()
         .unwrap();
-    assert!(verify.status.success(), "{}", String::from_utf8_lossy(&verify.stderr));
+    assert!(
+        verify.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verify.stderr)
+    );
     assert!(String::from_utf8_lossy(&verify.stdout).contains("archived item.jpg"));
     fs::remove_dir_all(dir).unwrap();
 }
