@@ -10,6 +10,15 @@ const URLS: &[&str] = &[
     "https://assets.example.org/arts/Poster%20Art.JPEG?download=1#first",
     "https://cdn.example.org/one/two/cover%20art.webp?size=large",
     "http://images.example.org/a/track%20one.mp3?source=public",
+    "https://static.example.org/media/image.avif",
+    "https://downloads.example.org/books/book.pdf",
+    "https://cdn.example.org/archive/media.7z?mirror=one",
+    "https://videos.example.org/clips/preview.webm?quality=original#top",
+    "https://audio.example.org/tracks/recording.opus",
+    "https://scan.example.org/photos/art.heic",
+    "https://assets.example.org/work/old.PSD",
+    "https://media.example.org/print/photo.JPE",
+    "https://assets.example.org/galleries/%E9%9F%B3%E6%A5%BD.jpg?lang=ja",
 ];
 
 fn spawn(mut command: Command, label: &str) -> String {
