@@ -69,6 +69,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "danbooru" && canonical_favorite_group_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if is_e621_favorite_category(category) && canonical_favorite_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -94,12 +97,30 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         if prefix == category
             && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
                 || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare))
-                || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare)))
+                || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
+                || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare)))
         {
             return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn is_e621_favorite_category(category: &str) -> bool {
+    matches!(category, "e621" | "e926" | "e6ai")
+}
+
+fn canonical_favorite_archive_suffix(suffix: &str) -> bool {
+    let Some((user, post)) = suffix
+        .strip_prefix("f_")
+        .and_then(|remaining| remaining.split_once('_'))
+    else {
+        return false;
+    };
+    let (Ok(user_id), Ok(post_id)) = (user.parse::<u64>(), post.parse::<u64>()) else {
+        return false;
+    };
+    user_id > 0 && post_id > 0 && suffix == format!("f_{user_id}_{post_id}")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -243,8 +264,45 @@ fn danbooru_favorite_group(item: &MediaItem, source_url: &str) -> Option<(u64, u
     (group_id > 0).then_some((group_id, post_id))
 }
 
+/// The e621-family favorite extractor uses f_{user_id}_{id}. Require
+/// explicit user_id=NUMBER on the original URL: /favorites without an
+/// account selector depends on the active login and cannot be scoped safely.
+fn e621_favorite(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
+    if !is_e621_favorite_category(item.extractor) {
+        return None;
+    }
+    let post = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.path() != "/favorites"
+    {
+        return None;
+    }
+    match (item.extractor, source.host_str()?) {
+        ("e621", "e621.net") | ("e926", "e926.net") | ("e6ai", "e6ai.net") => {}
+        _ => return None,
+    }
+    let mut user = None;
+    for (key, value) in source.query_pairs() {
+        if key == "user_id" {
+            if user.is_some() {
+                return None;
+            }
+            let id = value.parse::<u64>().ok().filter(|id| *id > 0)?;
+            if value != id.to_string() {
+                return None;
+            }
+            user = Some(id);
+        }
+    }
+    Some((user?, post))
+}
+
 /// Scoped identity unifies native archive records, advisory locks and
-/// read-only upstream lookup for verified posts, pools and favorite groups.
+/// read-only upstream lookup for verified posts, pools, favorite groups
+/// and account-specific e621-family favorites.
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
@@ -255,10 +313,16 @@ fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
             format!("{}p_{pool}_{post}", item.extractor),
         ));
     }
-    let (group, post) = danbooru_favorite_group(item, source_url)?;
+    if let Some((group, post)) = danbooru_favorite_group(item, source_url) {
+        return Some((
+            format!("favorite-group-id:{group}:post-id:{post}"),
+            format!("danboorufg_{group}_{post}"),
+        ));
+    }
+    let (user, post) = e621_favorite(item, source_url)?;
     Some((
-        format!("favorite-group-id:{group}:post-id:{post}"),
-        format!("danboorufg_{group}_{post}"),
+        format!("favorite-user-id:{user}:post-id:{post}"),
+        format!("{}f_{user}_{post}", item.extractor),
     ))
 }
 
