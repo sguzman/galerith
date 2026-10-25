@@ -4851,11 +4851,16 @@
                   "passed": false
                 },
                 {
-                  "title": "Signed reproducible reports",
+                  "title": "Produce deterministic 13-case pinned directlink comparison JSON and Sigstore-attested CI evidence",
+                  "passed": true,
+                  "evidence": "tests/reference_directlink.rs emits source/native exact event JSON for 13 synthetic audio/video/image/archive URL cases; CI 40207040515 uploaded pinned-directlink-oracle artifact and actions/attest@v4 signed the report with public Sigstore provenance; both Rust and pinned-reference jobs passed"
+                },
+                {
+                  "title": "Produce verifiable reproducible signed reports for complete cross-extractor differential suites",
                   "passed": false
                 }
               ],
-              "progress": 60
+              "progress": 67
             },
             {
               "id": "T1002",

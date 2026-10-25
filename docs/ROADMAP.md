@@ -943,17 +943,18 @@
   - [ ] Automatic config lookup and all upstream namespaces
   - [ ] Upstream differential configuration tests
 
-## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 32%`
+## 🚀 M5 — Conformance, release and MVP inauguration — `███░░░░░░░ 33%`
 **Acceptance gate:** Complete feature and extractor parity verified on Linux, then stable MVP versioned release.
 
-### 🧪 P10 — Differential quality assurance — `█████░░░░░ 45%`
+### 🧪 P10 — Differential quality assurance — `█████░░░░░ 47%`
 
-- 🔍 **T1001** Pin and run comparison oracle — `██████░░░░ 60%`
+- 🔍 **T1001** Pin and run comparison oracle — `███████░░░ 67%`
   - [x] Document upstream baseline — docs/SOURCE_BASELINE.md
   - [x] Automated golden CLI corpus — tests/fixtures/cli_golden.json pinned to upstream source hash and tests/oracle_cli.rs deterministic eight-case offline CLI output/redaction contract; full Linux Rust CI 40205524617 (format, Clippy, roadmap, tests, release build) passed; docs/ORACLE_CLI.md explicitly excludes upstream runtime comparison
   - [x] Run isolated pinned upstream directlink reference against actual native typed events with verified SHA and no source-site traffic — tests/reference_directlink.rs (four public offline directlink URLs, real Python reference CLI only in CI, compare directory/URL order, origin/path/source fields); .github/workflows/ci.yml pinned-gallery-dl checkout SHA and combined CI status; full Rust and pinned reference CI 40206360597 passed
   - [ ] Prove deterministic pinned upstream differential equivalence across supported extractor families and complete filename/archive semantics
-  - [ ] Signed reproducible reports
+  - [x] Produce deterministic 13-case pinned directlink comparison JSON and Sigstore-attested CI evidence — tests/reference_directlink.rs emits source/native exact event JSON for 13 synthetic audio/video/image/archive URL cases; CI 40207040515 uploaded pinned-directlink-oracle artifact and actions/attest@v4 signed the report with public Sigstore provenance; both Rust and pinned-reference jobs passed
+  - [ ] Produce verifiable reproducible signed reports for complete cross-extractor differential suites
 - 🧫 **T1002** Stress, errors and recovery — `█████░░░░░ 50%`
   - [x] Local fixture server — tests/download_http.rs; GitHub Actions 39898967165 passed
   - [x] Retry/resume/fault injection — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
