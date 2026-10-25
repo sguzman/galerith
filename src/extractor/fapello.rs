@@ -73,6 +73,12 @@ pub fn match_url(raw: &str) -> Option<Target> {
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
         [model, id] | [model, id, ""] if valid_slug(model) => {
+            if *model == "popular_videos" && valid_slug(id) {
+                return Some(Target::Path {
+                    root,
+                    path: format!("popular_videos/{id}"),
+                });
+            }
             if let Some(id) = numeric(id) {
                 return Some(Target::Post {
                     root,
@@ -83,10 +89,22 @@ pub fn match_url(raw: &str) -> Option<Target> {
             if !id.is_empty() {
                 return None;
             }
-            Some(Target::Model {
-                root,
-                model: (*model).into(),
-            })
+            if matches!(
+                *model,
+                "top-likes" | "top-followers" | "videos" | "trending"
+            ) {
+                Some(Target::Path {
+                    root,
+                    path: (*model).into(),
+                })
+            } else if *model == "search" {
+                None
+            } else {
+                Some(Target::Model {
+                    root,
+                    model: (*model).into(),
+                })
+            }
         }
         [model] | [model, ""] if valid_slug(model) => {
             if matches!(
@@ -117,6 +135,13 @@ pub fn match_url(raw: &str) -> Option<Target> {
 }
 
 fn accepted_media(root: &str, raw: &str) -> Option<(Url, String, String)> {
+    // Validate the raw reference before URL normalization can erase dot segments.
+    let lower = raw.to_ascii_lowercase();
+    if lower.contains("..")
+        || ["%2e", "%2f", "%5c"].iter().any(|part| lower.contains(part))
+    {
+        return None;
+    }
     let source = Url::parse(root).ok()?;
     let url = source.join(raw).ok()?;
     let host = url.host_str()?;
@@ -436,6 +461,13 @@ mod tests {
             Some(Target::Path {
                 root: "https://fapello.su".into(),
                 path: "top-likes".into()
+            })
+        );
+        assert_eq!(
+            match_url("https://fapello.su/popular_videos/video/"),
+            Some(Target::Path {
+                root: "https://fapello.su".into(),
+                path: "popular_videos/video".into(),
             })
         );
         assert_eq!(
