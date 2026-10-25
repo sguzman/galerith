@@ -250,7 +250,7 @@ mod tests {
             "https://e621.net/pools/042.json",
             "https://e621.net/pools/0.json",
             "https://e621.net/pools/42.json?token=secret",
-            "***e621.net/pools/42.json",
+            "https://login:secret@e621.net/pools/42.json",
             "https://e621.net/posts/42.json",
             "https://other.example/pools/42.json",
             "https://e621.net/favorite_groups/42.json",

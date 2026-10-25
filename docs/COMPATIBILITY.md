@@ -47,3 +47,5 @@ The source-module parity inventory is in [PORT_MATRIX.md](PORT_MATRIX.md). A sou
 Verification: [Linux CI run 39959270238](https://github.com/sguzman/galerith/actions/runs/39959270238).
 
 No Python runtime dependency. This public repository uses only synthetic test credentials and assets.
+
+| Native metadata cache | Opt-in `--cache-db`/ `--cache-ttl` SQLite cache for public, bounded Danbooru/e621-family pool and Danbooru favorite-group JSON metadata, with SHA-256 URL keys, expiry, advisory-lock refresh serialization and invalid-row recovery | General gallery-dl cache identity/serialization parity, authenticated entries, configurable per-extractor expiry and comprehensive cache failure fixtures |
