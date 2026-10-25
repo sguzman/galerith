@@ -267,6 +267,7 @@ fn article_events(
     fallback: &str,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut events = Vec::new();
+    let mut media_count = 0usize;
     let mut rest = page;
     while let Some((_, tail)) = rest.split_once("<article ") {
         let Some((attrs, following)) = tail.split_once('>') else {
@@ -282,16 +283,52 @@ fn article_events(
         // Preserve independently published images even when two posts
         // reference the same original. Only deduplicate inside each article.
         let mut seen = HashSet::new();
-        for (file, meta) in image_records(body, host, fallback, &mut seen) {
-            if events.len() / 2 >= MAX_MEDIA {
-                return Err("Hatena Blog page exceeds bounded public media count".into());
+        let records = image_records(body, host, fallback, &mut seen);
+        media_count += records.len();
+        if media_count > MAX_MEDIA || events.len() >= MAX_MEDIA * 2 {
+            return Err("Hatena Blog page exceeds bounded public media count".into());
+        }
+        // The pinned extractor emits exactly one directory per article,
+        // including image-less articles, then its ordered URL events.
+        let mut directory = if let Some((_, meta)) = records.first() {
+            meta.clone()
+        } else {
+            let mut metadata = Metadata::new();
+            metadata.insert("category".into(), "hatenablog".into());
+            metadata.insert("subcategory".into(), "entry".into());
+            metadata.insert("domain".into(), host.into());
+            let path = text_between(body, "<a href=\"", "\"")
+                .and_then(|href| source_entry_url(host, href))
+                .map_or(fallback.to_owned(), |url| url.path().to_owned());
+            metadata.insert(
+                "entry".into(),
+                path.trim_start_matches("/entry/").into(),
+            );
+            metadata.insert("post_url".into(), format!("https://{host}{path}").into());
+            if let Some(title) = text_between(body, "<a href=\"", "</a>")
+                .and_then(|text| text.split_once('>').map(|(_, content)| content))
+                .and_then(decode_text)
+            {
+                metadata.insert("title".into(), title.into());
             }
-            events.push(ExtractorMessage::Directory {
-                metadata: meta.clone(),
-            });
+            if let Some(date) = text_between(body, "<time datetime=\"", "\"")
+                .filter(|date| date.len() <= 64 && !date.chars().any(char::is_control))
+            {
+                metadata.insert("date_source".into(), date.into());
+            }
+            metadata
+        };
+        directory.remove("filename");
+        let article_count = records.len();
+        directory.insert("count".into(), article_count.into());
+        events.push(ExtractorMessage::Directory {
+            metadata: directory,
+        });
+        for (file, mut metadata) in records {
+            metadata.insert("count".into(), article_count.into());
             events.push(ExtractorMessage::Url {
                 url: file.url,
-                metadata: meta,
+                metadata,
             });
         }
     }
@@ -607,6 +644,20 @@ mod tests {
         assert_eq!(first["metadata"]["entry"], "2026/10/25/first");
         assert_eq!(second["metadata"]["entry"], "2026/10/25/second");
         assert_eq!(first["url"], second["url"]);
+    }
+
+    #[test]
+    fn imageless_article_emits_directory_and_multi_image_article_has_one_directory() {
+        let page = r#"<article class="entry"><a href="/entry/2026/10/25/empty">Empty</a><div class="entry-content hatenablog-entry"></div></article><article class="entry"><a href="/entry/2026/10/25/two">Two</a><div class="entry-content hatenablog-entry"><img class="hatena-fotolife" src="https://cdn-ak.f.st-hatena.com/one.jpg"><img class="hatena-fotolife" src="https://cdn-ak.f.st-hatena.com/two.png"></div></article>"#;
+        let events = article_events(page, "author.hatenablog.com", "/").unwrap();
+        assert_eq!(events.len(), 4);
+        let empty = serde_json::to_value(&events[0]).unwrap();
+        let populated = serde_json::to_value(&events[1]).unwrap();
+        assert_eq!(empty["metadata"]["entry"], "2026/10/25/empty");
+        assert_eq!(empty["metadata"]["count"], 0);
+        assert_eq!(populated["metadata"]["count"], 2);
+        assert_eq!(serde_json::to_value(&events[2]).unwrap()["metadata"]["count"], 2);
+        assert_eq!(serde_json::to_value(&events[3]).unwrap()["metadata"]["num"], 2);
     }
 
     #[tokio::test]
