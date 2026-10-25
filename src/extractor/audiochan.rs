@@ -78,7 +78,7 @@ fn audio_url(raw: &str) -> Option<(Url, String)> {
         return None;
     }
     let filename = safe_filename(basename);
-    (!filename.is_empty() && !matches!(filename.as_str(), "." | "..")).then(|| (url, filename))
+    (!filename.is_empty() && !matches!(filename.as_str(), "." | "..")).then_some((url, filename))
 }
 
 fn flatten_description(root: &Value, depth: usize, texts: &mut Vec<String>) {
