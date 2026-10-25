@@ -3945,7 +3945,7 @@
               "id": "T581",
               "emoji": "🌄",
               "name": "Ahottie guarded public albums and tag/search discovery",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned Ahottie public album/tag/search URLs with strict host, query and ID constraints",
@@ -3968,7 +3968,12 @@
                   "evidence": "src/extractor/ahottie.rs gallery_continuation_rejects_prefix_matched_foreign_albums, public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788"
                 },
                 {
-                  "title": "Match exact upstream tags and ISO date parsing, filename/archive metadata, HTTP rejection-page validation, full pagination variants and live pinned differential parity",
+                  "title": "Extract and deduplicate visible source tag labels from the Ahottie gallery tag container",
+                  "passed": true,
+                  "evidence": "src/extractor/ahottie.rs source_gallery_tag_container_deduplicates_visible_tag_labels; full CI 40148551950"
+                },
+                {
+                  "title": "Match complete ISO date, filenames/archive, placeholder JPEG response rejection, all pagination variants and live pinned upstream differential parity",
                   "passed": false
                 }
               ]

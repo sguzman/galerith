@@ -764,12 +764,13 @@
   - [x] Implement pinned 45-post XML offset/count page semantics, first-seen stable originals and bounded pagination — src/extractor/agnph.rs tag_pagination_reads_two_source_pages_and_preserves_media_order; full Linux CI 40147398949
   - [x] Bound XML response sizes and first-party redirects and wire native flat/typed dispatch with original and search loopback regressions — src/extractor/agnph.rs single_post_and_tag_xml_use_public_bounded_api_requests, tag_pagination_reads_two_source_pages_and_preserves_media_order, read_xml; src/extractor/mod.rs routed fixture; full Linux CI 40147398949
   - [ ] Match full pinned age-cookie handling, tag taxonomy and per-post HTML, rich metadata/date/file variants, archives/templates and live differential parity
-- 🌄 **T581** Ahottie guarded public albums and tag/search discovery — `████████░░ 80%`
+- 🌄 **T581** Ahottie guarded public albums and tag/search discovery — `████████░░ 83%`
   - [x] Recognize pinned Ahottie public album/tag/search URLs with strict host, query and ID constraints — src/extractor/ahottie.rs pinned_public_album_tag_and_search_routes; full CI 40148211788
   - [x] Parse source-backed ordered album images and visible title/date with trusted media host and bounded originals — src/extractor/ahottie.rs public_gallery_preserves_image_order_and_source_metadata; full CI 40148211788
   - [x] Discover typed public tag/search-to-gallery queues with source-backed metadata, first-seen deduplication and bounded pagination — src/extractor/ahottie.rs album_queues_dedup_first_party_links and public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788
   - [x] Validate exact same-album gallery continuations, first-party redirects and loopback HTTP image/listing fixtures — src/extractor/ahottie.rs gallery_continuation_rejects_prefix_matched_foreign_albums, public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788
-  - [ ] Match exact upstream tags and ISO date parsing, filename/archive metadata, HTTP rejection-page validation, full pagination variants and live pinned differential parity
+  - [x] Extract and deduplicate visible source tag labels from the Ahottie gallery tag container — src/extractor/ahottie.rs source_gallery_tag_container_deduplicates_visible_tag_labels; full CI 40148551950
+  - [ ] Match complete ISO date, filenames/archive, placeholder JPEG response rejection, all pagination variants and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -9,3 +9,5 @@ Public tag and keyword searches emit *typed, deferred* child-gallery queues with
 Local source tests, hostile origin/album links and bounded gallery/listing loopback HTTP fixtures passed [full CI 40148211788](https://github.com/sguzman/galerith/actions/runs/40148211788), including Rustfmt, strict Clippy, tests, roadmap consistency and release build.
 
 **Unaccepted:** exact upstream gallery tags and normalized date, complete archive/filename/directory metadata, the upstream 2421-byte JPEG placeholder-response rejection, complete public query/page behavior, and live differential validation against pinned gallery-dl. These capabilities must not be counted as complete.
+
+**Visible gallery tags:** The first source gallery page's tag icon/container is parsed for bounded visible anchor labels, source HTML entities are decoded, and duplicate tags are removed in source order. Missing tags are not invented. Offline tests and full [CI 40148551950](https://github.com/sguzman/galerith/actions/runs/40148551950) passed. ISO date normalization and live-site markup parity remain unverified.
