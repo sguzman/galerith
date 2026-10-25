@@ -8,8 +8,8 @@ pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
-pub mod danbooru;
 pub mod comicvine;
+pub mod danbooru;
 pub mod dankefuerslesen;
 pub mod desktopography;
 pub mod directlink;
@@ -91,7 +91,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public bounded Ahottie albums and tag/search queues",
     ),
     ("foriio", "public image works and bounded user-work queues"),
-    ("comicvine", "bounded public ComicVine tag gallery originals"),
+    (
+        "comicvine",
+        "bounded public ComicVine tag gallery originals",
+    ),
     (
         "dankefuerslesen",
         "public Danke manga chapters and deferred series queues",
@@ -1116,7 +1119,10 @@ mod tests {
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
             ("https://ahottie.top/albums/Album12", "ahottie"),
             ("https://foriio.com/works/12345", "foriio"),
-            ("https://comicvine.gamespot.com/covers/123-45/images/", "comicvine"),
+            (
+                "https://comicvine.gamespot.com/covers/123-45/images/",
+                "comicvine",
+            ),
             (
                 "https://danke.moe/read/manga/series/1/1/",
                 "dankefuerslesen",
