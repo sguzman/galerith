@@ -84,7 +84,7 @@ fn source_id(value: &Value) -> Option<String> {
     })
 }
 
-fn source_text<'a>(v: &'a Value, size: usize) -> Option<&'a str> {
+fn source_text(v: &Value, size: usize) -> Option<&str> {
     v.as_str()
         .filter(|s| s.len() <= size && !s.chars().any(char::is_control))
 }
