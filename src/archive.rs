@@ -2222,6 +2222,60 @@ mod tests {
     }
 
     #[test]
+    fn named_tag_archive_requires_actual_site_prefix() {
+        let root = std::env::temp_dir().join(format!("galerith-tag-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE custom(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO custom VALUES ('t_blue fox_88');
+                 INSERT INTO custom VALUES ('e621t_blue fox_88');",
+            )
+            .unwrap();
+        drop(upstream);
+        let before = fs::read(&foreign).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.example.net/88.jpg".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let search = "https://e621.net/posts?tags=blue+fox";
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "custom",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        assert!(!ambiguous.contains_for_source(&media, search).unwrap());
+        drop(ambiguous);
+        let native_path = root.join("native.sqlite");
+        let supported = Archive::open_with_reference_options(
+            &native_path,
+            Some(&foreign),
+            Some("custom"),
+            Some("e621"),
+        )
+        .unwrap();
+        assert!(supported.contains_for_source(&media, search).unwrap());
+        assert_eq!(supported.import_reference().unwrap(), (1, 1));
+        drop(supported);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native_path).unwrap();
+        assert!(offline.contains_for_source(&media, search).unwrap());
+        assert!(!offline
+            .contains_for_source(&media, "https://e621.net/posts?tags=blue+cat")
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn upstream_tag_archive_import_is_hashed_idempotent_and_offline_usable() {
         let root = std::env::temp_dir().join(format!("galerith-tag-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
