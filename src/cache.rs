@@ -98,6 +98,7 @@ impl Cache {
             || url.password().is_some()
             || url.query().is_some()
             || url.fragment().is_some()
+            || url.port().is_some()
         {
             return false;
         }
@@ -233,6 +234,12 @@ impl Cache {
         endpoint: Url,
         limit: usize,
     ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+        // Defense in depth: even callers bypassing the shared HTTP wrapper
+        // must not persist credentials, unusual ports, or foreign responses.
+        if !Self::allows(&endpoint) {
+            return crate::extractor::http_json::fetch_json_uncached(client, endpoint, limit)
+                .await;
+        }
         self.fetch(&endpoint, limit, || {
             crate::extractor::http_json::fetch_json_uncached(client, endpoint.clone(), limit)
         })
@@ -269,6 +276,7 @@ mod tests {
             "https://e621.net/pools/042.json",
             "https://e621.net/pools/0.json",
             "https://e621.net/pools/42.json?token=secret",
+            "https://e621.net:9443/pools/42.json",
             "https://login:secret@e621.net/pools/42.json",
             "https://e621.net/posts/42.json",
             "https://other.example/pools/42.json",
