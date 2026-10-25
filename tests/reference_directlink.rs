@@ -462,13 +462,13 @@ fn pinned_dated_popular_archive_matches_runtime_metadata_formatting() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import extractor; urls=('https://danbooru.donmai.us/explore/posts/popular?scale=day&date=2026-10-25','https://e621.net/explore/posts/popular?scale=month&date=2026-10-25','https://e926.net/explore/posts/popular?scale=day&date=2026-10-25','https://e6ai.net/explore/posts/popular?scale=month&date=2026-10-25'); e=[extractor.find(url) for url in urls]; print('|'.join(x.category+x.archive_fmt.format(id=88,**x.metadata()) for x in e))",
+        "from gallery_dl import extractor; urls=('https://danbooru.donmai.us/explore/posts/popular?scale=day&date=2026-10-25','https://e621.net/explore/posts/popular?scale=month&date=2026-10-25','https://e926.net/explore/posts/popular?scale=day&date=2026-10-25','https://e6ai.net/explore/posts/popular?scale=month&date=2026-10-25','https://danbooru.donmai.us/explore/posts/popular?scale=week&date=2026-10-25','https://e621.net/explore/posts/popular?scale=week&date=2027-01-01','https://e926.net/explore/posts/popular?scale=week&date=2024-03-01','https://e6ai.net/explore/posts/popular?scale=week&date=2026-10-25'); e=[extractor.find(url) for url in urls]; print('|'.join(x.category+x.archive_fmt.format(id=88,**x.metadata()) for x in e))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
         spawn(command, "pinned dated popular archive metadata").trim(),
-        "danbooruP_d_2026-10-25_88|e621P_m_2026-10_88|e926P_d_2026-10-25_88|e6aiP_m_2026-10_88"
+        "danbooruP_d_2026-10-25_88|e621P_m_2026-10_88|e926P_d_2026-10-25_88|e6aiP_m_2026-10_88|danbooruP_w_2026-10-19_88|e621P_w_2026-12-28_88|e926P_w_2024-02-26_88|e6aiP_w_2026-10-19_88"
     );
 }
