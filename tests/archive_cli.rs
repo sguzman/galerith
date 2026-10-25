@@ -308,7 +308,22 @@ fn truncated_transfer_resumes_with_if_range_without_poisoning_archive() {
             )
             .unwrap();
         drop(first);
-        let (mut second, _) = listener.accept().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(7);
+        let mut second = loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "resumed transfer never made a range request"
+                    );
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => panic!("resume listener error: {error}"),
+            }
+        };
+        second.set_nonblocking(false).unwrap();
         let request_len = second.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..request_len]).to_ascii_lowercase();
         assert!(request.contains("range: bytes=4-"), "{request}");
