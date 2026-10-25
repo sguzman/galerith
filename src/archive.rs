@@ -1502,8 +1502,7 @@ mod tests {
 
     #[tokio::test]
     async fn pool_archive_lock_coordinates_rotated_urls_across_processes() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-pool-lock-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-pool-lock-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let db = root.join("native.sqlite");
