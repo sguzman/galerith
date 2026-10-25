@@ -208,3 +208,87 @@ fn failed_download_is_not_archived_and_can_be_retried_on_next_invocation() {
     assert!(String::from_utf8_lossy(&archived.stdout).contains("archived retry.jpg"));
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn process_crash_releases_archive_lock_and_next_run_can_download() {
+    let dir = temp("crash-recovery");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/recovery.jpg", listener.local_addr().unwrap());
+    let (seen_tx, seen_rx) = std::sync::mpsc::channel();
+    let (killed_tx, killed_rx) = std::sync::mpsc::channel();
+    let server = std::thread::spawn(move || {
+        let (mut first, _) = listener.accept().unwrap();
+        let mut buffer = [0u8; 1024];
+        assert!(first.read(&mut buffer).unwrap() > 0);
+        seen_tx.send(()).unwrap();
+        killed_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        drop(first);
+        listener.set_nonblocking(true).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(6);
+        loop {
+            match listener.accept() {
+                Ok((mut retry, _)) => {
+                    assert!(retry.read(&mut buffer).unwrap() > 0);
+                    retry
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS",
+                        )
+                        .unwrap();
+                    return;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(std::time::Instant::now() < deadline, "recovery request timed out");
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => panic!("recovery listener error: {error}"),
+            }
+        }
+    });
+    let launch = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "2"])
+            .arg(&url)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let mut interrupted = launch();
+    seen_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    interrupted.kill().unwrap();
+    interrupted.wait().unwrap();
+    killed_tx.send(()).unwrap();
+
+    // A crashed process leaves the lock inode in place, but the kernel drops
+    // its flock. Do not hang CI indefinitely if recovery regresses.
+    let mut retry = launch();
+    let deadline = std::time::Instant::now() + Duration::from_secs(7);
+    let result = loop {
+        if let Some(status) = retry.try_wait().unwrap() {
+            let output = retry.wait_with_output().unwrap();
+            assert_eq!(status, output.status);
+            break output;
+        }
+        if std::time::Instant::now() >= deadline {
+            retry.kill().unwrap();
+            retry.wait().unwrap();
+            panic!("a stale archive lock blocked retry after process crash");
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+    server.join().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(fs::read(dir.join("recovery.jpg")).unwrap(), b"PASS");
+    fs::remove_dir_all(dir).unwrap();
+}
