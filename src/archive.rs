@@ -559,10 +559,8 @@ mod tests {
 
     #[test]
     fn philomena_default_archive_ids_are_scoped_by_site_and_post() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-philomena-archive-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-philomena-archive-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
