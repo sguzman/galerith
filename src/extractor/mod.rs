@@ -78,8 +78,8 @@ pub mod twoch;
 pub mod twochan;
 pub mod twochen;
 pub mod unsplash;
-pub mod urlshortener;
 pub mod urlgalleries;
+pub mod urlshortener;
 pub mod vanillarock;
 pub mod wallhaven;
 pub mod wallpapercave;
@@ -802,7 +802,9 @@ pub async fn resolve(
         return s3ndpics::resolve(client, target, max_pages).await;
     }
     if urlgalleries::match_url(input).is_some() {
-        return Err("Urlgalleries gallery originals require --dump-messages or --follow-queues".into());
+        return Err(
+            "Urlgalleries gallery originals require --dump-messages or --follow-queues".into(),
+        );
     }
     Ok(vec![extract_direct_media(input)?])
 }

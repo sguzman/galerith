@@ -17,7 +17,9 @@ pub struct Gallery {
 
 fn safe_slug(text: &str) -> bool {
     (1..=96).contains(&text.len())
-        && text.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        && text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
 fn valid_id(id: &str) -> bool {
@@ -28,7 +30,10 @@ fn valid_id(id: &str) -> bool {
 
 pub fn match_url(raw: &str) -> Option<Gallery> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|v| lower.contains(v)) {
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|v| lower.contains(v))
+    {
         return None;
     }
     let url = Url::parse(raw).ok()?;
@@ -57,7 +62,11 @@ pub fn match_url(raw: &str) -> Option<Gallery> {
     if !safe_slug(blog) || !valid_id(id) || slug.is_some_and(|s| !safe_slug(s)) {
         return None;
     }
-    Some(Gallery { blog: blog.into(), id: id.into(), slug: slug.map(ToOwned::to_owned) })
+    Some(Gallery {
+        blog: blog.into(),
+        id: id.into(),
+        slug: slug.map(ToOwned::to_owned),
+    })
 }
 
 fn field<'a>(html: &'a str, start: &str, end: &str) -> Option<&'a str> {
@@ -68,7 +77,12 @@ fn text_field(raw: &str) -> Option<String> {
     if raw.len() > 240 || raw.chars().any(char::is_control) {
         return None;
     }
-    Some(raw.trim().replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'"))
+    Some(
+        raw.trim()
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'"),
+    )
 }
 
 fn source_metadata(html: &str, gallery: &Gallery) -> Metadata {
@@ -79,9 +93,21 @@ fn source_metadata(html: &str, gallery: &Gallery) -> Metadata {
     meta.insert("blog".into(), gallery.blog.clone().into());
     for (key, before, after) in [
         ("date_source", "\"datePublished\":\"", "\""),
-        ("title", "\"@type\":\"ListItem\",\"position\":3,\"name\":\"", "\""),
-        ("source_blog", "\"@type\":\"ListItem\",\"position\":2,\"name\":\"", "\""),
-        ("description", "property=\"og:description\" content=\"", "\""),
+        (
+            "title",
+            "\"@type\":\"ListItem\",\"position\":3,\"name\":\"",
+            "\"",
+        ),
+        (
+            "source_blog",
+            "\"@type\":\"ListItem\",\"position\":2,\"name\":\"",
+            "\"",
+        ),
+        (
+            "description",
+            "property=\"og:description\" content=\"",
+            "\"",
+        ),
     ] {
         if let Some(v) = field(html, before, after).and_then(text_field) {
             meta.insert(key.into(), v.into());
@@ -110,7 +136,9 @@ fn image_pages(html: &str, root: &Url) -> Result<Vec<Url>, Box<dyn Error + Send 
         .ok_or("Urlgalleries public album lacks a source gallery section")?;
     let mut pages = Vec::new();
     for chunk in section.split(" href=\"").skip(1) {
-        let Some((raw, _)) = chunk.split_once('"') else { continue };
+        let Some((raw, _)) = chunk.split_once('"') else {
+            continue;
+        };
         let endpoint = scoped_page(root, raw)
             .ok_or("Urlgalleries source image page has a foreign or unsafe URL")?;
         if pages.len() >= MAX_CHILDREN {
@@ -134,26 +162,38 @@ fn trusted_external(raw: &str) -> Option<String> {
     {
         return None;
     }
-    let Some(Host::Domain(host)) = url.host() else { return None };
-    if !host.contains('.') || host.len() > 253
-        || ["localhost", ".localhost", ".local", ".internal", ".onion", ".lan", ".test"]
-            .iter().any(|suffix| host == *suffix || host.ends_with(suffix))
+    let Some(Host::Domain(host)) = url.host() else {
+        return None;
+    };
+    if !host.contains('.')
+        || host.len() > 253
+        || [
+            "localhost",
+            ".localhost",
+            ".local",
+            ".internal",
+            ".onion",
+            ".lan",
+            ".test",
+        ]
+        .iter()
+        .any(|suffix| host == *suffix || host.ends_with(suffix))
     {
         return None;
     }
     Some(url.to_string())
 }
 
-async fn read_html(
-    client: &Client,
-    endpoint: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(endpoint.clone()).send().await?;
     if response.url().origin() != endpoint.origin() || response.status().is_redirection() {
         return Err("Urlgalleries public source redirected outside origin".into());
     }
     response = response.error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("Urlgalleries source HTML exceeds byte bound".into());
     }
     let mut data = Vec::new();
@@ -171,8 +211,16 @@ async fn at_base(
     gallery: &Gallery,
     base: &Url,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let path = format!("{}/{}{}/", gallery.blog, gallery.id,
-        gallery.slug.as_ref().map(|s| format!("/{s}")).unwrap_or_default());
+    let path = format!(
+        "{}/{}{}/",
+        gallery.blog,
+        gallery.id,
+        gallery
+            .slug
+            .as_ref()
+            .map(|s| format!("/{s}"))
+            .unwrap_or_default()
+    );
     let mut first = base.join(&path)?;
     first.query_pairs_mut().append_pair("a", "10000");
     let html = read_html(client, first).await?;
@@ -181,7 +229,9 @@ async fn at_base(
     let mut result = Vec::with_capacity(source_pages.len() + 1);
     let mut dir = parent.clone();
     dir.insert("count".into(), source_pages.len().into());
-    result.push(ExtractorMessage::Directory { metadata: dir.clone() });
+    result.push(ExtractorMessage::Directory {
+        metadata: dir.clone(),
+    });
     for (i, page) in source_pages.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(Duration::from_millis(300)).await;
@@ -203,14 +253,20 @@ pub async fn resolve_messages(
     _client: &Client,
     gallery: Gallery,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
-    let client = Client::builder().redirect(Policy::none()).timeout(Duration::from_secs(15)).build()?;
+    let client = Client::builder()
+        .redirect(Policy::none())
+        .timeout(Duration::from_secs(15))
+        .build()?;
     at_base(&client, &gallery, &Url::parse("https://urlgalleries.com/")?).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn input() -> Gallery {
         match_url("https://urlgalleries.com/blog/12345/title").unwrap()
@@ -227,7 +283,7 @@ mod tests {
             "https://urlgalleries.com/blog/12345?secret=1",
             "https://urlgalleries.com/blog/12345/../../private",
             "https://name:pass@urlgalleries.com/blog/12345",
-            "https://urlgalleries.com:8443/blog/12345/title"
+            "https://urlgalleries.com:8443/blog/12345/title",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
@@ -236,10 +292,10 @@ mod tests {
     #[test]
     fn gallery_section_extracts_ordered_first_party_image_pages() {
         let html = r#"<section class="images"><a href="/blog/12345/image-1">one</a><a href="/blog/12345/image-2">two</a></section>"#;
-        let base=Url::parse("https://urlgalleries.com/").unwrap();
-        let pages=image_pages(html,&base).unwrap();
-        assert_eq!(pages.len(),2);
-        assert_eq!(pages[0].path(),"/blog/12345/image-1");
+        let base = Url::parse("https://urlgalleries.com/").unwrap();
+        let pages = image_pages(html, &base).unwrap();
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0].path(), "/blog/12345/image-1");
         assert!(image_pages(r#"<section class="images"><a href="https://evil-urlgalleries.com/foreign">x</a></section>"#,&base).is_err());
         assert!(trusted_external("https://image.example.org/photo.jpg").is_some());
         assert!(trusted_external("http://127.0.0.1/private").is_none());
@@ -248,29 +304,42 @@ mod tests {
 
     #[tokio::test]
     async fn bounded_public_gallery_and_image_pages_emit_typed_original_queues() {
-        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address=listener.local_addr().unwrap();
-        let server=tokio::spawn(async move {
-            for (path,body) in [
-                ("/blog/12345/title/?a=10000", r#"<section class="images"><a href="/blog/12345/image-1">one</a><a href="/blog/12345/image-2">two</a></section>"#),
-                ("/blog/12345/image-1", r#" IMAGE_URL = "https://img.example.org/photo-one.jpg""#),
-                ("/blog/12345/image-2", r#" IMAGE_URL = "https://img.example.org/photo-two.png""#),
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, body) in [
+                (
+                    "/blog/12345/title/?a=10000",
+                    r#"<section class="images"><a href="/blog/12345/image-1">one</a><a href="/blog/12345/image-2">two</a></section>"#,
+                ),
+                (
+                    "/blog/12345/image-1",
+                    r#" IMAGE_URL = "https://img.example.org/photo-one.jpg""#,
+                ),
+                (
+                    "/blog/12345/image-2",
+                    r#" IMAGE_URL = "https://img.example.org/photo-two.png""#,
+                ),
             ] {
-                let (mut socket,_)=listener.accept().await.unwrap();
-                let mut request=[0u8;4096];
-                let n=socket.read(&mut request).await.unwrap();
-                assert!(String::from_utf8_lossy(&request[..n]).starts_with(&format!("GET {path} HTTP/1.1")));
-                let reply=format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..n])
+                    .starts_with(&format!("GET {path} HTTP/1.1")));
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
-        let base=Url::parse(&format!("http://{address}/")).unwrap();
-        let events=at_base(&Client::new(),&input(),&base).await.unwrap();
-        assert_eq!(events.len(),3);
-        let queued=serde_json::to_value(&events[2]).unwrap();
-        assert_eq!(queued["type"],"queue");
-        assert_eq!(queued["url"],"https://img.example.org/photo-two.png");
-        assert_eq!(queued["metadata"]["num"],2);
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let events = at_base(&Client::new(), &input(), &base).await.unwrap();
+        assert_eq!(events.len(), 3);
+        let queued = serde_json::to_value(&events[2]).unwrap();
+        assert_eq!(queued["type"], "queue");
+        assert_eq!(queued["url"], "https://img.example.org/photo-two.png");
+        assert_eq!(queued["metadata"]["num"], 2);
         server.await.unwrap();
     }
 }
