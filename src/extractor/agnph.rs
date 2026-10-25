@@ -37,7 +37,7 @@ pub fn match_url(raw: &str) -> Option<Target> {
     let paths:Vec<_>=u.path_segments()?.collect();
     match paths.as_slice() {
         ["gallery","post","show",id] | ["gallery","post","show",id,""] =>
-            (u.query().is_none()).then(||Target::Post(positive(id)?)),
+            if u.query().is_none() { positive(id).map(Target::Post) } else { None },
         ["gallery","post"] | ["gallery","post",""] => {
             let mut tags=String::new();
             let mut page=1;
