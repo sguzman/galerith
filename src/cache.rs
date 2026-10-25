@@ -66,13 +66,21 @@ impl Cache {
                 fs::create_dir_all(parent)?;
             }
         }
-        connection(path)?.execute_batch(
+        let db = connection(path)?;
+        db.execute_batch(
             "CREATE TABLE IF NOT EXISTS public_collection_cache (
                 key_sha256 TEXT PRIMARY KEY,
                 body_json BLOB NOT NULL,
                 expires_at INTEGER NOT NULL
             ) WITHOUT ROWID;",
         )?;
+        // An expired key may never be requested again. Prune stale metadata
+        // when the cache is opened, retaining explicit expires_at=0 entries.
+        db.execute(
+            "DELETE FROM public_collection_cache WHERE expires_at != 0 AND expires_at <= ?1",
+            params![now()?],
+        )?;
+        drop(db);
         let path = fs::canonicalize(path)?;
         let mut lock_dir = path.as_os_str().to_os_string();
         lock_dir.push(".galerith-cache-locks");
@@ -372,6 +380,55 @@ mod tests {
             .unwrap();
         assert_eq!(reused, value);
         drop(cache);
+        let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn reopen_prunes_expired_rows_but_preserves_forever_entries() {
+        let path = path("prune");
+        let _ = fs::remove_file(&path);
+        let cache = Cache::open(&path, 0).unwrap();
+        let stale = Url::parse("https://e621.net/pools/92.json").unwrap();
+        let forever = Url::parse("https://e621.net/pools/93.json").unwrap();
+        for endpoint in [&stale, &forever] {
+            cache
+                .fetch(endpoint, 1024, || async {
+                    Ok(serde_json::json!({"post_ids":[93]}))
+                })
+                .await
+                .unwrap();
+        }
+        connection(&path)
+            .unwrap()
+            .execute(
+                "UPDATE public_collection_cache SET expires_at = 1 WHERE key_sha256 = ?1",
+                params![digest(stale.as_str())],
+            )
+            .unwrap();
+        drop(cache);
+        let reopened = Cache::open(&path, 30).unwrap();
+        let row_count: i64 = connection(&path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM public_collection_cache", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(row_count, 1);
+        let preserved = reopened
+            .fetch(&forever, 1024, || async {
+                Err::<Value, Box<dyn Error + Send + Sync>>("must preserve forever".into())
+            })
+            .await
+            .unwrap();
+        assert_eq!(preserved["post_ids"][0], 93);
+        let restored = reopened
+            .fetch(&stale, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[92]}))
+            })
+            .await
+            .unwrap();
+        assert_eq!(restored["post_ids"][0], 92);
+        drop(reopened);
         let _ = fs::remove_file(path);
     }
 
