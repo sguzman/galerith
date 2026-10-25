@@ -485,6 +485,110 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
 }
 
 #[test]
+fn changed_etag_resume_discards_partial_before_archival() {
+    let dir = temp("etag-change-resume");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/etag-change.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let accept = || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => {
+                        socket.set_nonblocking(false).unwrap();
+                        return socket;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for recovery HTTP request"
+                        );
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                    Err(error) => panic!("validator recovery listener error: {error}"),
+                }
+            }
+        };
+        let mut first = accept();
+        let mut buffer = [0_u8; 2048];
+        let count = first.read(&mut buffer).unwrap();
+        assert!(String::from_utf8_lossy(&buffer[..count]).contains("/etag-change.jpg"));
+        first.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"original\"\r\nConnection: close\r\n\r\n1234",
+        ).unwrap();
+        drop(first);
+
+        let mut second = accept();
+        let count = second.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(request.contains("range: bytes=4-"), "{request}");
+        assert!(request.contains("if-range: \"original\""), "{request}");
+        second.write_all(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nContent-Range: bytes 4-7/8\r\nETag: \"changed\"\r\nConnection: close\r\n\r\n5678",
+        ).unwrap();
+        drop(second);
+
+        let mut third = accept();
+        let count = third.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(
+            !request.contains("range:"),
+            "mismatched validator partial was reused: {request}"
+        );
+        third.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"changed\"\r\nConnection: close\r\n\r\nABCDEFGH",
+        ).unwrap();
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let first = invoke();
+    assert!(!first.status.success());
+    assert_eq!(fs::read(dir.join("etag-change.jpg.part")).unwrap(), b"1234");
+    let second = invoke();
+    assert!(!second.status.success());
+    assert!(!dir.join("etag-change.jpg.part").exists());
+    assert!(!dir.join("etag-change.jpg.part.json").exists());
+    assert!(!dir.join("etag-change.jpg").exists());
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0, "conflicting ETag must not create an archive hit");
+
+    let third = invoke();
+    assert!(
+        third.status.success(),
+        "{}",
+        String::from_utf8_lossy(&third.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("etag-change.jpg")).unwrap(), b"ABCDEFGH");
+    let recorded: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(recorded, 1);
+    fs::remove_file(dir.join("etag-change.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived etag-change.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn process_crash_releases_archive_lock_and_next_run_can_download() {
     let dir = temp("crash-recovery");
     let _ = fs::remove_dir_all(&dir);
