@@ -56,6 +56,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "furbooru",
             "danbooru",
             "e621",
+            "e926",
             "e6ai",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
@@ -81,6 +82,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "furbooru",
         "danbooru",
         "e621",
+        "e926",
         "e6ai",
     ] {
         if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
@@ -126,15 +128,16 @@ fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
     }
     let host = parsed.host_str()?;
     match (item.extractor, host) {
-        ("danbooru", "danbooru.donmai.us") | ("e621", "e621.net") | ("e6ai", "e6ai.net") => {}
-        // The current e926 preview emits category e621, while the pinned
-        // source uses e926. Do not accidentally import e621 history as e926.
+        ("danbooru", "danbooru.donmai.us")
+        | ("e621", "e621.net")
+        | ("e926", "e926.net")
+        | ("e6ai", "e6ai.net") => {}
         _ => return None,
     }
     let segments: Vec<_> = parsed.path_segments()?.collect();
     let url_id = match segments.as_slice() {
         ["posts", id] | ["post", "show", id] => id.parse::<u64>().ok()?,
-        ["p", short] if matches!(item.extractor, "e621" | "e6ai") => {
+        ["p", short] if matches!(item.extractor, "e621" | "e926" | "e6ai") => {
             u64::from_str_radix(short, 32).ok()?
         }
         _ => return None,
@@ -558,6 +561,20 @@ impl Archive {
                 params![item.extractor, direct_post_key(id)],
             )?;
             return Ok(true);
+        }
+        if item.extractor == "e926" {
+            // Before correcting the pinned site category, Galerith recorded
+            // e926 under e621. An EXACT original URL digest is proof that
+            // the media was downloaded, unlike an ambiguous post-only key.
+            let previous: i64 = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = 'e621' AND identity = ?1)",
+                params![legacy_url_key(item)],
+                |row| row.get(0),
+            )?;
+            if previous != 0 {
+                self.record_for_source(item, source_url)?;
+                return Ok(true);
+            }
         }
 
         let normalized = format!("{}{id}", item.extractor);
@@ -1261,6 +1278,43 @@ mod tests {
     }
 
     #[test]
+    fn corrected_e926_category_keeps_exact_legacy_downloads() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-e926-category-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://static1.e926.net/data/901.jpg?sig=old".into(),
+            filename: "901.jpg".into(),
+            extractor: "e926",
+            post_id: Some(901),
+        };
+        let rotated = MediaItem {
+            url: "https://static1.e926.net/data/901.jpg?sig=new".into(),
+            ..original.clone()
+        };
+        let post = "https://e926.net/posts/901";
+        archive
+            .connection
+            .execute(
+                "INSERT INTO downloads (category, identity) VALUES ('e621', ?1)",
+                params![legacy_url_key(&original)],
+            )
+            .unwrap();
+        assert!(!archive.contains_for_source(&rotated, post).unwrap());
+        assert!(archive.contains_for_source(&original, post).unwrap());
+        assert!(archive.contains_for_source(&rotated, post).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://e621.net/posts/901")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
@@ -1277,17 +1331,19 @@ mod tests {
                  INSERT INTO archive VALUES ('danbooru123');
                  INSERT INTO archive VALUES ('e621234');
                  INSERT INTO archive VALUES ('e6ai345');
+                 INSERT INTO archive VALUES ('e926456');
                  INSERT INTO archive VALUES ('danboorut_fox_123');",
             )
             .unwrap();
         drop(upstream);
         let original_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
         let samples = [
             ("danbooru", "https://danbooru.donmai.us/posts/123", 123),
             ("e621", "https://e621.net/posts/234", 234),
             ("e6ai", "https://e6ai.net/posts/345", 345),
+            ("e926", "https://e926.net/posts/456", 456),
         ];
         for (category, source, id) in samples {
             let media = MediaItem {

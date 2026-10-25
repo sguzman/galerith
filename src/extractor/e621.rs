@@ -198,10 +198,10 @@ fn parse_post(post: &Value, base: &Url) -> Option<MediaItem> {
     if !matches!(media_url.scheme(), "https" | "http") {
         return None;
     }
-    let extractor = if base.host_str() == Some("e6ai.net") {
-        "e6ai"
-    } else {
-        "e621"
+    let extractor = match base.host_str() {
+        Some("e926.net") => "e926",
+        Some("e6ai.net") => "e6ai",
+        _ => "e621",
     };
     let stem = md5.map(str::to_owned).unwrap_or_else(|| id.to_string());
     Some(MediaItem {
@@ -791,6 +791,24 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "88.jpg");
         server.await.unwrap();
+    }
+
+    #[test]
+    fn e926_records_retain_the_pinned_site_category() {
+        let post = json!({
+            "id": 428,
+            "file": {"url": "https://static1.e926.net/428.jpg", "ext": "jpg"}
+        });
+        for (site, expected) in [
+            ("e621.net", "e621"),
+            ("e926.net", "e926"),
+            ("e6ai.net", "e6ai"),
+        ] {
+            let base = Url::parse(&format!("https://{site}/")).unwrap();
+            let result = parse_post(&post, &base).unwrap();
+            assert_eq!(result.extractor, expected);
+            assert_eq!(result.post_id, Some(428));
+        }
     }
 
     #[test]
