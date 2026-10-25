@@ -18,6 +18,7 @@ pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
 pub mod fappic;
+pub mod fapachi;
 pub mod fivehundredpx;
 pub mod foolfuuka;
 pub mod foriio;
@@ -182,6 +183,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     ("fappic", "pinned public Fappic original-image preview"),
+    ("fapachi", "bounded public Fapachi post originals and user queues"),
     (
         "imagevenue",
         "pinned public ImageVenue single-image preview",
@@ -402,6 +404,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("imgpv")
     } else if fappic::match_url(input).is_some() {
         Some("fappic")
+    } else if fapachi::match_url(input).is_some() {
+        Some("fapachi")
     } else if imagevenue::match_url(input).is_some() {
         Some("imagevenue")
     } else if imgclick::match_url(input).is_some() {
@@ -636,6 +640,9 @@ pub async fn resolve(
     }
     if let Some(target) = fappic::match_url(input) {
         return fappic::resolve(client, target).await;
+    }
+    if let Some(target) = fapachi::match_url(input) {
+        return fapachi::resolve(client, target).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve(client, target).await;
@@ -910,6 +917,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fappic::match_url(input) {
         return fappic::resolve_messages(client, target).await;
+    }
+    if let Some(target) = fapachi::match_url(input) {
+        return fapachi::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve_messages(client, target).await;
@@ -1374,6 +1384,8 @@ mod tests {
             ),
             ("https://www.imgpv.com/a1b2c3d4e5f6/NAME.EXT.html", "imgpv"),
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
+            ("https://fapachi.com/model/media/12345", "fapachi"),
+            ("https://fapachi.com/model/page/2", "fapachi"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
             (
                 "https://imgclick.net/4tbrre1oxew9/test-_-_.png.html",
