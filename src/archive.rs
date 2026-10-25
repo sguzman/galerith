@@ -588,10 +588,8 @@ mod tests {
 
     #[test]
     fn philomena_native_archive_survives_rotated_urls_and_old_digest_rows() {
-        let path = std::env::temp_dir().join(format!(
-            "galerith-philomena-native-{}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("galerith-philomena-native-{}", std::process::id()));
         let _ = fs::remove_file(&path);
         let archive = Archive::open(&path).unwrap();
         let original = MediaItem {
@@ -628,7 +626,10 @@ mod tests {
             .connection
             .execute(
                 "INSERT INTO downloads (category, identity) VALUES (?1, ?2)",
-                params![previously_saved.extractor, legacy_url_key(&previously_saved)],
+                params![
+                    previously_saved.extractor,
+                    legacy_url_key(&previously_saved)
+                ],
             )
             .unwrap();
         assert!(archive.contains(&previously_saved).unwrap());
