@@ -4413,6 +4413,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T595",
+              "emoji": "📺",
+              "name": "BBC public programme gallery original images and gallery discovery queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route pinned first-party BBC programme and gallery URLs while rejecting forged hosts, credentials and invalid pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/bbc.rs bbc_public_gallery_and_programme_matchers_reject_hostile_origins; src/extractor/mod.rs registry fixture; CI 40204015367"
+                },
+                {
+                  "title": "Parse BBC source JSON-LD item hierarchy, visible gallery metadata and ordered 1920-wide original images from trusted IChef media",
+                  "passed": true,
+                  "evidence": "src/extractor/bbc.rs gallery_jsonld_and_trusted_originals_keep_order_and_source_metadata; CI 40204015367"
+                },
+                {
+                  "title": "Emit deferred same-programme first-party gallery child queues with stable deduplication and scoped public URLs",
+                  "passed": true,
+                  "evidence": "src/extractor/bbc.rs deferred_programme_children_deduplicate_without_forged_or_other_programme_urls; CI 40204015367"
+                },
+                {
+                  "title": "Enforce 2 MiB HTML byte caps and four-page/128-child programme bounds, with local public gallery and two-page queue HTTP tests",
+                  "passed": true,
+                  "evidence": "src/extractor/bbc.rs one_bounded_gallery_http_get_emits_source_images and two_programme_gallery_pages_queue_first_seen_children; CI 40204015367"
+                },
+                {
+                  "title": "Reproduce configurable width, source fallback renditions, full source metadata/filename/archive/directory conventions, unrestricted gallery history and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

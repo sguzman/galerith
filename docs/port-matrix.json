@@ -248,9 +248,14 @@
     {
       "path": "gallery_dl/extractor/bbc.py",
       "module": "bbc",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/bbc.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded BBC public programme/gallery port, restricted to bbc.co.uk and www.bbc.co.uk programme URLs, source JSON-LD item hierarchy/title/description/image metadata, trusted HTTPS ichef.bbci.co.uk thumbnail-to-1920xn originals, 2 MiB streamed source HTML limit, 160-original gallery and 4-page/128-child deferred gallery-queue limits, stable first-seen IDs, two local HTTP fixtures. Format, Clippy, 537+ tests, native dispatcher/registry and release build passed Linux CI 40204015367. Configurable widths/fallback images, exact naming/archive templates and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/behance.py",

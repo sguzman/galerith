@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 152 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 153 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -853,6 +853,12 @@
   - [x] Preserve one source-backed directory event per article including image-less posts, exact article image counts, and raw-path traversal rejection — src/extractor/hatenablog.rs imageless_article_emits_directory_and_multi_image_article_has_one_directory, source_entry_queues_reject_raw_traversal_before_url_normalization; Linux CI 40202535138
   - [x] Validate source RFC3339 publication dates against Gregorian calendar and time offsets, preserving original timezone and refusing impossible dates — src/extractor/hatenablog.rs source_iso_dates_validate_gregorian_calendar_without_losing_timezone and article_media_are_source_scoped_and_keep_entry_metadata; full Linux Rust CI 40203001697
   - [ ] Match all custom-domain alias URLs, complete Hatena HTML/media variants and filename/archive/directory templates, unrestricted feeds and live upstream differential parity
+- 📺 **T595** BBC public programme gallery original images and gallery discovery queues — `████████░░ 80%`
+  - [x] Route pinned first-party BBC programme and gallery URLs while rejecting forged hosts, credentials and invalid pagination — src/extractor/bbc.rs bbc_public_gallery_and_programme_matchers_reject_hostile_origins; src/extractor/mod.rs registry fixture; CI 40204015367
+  - [x] Parse BBC source JSON-LD item hierarchy, visible gallery metadata and ordered 1920-wide original images from trusted IChef media — src/extractor/bbc.rs gallery_jsonld_and_trusted_originals_keep_order_and_source_metadata; CI 40204015367
+  - [x] Emit deferred same-programme first-party gallery child queues with stable deduplication and scoped public URLs — src/extractor/bbc.rs deferred_programme_children_deduplicate_without_forged_or_other_programme_urls; CI 40204015367
+  - [x] Enforce 2 MiB HTML byte caps and four-page/128-child programme bounds, with local public gallery and two-page queue HTTP tests — src/extractor/bbc.rs one_bounded_gallery_http_get_emits_source_images and two_programme_gallery_pages_queue_first_seen_children; CI 40204015367
+  - [ ] Reproduce configurable width, source fallback renditions, full source metadata/filename/archive/directory conventions, unrestricted gallery history and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

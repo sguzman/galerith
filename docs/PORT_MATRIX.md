@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 68 · Not ported: 204.**
+**Complete: 0 · Partial: 69 · Not ported: 203.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -31,7 +31,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/artstation.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/aryion.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/audiochan.py` | 🟡 Partial | `src/extractor/audiochan.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/bbc.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/bbc.py` | 🟡 Partial | `src/extractor/bbc.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/behance.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/bellazon.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/bilibili.py` | ⚪ Not ported | — |
