@@ -19,6 +19,68 @@ pub enum ExtractorMessage {
     Queue { url: String, metadata: Metadata },
 }
 
+/// The complete active message identifiers of pinned gallery-dl
+/// gallery_dl/extractor/message.py. Obsolete commented-out identifiers are
+/// intentionally not exposed as active messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum UpstreamMessageId {
+    Directory = 2,
+    Url = 3,
+    Queue = 6,
+}
+
+impl UpstreamMessageId {
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            2 => Some(Self::Directory),
+            3 => Some(Self::Url),
+            6 => Some(Self::Queue),
+            _ => None,
+        }
+    }
+}
+
+/// Map the typed native event to the pinned upstream message tuple contract.
+/// The second Directory element is unused and must be an empty string.
+pub fn to_upstream_tuple(message: &ExtractorMessage) -> (u8, &str, &Metadata) {
+    match message {
+        ExtractorMessage::Directory { metadata } => {
+            (UpstreamMessageId::Directory as u8, "", metadata)
+        }
+        ExtractorMessage::Url { url, metadata } => {
+            (UpstreamMessageId::Url as u8, url.as_str(), metadata)
+        }
+        ExtractorMessage::Queue { url, metadata } => {
+            (UpstreamMessageId::Queue as u8, url.as_str(), metadata)
+        }
+    }
+}
+
+/// Accept only the pinned active upstream tuple identifiers. Preserve
+/// upstream URL and metadata without introducing guessed fields.
+pub fn from_upstream_tuple(
+    code: u8,
+    url: String,
+    metadata: Metadata,
+) -> Result<ExtractorMessage, &'static str> {
+    match UpstreamMessageId::from_code(code) {
+        Some(UpstreamMessageId::Directory) if url.is_empty() => {
+            Ok(ExtractorMessage::Directory { metadata })
+        }
+        Some(UpstreamMessageId::Directory) => {
+            Err("upstream Directory second tuple member must be empty")
+        }
+        Some(UpstreamMessageId::Url) => {
+            Ok(ExtractorMessage::Url { url, metadata })
+        }
+        Some(UpstreamMessageId::Queue) => {
+            Ok(ExtractorMessage::Queue { url, metadata })
+        }
+        None => Err("unsupported or obsolete gallery-dl message identifier"),
+    }
+}
+
 pub fn media_metadata(item: &MediaItem) -> Metadata {
     let mut metadata = Metadata::new();
     metadata.insert("category".into(), item.extractor.into());
@@ -336,6 +398,42 @@ mod tests {
             extractor: "directlink",
             post_id: Some(42),
         }
+    }
+
+    #[test]
+    fn pinned_upstream_message_identifiers_and_tuple_payloads_round_trip() {
+        assert_eq!(UpstreamMessageId::Directory as u8, 2);
+        assert_eq!(UpstreamMessageId::Url as u8, 3);
+        assert_eq!(UpstreamMessageId::Queue as u8, 6);
+        assert_eq!(UpstreamMessageId::from_code(2), Some(UpstreamMessageId::Directory));
+        assert_eq!(UpstreamMessageId::from_code(3), Some(UpstreamMessageId::Url));
+        assert_eq!(UpstreamMessageId::from_code(6), Some(UpstreamMessageId::Queue));
+        for obsolete in [0, 1, 4, 5, 7, 8, 255] {
+            assert_eq!(UpstreamMessageId::from_code(obsolete), None);
+            assert!(from_upstream_tuple(obsolete, String::new(), Metadata::new()).is_err());
+        }
+        let mut metadata = Metadata::new();
+        metadata.insert("test".into(), json!(42));
+        for message in [
+            ExtractorMessage::Directory { metadata: metadata.clone() },
+            ExtractorMessage::Url {
+                url: "https://example.org/file.jpg".into(),
+                metadata: metadata.clone(),
+            },
+            ExtractorMessage::Queue {
+                url: "https://example.org/album".into(),
+                metadata: metadata.clone(),
+            },
+        ] {
+            let (code, url, values) = to_upstream_tuple(&message);
+            assert_eq!(values["test"], 42);
+            if code == 2 {
+                assert_eq!(url, "");
+            }
+            let decoded = from_upstream_tuple(code, url.to_owned(), values.clone()).unwrap();
+            assert_eq!(decoded, message);
+        }
+        assert!(from_upstream_tuple(2, "not-empty".into(), metadata).is_err());
     }
 
     #[test]
