@@ -263,7 +263,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("picazor", "bounded public user files and source media"),
     ("pictoa", "guarded public image originals and album queues"),
-    ("piczel", "bounded Piczel user, folder and image JSON galleries"),
+    (
+        "piczel",
+        "bounded Piczel user, folder and image JSON galleries",
+    ),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
