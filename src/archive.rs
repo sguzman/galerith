@@ -115,12 +115,28 @@ impl Archive {
             // A read-only handle does not protect the original if the native
             // destination points to the *same* database via a relative path
             // or symlink. Reject before CREATE TABLE can modify that file.
-            if path.exists() && fs::canonicalize(path)? == fs::canonicalize(reference_path)? {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "native archive and read-only gallery-dl archive must be different files",
-                )
-                .into());
+            if path.exists() {
+                let same_path = fs::canonicalize(path)? == fs::canonicalize(reference_path)?;
+                // Canonicalization alone misses hard links. SQLite databases
+                // opened through hard-link aliases must never be written via
+                // the native handle while presented as a read-only reference.
+                #[cfg(unix)]
+                let same_inode = {
+                    use std::os::unix::fs::MetadataExt;
+                    let native_info = fs::metadata(path)?;
+                    let source_info = fs::metadata(reference_path)?;
+                    native_info.dev() == source_info.dev()
+                        && native_info.ino() == source_info.ino()
+                };
+                #[cfg(not(unix))]
+                let same_inode = false;
+                if same_path || same_inode {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "native archive and read-only gallery-dl archive must be different files",
+                    )
+                    .into());
+                }
             }
             Some(source)
         } else {
@@ -497,6 +513,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let reference = root.join("gallery.sqlite");
         let alias = root.join("alias.sqlite");
+        let hardlink = root.join("hardlink.sqlite");
         let original = Connection::open(&reference).unwrap();
         original
             .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
@@ -509,6 +526,8 @@ mod tests {
         {
             std::os::unix::fs::symlink(&reference, &alias).unwrap();
             assert!(Archive::open_with_reference(&alias, Some(&reference)).is_err());
+            fs::hard_link(&reference, &hardlink).unwrap();
+            assert!(Archive::open_with_reference(&hardlink, Some(&reference)).is_err());
         }
         assert_eq!(fs::read(&reference).unwrap(), original_bytes);
         let existing = Connection::open(&reference).unwrap();
