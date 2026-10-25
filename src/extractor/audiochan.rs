@@ -423,15 +423,26 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let jobs = user_at_base(&Client::new(), &base, "alice", 4).await.unwrap();
-        let urls = jobs.iter().map(|message| {
-            serde_json::to_value(message).unwrap()["url"].as_str().unwrap().to_owned()
-        }).collect::<Vec<_>>();
-        assert_eq!(urls, [
-            "https://audiochan.com/a/first",
-            "https://audiochan.com/a/second",
-            "https://audiochan.com/a/third",
-        ]);
+        let jobs = user_at_base(&Client::new(), &base, "alice", 4)
+            .await
+            .unwrap();
+        let urls = jobs
+            .iter()
+            .map(|message| {
+                serde_json::to_value(message).unwrap()["url"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            urls,
+            [
+                "https://audiochan.com/a/first",
+                "https://audiochan.com/a/second",
+                "https://audiochan.com/a/third",
+            ]
+        );
         server.await.unwrap();
     }
 
