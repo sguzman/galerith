@@ -70,6 +70,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "xbooru",
             "wallhaven",
             "4chan",
+            "imgur",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
@@ -78,7 +79,12 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if category != "wallhaven" && id.parse::<u64>().ok().is_some_and(|n| n > 0) {
+                if category == "imgur" && canonical_imgur_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if !matches!(category, "wallhaven" | "imgur")
+                    && id.parse::<u64>().ok().is_some_and(|n| n > 0)
+                {
                     return Some((category, entry.to_owned()));
                 }
                 if (is_booru_pool_category(category) || is_moebooru_category(category))
@@ -138,11 +144,14 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "xbooru",
         "wallhaven",
         "4chan",
+        "imgur",
     ] {
         if prefix == category
-            && ((category == "4chan" && canonical_fourchan_archive_suffix(bare))
+            && ((category == "imgur" && canonical_imgur_archive_suffix(bare))
+                || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (category != "wallhaven" && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
+                || (!matches!(category, "wallhaven" | "imgur")
+                    && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -312,7 +321,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
     is_booru_pool_category(category)
         || is_moebooru_category(category)
         || is_gelbooru_category(category)
-        || matches!(category, "wallhaven" | "4chan")
+        || matches!(category, "wallhaven" | "4chan" | "imgur")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -347,6 +356,86 @@ fn canonical_favorite_group_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     group_id > 0 && post_id > 0 && suffix == format!("fg_{group_id}_{post_id}")
+}
+
+fn valid_imgur_id(id: &str) -> bool {
+    matches!(id.len(), 5 | 7) && id.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn canonical_imgur_archive_suffix(suffix: &str) -> bool {
+    if valid_imgur_id(suffix) {
+        return true;
+    }
+    suffix
+        .split_once('_')
+        .is_some_and(|(album, media)| valid_imgur_id(album) && valid_imgur_id(media))
+}
+
+/// Only a source-verified image or album has sufficient pinned archive
+/// metadata; Imgur gallery dispatcher URLs are ambiguous until the API
+/// identifies whether the result is a single image or an album.
+fn imgur_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imgur" {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("i.imgur.com")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let media_path: Vec<_> = media.path_segments()?.collect();
+    let [filename] = media_path.as_slice() else {
+        return None;
+    };
+    let (id, extension) = filename.rsplit_once('.')?;
+    if !valid_imgur_id(id)
+        || !matches!(extension, "jpg" | "jpeg" | "png" | "gif" | "webp" | "mp4")
+    {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("imgur.com" | "www.imgur.com" | "m.imgur.com" | "imgur.io" | "i.imgur.com")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let path: Vec<_> = source.path_segments()?.collect();
+    match path.as_slice() {
+        [source_id] if source_id == &id => {
+            Some((format!("image-id:{id}"), format!("imgur{id}")))
+        }
+        ["r", subreddit, source_id]
+            if !subreddit.is_empty() && source_id == &id =>
+        {
+            Some((format!("image-id:{id}"), format!("imgur{id}")))
+        }
+        [source_filename] if source.host_str() == Some("i.imgur.com") => {
+            let (source_id, source_ext) = source_filename.rsplit_once('.')?;
+            if source_id != id || source_ext != extension {
+                return None;
+            }
+            Some((format!("image-id:{id}"), format!("imgur{id}")))
+        }
+        ["a", album] if valid_imgur_id(album) => Some((
+            format!("album-id:{album}:media-id:{id}"),
+            format!("imgur{album}_{id}"),
+        )),
+        _ => None,
+    }
 }
 
 fn valid_fourchan_board(board: &str) -> bool {
@@ -969,6 +1058,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| gelbooru_archive_scope(item, source_url))
         .or_else(|| wallhaven_archive_scope(item, source_url))
         .or_else(|| fourchan_archive_scope(item, source_url))
+        .or_else(|| imgur_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
