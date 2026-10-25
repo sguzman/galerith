@@ -347,3 +347,24 @@ fn pinned_direct_post_categories_match_source_sites() {
         "danbooru:{id}|e621:{id}|e926:{id}|e6ai:{id}"
     );
 }
+
+#[test]
+fn pinned_danbooru_and_e621_pool_archive_templates_are_pool_scoped() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference source is required");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.danbooru import DanbooruPoolExtractor,DanbooruPostExtractor; from gallery_dl.extractor.e621 import E621PoolExtractor,E621PostExtractor; print('|'.join((DanbooruPoolExtractor.archive_fmt,DanbooruPostExtractor.archive_fmt,E621PoolExtractor.archive_fmt,E621PostExtractor.archive_fmt)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned pool archive templates").trim(),
+        "p_{pool[id]}_{id}|{id}|p_{pool[id]}_{id}|{id}"
+    );
+}
