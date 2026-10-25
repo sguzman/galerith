@@ -514,3 +514,24 @@ fn pinned_gelbooru_family_post_and_tag_archive_templates() {
         "gelbooru88|gelboorut_blue fox_88|rule3488|rule34t_blue fox_88|safebooru88|safeboorut_blue fox_88|tbib88|tbibt_blue fox_88|hypnohub88|hypnohubt_blue fox_88|xbooru88|xboorut_blue fox_88"
     );
 }
+
+#[test]
+fn pinned_wallhaven_archive_classes_are_source_scoped() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Wallhaven archive ID oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://wallhaven.cc/w/94x38z','https://wallhaven.cc/search?q=blue+sky','https://wallhaven.cc/user/example-1/uploads','https://wallhaven.cc/user/example-1/favorites/77'); meta=({'id':'94x38z'},{'id':'94x38z','search':{'q':'blue sky'}},{'id':'94x38z','username':'example-1'},{'id':'94x38z'}); print('|'.join(x.category+x.archive_fmt.format(**m) for x,m in zip((extractor.find(url) for url in urls),meta)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Wallhaven archive classes").trim(),
+        "wallhaven94x38z|wallhavens_blue sky_94x38z|wallhavenu_example-1_94x38z|wallhaven94x38z"
+    );
+}
