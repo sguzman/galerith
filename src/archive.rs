@@ -2905,6 +2905,145 @@ mod tests {
     }
 
     #[test]
+    fn moebooru_post_pool_and_tags_have_independent_private_archive_ids() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-moe-archive-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("upstream.sqlite");
+        let native = root.join("native.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;",
+            )
+            .unwrap();
+        for category in ["yandere", "konachan", "sakugabooru", "lolibooru"] {
+            for suffix in ["88", "p_77_88", "t_blue fox_88"] {
+                source
+                    .execute(
+                        "INSERT INTO archive(entry) VALUES (?1)",
+                        [format!("{category}{suffix}")],
+                    )
+                    .unwrap();
+            }
+        }
+        drop(source);
+        let foreign_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (12, 12));
+        assert_eq!(archive.import_reference().unwrap(), (12, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), foreign_bytes);
+        fs::remove_file(foreign).unwrap();
+        let stored = fs::read(&native).unwrap();
+        assert!(!stored.windows(b"blue fox".len()).any(|b| b == b"blue fox"));
+        let archive = Archive::open(&native).unwrap();
+        for (category, host) in [
+            ("yandere", "yande.re"),
+            ("konachan", "konachan.net"),
+            ("sakugabooru", "www.sakugabooru.com"),
+            ("lolibooru", "lolibooru.moe"),
+        ] {
+            let item = MediaItem {
+                url: format!("https://new-cdn.example.org/{category}/88.jpg?rotated=1"),
+                filename: "88.jpg".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            for route in [
+                "/post/show/88",
+                "/pool/show/77",
+                "/post?tags=blue+fox",
+            ] {
+                let source_url = format!("https://{host}{route}");
+                assert!(
+                    archive.contains_for_source(&item, &source_url).unwrap(),
+                    "missing imported archive identity for {source_url}"
+                );
+            }
+            for unrelated in [
+                "/post/show/89",
+                "/pool/show/78",
+                "/post?tags=blue+cat",
+                "/post?tags=blue+fox&tags=blue+fox",
+            ] {
+                assert!(!archive
+                    .contains_for_source(&item, &format!("https://{host}{unrelated}"))
+                    .unwrap());
+            }
+            assert!(!archive
+                .contains_for_source(
+                    &item,
+                    &format!("https://{host}:9443/post/show/88")
+                )
+                .unwrap());
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn moebooru_named_archive_requires_a_proven_category_prefix() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-moe-prefix-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE entries(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO entries VALUES ('88');
+             INSERT INTO entries VALUES ('yandere88');
+             INSERT INTO entries VALUES ('yanderep_77_88');",
+        )
+        .unwrap();
+        drop(db);
+        let item = MediaItem {
+            url: "https://cdn.example.net/88.jpg?fresh=1".into(),
+            filename: "88.jpg".into(),
+            extractor: "yandere",
+            post_id: Some(88),
+        };
+        let unprefixed = Archive::open_with_reference_table(
+            &root.join("default.sqlite"),
+            Some(&foreign),
+            "entries",
+        )
+        .unwrap();
+        assert_eq!(unprefixed.import_reference().unwrap(), (0, 0));
+        assert!(!unprefixed
+            .contains_for_source(&item, "https://yande.re/post/show/88")
+            .unwrap());
+        drop(unprefixed);
+        let native = root.join("native.sqlite");
+        let scoped = Archive::open_with_reference_options(
+            &native,
+            Some(&foreign),
+            Some("entries"),
+            Some("yandere"),
+        )
+        .unwrap();
+        assert_eq!(scoped.import_reference().unwrap(), (2, 2));
+        assert!(scoped
+            .contains_for_source(&item, "https://yande.re/post/show/88")
+            .unwrap());
+        assert!(scoped
+            .contains_for_source(&item, "https://yande.re/pool/show/77")
+            .unwrap());
+        drop(scoped);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline
+            .contains_for_source(&item, "https://yande.re/post/show/88")
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn alternate_https_ports_cannot_reuse_scoped_booru_archive_ids() {
         let root =
             std::env::temp_dir().join(format!("galerith-bool-alt-port-{}", std::process::id()));
