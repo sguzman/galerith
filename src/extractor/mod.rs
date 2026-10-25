@@ -61,7 +61,6 @@ pub mod postimg;
 pub mod silverpic;
 pub mod slideshare;
 pub mod soundgasm;
-pub mod vanillarock;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod thirtyfivephoto;
@@ -71,6 +70,7 @@ pub mod twochan;
 pub mod twochen;
 pub mod unsplash;
 pub mod urlshortener;
+pub mod vanillarock;
 pub mod wallhaven;
 pub mod wallpapercave;
 pub mod webmshare;
@@ -253,7 +253,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "soundgasm",
         "public audio originals and bounded user discovery",
     ),
-    ("vanillarock", "public post images and bounded category/tag queues"),
+    (
+        "vanillarock",
+        "public post images and bounded category/tag queues",
+    ),
     ("silverpic", "pinned public Silverpic original-image subset"),
     (
         "telegraph",
