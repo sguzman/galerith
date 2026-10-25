@@ -368,7 +368,7 @@ fn truncated_transfer_resumes_with_if_range_without_poisoning_archive() {
     let failed = invoke();
     assert!(!failed.status.success());
     assert!(!dir.join("partial.jpg").exists());
-    seed_resumable_partial(&dir, "partial.jpg", &url, "\\"resumable\\"");
+    seed_resumable_partial(&dir, "partial.jpg", &url, r#""resumable""#);
     assert_eq!(fs::read(dir.join("partial.jpg.part")).unwrap(), b"1234");
     let first_count: i64 = rusqlite::Connection::open(&db)
         .unwrap()
@@ -473,7 +473,7 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
     };
     let first = invoke();
     assert!(!first.status.success());
-    seed_resumable_partial(&dir, "bad-range.jpg", &url, "\\"safe\\"");
+    seed_resumable_partial(&dir, "bad-range.jpg", &url, r#""safe""#);
     assert_eq!(fs::read(dir.join("bad-range.jpg.part")).unwrap(), b"1234");
     let second = invoke();
     assert!(!second.status.success());
@@ -578,7 +578,7 @@ fn changed_etag_resume_discards_partial_before_archival() {
     };
     let first = invoke();
     assert!(!first.status.success());
-    seed_resumable_partial(&dir, "etag-change.jpg", &url, "\\"original\\"");
+    seed_resumable_partial(&dir, "etag-change.jpg", &url, r#""original""#);
     assert_eq!(fs::read(dir.join("etag-change.jpg.part")).unwrap(), b"1234");
     let second = invoke();
     assert!(!second.status.success());
