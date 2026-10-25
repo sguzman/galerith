@@ -74,7 +74,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
+                if category != "wallhaven"
+                    && id.parse::<u64>().ok().is_some_and(|n| n > 0)
+                {
                     return Some((category, entry.to_owned()));
                 }
                 if (is_booru_pool_category(category) || is_moebooru_category(category))
@@ -136,7 +138,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
     ] {
         if prefix == category
             && ((category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || bare.parse::<u64>().ok().is_some_and(|n| n > 0)
+                || (category != "wallhaven"
+                    && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -424,7 +427,7 @@ fn wallhaven_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String
     }
     let path: Vec<_> = source.path_segments()?.collect();
     let key = match path.as_slice() {
-        ["w", source_id] if source.query().is_none() && *source_id == id => {
+        ["w", source_id] if source.query().is_none() && *source_id == id.as_str() => {
             format!("wallhaven{id}")
         }
         ["user", user, "favorites", collection]
@@ -434,7 +437,7 @@ fn wallhaven_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String
         {
             format!("wallhaven{id}")
         }
-        ["search"] | ["search", "" ] => {
+        ["search"] | ["search", ""] => {
             let mut query = source.query_pairs();
             let (param, search) = query.next()?;
             if param != "q"
@@ -3455,6 +3458,139 @@ mod tests {
             );
         }
         drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn wallhaven_source_verified_identity_separates_extractors_and_users() {
+        let root = std::env::temp_dir().join(format!("galerith-wallhaven-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let first = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg".into(),
+            filename: "wallhaven-94x38z.jpg".into(),
+            extractor: "wallhaven",
+            post_id: None,
+        };
+        let converted = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.png".into(),
+            filename: "wallhaven-94x38z.png".into(),
+            ..first.clone()
+        };
+        let post = "https://wallhaven.cc/w/94x38z";
+        let search = "https://wallhaven.cc/search?q=blue+sky";
+        let uploads = "https://wallhaven.cc/user/example-1/uploads";
+        let collection = "https://wallhaven.cc/user/example-1/favorites/77";
+        assert_eq!(
+            wallhaven_archive_scope(&first, post).unwrap().1,
+            "wallhaven94x38z"
+        );
+        assert_eq!(
+            wallhaven_archive_scope(&first, search).unwrap().1,
+            "wallhavens_blue sky_94x38z"
+        );
+        assert_eq!(
+            wallhaven_archive_scope(&first, uploads).unwrap().1,
+            "wallhavenu_example-1_94x38z"
+        );
+        archive.record_for_source(&first, post).unwrap();
+        assert!(archive.contains_for_source(&converted, post).unwrap());
+        assert!(archive.contains_for_source(&converted, collection).unwrap());
+        assert!(!archive.contains_for_source(&converted, search).unwrap());
+        assert!(!archive.contains_for_source(&converted, uploads).unwrap());
+        archive.record_for_source(&first, search).unwrap();
+        assert!(archive.contains_for_source(&converted, search).unwrap());
+        assert!(!archive
+            .contains_for_source(&converted, "https://wallhaven.cc/search?q=blue+moon")
+            .unwrap());
+        archive.record_for_source(&first, uploads).unwrap();
+        assert!(archive.contains_for_source(&converted, uploads).unwrap());
+        for unrelated in [
+            "https://wallhaven.cc/user/another/uploads",
+            "https://wallhaven.cc/user/example-1/favorites/77?other=1",
+            "https://wallhaven.cc/w/94x38y",
+            "https://attacker.invalid/w/94x38z",
+            "http://wallhaven.cc/w/94x38z",
+            "https://wallhaven.cc:9443/w/94x38z",
+        ] {
+            assert!(!archive.contains_for_source(&converted, unrelated).unwrap(), "{unrelated}");
+        }
+        let mismatched = MediaItem {
+            filename: "wallhaven-other.jpg".into(),
+            ..first.clone()
+        };
+        assert!(wallhaven_archive_scope(&mismatched, post).is_none());
+        let outside = MediaItem {
+            url: "https://attacker.invalid/full/94/wallhaven-94x38z.jpg".into(),
+            ..first
+        };
+        assert!(wallhaven_archive_scope(&outside, post).is_none());
+        let bytes = fs::read(root.join("native.sqlite")).unwrap();
+        for sensitive in [b"blue sky".as_slice(), b"example-1".as_slice()] {
+            assert!(!bytes.windows(sensitive.len()).any(|chunk| chunk == sensitive));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn wallhaven_reference_import_is_idempotent_private_and_offline_reopenable() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-wallhaven-import-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let source = root.join("source.sqlite");
+        let connection = Connection::open(&source).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('wallhaven94x38z');
+                 INSERT INTO archive VALUES ('wallhavens_blue sky_94x38z');
+                 INSERT INTO archive VALUES ('wallhavenu_example-1_94x38z');
+                 INSERT INTO archive VALUES ('wallhavens__94x38z');
+                 INSERT INTO archive VALUES ('wallhaven123');",
+            )
+            .unwrap();
+        drop(connection);
+        let original = fs::read(&source).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        let media = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.png".into(),
+            filename: "wallhaven-94x38z.png".into(),
+            extractor: "wallhaven",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://wallhaven.cc/search?q=blue+sky")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://wallhaven.cc/search?q=blue+moon")
+            .unwrap());
+        drop(archive);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        fs::remove_file(source).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        for input in [
+            "https://wallhaven.cc/w/94x38z",
+            "https://wallhaven.cc/search?q=blue+sky",
+            "https://wallhaven.cc/user/example-1/uploads",
+        ] {
+            assert!(reopened.contains_for_source(&media, input).unwrap());
+        }
+        assert!(!reopened
+            .contains_for_source(&media, "https://wallhaven.cc/user/example-2/uploads")
+            .unwrap());
+        drop(reopened);
+        let stored = fs::read(&native).unwrap();
+        for sensitive in [b"blue sky".as_slice(), b"example-1".as_slice()] {
+            assert!(!stored.windows(sensitive.len()).any(|chunk| chunk == sensitive));
+        }
         fs::remove_dir_all(root).unwrap();
     }
 
