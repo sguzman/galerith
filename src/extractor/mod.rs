@@ -19,6 +19,7 @@ pub mod e621;
 pub mod eightmuses;
 pub mod fapachi;
 pub mod fapello;
+pub mod fuskator;
 pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
@@ -189,6 +190,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "bounded public Fapachi post originals and user queues",
     ),
     ("fapello", "public Fapello posts, models and path queues"),
+    ("fuskator", "public gallery token and image JSON with search queues"),
     (
         "imagevenue",
         "pinned public ImageVenue single-image preview",
@@ -413,6 +415,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("fapachi")
     } else if fapello::match_url(input).is_some() {
         Some("fapello")
+    } else if fuskator::match_url(input).is_some() {
+        Some("fuskator")
     } else if imagevenue::match_url(input).is_some() {
         Some("imagevenue")
     } else if imgclick::match_url(input).is_some() {
@@ -653,6 +657,9 @@ pub async fn resolve(
     }
     if let Some(target) = fapello::match_url(input) {
         return fapello::resolve(client, target).await;
+    }
+    if let Some(target) = fuskator::match_url(input) {
+        return fuskator::resolve(client, target).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve(client, target).await;
@@ -933,6 +940,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = fapello::match_url(input) {
         return fapello::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = fuskator::match_url(input) {
+        return fuskator::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = imagevenue::match_url(input) {
         return imagevenue::resolve_messages(client, target).await;
@@ -1399,6 +1409,7 @@ mod tests {
             ("https://fappic.com/abcde12345/NAME.EXT", "fappic"),
             ("https://fapachi.com/model/media/12345", "fapachi"),
             ("https://fapello.com/model/12345", "fapello"),
+            ("https://fuskator.com/thumbs/Abc12", "fuskator"),
             ("https://fapello.su/top-likes/", "fapello"),
             ("https://fapachi.com/model/page/2", "fapachi"),
             ("https://www.imagevenue.com/ME13LS07", "imagevenue"),
