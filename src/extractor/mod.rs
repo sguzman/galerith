@@ -2,6 +2,7 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod agnph;
 pub mod ahottie;
+pub mod foriio;
 pub mod architizer;
 pub mod arena;
 pub mod basic_hosts;
@@ -87,6 +88,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "ahottie",
         "public bounded Ahottie albums and tag/search queues",
     ),
+    ("foriio", "public image works and bounded user-work queues"),
     ("agnph", "bounded public Agn.ph XML posts and tag searches"),
     (
         "architizer",
@@ -253,6 +255,8 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
 pub fn extractor_name(input: &str) -> Option<&'static str> {
     if ahottie::match_url(input).is_some() {
         Some("ahottie")
+    } else if foriio::match_url(input).is_some() {
+        Some("foriio")
     } else if agnph::match_url(input).is_some() {
         Some("agnph")
     } else if architizer::match_url(input).is_some() {
@@ -411,6 +415,9 @@ pub async fn resolve(
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     if let Some(target) = ahottie::match_url(input) {
         return ahottie::resolve(client, target, max_pages).await;
+    }
+    if let Some(target) = foriio::match_url(input) {
+        return foriio::resolve(client, target).await;
     }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve(client, target, max_pages).await;
@@ -662,6 +669,9 @@ pub async fn resolve_messages(
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     if let Some(target) = ahottie::match_url(input) {
         return ahottie::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = foriio::match_url(input) {
+        return foriio::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve_messages(client, target, max_pages).await;
@@ -1082,6 +1092,8 @@ mod tests {
             ("https://architizer.com/projects/urban-house", "architizer"),
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
             ("https://ahottie.top/albums/Album12", "ahottie"),
+            ("https://foriio.com/works/12345", "foriio"),
+            ("https://foriio.com/artist", "foriio"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
             ("https://2ch.org/a/", "2ch"),
