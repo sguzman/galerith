@@ -2429,6 +2429,91 @@ mod tests {
     }
 
     #[test]
+    fn danbooru_media_asset_archive_does_not_match_post_or_other_asset() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-asset-scope-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.example.net/88.jpg?token=old".into(),
+            filename: "88.jpg".into(),
+            extractor: "danbooru",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://new.example.net/88.webp?token=new".into(),
+            ..original.clone()
+        };
+        let source = "https://danbooru.donmai.us/media_assets/88";
+        assert_eq!(danbooru_media_asset(&original, source), Some(88));
+        archive.record_for_source(&original, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        for unrelated in [
+            "https://danbooru.donmai.us/media_assets/89",
+            "https://danbooru.donmai.us/posts/88",
+            "https://danbooru.donmai.us/pools/88",
+            "https://danbooru.donmai.us/favorite_groups/88",
+            "https://safebooru.donmai.us/media_assets/88",
+            "https://attacker.example/media_assets/88",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, unrelated).unwrap());
+        }
+        assert!(canonical_media_asset_archive_suffix("m88"));
+        for invalid in ["m0", "m088", "m88_alt", "p_88_88", "m"] {
+            assert!(!canonical_media_asset_archive_suffix(invalid));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn danbooru_media_asset_reference_import_is_private_and_offline_safe() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-asset-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let foreign = root.join("foreign.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danboorum88');
+                 INSERT INTO archive VALUES ('danbooru88');
+                 INSERT INTO archive VALUES ('danboorup_42_88');",
+            )
+            .unwrap();
+        drop(upstream);
+        let before = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"danboorum88".len())
+            .any(|part| part == b"danboorum88"));
+        let archive = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://rotated.example.net/88.webp".into(),
+            filename: "88.webp".into(),
+            extractor: "danbooru",
+            post_id: Some(88),
+        };
+        assert!(archive
+            .contains_for_source(&item, "https://danbooru.donmai.us/media_assets/88")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&item, "https://danbooru.donmai.us/media_assets/89")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
