@@ -146,6 +146,42 @@ fn validated_calendar_date(date: &str) -> Option<(u32, u32, u32)> {
     (day > 0 && day <= days).then_some((year, month, day))
 }
 
+/// The pinned upstream weekly popular extractor normalizes dates to
+/// Monday. Sakamoto's proleptic Gregorian weekday (Sunday=0) avoids a
+/// locale/timezone dependency and works across leap/month/year boundaries.
+fn popular_week_monday(date: &str) -> Option<String> {
+    let (mut year, mut month, day) = validated_calendar_date(date)?;
+    let previous_year = i64::from(year) - i64::from(month < 3);
+    let offsets = [0_i64, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let sunday_weekday = (
+        previous_year
+            + previous_year / 4
+            - previous_year / 100
+            + previous_year / 400
+            + offsets[(month - 1) as usize]
+            + i64::from(day)
+    ) % 7;
+    let days_from_monday = (sunday_weekday + 6) % 7;
+    let mut monday_day = i64::from(day) - days_from_monday;
+    if monday_day <= 0 {
+        if month == 1 {
+            year = year.checked_sub(1)?;
+            month = 12;
+        } else {
+            month -= 1;
+        }
+        let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+        let month_days = match month {
+            2 if leap => 29,
+            2 => 28,
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        };
+        monday_day += month_days;
+    }
+    Some(format!("{year:04}-{month:02}-{monday_day:02}"))
+}
+
 fn canonical_popular_archive_suffix(suffix: &str) -> bool {
     let Some((scale_date, id)) = suffix
         .strip_prefix("P_")
@@ -164,6 +200,7 @@ fn canonical_popular_archive_suffix(suffix: &str) -> bool {
     }
     let valid_date = match scale {
         "d" => validated_calendar_date(date).is_some(),
+        "w" => popular_week_monday(date).as_deref() == Some(date),
         "m" => {
             let mut candidate = date.to_owned();
             candidate.push_str("-01");
@@ -454,9 +491,9 @@ fn danbooru_media_asset(item: &MediaItem, source_url: &str) -> Option<u64> {
     }
 }
 
-/// Pinned popular extractors use P_{scale[0]}_{date}_{id}. Daily and
-/// monthly scales can be reproduced from an explicitly dated source URL.
-/// Omit current-day defaults and weekly date rounding until verified.
+/// Pinned popular extractors use P_{scale[0]}_{date}_{id}. Daily,
+/// weekly (normalized to Monday) and monthly scales are deterministic only
+/// when the original popular URL explicitly specifies a valid date.
 fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
     if !is_booru_pool_category(item.extractor) || item.post_id.is_none_or(|id| id == 0) {
         return None;
@@ -489,6 +526,7 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
     validated_calendar_date(&date)?;
     let (initial, normalized_date) = match scale.as_str() {
         "day" => ("d", date),
+        "week" => ("w", popular_week_monday(&date)?),
         "month" => ("m", date[..7].to_owned()),
         _ => return None,
     };
@@ -2238,8 +2276,8 @@ mod tests {
         drop(source);
         let source_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (4, 4));
-        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
+        assert_eq!(archive.import_reference().unwrap(), (5, 0));
         drop(archive);
         assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
         fs::remove_file(foreign).unwrap();
@@ -2644,6 +2682,7 @@ mod tests {
         };
         let daily = "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25";
         let monthly = "https://e621.net/explore/posts/popular?scale=month&date=2026-10-25";
+        let weekly = "https://e621.net/explore/posts/popular?scale=week&date=2026-10-25";
         assert_eq!(
             booru_popular(&original, daily),
             Some("e621P_d_2026-10-25_88".into())
@@ -2651,6 +2690,10 @@ mod tests {
         assert_eq!(
             booru_popular(&original, monthly),
             Some("e621P_m_2026-10_88".into())
+        );
+        assert_eq!(
+            booru_popular(&original, weekly),
+            Some("e621P_w_2026-10-19_88".into())
         );
         archive.record_for_source(&original, daily).unwrap();
         assert!(archive.contains_for_source(&rotated, daily).unwrap());
@@ -2671,10 +2714,23 @@ mod tests {
         assert!(validated_calendar_date("0000-01-01").is_none());
         assert!(canonical_popular_archive_suffix("P_d_2026-10-25_88"));
         assert!(canonical_popular_archive_suffix("P_m_2026-10_88"));
+        assert!(canonical_popular_archive_suffix("P_w_2026-10-19_88"));
+        assert_eq!(
+            popular_week_monday("2026-10-25").as_deref(),
+            Some("2026-10-19")
+        );
+        assert_eq!(
+            popular_week_monday("2027-01-01").as_deref(),
+            Some("2026-12-28")
+        );
+        assert_eq!(
+            popular_week_monday("2024-03-01").as_deref(),
+            Some("2024-02-26")
+        );
         for invalid in [
             "P_d_2026-02-30_88",
             "P_m_2026-13_88",
-            "P_w_2026-10-19_88",
+            "P_w_2026-10-25_88",
             "P_d_2026-10-25_0",
             "P_d_2026-10-25_088",
         ] {
@@ -2732,6 +2788,12 @@ mod tests {
             .contains_for_source(
                 &media,
                 "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25"
+            )
+            .unwrap());
+        assert!(offline
+            .contains_for_source(
+                &media,
+                "https://e621.net/explore/posts/popular?scale=week&date=2026-10-25"
             )
             .unwrap());
         drop(offline);
