@@ -607,9 +607,7 @@ fn explicit_site_archive_prefix_migrates_unambiguous_philomena_ids() {
         "{}",
         String::from_utf8_lossy(&unambiguous.stderr)
     );
-    assert!(
-        String::from_utf8_lossy(&unambiguous.stdout).contains("1 supported entries; 1 new")
-    );
+    assert!(String::from_utf8_lossy(&unambiguous.stdout).contains("1 supported entries; 1 new"));
     assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
     fs::remove_file(foreign).unwrap();
 
@@ -620,5 +618,61 @@ fn explicit_site_archive_prefix_migrates_unambiguous_philomena_ids() {
         })
         .unwrap();
     assert_eq!(count, 1);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn simultaneous_imports_share_one_durable_set_of_archive_keys() {
+    let dir = temp("simultaneous-import");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let reference = dir.join("source.sqlite");
+    let source = rusqlite::Connection::open(&reference).unwrap();
+    source
+        .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+        .unwrap();
+    for id in 1..=80 {
+        source
+            .execute(
+                "INSERT INTO archive(entry) VALUES (?1)",
+                [format!("directlinkexample.org/images/{id}.jpg")],
+            )
+            .unwrap();
+    }
+    drop(source);
+    let original_bytes = fs::read(&reference).unwrap();
+    let start = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("--download-archive")
+            .arg(&native)
+            .arg("--gallery-dl-archive")
+            .arg(&reference)
+            .arg("--archive-import")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let first = start();
+    let second = start();
+    for proc in [first, second] {
+        let result = proc.wait_with_output().unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(String::from_utf8_lossy(&result.stdout).contains("80 supported entries"));
+    }
+    let saved = rusqlite::Connection::open(&native).unwrap();
+    let count: i64 = saved
+        .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 80);
+    drop(saved);
+    assert_eq!(fs::read(&reference).unwrap(), original_bytes);
     fs::remove_dir_all(dir).unwrap();
 }
