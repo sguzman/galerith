@@ -309,7 +309,11 @@ async fn at_base(
             .pointer("/pagination/pages")
             .and_then(Value::as_u64)
             .ok_or("S3ndpics listing lacks pagination page count")?;
-        if posts.is_empty() || page as u64 >= total_pages || records.len() >= MAX_FILES || total_posts >= MAX_POSTS {
+        if posts.is_empty()
+            || page as u64 >= total_pages
+            || records.len() >= MAX_FILES
+            || total_posts >= MAX_POSTS
+        {
             break;
         }
     }
