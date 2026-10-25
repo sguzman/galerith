@@ -54,8 +54,8 @@ pub mod lightroom;
 pub mod listal;
 pub mod moebooru;
 pub mod philomena;
-pub mod picarto;
 pub mod photovogue;
+pub mod picarto;
 pub mod picstate;
 pub mod pixeldrain;
 pub mod postimg;
@@ -254,7 +254,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "soundgasm",
         "public audio originals and bounded user discovery",
     ),
-    ("picarto", "public channel gallery JSON and bounded variations"),
+    (
+        "picarto",
+        "public channel gallery JSON and bounded variations",
+    ),
     (
         "vanillarock",
         "public post images and bounded category/tag queues",
