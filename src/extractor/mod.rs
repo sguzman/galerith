@@ -17,8 +17,8 @@ pub mod desktopography;
 pub mod directlink;
 pub mod e621;
 pub mod eightmuses;
-pub mod fappic;
 pub mod fapachi;
+pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
 pub mod foriio;
@@ -183,7 +183,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("e621", "e621/e926/e6ai public post and collection APIs"),
     ("fappic", "pinned public Fappic original-image preview"),
-    ("fapachi", "bounded public Fapachi post originals and user queues"),
+    (
+        "fapachi",
+        "bounded public Fapachi post originals and user queues",
+    ),
     (
         "imagevenue",
         "pinned public ImageVenue single-image preview",
