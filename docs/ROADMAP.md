@@ -122,7 +122,7 @@
 ## 🧩 M2 — Extractor framework and site families — `████████░░ 77%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 70%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 71%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -130,11 +130,11 @@
   - [ ] Support child extractors and queues
   - [ ] Differential URL-match fixtures
   - [x] Verify CLI extractor listing mirrors the native dispatcher registry — src/extractor/mod.rs PREVIEW_EXTRACTORS and all eleven routing fixtures; src/main.rs list CLI; CI 39997749479
-- 📨 **T402** Structured extractor message protocol — `█████░░░░░ 50%`
+- 📨 **T402** Structured extractor message protocol — `████████░░ 75%`
   - [x] Represent a media item with source and filename — src/lib.rs
   - [x] Directory metadata and file message variants — src/message.rs typed Directory/Url and metadata; tests/message_cli.rs and CI 40032410873 passed
   - [ ] Deferred URL resolution and redirects
-  - [ ] Reference message fixtures
+  - [x] Reference message fixtures — src/message.rs pinned_upstream_message_identifiers_and_tuple_payloads_round_trip: active IDs 2=Directory,3=Url,6=Queue, obsolete identifiers rejected, full tuple payload round-trip; full Linux CI 40217657098
 - 🔎 **T403** Pagination, filtering and selectors — `██░░░░░░░░ 20%`
   - [ ] Iterative pagination and stop conditions
   - [ ] Ranges, filters and predicates

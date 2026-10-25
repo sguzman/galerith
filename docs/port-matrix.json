@@ -1289,9 +1289,13 @@
     {
       "path": "gallery_dl/extractor/message.py",
       "module": "message",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "complete",
+      "rust_paths": [
+        "src/message.rs"
+      ],
+      "evidence": [
+        "Complete mapping of all three active pinned gallery_dl/extractor/message.py identifiers: Directory=2, Url=3, Queue=6, with source-equivalent second tuple member and lossless metadata/URL payload bridge. Obsolete commented-out IDs deliberately not exposed as active variants. Offline round-trip/invalid-ID fixture tests and full CI 40217657098 passed. Does not claim completeness of the broader gallery-dl downloader/queue workflow."
+      ]
     },
     {
       "path": "gallery_dl/extractor/misskey.py",

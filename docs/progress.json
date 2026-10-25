@@ -622,10 +622,11 @@
                 },
                 {
                   "title": "Reference message fixtures",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/message.rs pinned_upstream_message_identifiers_and_tuple_payloads_round_trip: active IDs 2=Directory,3=Url,6=Queue, obsolete identifiers rejected, full tuple payload round-trip; full Linux CI 40217657098"
                 }
               ],
-              "progress": 50
+              "progress": 75
             },
             {
               "id": "T403",
