@@ -93,10 +93,13 @@ fn cache_rejects_archive_file_aliases_without_mutating_original() {
     let bytes = fs::read(&foreign).unwrap();
     let native = dir.join("native.sqlite");
     for reference_arg in ["--gallery-dl-archive", "--download-archive"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args(["--cache-db", foreign.to_str().unwrap()]);
+        if reference_arg == "--gallery-dl-archive" {
+            command.args(["--download-archive", native.to_str().unwrap()]);
+        }
+        let output = command
             .args([
-                "--cache-db",
-                foreign.to_str().unwrap(),
                 reference_arg,
                 foreign.to_str().unwrap(),
                 "--get-urls",
@@ -132,6 +135,8 @@ fn cache_rejects_archive_file_aliases_without_mutating_original() {
                 .args([
                     "--cache-db",
                     alias.to_str().unwrap(),
+                    "--download-archive",
+                    native.to_str().unwrap(),
                     "--gallery-dl-archive",
                     foreign.to_str().unwrap(),
                     "--get-urls",
