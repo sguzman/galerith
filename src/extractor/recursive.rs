@@ -136,7 +136,17 @@ async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>
         .timeout(Duration::from_secs(15))
         .resolve(&host, first)
         .build()?;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    let response = client.get(url).send().await?;
+    read_remote_response(response).await
+}
+
+async fn read_remote_response(
+    response: reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    if response.status().is_redirection() {
+        return Err("Recursive remote URL list attempted an HTTP redirect".into());
+    }
+    let mut response = response.error_for_status()?;
     if response
         .content_length()
         .is_some_and(|n| n > MAX_BYTES as u64)
@@ -313,7 +323,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn remote_response_reader_caps_streamed_body_and_rejects_redirects() {
+    async fn remote_response_reader_caps_body_and_rejects_foreign_redirects() {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
             net::TcpListener,
@@ -321,31 +331,41 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            for (response, expected) in [
-                ("HTTP/1.1 200 OK\r\nContent-Length: 34\r\nConnection: close\r\n\r\nhttps://example.org/public/item.jpg", "GET /list"),
-                ("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", "GET /redirect"),
+            for (path, response) in [
+                (
+                    "/list",
+                    "HTTP/1.1 200 OK\r\nContent-Length: 35\r\nConnection: close\r\n\r\nhttps://example.org/public/item.jpg".to_owned(),
+                ),
+                (
+                    "/redirect",
+                    "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned(),
+                ),
+                (
+                    "/oversized",
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        MAX_BYTES + 1
+                    ),
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut request = [0u8; 1024];
                 let count = socket.read(&mut request).await.unwrap();
-                assert!(String::from_utf8_lossy(&request[..count]).starts_with(expected));
+                assert!(
+                    String::from_utf8_lossy(&request[..count])
+                        .starts_with(&format!("GET {path} HTTP/1.1"))
+                );
                 socket.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let client = Client::builder().redirect(Policy::none()).build().unwrap();
-        let page = client
-            .get(format!("http://{addr}/list"))
-            .send()
-            .await
-            .unwrap();
-        let body = page.error_for_status().unwrap().text().await.unwrap();
+        let page = client.get(format!("http://{addr}/list")).send().await.unwrap();
+        let body = String::from_utf8(read_remote_response(page).await.unwrap()).unwrap();
         assert_eq!(decode_links(&body).unwrap().len(), 1);
-        let page = client
-            .get(format!("http://{addr}/redirect"))
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(page.status(), reqwest::StatusCode::FOUND);
+        let redirect = client.get(format!("http://{addr}/redirect")).send().await.unwrap();
+        assert!(read_remote_response(redirect).await.is_err());
+        let oversized = client.get(format!("http://{addr}/oversized")).send().await.unwrap();
+        assert!(read_remote_response(oversized).await.is_err());
         server.await.unwrap();
     }
 
