@@ -3938,6 +3938,117 @@ mod tests {
     }
 
     #[test]
+    fn fourchan_scope_separates_threads_and_boards_with_identical_cdn_media() {
+        let root = std::env::temp_dir().join(format!("galerith-fourchan-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://i.4cdn.org/a/456.jpg".into(),
+            filename: "456 synthetic.jpg".into(),
+            extractor: "4chan",
+            post_id: Some(456),
+        };
+        let first = "https://boards.4channel.org/a/thread/123";
+        let second = "https://boards.4chan.org/a/thread/124";
+        assert_eq!(
+            fourchan_archive_scope(&original, first).unwrap().1,
+            "4chana_123_456"
+        );
+        archive.record_for_source(&original, first).unwrap();
+        assert!(archive.contains_for_source(&original, first).unwrap());
+        assert!(archive
+            .contains_for_source(&original, "https://boards.4chan.org/a/thread/123/synthetic")
+            .unwrap());
+        assert!(!archive.contains_for_source(&original, second).unwrap());
+        for unrelated in [
+            "https://boards.4chan.org/b/thread/123",
+            "https://boards.4chan.org/a/thread/125",
+            "https://boards.4chan.org/a/123",
+            "https://boards.4chan.org/a/thread/000123",
+            "https://boards.4chan.org/a/thread/123?foo=bar",
+            "https://attacker.invalid/a/thread/123",
+            "http://boards.4chan.org/a/thread/123",
+            "https://boards.4chan.org:9443/a/thread/123",
+        ] {
+            assert!(!archive.contains_for_source(&original, unrelated).unwrap());
+        }
+        let another = MediaItem {
+            url: "https://i.4cdn.org/a/457.jpg".into(),
+            post_id: Some(457),
+            ..original.clone()
+        };
+        assert!(!archive.contains_for_source(&another, first).unwrap());
+        let forged = MediaItem {
+            url: "https://i.4cdn.org/b/456.jpg".into(),
+            ..original.clone()
+        };
+        assert!(fourchan_archive_scope(&forged, first).is_none());
+        let wrong_tim = MediaItem {
+            post_id: Some(457),
+            ..original.clone()
+        };
+        assert!(fourchan_archive_scope(&wrong_tim, first).is_none());
+        assert!(canonical_fourchan_archive_suffix("a_123_456"));
+        for malformed in ["a_0_456", "a_123_0", "a_0123_456", "a_123_0456", "A_123_456", "a_123_456_7"] {
+            assert!(!canonical_fourchan_archive_suffix(malformed));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fourchan_offline_import_respects_thread_and_board_context() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-fourchan-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let native = root.join("native.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('4chana_123_456');
+                 INSERT INTO archive VALUES ('4chanb_123_456');
+                 INSERT INTO archive VALUES ('4chana_124_456');
+                 INSERT INTO archive VALUES ('4chana_0123_456');
+                 INSERT INTO archive VALUES ('4chana_123_0');",
+            )
+            .unwrap();
+        drop(source);
+        let original = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://i.4cdn.org/a/456.jpg".into(),
+            filename: "456 example.jpg".into(),
+            extractor: "4chan",
+            post_id: Some(456),
+        };
+        for thread in [123, 124] {
+            assert!(archive
+                .contains_for_source(&item, &format!("https://boards.4chan.org/a/thread/{thread}"))
+                .unwrap());
+        }
+        assert!(!archive
+            .contains_for_source(&item, "https://boards.4chan.org/a/thread/125")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&item, "https://boards.4chan.org/b/thread/123")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"4chana_123_456".len()).any(|part| part == b"4chana_123_456"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
