@@ -158,7 +158,10 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 "Only repository CI executes the original upstream Python interpreter"
             ]
         });
-        std::fs::write(path, format!("{}\n", serde_json::to_string_pretty(&report).unwrap()))
-            .expect("write pinned reference comparison evidence");
+        std::fs::write(
+            path,
+            format!("{}\n", serde_json::to_string_pretty(&report).unwrap()),
+        )
+        .expect("write pinned reference comparison evidence");
     }
 }
