@@ -300,10 +300,7 @@ fn article_events(
             let path = text_between(body, "<a href=\"", "\"")
                 .and_then(|href| source_entry_url(host, href))
                 .map_or(fallback.to_owned(), |url| url.path().to_owned());
-            metadata.insert(
-                "entry".into(),
-                path.trim_start_matches("/entry/").into(),
-            );
+            metadata.insert("entry".into(), path.trim_start_matches("/entry/").into());
             metadata.insert("post_url".into(), format!("https://{host}{path}").into());
             if let Some(title) = text_between(body, "<a href=\"", "</a>")
                 .and_then(|text| text.split_once('>').map(|(_, content)| content))
@@ -656,8 +653,14 @@ mod tests {
         assert_eq!(empty["metadata"]["entry"], "2026/10/25/empty");
         assert_eq!(empty["metadata"]["count"], 0);
         assert_eq!(populated["metadata"]["count"], 2);
-        assert_eq!(serde_json::to_value(&events[2]).unwrap()["metadata"]["count"], 2);
-        assert_eq!(serde_json::to_value(&events[3]).unwrap()["metadata"]["num"], 2);
+        assert_eq!(
+            serde_json::to_value(&events[2]).unwrap()["metadata"]["count"],
+            2
+        );
+        assert_eq!(
+            serde_json::to_value(&events[3]).unwrap()["metadata"]["num"],
+            2
+        );
     }
 
     #[tokio::test]
