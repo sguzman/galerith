@@ -130,7 +130,7 @@ fn emit_image(
     let mut meta = media_metadata(&item);
     meta.insert("subcategory".into(), "gallery".into());
     meta.insert("channel_name".into(), user.into());
-    meta.insert("id".into(), id.into());
+    meta.insert("id".into(), id.clone().into());
     meta.insert("title".into(), title.into());
     meta.insert("extension".into(), extension.into());
     meta.insert(
