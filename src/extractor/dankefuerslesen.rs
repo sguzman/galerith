@@ -233,7 +233,7 @@ fn chapter_media(
         metadata.insert("group_source".into(), group.into());
         metadata.insert(
             "group".into(),
-            Value::Array(group.split(" & ").map(|name| Value::from(name)).collect()),
+            Value::Array(group.split(" & ").map(Value::from).collect()),
         );
     }
     let mut out = Vec::new();
