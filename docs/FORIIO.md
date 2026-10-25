@@ -10,4 +10,6 @@ Public user work feeds emit deferred typed child work queues, not eager media do
 
 [Full CI 40149290826](https://github.com/sguzman/galerith/actions/runs/40149290826) passed formatting, strict Clippy, roadmap consistency, tests and release build. Synthetic fixtures cover exact work identity and rejected forged CDN paths, one-work HTTP JSON, and two-page user queues with duplicate suppression. These are **offline tests** rather than proof of compatibility with live Foriio API responses.
 
-**Unaccepted:** all upstream video, sound, external web-article and copy-writing work formats, user `posts` filters, previews/media options, complete date/filename/archive templates, full author metadata semantics and live pinned differential conformance.
+**Unaccepted:** upstream video, sound and external web-article outputs, user `posts` filters, previews/media options, complete date/filename/archive templates, full author metadata semantics and live pinned differential conformance.
+
+**Copy-writing source images:** One image in a `copy_writing` record is now accepted with its source `id`, canonical Imgix original URL, numbered filename and count=1. The fallback does not claim to support textual article exports or other media delegation. Offline regression and the full [CI 40149604757](https://github.com/sguzman/galerith/actions/runs/40149604757) passed.

@@ -603,7 +603,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Independent Foriio public image-work and user-feed subset with exact requested work ID checks, trusted Imgix store originals, source author/title/width/height/file IDs, strict domain/form URL routing, 2 MiB API JSON bound, max 128 images, bounded four 20-work user API pages with first-seen dedup, typed child queues and Origin/Referer headers. Offline work API and two-page user loopback HTTP fixtures; full Linux CI 40149290826 passed. Video/audio/copywriting/article modes and full options/templates/live parity unaccepted."
+        "Independent Foriio public image-work and user-feed subset with exact requested work ID checks, trusted Imgix store originals, source author/title/width/height/file IDs, strict domain/form URL routing, 2 MiB API JSON bound, max 128 images, bounded four 20-work user API pages with first-seen dedup, typed child queues and Origin/Referer headers. Offline work API and two-page user loopback HTTP fixtures; full Linux CI 40149290826 passed. Video/audio/copywriting/article modes and full options/templates/live parity unaccepted.",
+        "Foriio work copy_writing image originals now supported with source image and file IDs, canonical Imgix store asset, 1-file count and normal typed work metadata. Offline source fixture passed full Linux CI 40149604757. Video/audio/external article types still unsupported."
       ]
     },
     {

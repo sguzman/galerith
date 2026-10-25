@@ -3982,7 +3982,7 @@
               "id": "T582",
               "emoji": "🎨",
               "name": "Foriio public image works and user-to-work discovery",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Route pinned Foriio work IDs and user profiles across both public domains with strict host, query and path constraints",
@@ -4005,7 +4005,12 @@
                   "evidence": "src/extractor/foriio.rs user_queue_deduplicates_and_validates_pagination_identity, public_work_and_user_queue_read_bounded_local_api, bounded_user_api_follows_two_pages_with_first_seen_work_ids; CI 40149290826"
                 },
                 {
-                  "title": "Port pinned video/audio/article/copy-writing formats and their options, full filename/archive/author/date semantics, uncapped feeds and live differential parity",
+                  "title": "Read pinned copy-writing image originals with source file IDs and preserve typed work metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/foriio.rs copy_writing_image_uses_original_and_source_file_id; CI 40149604757"
+                },
+                {
+                  "title": "Implement pinned video/audio/external article options and previews, full date/archive templates, uncapped feeds and live differential parity",
                   "passed": false
                 }
               ]
