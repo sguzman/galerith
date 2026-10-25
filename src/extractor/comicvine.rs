@@ -121,21 +121,37 @@ fn trusted_original(raw: &str) -> Option<(String, String)> {
 /// Parse the pinned English source date without inventing a clock or offset.
 fn source_calendar_date(raw: &str) -> Option<String> {
     let (weekday, remaining) = raw.split_once(", ")?;
-    if !matches!(weekday, "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun") {
+    if !matches!(
+        weekday,
+        "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"
+    ) {
         return None;
     }
     let mut parts = remaining.split_whitespace();
     let month = match parts.next()? {
-        "Jan" => 1_u32, "Feb" => 2, "Mar" => 3, "Apr" => 4,
-        "May" => 5, "Jun" => 6, "Jul" => 7, "Aug" => 8,
-        "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
+        "Jan" => 1_u32,
+        "Feb" => 2,
+        "Mar" => 3,
+        "Apr" => 4,
+        "May" => 5,
+        "Jun" => 6,
+        "Jul" => 7,
+        "Aug" => 8,
+        "Sep" => 9,
+        "Oct" => 10,
+        "Nov" => 11,
+        "Dec" => 12,
         _ => return None,
     };
     let day: u32 = parts.next()?.parse().ok()?;
     let year_str = parts.next()?;
-    if year_str.len() != 4 || parts.next().is_some() { return None; }
+    if year_str.len() != 4 || parts.next().is_some() {
+        return None;
+    }
     let year: u32 = year_str.parse().ok()?;
-    if year == 0 { return None; }
+    if year == 0 {
+        return None;
+    }
     let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
     let last_day = match month {
         4 | 6 | 9 | 11 => 30,
@@ -363,8 +379,14 @@ mod tests {
 
     #[test]
     fn comicvine_english_calendar_date_rejects_invalid_month_and_leap_day() {
-        assert_eq!(source_calendar_date("Thu, Feb 29 2024"), Some("2024-02-29".into()));
-        assert_eq!(source_calendar_date("Tue, Feb 29 2000"), Some("2000-02-29".into()));
+        assert_eq!(
+            source_calendar_date("Thu, Feb 29 2024"),
+            Some("2024-02-29".into())
+        );
+        assert_eq!(
+            source_calendar_date("Tue, Feb 29 2000"),
+            Some("2000-02-29".into())
+        );
         for bad in [
             "Wed, Feb 29 2023",
             "Mon, Feb 29 1900",
