@@ -66,6 +66,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if is_booru_pool_category(category) && canonical_pool_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if category == "danbooru" && canonical_favorite_group_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -90,7 +93,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
     ] {
         if prefix == category
             && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
-                || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare)))
+                || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare))
+                || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare)))
         {
             return Some((category, format!("{category}{bare}")));
         }
@@ -115,6 +119,21 @@ fn canonical_pool_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     pool_id > 0 && post_id > 0 && suffix == format!("p_{pool_id}_{post_id}")
+}
+
+/// The pinned Danbooru favorite-group format is
+/// fg_{favgroup[id]}_{id}, not a plain post or pool key.
+fn canonical_favorite_group_archive_suffix(suffix: &str) -> bool {
+    let Some((group, post)) = suffix
+        .strip_prefix("fg_")
+        .and_then(|value| value.split_once('_'))
+    else {
+        return false;
+    };
+    let (Ok(group_id), Ok(post_id)) = (group.parse::<u64>(), post.parse::<u64>()) else {
+        return false;
+    };
+    group_id > 0 && post_id > 0 && suffix == format!("fg_{group_id}_{post_id}")
 }
 
 fn valid_directlink_format(path: &str) -> bool {
@@ -201,16 +220,45 @@ fn booru_pool(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     (pool > 0).then_some((pool, post))
 }
 
+/// A favorite-group ID is part of the archive identity, and is available
+/// from the already-supported Danbooru collection source URL.
+fn danbooru_favorite_group(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
+    if item.extractor != "danbooru" {
+        return None;
+    }
+    let post_id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("danbooru.donmai.us")
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let group_id = match segments.as_slice() {
+        ["favorite_groups", id] | ["favorite_group", "show", id] => id.parse::<u64>().ok()?,
+        _ => return None,
+    };
+    (group_id > 0).then_some((group_id, post_id))
+}
+
 /// Scoped identity unifies native archive records, advisory locks and
-/// read-only upstream lookup for verified *individual posts or pools*.
+/// read-only upstream lookup for verified posts, pools and favorite groups.
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
     }
-    let (pool, post) = booru_pool(item, source_url)?;
+    if let Some((pool, post)) = booru_pool(item, source_url) {
+        return Some((
+            format!("pool-id:{pool}:post-id:{post}"),
+            format!("{}p_{pool}_{post}", item.extractor),
+        ));
+    }
+    let (group, post) = danbooru_favorite_group(item, source_url)?;
     Some((
-        format!("pool-id:{pool}:post-id:{post}"),
-        format!("{}p_{pool}_{post}", item.extractor),
+        format!("favorite-group-id:{group}:post-id:{post}"),
+        format!("danboorufg_{group}_{post}"),
     ))
 }
 
