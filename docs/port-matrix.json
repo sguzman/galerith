@@ -164,9 +164,14 @@
     {
       "path": "gallery_dl/extractor/ahottie.py",
       "module": "ahottie",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/ahottie.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Ahottie albums, tags and keyword searches with 2 MiB streamed HTML, 4-page bounded pagination, 160 media/128 queued galleries, strict gallery identity and first-party redirect/original-host checks, first-seen deduplication, original image numbering and visible title/source date; offline link, hostile album identity and HTTP fixtures. CI 40148211788 passed formatting, Clippy, tests, roadmap checks and release build. Complete source metadata, placeholder-image response filter, templates and live parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/allporncomic.py",

@@ -3940,6 +3940,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T581",
+              "emoji": "🌄",
+              "name": "Ahottie guarded public albums and tag/search discovery",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize pinned Ahottie public album/tag/search URLs with strict host, query and ID constraints",
+                  "passed": true,
+                  "evidence": "src/extractor/ahottie.rs pinned_public_album_tag_and_search_routes; full CI 40148211788"
+                },
+                {
+                  "title": "Parse source-backed ordered album images and visible title/date with trusted media host and bounded originals",
+                  "passed": true,
+                  "evidence": "src/extractor/ahottie.rs public_gallery_preserves_image_order_and_source_metadata; full CI 40148211788"
+                },
+                {
+                  "title": "Discover typed public tag/search-to-gallery queues with source-backed metadata, first-seen deduplication and bounded pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/ahottie.rs album_queues_dedup_first_party_links and public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788"
+                },
+                {
+                  "title": "Validate exact same-album gallery continuations, first-party redirects and loopback HTTP image/listing fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/ahottie.rs gallery_continuation_rejects_prefix_matched_foreign_albums, public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788"
+                },
+                {
+                  "title": "Match exact upstream tags and ISO date parsing, filename/archive metadata, HTTP rejection-page validation, full pagination variants and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
