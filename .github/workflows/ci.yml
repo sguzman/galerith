@@ -25,10 +25,39 @@ jobs:
       - name: Release build
         run: cargo build --release
 
+  pinned-reference:
+    name: Pinned upstream directlink oracle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: mikf/gallery-dl
+          ref: 7f226f74108501c8ac3120548370f68f19e6f9b3
+          path: .oracle/pinned-gallery-dl
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated upstream reference dependency
+        run: python3 -m pip install --disable-pip-version-check "requests==2.32.5"
+      - name: Verify immutable upstream source checkout
+        run: test "$(git -C .oracle/pinned-gallery-dl rev-parse HEAD)" = "7f226f74108501c8ac3120548370f68f19e6f9b3"
+      - name: Compare pinned directlink events without network
+        env:
+          GALERITH_REFERENCE_ORACLE: "1"
+          GALERITH_PINNED_REFERENCE_ROOT: .oracle/pinned-gallery-dl
+          GALERITH_PINNED_REFERENCE_SHA: 7f226f74108501c8ac3120548370f68f19e6f9b3
+        run: cargo test --test reference_directlink
+
   report-status:
     name: Publish Rust CI commit status
     if: ${{ always() && github.event_name == 'push' }}
-    needs: rust
+    needs: [rust, pinned-reference]
     runs-on: ubuntu-latest
     permissions:
       statuses: write
@@ -37,9 +66,10 @@ jobs:
         uses: actions/github-script@v7
         env:
           RUST_RESULT: ${{ needs.rust.result }}
+          REFERENCE_RESULT: ${{ needs.pinned-reference.result }}
         with:
           script: |
-            const result = process.env.RUST_RESULT;
+            const result = process.env.RUST_RESULT === 'success' && process.env.REFERENCE_RESULT === 'success' ? 'success' : 'failure';
             const state = result === 'success'
               ? 'success'
               : result === 'failure' ? 'failure' : 'error';
