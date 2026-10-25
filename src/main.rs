@@ -479,6 +479,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                 }
             }
+            // Re-check under the archive lock: another process may have
+            // completed this same media item while we were waiting. Retain
+            // the guard through transfer and durable archive insertion.
+            let _archive_guard = if let Some(ref archive) = archive {
+                archive.lock_item(&item).await?
+            } else {
+                None
+            };
             if let Some(ref archive) = archive {
                 if archive.contains(&item)? {
                     if !cli.quiet {
