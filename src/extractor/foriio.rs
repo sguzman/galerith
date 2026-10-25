@@ -191,7 +191,7 @@ fn decode_work(
                 metadata.insert(key.into(), s.into());
             }
         }
-        if let Some(author) = work.get("author").filter(Value::is_object) {
+        if let Some(author) = work.get("author").filter(|value| value.is_object()) {
             metadata.insert("author".into(), author.clone());
         }
         for key in ["width", "height"] {
