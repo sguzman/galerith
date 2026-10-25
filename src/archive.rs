@@ -1500,6 +1500,63 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[tokio::test]
+    async fn pool_archive_lock_coordinates_rotated_urls_across_processes() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pool-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let pool = "https://e621.net/pools/42";
+        let original = MediaItem {
+            url: "https://cdn.example.net/88.jpg?sig=one".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://second-cdn.example.net/88.png?sig=two".into(),
+            filename: "88.png".into(),
+            ..original.clone()
+        };
+        assert_ne!(key(&original), key(&rotated));
+        let first = Archive::open(&db).unwrap();
+        let guard = first
+            .lock_item_for_source(&original, pool)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let db_again = db.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let second = Archive::open(&db_again).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = second
+                    .lock_item_for_source(&rotated, pool)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(second.contains_for_source(&rotated, pool).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&original, pool).unwrap();
+        drop(guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn imported_pool_ids_are_category_scoped_and_usable_offline() {
         let root =
