@@ -2221,6 +2221,62 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[tokio::test]
+    async fn tag_archive_locks_same_query_across_rotating_media_urls() {
+        let root = std::env::temp_dir().join(format!("galerith-tag-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let search = "https://e621.net/posts?tags=blue+fox";
+        let original = MediaItem {
+            url: "https://first.example.net/88.jpg?auth=first".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://second.example.net/88.png?auth=second".into(),
+            filename: "88.png".into(),
+            ..original.clone()
+        };
+        assert_ne!(key(&original), key(&rotated));
+        let first = Archive::open(&db).unwrap();
+        let guard = first
+            .lock_item_for_source(&original, search)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let other_db = db.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let second = Archive::open(&other_db).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = second
+                    .lock_item_for_source(&rotated, search)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(second.contains_for_source(&rotated, search).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&original, search).unwrap();
+        drop(guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn named_tag_archive_requires_actual_site_prefix() {
         let root = std::env::temp_dir().join(format!("galerith-tag-prefix-{}", std::process::id()));
