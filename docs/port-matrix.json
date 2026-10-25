@@ -424,9 +424,14 @@
     {
       "path": "gallery_dl/extractor/dankefuerslesen.py",
       "module": "dankefuerslesen",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/dankefuerslesen.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Danke fürs Lesen source-series API manga and chapter implementation. First-party /read(er)/(manga|series)/SLUG/CHAPTER paths and /api/series/SLUG/; 2 MiB API cap, 240 images and 128 chapter queues; safe bounded original image folder/group/filenames, source metadata including numeric chapter/minor, split scanlation group label and source UNIX release timestamp. Offline route, media/queue and one-request API HTTP fixtures passed Linux format/Clippy/tests/release CI 40153155133. ZIP mode, multiple scanlation group source-order, exact date/archive/file templating and live parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/desktopography.py",

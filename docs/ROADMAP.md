@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 140 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 141 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -778,6 +778,12 @@
   - [x] Bound public API JSON, user pagination and typed first-seen deferred work queues through local one- and two-page HTTP fixtures — src/extractor/foriio.rs user_queue_deduplicates_and_validates_pagination_identity, public_work_and_user_queue_read_bounded_local_api, bounded_user_api_follows_two_pages_with_first_seen_work_ids; CI 40149290826
   - [x] Read pinned copy-writing image originals with source file IDs and preserve typed work metadata — src/extractor/foriio.rs copy_writing_image_uses_original_and_source_file_id; CI 40149604757
   - [ ] Implement pinned video/audio/external article options and previews, full date/archive templates, uncapped feeds and live differential parity
+- 📚 **T583** Danke fürs Lesen public manga chapters and image originals — `████████░░ 80%`
+  - [x] Recognize public Danke manga and reader chapter routes with safe source slugs and strict origins — src/extractor/dankefuerslesen.rs supported_reader_manga_and_chapter_routes_reject_unsafe_origins; src/extractor/mod.rs native registry; full CI 40153155133
+  - [x] Map validated public series chapter group/folder original images with source title, artist/author and release metadata — src/extractor/dankefuerslesen.rs chapter_originals_and_manga_queues_preserve_validated_source_metadata; full CI 40153155133
+  - [x] Preserve pinned numeric chapters/minors, source group IDs/names and neutral language metadata across original images and typed chapter queues — src/extractor/dankefuerslesen.rs chapter_numbers_reject_malformed_parts_and_preserve_minor_fragments and chapter_originals_and_manga_queues_preserve_validated_source_metadata; full CI 40153155133
+  - [x] Bound source series API JSON to 2 MiB, page originals to 240, chapter queues to 128 and verify public one-request loopback HTTP route — src/extractor/dankefuerslesen.rs bounded_public_series_json_reads_one_api_request_per_entry and guarded chapter_media/chapter_queue; full CI 40153155133
+  - [ ] Match configurable ZIP chapter archives, source-order multi-group selection, exact release datetime and metadata/file/archive templates, full histories and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 56 · Not ported: 216.**
+**Complete: 0 · Partial: 57 · Not ported: 215.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -54,7 +54,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/cyberfile.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/danbooru.py` | 🟡 Partial | `src/extractor/danbooru.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/dandadan.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/dankefuerslesen.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/dankefuerslesen.py` | 🟡 Partial | `src/extractor/dankefuerslesen.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/desktopography.py` | 🟡 Partial | `src/extractor/desktopography.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/deviantart.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/directlink.py` | 🟡 Partial | `src/lib.rs` |

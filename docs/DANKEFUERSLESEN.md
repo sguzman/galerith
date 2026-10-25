@@ -1,0 +1,11 @@
+# 📚 Danke fürs Lesen public manga and chapter preview
+
+Pinned source: [gallery-dl dankefuerslesen.py](https://github.com/mikf/gallery-dl/blob/7f226f74108501c8ac3120548370f68f19e6f9b3/gallery_dl/extractor/dankefuerslesen.py). **Status: independent partial Rust port, not complete parity.**
+
+The native CLI recognizes trusted public `danke.moe` and `www.danke.moe` `/read(er)/(manga|series)/SLUG` manga routes and `/CHAPTER[/1]` chapter URLs. Strict path, query, origin, credentials and component validation reject hostile inputs. Public source series data is fetched from `https://danke.moe/api/series/SLUG/` under a strict **2 MiB actual-response cap**, rejecting unexpected redirects and mismatched manga identity.
+
+A chapter emits up to **240** validated, ordered HTTPS originals from the source-backed `/media/manga/SLUG/chapters/FOLDER/GROUP/FILENAME` path, with bounded media filename/extension checks. Typed directory and URL messages carry the real manga title/slug, optional author/artist/description, source chapter title and integer volume, numeric chapter and chapter minor, group ID, source scanlation-group text/split label, known release-date timestamp, and unavailable language fields as null. Public manga listings emit up to **128** deferred typed chapter queues with source-backed numeric chapter/minor metadata. Following children is opt-in. The source's multiple scanlation group selection is not yet supported and errors explicitly instead of misrepresenting its source order.
+
+[CI 40150088422](https://github.com/sguzman/galerith/actions/runs/40150088422) accepted the original bounded public reader and chapter adapter. [CI 40153155133](https://github.com/sguzman/galerith/actions/runs/40153155133) accepted typed chapter/minor, group-name and timestamp metadata and passing local API HTTP tests, format, Clippy and release build. **All verification here is offline/synthetic; no live source or CDN result is established.**
+
+**Unaccepted:** upstream `zip` option and archive endpoint, exact upstream first scanlation-group order with multiple groups, full original filename/directory/archive/date metadata, all manga history and variants, and live pinned differential conformance.

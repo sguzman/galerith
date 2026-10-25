@@ -4014,6 +4014,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T583",
+              "emoji": "📚",
+              "name": "Danke fürs Lesen public manga chapters and image originals",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Recognize public Danke manga and reader chapter routes with safe source slugs and strict origins",
+                  "passed": true,
+                  "evidence": "src/extractor/dankefuerslesen.rs supported_reader_manga_and_chapter_routes_reject_unsafe_origins; src/extractor/mod.rs native registry; full CI 40153155133"
+                },
+                {
+                  "title": "Map validated public series chapter group/folder original images with source title, artist/author and release metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/dankefuerslesen.rs chapter_originals_and_manga_queues_preserve_validated_source_metadata; full CI 40153155133"
+                },
+                {
+                  "title": "Preserve pinned numeric chapters/minors, source group IDs/names and neutral language metadata across original images and typed chapter queues",
+                  "passed": true,
+                  "evidence": "src/extractor/dankefuerslesen.rs chapter_numbers_reject_malformed_parts_and_preserve_minor_fragments and chapter_originals_and_manga_queues_preserve_validated_source_metadata; full CI 40153155133"
+                },
+                {
+                  "title": "Bound source series API JSON to 2 MiB, page originals to 240, chapter queues to 128 and verify public one-request loopback HTTP route",
+                  "passed": true,
+                  "evidence": "src/extractor/dankefuerslesen.rs bounded_public_series_json_reads_one_api_request_per_entry and guarded chapter_media/chapter_queue; full CI 40153155133"
+                },
+                {
+                  "title": "Match configurable ZIP chapter archives, source-order multi-group selection, exact release datetime and metadata/file/archive templates, full histories and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }
