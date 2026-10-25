@@ -9,6 +9,7 @@ pub mod bluesky;
 pub mod catbox;
 pub mod comedywildlifephoto;
 pub mod danbooru;
+pub mod comicvine;
 pub mod dankefuerslesen;
 pub mod desktopography;
 pub mod directlink;
@@ -90,6 +91,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public bounded Ahottie albums and tag/search queues",
     ),
     ("foriio", "public image works and bounded user-work queues"),
+    ("comicvine", "bounded public ComicVine tag gallery originals"),
     (
         "dankefuerslesen",
         "public Danke manga chapters and deferred series queues",
@@ -262,6 +264,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("ahottie")
     } else if foriio::match_url(input).is_some() {
         Some("foriio")
+    } else if comicvine::match_url(input).is_some() {
+        Some("comicvine")
     } else if dankefuerslesen::match_url(input).is_some() {
         Some("dankefuerslesen")
     } else if agnph::match_url(input).is_some() {
@@ -425,6 +429,9 @@ pub async fn resolve(
     }
     if let Some(target) = foriio::match_url(input) {
         return foriio::resolve(client, target).await;
+    }
+    if let Some(gallery) = comicvine::match_url(input) {
+        return comicvine::resolve(client, gallery).await;
     }
     if let Some(target) = dankefuerslesen::match_url(input) {
         return dankefuerslesen::resolve(client, target).await;
@@ -682,6 +689,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = foriio::match_url(input) {
         return foriio::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(gallery) = comicvine::match_url(input) {
+        return comicvine::resolve_messages(client, gallery).await;
     }
     if let Some(target) = dankefuerslesen::match_url(input) {
         return dankefuerslesen::resolve_messages(client, target).await;
@@ -1106,6 +1116,7 @@ mod tests {
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
             ("https://ahottie.top/albums/Album12", "ahottie"),
             ("https://foriio.com/works/12345", "foriio"),
+            ("https://comicvine.gamespot.com/covers/123-45/images/", "comicvine"),
             (
                 "https://danke.moe/read/manga/series/1/1/",
                 "dankefuerslesen",
