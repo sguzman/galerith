@@ -41,8 +41,9 @@ fn key(item: &MediaItem) -> String {
 
 /// The pinned gallery-dl directlink archive format is the category prefix
 /// followed by "{domain}/{path}/{filename}.{extension}". The upstream
-/// path field retains its leading slash; therefore keys typically contain
-/// two slashes following the domain. A signed query is not part of this key.
+/// path field starts after the leading URL slash, so nested paths retain
+/// one domain separator while root-level files have an empty path field.
+/// Signed URL query parameters do not contribute to this upstream key.
 /// Do not write these potentially sensitive plaintext path keys from Galerith.
 fn upstream_directlink_key(item: &MediaItem) -> Option<String> {
     if item.extractor != "directlink" {
@@ -60,10 +61,12 @@ fn upstream_directlink_key(item: &MediaItem) -> Option<String> {
         Some(port) => format!("{domain}:{port}"),
         None => domain.to_owned(),
     };
-    let decoded = percent_encoding::percent_decode_str(parsed.path())
+    // The upstream regex consumes the first '/' outside its path capture.
+    let url_path = parsed.path().strip_prefix('/')?;
+    let decoded = percent_encoding::percent_decode_str(url_path)
         .decode_utf8()
         .ok()?;
-    let (directory, name) = decoded.rsplit_once('/')?;
+    let (directory, name) = decoded.rsplit_once('/').unwrap_or(("", decoded.as_ref()));
     let (stem, ext) = name.rsplit_once('.')?;
     if stem.is_empty() || ext.is_empty() {
         return None;
@@ -358,7 +361,7 @@ mod tests {
         original
             .execute(
                 "INSERT INTO archive(entry) VALUES (?1)",
-                params!["directlinkexample.org//images/photo.jpg"],
+                params!["directlinkexample.org/images/photo.jpg"],
             )
             .unwrap();
         drop(original);
@@ -373,6 +376,12 @@ mod tests {
         assert!(archive.contains(&rotated).unwrap());
         let another = extract_direct_media("https://example.org/images/other.jpg").unwrap();
         assert!(!archive.contains(&another).unwrap());
+        assert_eq!(
+            upstream_directlink_key(
+                &extract_direct_media("https://example.org/photo.jpg?auth=rotated").unwrap()
+            ),
+            Some("directlinkexample.org//photo.jpg".to_owned())
+        );
         archive.record(&another).unwrap();
         assert!(archive.contains(&another).unwrap());
         let entries: i64 = archive
