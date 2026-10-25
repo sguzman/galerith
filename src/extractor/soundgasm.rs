@@ -18,7 +18,9 @@ pub enum Target {
 
 fn safe_name(name: &str) -> bool {
     (1..=120).contains(&name.len())
-        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
         && !name.contains("..")
 }
 
@@ -40,30 +42,39 @@ pub fn match_url(input: &str) -> Option<Target> {
         ["u" | "user", user, slug] | ["u" | "user", user, slug, ""]
             if safe_name(user) && safe_name(slug) =>
         {
-            Some(Target::Audio { user: (*user).into(), slug: (*slug).into() })
+            Some(Target::Audio {
+                user: (*user).into(),
+                slug: (*slug).into(),
+            })
         }
-        ["u" | "user", user] | ["u" | "user", user, ""]
-            if safe_name(user) =>
-        {
-            Some(Target::User { user: (*user).into() })
-        }
+        ["u" | "user", user] | ["u" | "user", user, ""] if safe_name(user) => Some(Target::User {
+            user: (*user).into(),
+        }),
         _ => None,
     }
 }
 
 fn capture<'a>(page: &'a str, before: &str, after: &str) -> Option<&'a str> {
-    page.split_once(before)?.1.split_once(after).map(|(body, _)| body)
+    page.split_once(before)?
+        .1
+        .split_once(after)
+        .map(|(body, _)| body)
 }
 
 fn strip_markup(raw: &str) -> String {
     let mut output = String::new();
     let mut in_tag = false;
     for ch in raw.chars() {
-        if ch == '<' { in_tag = true; }
-        else if ch == '>' { in_tag = false; }
-        else if !in_tag { output.push(ch); }
+        if ch == '<' {
+            in_tag = true;
+        } else if ch == '>' {
+            in_tag = false;
+        } else if !in_tag {
+            output.push(ch);
+        }
     }
-    output.replace("&amp;", "&")
+    output
+        .replace("&amp;", "&")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
         .trim()
@@ -85,14 +96,19 @@ fn media_link(input: &str) -> Option<(String, String)> {
     }
     let mut parts = url.path_segments()?;
     let filename = parts.next_back()?;
-    if filename.contains('%') || filename.contains("..") || filename.contains('\\')
+    if filename.contains('%')
+        || filename.contains("..")
+        || filename.contains('\\')
         || filename.is_empty()
     {
         return None;
     }
     let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
-    matches!(extension.as_str(), "mp3" | "m4a" | "ogg" | "wav" | "flac" | "aac")
-        .then(|| (url.to_string(), extension))
+    matches!(
+        extension.as_str(),
+        "mp3" | "m4a" | "ogg" | "wav" | "flac" | "aac"
+    )
+    .then(|| (url.to_string(), extension))
 }
 
 fn parse_audio(
@@ -107,13 +123,15 @@ fn parse_audio(
         return Err("Soundgasm public title is not a safe source value".into());
     }
     let description = capture(page, "class=\"jp-description\">", "</div>")
-        .map(strip_markup).unwrap_or_default();
+        .map(strip_markup)
+        .unwrap_or_default();
     if description.len() > 4096 || description.chars().any(char::is_control) {
         return Err("Soundgasm source description exceeds bounded field limits".into());
     }
     let formats = capture(page, "\"setMedia\", {", "}")
         .ok_or("Soundgasm page lacks a supported media source call")?;
-    let raw_url = formats.split_once(": \"")
+    let raw_url = formats
+        .split_once(": \"")
         .or_else(|| formats.split_once(":\""))
         .and_then(|(_, trailing)| trailing.split_once('"').map(|(url, _)| url))
         .ok_or("Soundgasm audio source has no bounded media URL")?;
@@ -136,24 +154,38 @@ fn parse_audio(
     meta.insert("title".into(), title.into());
     meta.insert("description".into(), description.into());
     meta.insert("extension".into(), extension.into());
-    meta.insert("post_url".into(), format!("https://soundgasm.net/u/{user}/{slug}").into());
+    meta.insert(
+        "post_url".into(),
+        format!("https://soundgasm.net/u/{user}/{slug}").into(),
+    );
     Ok((item, meta))
 }
 
-fn discover_user(
-    page: &str,
-    user: &str,
-) -> Vec<ExtractorMessage> {
+fn discover_user(page: &str, user: &str) -> Vec<ExtractorMessage> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     let base = Url::parse("https://soundgasm.net/").unwrap();
     for chunk in page.split("class=\"sound-details\">").skip(1).take(2400) {
-        if out.len() >= MAX_CHILDREN { break; }
-        let Some(anchor) = chunk.split_once("</a>").map(|(body, _)| body) else { continue };
-        let Some(href) = capture(anchor, "<a href=\"", "\"") else { continue };
+        if out.len() >= MAX_CHILDREN {
+            break;
+        }
+        let Some(anchor) = chunk.split_once("</a>").map(|(body, _)| body) else {
+            continue;
+        };
+        let Some(href) = capture(anchor, "<a href=\"", "\"") else {
+            continue;
+        };
         let Ok(url) = base.join(href) else { continue };
-        let Some(Target::Audio { user: found_user, slug }) = match_url(url.as_str()) else { continue };
-        if found_user != user || !seen.insert(slug.clone()) { continue };
+        let Some(Target::Audio {
+            user: found_user,
+            slug,
+        }) = match_url(url.as_str())
+        else {
+            continue;
+        };
+        if found_user != user || !seen.insert(slug.clone()) {
+            continue;
+        };
         let canonical = format!("https://soundgasm.net/u/{user}/{slug}");
         let mut meta = Metadata::new();
         meta.insert("category".into(), "soundgasm".into());
@@ -165,15 +197,15 @@ fn discover_user(
     out
 }
 
-async fn bounded_html(
-    client: &Client,
-    page: Url,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+async fn bounded_html(client: &Client, page: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     let mut response = client.get(page.clone()).send().await?.error_for_status()?;
     if response.url().origin() != page.origin() {
         return Err("Soundgasm public page redirected outside source origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_HTML as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_HTML as u64)
+    {
         return Err("Soundgasm public page exceeds HTML cap".into());
     }
     let mut bytes = Vec::new();
@@ -196,8 +228,13 @@ async fn at_base(
             let page = bounded_html(client, base.join(&format!("u/{user}/{slug}"))?).await?;
             let (item, metadata) = parse_audio(&page, &user, &slug)?;
             Ok(vec![
-                ExtractorMessage::Directory { metadata: metadata.clone() },
-                ExtractorMessage::Url { url: item.url, metadata },
+                ExtractorMessage::Directory {
+                    metadata: metadata.clone(),
+                },
+                ExtractorMessage::Url {
+                    url: item.url,
+                    metadata,
+                },
             ])
         }
         Target::User { user } => {
@@ -217,7 +254,9 @@ pub async fn resolve(
             let page = bounded_html(client, base.join(&format!("u/{user}/{slug}"))?).await?;
             Ok(vec![parse_audio(&page, &user, &slug)?.0])
         }
-        Target::User { .. } => Err("Soundgasm user pages require --dump-messages or --follow-queues".into()),
+        Target::User { .. } => {
+            Err("Soundgasm user pages require --dump-messages or --follow-queues".into())
+        }
     }
 }
 
@@ -231,7 +270,10 @@ pub async fn resolve_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn audio_fixture() -> &'static str {
         r#"<div aria-label="title">An &amp; Example</div><div class="jp-description">A <b>sample</b> sound</div><script>player("setMedia", {m4a: "https://media.soundgasm.net/sounds/example.m4a"});</script>"#
@@ -241,11 +283,16 @@ mod tests {
     fn accepts_pinned_user_and_sound_urls_only() {
         assert_eq!(
             match_url("https://soundgasm.net/u/alice/first"),
-            Some(Target::Audio { user: "alice".into(), slug: "first".into() })
+            Some(Target::Audio {
+                user: "alice".into(),
+                slug: "first".into()
+            })
         );
         assert_eq!(
             match_url("https://www.soundgasm.net/user/alice"),
-            Some(Target::User { user: "alice".into() })
+            Some(Target::User {
+                user: "alice".into()
+            })
         );
         for bad in [
             "https://fake-soundgasm.net/u/alice/first",
@@ -253,7 +300,9 @@ mod tests {
             "https://soundgasm.net/u/alice/%2e%2e",
             "https://name:pass@soundgasm.net/u/alice/first",
             "https://soundgasm.net:8443/u/alice/first",
-        ] { assert!(match_url(bad).is_none(), "{bad}"); }
+        ] {
+            assert!(match_url(bad).is_none(), "{bad}");
+        }
     }
 
     #[test]
@@ -284,7 +333,10 @@ mod tests {
         let server = tokio::spawn(async move {
             for (path, html) in [
                 ("/u/alice/first", audio_fixture()),
-                ("/user/alice", r#"<div class="sound-details"><a href="/u/alice/first">First</a></div>"#),
+                (
+                    "/user/alice",
+                    r#"<div class="sound-details"><a href="/u/alice/first">First</a></div>"#,
+                ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
                 let mut request = [0u8; 4096];
@@ -300,11 +352,30 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         assert_eq!(
-            at_base(&Client::new(), &base, Target::Audio { user: "alice".into(), slug: "first".into() }).await.unwrap().len(),
+            at_base(
+                &Client::new(),
+                &base,
+                Target::Audio {
+                    user: "alice".into(),
+                    slug: "first".into()
+                }
+            )
+            .await
+            .unwrap()
+            .len(),
             2
         );
         assert_eq!(
-            at_base(&Client::new(), &base, Target::User { user: "alice".into() }).await.unwrap().len(),
+            at_base(
+                &Client::new(),
+                &base,
+                Target::User {
+                    user: "alice".into()
+                }
+            )
+            .await
+            .unwrap()
+            .len(),
             1
         );
         server.await.unwrap();

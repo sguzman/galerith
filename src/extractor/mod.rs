@@ -248,7 +248,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
     ),
     ("speakerdeck", "public presentation slide images via oEmbed"),
     ("slideshare", "public Next.js presentation slide images"),
-    ("soundgasm", "public audio originals and bounded user discovery"),
+    (
+        "soundgasm",
+        "public audio originals and bounded user discovery",
+    ),
     ("silverpic", "pinned public Silverpic original-image subset"),
     (
         "telegraph",
