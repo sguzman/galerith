@@ -999,9 +999,14 @@
     {
       "path": "gallery_dl/extractor/jschan.py",
       "module": "jschan",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/jschan.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent bounded pinned public 94chan Jschan subset: exact first-party thread and catalog routes, trusted thread JSON originals and source-backed post ID, attachment number and original filename, bounded 2 MiB JSON, 256 posts / 160 attachments / 128 board queue targets, dedup and two-request loopback HTTP regression. Strict route/adversarial filename fixtures and complete Rust formatting/Clippy/tests/release and pinned directlink oracle CI 40211638711 passed. Full templates, additional board instances and live upstream differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/kabeuchi.py",

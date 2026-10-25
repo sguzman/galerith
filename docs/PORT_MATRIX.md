@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 72 · Not ported: 200.**
+**Complete: 0 · Partial: 73 · Not ported: 199.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -113,7 +113,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/itchio.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/iwara.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/joyreactor.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/jschan.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/jschan.py` | 🟡 Partial | `src/extractor/jschan.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/kabeuchi.py` | 🟡 Partial | `src/extractor/kabeuchi.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/kaliscan.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/keenspot.py` | 🟡 Partial | `src/extractor/keenspot.rs`, `src/extractor/mod.rs` |

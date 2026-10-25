@@ -4541,6 +4541,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T599",
+              "emoji": "🧵",
+              "name": "Jschan 94chan public thread originals and board JSON queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned 94chan public thread and board/catalog URLs with strict origin, ID, board and query validation",
+                  "passed": true,
+                  "evidence": "src/extractor/jschan.rs pinned_thread_and_board_paths_are_scoped; full Rust CI 40211638711"
+                },
+                {
+                  "title": "Decode source JSON thread root/replies in order, preserve post/thread/source attachment identities and original filenames",
+                  "passed": true,
+                  "evidence": "src/extractor/jschan.rs thread_media_records_keep_post_identity_and_attachment_order; CI 40211638711"
+                },
+                {
+                  "title": "Emit bounded deduplicated typed child thread queues from public board catalog JSON without eager media downloads",
+                  "passed": true,
+                  "evidence": "src/extractor/jschan.rs catalog_queues_are_deferred_unique_canonical_threads; CI 40211638711"
+                },
+                {
+                  "title": "Enforce 2 MiB JSON limits, 256-post/160-media/128-catalog caps, first-party API scope and two-request loopback thread/catalog fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/jschan.rs public_thread_and_board_json_use_bounded_loopback_http; src/extractor/mod.rs registered; full CI 40211638711"
+                },
+                {
+                  "title": "Match complete board/site variants, original filename and archive/directory templates, all post data and large-thread pagination, and live pinned upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

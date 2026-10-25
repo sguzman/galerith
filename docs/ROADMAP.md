@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 156 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 157 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -877,6 +877,12 @@
   - [x] Resolve bounded per-image HTML into validated public HTTP(S) original URLs as typed deferred child queues, not eager files — src/extractor/urlgalleries.rs trusted_external, at_base and bounded_public_gallery_and_image_pages_emit_typed_original_queues; CI 40210181020
   - [x] Enforce 2 MiB source page HTML/48-queue cap, request pacing and URL origin restrictions in three-request loopback HTTP fixture and native dispatcher — src/extractor/urlgalleries.rs bounded_public_gallery_and_image_pages_emit_typed_original_queues; src/extractor/mod.rs dispatcher; full CI 40210181020
   - [ ] Reproduce unrestricted full original media delegation, complete gallery metadata/tags/archive/naming, all blog/gallery layouts and live pinned differential parity
+- 🧵 **T599** Jschan 94chan public thread originals and board JSON queues — `████████░░ 80%`
+  - [x] Match pinned 94chan public thread and board/catalog URLs with strict origin, ID, board and query validation — src/extractor/jschan.rs pinned_thread_and_board_paths_are_scoped; full Rust CI 40211638711
+  - [x] Decode source JSON thread root/replies in order, preserve post/thread/source attachment identities and original filenames — src/extractor/jschan.rs thread_media_records_keep_post_identity_and_attachment_order; CI 40211638711
+  - [x] Emit bounded deduplicated typed child thread queues from public board catalog JSON without eager media downloads — src/extractor/jschan.rs catalog_queues_are_deferred_unique_canonical_threads; CI 40211638711
+  - [x] Enforce 2 MiB JSON limits, 256-post/160-media/128-catalog caps, first-party API scope and two-request loopback thread/catalog fixtures — src/extractor/jschan.rs public_thread_and_board_json_use_bounded_loopback_http; src/extractor/mod.rs registered; full CI 40211638711
+  - [ ] Match complete board/site variants, original filename and archive/directory templates, all post data and large-thread pagination, and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
