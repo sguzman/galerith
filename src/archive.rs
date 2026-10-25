@@ -72,6 +72,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if is_e621_favorite_category(category) && canonical_favorite_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if is_booru_pool_category(category) && canonical_tag_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -98,12 +101,29 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
                 || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
-                || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare)))
+                || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare))
+                || (is_booru_pool_category(category) && canonical_tag_archive_suffix(bare)))
         {
             return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn canonical_tag_archive_suffix(suffix: &str) -> bool {
+    let Some((tags, id)) = suffix
+        .strip_prefix("t_")
+        .and_then(|rest| rest.rsplit_once('_'))
+    else {
+        return false;
+    };
+    if tags.len() > 1024 || tags.chars().any(char::is_control) {
+        return false;
+    }
+    let Ok(post) = id.parse::<u64>() else {
+        return false;
+    };
+    post > 0 && suffix == format!("t_{tags}_{post}")
 }
 
 fn is_e621_favorite_category(category: &str) -> bool {
@@ -300,9 +320,49 @@ fn e621_favorite(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     Some((user?, post))
 }
 
+/// Pinned DanbooruTagExtractor and E621TagExtractor use
+/// t_{search_tags}_{id}. Require an explicit, unique tags parameter and
+/// only source paths that those exact extractor classes recognize.
+fn booru_tag_search(item: &MediaItem, source_url: &str) -> Option<String> {
+    if !is_booru_pool_category(item.extractor) || item.post_id.is_none_or(|id| id == 0) {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    match (item.extractor, source.host_str()?, source.path()) {
+        ("danbooru", "danbooru.donmai.us", "/posts")
+        | ("e621", "e621.net", "/posts")
+        | ("e621", "e621.net", "/post")
+        | ("e926", "e926.net", "/posts")
+        | ("e926", "e926.net", "/post")
+        | ("e6ai", "e6ai.net", "/posts")
+        | ("e6ai", "e6ai.net", "/post") => {}
+        _ => return None,
+    }
+    let mut found = None;
+    for (name, value) in source.query_pairs() {
+        if name == "tags" {
+            if found.is_some() {
+                return None;
+            }
+            let tags = value.into_owned();
+            if tags.len() > 1024 || tags.chars().any(char::is_control) {
+                return None;
+            }
+            found = Some(tags);
+        }
+    }
+    found
+}
+
 /// Scoped identity unifies native archive records, advisory locks and
-/// read-only upstream lookup for verified posts, pools, favorite groups
-/// and account-specific e621-family favorites.
+/// read-only upstream lookup for verified posts, pools, favorite groups,
+/// tag searches and account-specific e621-family favorites.
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
@@ -319,10 +379,17 @@ fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
             format!("danboorufg_{group}_{post}"),
         ));
     }
-    let (user, post) = e621_favorite(item, source_url)?;
+    if let Some((user, post)) = e621_favorite(item, source_url) {
+        return Some((
+            format!("favorite-user-id:{user}:post-id:{post}"),
+            format!("{}f_{user}_{post}", item.extractor),
+        ));
+    }
+    let tags = booru_tag_search(item, source_url)?;
+    let normalized = format!("{}t_{tags}_{}", item.extractor, item.post_id?);
     Some((
-        format!("favorite-user-id:{user}:post-id:{post}"),
-        format!("{}f_{user}_{post}", item.extractor),
+        format!("tag-sha256:{}", archive_key_digest(&normalized)),
+        normalized,
     ))
 }
 
