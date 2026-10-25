@@ -415,7 +415,10 @@ async fn at_base(
         } else {
             events.extend(article_events(&body, host, path)?);
         }
-        if is_entry || events.len() > MAX_CHILDREN * 2 {
+        if events.len() > MAX_MEDIA * 2 {
+            return Err("Hatena Blog listing exceeds total media event cap".into());
+        }
+        if is_entry || queues.len() >= MAX_CHILDREN {
             break;
         }
         let Some(next) = next_page(&body, &endpoint) else {
