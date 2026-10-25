@@ -176,6 +176,17 @@ fn original(raw: &str, base: &Url) -> Option<(Url, String)> {
 }
 
 fn source_entry_url(host: &str, raw: &str) -> Option<Url> {
+    // Validate the unnormalized input too: Url::join would remove raw
+    // dot-segments before the canonical entry-path check.
+    let lower = raw.to_ascii_lowercase();
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|part| lower.contains(part))
+        || lower.ends_with("/.")
+        || lower.ends_with("/..")
+    {
+        return None;
+    }
     let base = Url::parse(&format!("https://{host}/")).ok()?;
     let url = base.join(raw).ok()?;
     (url.origin() == base.origin()
@@ -256,7 +267,6 @@ fn article_events(
     fallback: &str,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let mut events = Vec::new();
-    let mut seen = HashSet::new();
     let mut rest = page;
     while let Some((_, tail)) = rest.split_once("<article ") {
         let Some((attrs, following)) = tail.split_once('>') else {
@@ -269,6 +279,9 @@ fn article_events(
         if attrs.contains("no-entry") {
             continue;
         }
+        // Preserve independently published images even when two posts
+        // reference the same original. Only deduplicate inside each article.
+        let mut seen = HashSet::new();
         for (file, meta) in image_records(body, host, fallback, &mut seen) {
             if events.len() / 2 >= MAX_MEDIA {
                 return Err("Hatena Blog page exceeds bounded public media count".into());
@@ -566,6 +579,34 @@ mod tests {
             serde_json::to_value(&queues[0]).unwrap()["url"],
             "https://author.hatenablog.com/entry/2026/10/25/first"
         );
+    }
+
+    #[test]
+    fn source_entry_queues_reject_raw_traversal_before_url_normalization() {
+        let host = "author.hatenablog.com";
+        for raw in [
+            "/entry/2026/../2025/first",
+            "/entry/2026/%2e%2e/2025/first",
+            "/entry/2026/%2fsecret",
+            "/entry/2026/.",
+            "https://evil-hatenablog.com/entry/2026/first",
+            "https://author.hatenablog.com/entry/2026/first?secret=1",
+        ] {
+            assert!(source_entry_url(host, raw).is_none(), "{raw}");
+        }
+        assert!(source_entry_url(host, "/entry/2026/10/25/first").is_some());
+    }
+
+    #[test]
+    fn full_article_listing_keeps_distinct_posts_sharing_a_media_original() {
+        let page = r#"<article class="entry"><a href="/entry/2026/10/25/first">First</a><div class="entry-content hatenablog-entry"><img class="hatena-fotolife" src="https://cdn-ak.f.st-hatena.com/shared.jpg"></div></article><article class="entry"><a href="/entry/2026/10/25/second">Second</a><div class="entry-content hatenablog-entry"><img class="hatena-fotolife" src="https://cdn-ak.f.st-hatena.com/shared.jpg"></div></article>"#;
+        let events = article_events(page, "author.hatenablog.com", "/").unwrap();
+        assert_eq!(events.len(), 4);
+        let first = serde_json::to_value(&events[1]).unwrap();
+        let second = serde_json::to_value(&events[3]).unwrap();
+        assert_eq!(first["metadata"]["entry"], "2026/10/25/first");
+        assert_eq!(second["metadata"]["entry"], "2026/10/25/second");
+        assert_eq!(first["url"], second["url"]);
     }
 
     #[tokio::test]
