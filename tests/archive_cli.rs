@@ -71,6 +71,86 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
 }
 
 #[test]
+fn failed_download_never_creates_an_archive_hit_but_later_retry_does() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        for (status, body) in [
+            ("503 Service Unavailable", b"ERROR".as_slice()),
+            ("200 OK", b"PASS".as_slice()),
+        ] {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            let count = socket.read(&mut request).unwrap();
+            assert!(count > 0);
+            assert!(String::from_utf8_lossy(&request[..count]).contains("/retry.jpg"));
+            let headers = format!(
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.write_all(headers.as_bytes()).unwrap();
+            socket.write_all(body).unwrap();
+        }
+    });
+    let dir = temp("failed-then-success");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let url = format!("http://{addr}/retry.jpg");
+    let args = [
+        "-d".to_owned(),
+        dir.to_string_lossy().into_owned(),
+        "--download-archive".to_owned(),
+        db.to_string_lossy().into_owned(),
+        "--retries".to_owned(),
+        "0".into(),
+        url,
+    ];
+    let failed = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(&args)
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    assert!(!dir.join("retry.jpg").exists());
+    let zero: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(zero, 0, "failed HTTP status must not be archived");
+
+    let succeeded = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(&args)
+        .output()
+        .unwrap();
+    assert!(
+        succeeded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&succeeded.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("retry.jpg")).unwrap(), b"PASS");
+    let one: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(one, 1);
+
+    fs::remove_file(dir.join("retry.jpg")).unwrap();
+    let archived = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(&args)
+        .output()
+        .unwrap();
+    assert!(
+        archived.status.success(),
+        "{}",
+        String::from_utf8_lossy(&archived.stderr)
+    );
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived retry.jpg"));
+    assert!(!dir.join("retry.jpg").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn extraction_only_modes_do_not_create_archive_database() {
     let dir = temp("dry-run");
     let _ = fs::remove_dir_all(&dir);
