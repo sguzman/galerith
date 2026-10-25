@@ -165,7 +165,8 @@ fn decode_work(
         } else {
             file.pointer("/urls/list").and_then(Value::as_str)
         };
-        let (url, ext) = source.and_then(original)
+        let (url, ext) = source
+            .and_then(original)
             .ok_or("Foriio image URL is not a trusted source thumbnail")?;
         let file_id = file
             .get("id")
