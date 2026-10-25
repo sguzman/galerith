@@ -409,3 +409,24 @@ fn pinned_e621_family_favorite_archive_template_includes_user_id() {
         "f_{user_id}_{id}|{id}|p_{pool[id]}_{id}"
     );
 }
+
+#[test]
+fn pinned_tag_extractors_use_full_query_in_archive_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for tag archive oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.danbooru import DanbooruTagExtractor,DanbooruPostExtractor; from gallery_dl.extractor.e621 import E621TagExtractor; print('|'.join((DanbooruTagExtractor.archive_fmt,DanbooruPostExtractor.archive_fmt,E621TagExtractor.archive_fmt)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned tag archive templates").trim(),
+        "t_{search_tags}_{id}|{id}|t_{search_tags}_{id}"
+    );
+}
