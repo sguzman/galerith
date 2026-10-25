@@ -16,7 +16,6 @@ const MAX_FILE_PER_POST: usize = 12;
 const MAX_CATALOG: usize = 128;
 type MediaRecords = Vec<(MediaItem, Metadata)>;
 
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Target {
     Thread { board: String, id: u64 },
