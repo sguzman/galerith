@@ -326,3 +326,24 @@ fn pinned_danbooru_e621_post_archive_templates_differ_from_feeds() {
         "{id}|t_{search_tags}_{id}|p_{pool[id]}_{id}|{id}|t_{search_tags}_{id}|f_{user_id}_{id}"
     );
 }
+
+#[test]
+fn pinned_direct_post_categories_match_source_sites() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for category differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://danbooru.donmai.us/posts/123', 'https://e621.net/posts/234', 'https://e926.net/posts/345', 'https://e6ai.net/posts/456'); print('|'.join(f'{ex.category}:{ex.archive_fmt}' for ex in (extractor.find(url) for url in urls)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned source site categories").trim(),
+        "danbooru:{id}|e621:{id}|e926:{id}|e6ai:{id}"
+    );
+}

@@ -1279,10 +1279,8 @@ mod tests {
 
     #[test]
     fn corrected_e926_category_keeps_exact_legacy_downloads() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-e926-category-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-e926-category-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
