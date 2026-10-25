@@ -1449,8 +1449,7 @@ mod tests {
 
     #[test]
     fn pool_native_keys_do_not_collide_with_post_or_feed_keys() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-pool-scope-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-pool-scope-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
@@ -1487,7 +1486,14 @@ mod tests {
         };
         assert!(!archive.contains_for_source(&other_post, pool).unwrap());
         assert!(canonical_pool_archive_suffix("p_42_88"));
-        for invalid in ["p_0_88", "p_42_0", "p_042_88", "p_42_088", "p_42_88_9", "t_dog_88"] {
+        for invalid in [
+            "p_0_88",
+            "p_42_0",
+            "p_042_88",
+            "p_42_088",
+            "p_42_88_9",
+            "t_dog_88",
+        ] {
             assert!(!canonical_pool_archive_suffix(invalid));
         }
         drop(archive);
@@ -1593,9 +1599,13 @@ mod tests {
             .unwrap());
         drop(ambiguous);
         let target = root.join("target.sqlite");
-        let correct =
-            Archive::open_with_reference_options(&target, Some(&original), Some("named"), Some("e621"))
-                .unwrap();
+        let correct = Archive::open_with_reference_options(
+            &target,
+            Some(&original),
+            Some("named"),
+            Some("e621"),
+        )
+        .unwrap();
         assert_eq!(correct.import_reference().unwrap(), (1, 1));
         assert!(correct
             .contains_for_source(&item, "https://e621.net/pools/42")
