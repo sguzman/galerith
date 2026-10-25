@@ -302,6 +302,13 @@ fn is_moebooru_category(category: &str) -> bool {
     )
 }
 
+fn category_uses_source_scoped_ids(category: &str) -> bool {
+    is_booru_pool_category(category)
+        || is_moebooru_category(category)
+        || is_gelbooru_category(category)
+        || category == "wallhaven"
+}
+
 fn is_booru_pool_category(category: &str) -> bool {
     matches!(category, "danbooru" | "e621" | "e926" | "e6ai")
 }
@@ -1296,13 +1303,33 @@ impl Archive {
 
     /// Source-aware skip check for only the verified direct-post format.
     /// Never treat a feed/pool/favorite entry as a plain post archive key.
+    /// Legacy URL-only rows cannot prove which extractor class/source owned
+    /// a download once any stable, source-scoped identity exists in that
+    /// category. Prefer a harmless retry over falsely skipping another feed.
+    fn has_scoped_history(&self, category: &str) -> Result<bool, rusqlite::Error> {
+        if !category_uses_source_scoped_ids(category) {
+            return Ok(false);
+        }
+        let count: i64 = self.connection.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM downloads
+                WHERE category = ?1
+                  AND identity NOT LIKE 'url-sha256:%'
+                  AND identity NOT LIKE 'post:%:url-sha256:%'
+            )",
+            params![category],
+            |row| row.get(0),
+        )?;
+        Ok(count != 0)
+    }
+
     pub fn contains_for_source(
         &self,
         item: &MediaItem,
         source_url: &str,
     ) -> Result<bool, rusqlite::Error> {
         let Some((stable_key, normalized)) = verified_archive_scope(item, source_url) else {
-            if self.contains(item)? {
+            if !self.has_scoped_history(item.extractor)? && self.contains(item)? {
                 return Ok(true);
             }
             // Old builds mislabeled e926 source downloads as e621 even for
@@ -1315,7 +1342,7 @@ impl Archive {
                         && source.username().is_empty()
                         && source.password().is_none()
                 });
-                if verified {
+                if verified && !self.has_scoped_history("e621")? {
                     let old: i64 = self.connection.query_row(
                         "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = 'e621' AND identity = ?1)",
                         params![legacy_url_key(item)],
@@ -1337,16 +1364,18 @@ impl Archive {
         if recorded != 0 {
             return Ok(true);
         }
-        if self.contains(item)? {
-            // A prior exact source-URL hash proves the same media was
-            // downloaded. Promote it for future direct-post CDN rotations.
+        if !self.has_scoped_history(item.extractor)? && self.contains(item)? {
+            // Only a purely URL-hash-only historical category proves that
+            // the exact original was saved with unknown source provenance.
+            // Mixed native source-scoped categories are ambiguous. Do not
+            // infer that a match in one pool/search belongs to another.
             self.connection.execute(
                 "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
                 params![item.extractor, stable_key],
             )?;
             return Ok(true);
         }
-        if item.extractor == "e926" {
+        if item.extractor == "e926" && !self.has_scoped_history("e621")? {
             // Before correcting the pinned site category, Galerith recorded
             // e926 under e621. An EXACT original URL digest is proof that
             // the media was downloaded, unlike an ambiguous post-only key.
@@ -1409,8 +1438,10 @@ impl Archive {
         Ok(false)
     }
 
-    /// Preserve direct-post stable identity only after an accepted file
-    /// event, while keeping old URL-hash archive rows compatible.
+    /// A successful source-scoped download writes only its verified archive
+    /// identity. Writing a bare media-URL fingerprint too would incorrectly
+    /// suppress the same URL in a different search, pool or upload owner.
+    /// Historical URL-only rows remain readable when provenance is unambiguous.
     pub fn record_for_source(
         &self,
         item: &MediaItem,
@@ -1419,16 +1450,11 @@ impl Archive {
         let Some((stable_key, _)) = verified_archive_scope(item, source_url) else {
             return self.record(item);
         };
-        let transaction = self.connection.unchecked_transaction()?;
-        transaction.execute(
-            "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
-            params![item.extractor, key(item)],
-        )?;
-        transaction.execute(
+        self.connection.execute(
             "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
             params![item.extractor, stable_key],
         )?;
-        transaction.commit()
+        Ok(())
     }
 
     /// Call only after a successful download and completion rename. Merely
@@ -2128,7 +2154,7 @@ mod tests {
             .unwrap());
         assert!(archive.contains_for_source(&media, feed).unwrap());
         assert!(archive.contains_for_source(&rotated, feed).unwrap());
-        assert!(archive.contains(&media).unwrap());
+        assert!(archive.contains_for_source(&media, feed).unwrap());
         let native: i64 = archive
             .connection
             .query_row(
@@ -2137,7 +2163,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(native, 2);
+        assert_eq!(native, 1);
         drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
@@ -3712,6 +3738,100 @@ mod tests {
         assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
         worker.join().unwrap();
         drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn exact_same_media_url_in_different_scopes_cannot_false_skip() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-scope-collision-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("archive.sqlite");
+        let first = MediaItem {
+            url: "https://cdn.example.net/88.jpg".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let pool = "https://e621.net/pools/77";
+        let other_pool = "https://e621.net/pools/78";
+        let tag = "https://e621.net/posts?tags=wolf";
+        let archive = Archive::open(&db).unwrap();
+        archive.record_for_source(&first, pool).unwrap();
+        assert!(archive.contains_for_source(&first, pool).unwrap());
+        assert!(!archive.contains_for_source(&first, other_pool).unwrap());
+        assert!(!archive.contains_for_source(&first, tag).unwrap());
+        assert!(!archive
+            .contains_for_source(&first, "https://e621.net/posts/88")
+            .unwrap());
+        assert!(!archive.contains(&first).unwrap());
+        archive.record_for_source(&first, tag).unwrap();
+        assert!(archive.contains_for_source(&first, tag).unwrap());
+        assert!(!archive.contains_for_source(&first, other_pool).unwrap());
+        let count: i64 = archive
+            .connection
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2, "source-scoped records cannot create URL-only keys");
+        drop(archive);
+
+        let wallpaper = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg".into(),
+            filename: "wallhaven-94x38z.jpg".into(),
+            extractor: "wallhaven",
+            post_id: None,
+        };
+        let reopened = Archive::open(&db).unwrap();
+        let search = "https://wallhaven.cc/search?q=blue+sky";
+        reopened.record_for_source(&wallpaper, search).unwrap();
+        assert!(reopened.contains_for_source(&wallpaper, search).unwrap());
+        assert!(!reopened
+            .contains_for_source(&wallpaper, "https://wallhaven.cc/search?q=blue+moon")
+            .unwrap());
+        assert!(!reopened
+            .contains_for_source(&wallpaper, "https://wallhaven.cc/user/someone/uploads")
+            .unwrap());
+        drop(reopened);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn old_mixed_scope_archive_fails_safe_without_promoting_url_hash() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-ambiguous-scope-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.example.org/99.jpg".into(),
+            filename: "99.jpg".into(),
+            extractor: "danbooru",
+            post_id: Some(99),
+        };
+        archive
+            .connection
+            .execute(
+                "INSERT INTO downloads(category, identity) VALUES (?1, ?2)",
+                params![media.extractor, key(&media)],
+            )
+            .unwrap();
+        assert!(archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/posts/99")
+            .unwrap());
+        // Older releases wrote BOTH stable and URL-hash rows for a completed
+        // scoped file. The URL-only key is now ambiguous across source classes.
+        let another = MediaItem {
+            url: "https://cdn.example.org/101.jpg".into(),
+            filename: "101.jpg".into(),
+            post_id: Some(101),
+            ..media.clone()
+        };
+        archive.record_for_source(&another, "https://danbooru.donmai.us/posts/101").unwrap();
+        assert!(!archive
+            .contains_for_source(&media, "https://danbooru.donmai.us/posts?tags=cat")
+            .unwrap());
+        drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
 
