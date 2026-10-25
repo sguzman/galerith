@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 158 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 68%` across 159 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -889,6 +889,12 @@
   - [x] Generate deduplicated, typed same-user deferred post queues while rejecting foreign links and forged Next-page hosts — src/extractor/fapachi.rs listing_queues_first_seen_same_user_original_posts; CI 40212411120
   - [x] Enforce 2 MiB HTML, four user pages, 128 child queues and one-second page pacing with three-request post/two-page HTTP regression — src/extractor/fapachi.rs bounded_post_and_two_user_pages_use_three_loopback_gets; src/extractor/mod.rs routed fixture; full CI 40212411120
   - [ ] Match complete upstream filename/directory/archive modes and post metadata, unlimited user history, other media/CDN layouts and live differential parity
+- 📸 **T604** Fapello public posts and bounded model/path discovery — `████████░░ 80%`
+  - [x] Route .com/.su public original posts, model lists and pinned ranked/trending paths with strict origins and validated IDs — src/extractor/fapello.rs matches_pinned_com_su_posts_model_and_discovery_paths; CI 40216126190
+  - [x] Extract trusted image/video original URLs with numeric post ID, model, media type, extension and optional poster — src/extractor/fapello.rs post_original_video_photo_and_thumbnail_variants_are_scoped; CI 40216126190
+  - [x] Emit canonical first-party model/section deferred queues with stable duplicate suppression and traversal checks — src/extractor/fapello.rs bounded_ajax_discovery_deduplicates_first_party_model_posts_and_scopes_paths; CI 40216126190
+  - [x] Limit source HTML to 2 MiB and listing discovery to 4 pages/128 children with paced real three-request HTTP fixture — src/extractor/fapello.rs original_and_two_ajax_page_requests_are_bounded_in_local_fixture, src/extractor/mod.rs routed; full CI 40216126190
+  - [ ] Reproduce complete pinned source markup/metadata, output/archive formats, unbounded paging, and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

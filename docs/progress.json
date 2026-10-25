@@ -4605,6 +4605,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T604",
+              "emoji": "📸",
+              "name": "Fapello public posts and bounded model/path discovery",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route .com/.su public original posts, model lists and pinned ranked/trending paths with strict origins and validated IDs",
+                  "passed": true,
+                  "evidence": "src/extractor/fapello.rs matches_pinned_com_su_posts_model_and_discovery_paths; CI 40216126190"
+                },
+                {
+                  "title": "Extract trusted image/video original URLs with numeric post ID, model, media type, extension and optional poster",
+                  "passed": true,
+                  "evidence": "src/extractor/fapello.rs post_original_video_photo_and_thumbnail_variants_are_scoped; CI 40216126190"
+                },
+                {
+                  "title": "Emit canonical first-party model/section deferred queues with stable duplicate suppression and traversal checks",
+                  "passed": true,
+                  "evidence": "src/extractor/fapello.rs bounded_ajax_discovery_deduplicates_first_party_model_posts_and_scopes_paths; CI 40216126190"
+                },
+                {
+                  "title": "Limit source HTML to 2 MiB and listing discovery to 4 pages/128 children with paced real three-request HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/fapello.rs original_and_two_ajax_page_requests_are_bounded_in_local_fixture, src/extractor/mod.rs routed; full CI 40216126190"
+                },
+                {
+                  "title": "Reproduce complete pinned source markup/metadata, output/archive formats, unbounded paging, and live upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

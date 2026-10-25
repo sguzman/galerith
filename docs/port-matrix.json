@@ -568,9 +568,14 @@
     {
       "path": "gallery_dl/extractor/fapello.py",
       "module": "fapello",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/fapello.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded Fapello .com/.su post originals and model/path queues: source image/video metadata, first-party trusted media URLs, raw pre-normalization traversal rejection, 2 MiB HTML cap, 4 listing pages/128 children, first-seen canonical deduplication, one-second pacing, public 3-request HTTP fixture. Full CI 40216126190 passed after correcting 2 initially failing route/traversal tests; full source variants, output naming/archive and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/fikfap.py",
