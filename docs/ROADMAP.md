@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 68%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 69%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `█████░░░░░ 54%`
+## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 57%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `██████░░░░ 58%`
+### 📡 P2 — HTTP transfer engine — `██████░░░░ 63%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -64,10 +64,10 @@
   - [ ] Honor Retry-After and timing policies
   - [ ] Implement per-host and global pacing
   - [x] Verify HTTP 429/5xx fixture matrix — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-- ⏯️ **T203** Resume, partial files and atomic completion — `████████░░ 75%`
+- ⏯️ **T203** Resume, partial files and atomic completion — `██████████ 100%`
   - [x] Write to .part then rename — src/download.rs
   - [x] Implement Range-based resumes — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-  - [ ] Preserve metadata/mtime, validate lengths
+  - [x] Preserve metadata/mtime, validate lengths — src/download.rs preserves validated HTTP Last-Modified as output mtime after successful atomic rename, including resumed 206 responses; tests/download_http.rs keeps_valid_http_last_modified_as_output_mtime and tests/download_resume.rs persists_verified_partial_across_invocations; body/total lengths already validated; full Linux CI 40218907724
   - [x] Pass interruption and collision tests — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 - 🔌 **T204** HTTP configuration and proxy parity — `███░░░░░░░ 25%`
   - [x] Set request timeout — src/main.rs
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
 
-### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 50%`
+### 🗃️ P3 — Paths, archive and persistence — `█████░░░░░ 52%`
 
 - 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -93,8 +93,9 @@
   - [ ] Platform filename rules and normalization
   - [ ] Reference-compatible filesystem tests
   - [x] Verify safe named-field, escaped brace and ID-width format subset — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418
-- 🧾 **T302** SQLite archive, cache and duplicate rules — `███░░░░░░░ 25%`
+- 🧾 **T302** SQLite archive, cache and duplicate rules — `████░░░░░░ 40%`
   - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)
+  - [x] Keep multiple originals with the same source post ID distinct without storing signed URLs, and fail safe for ambiguous legacy post-only records — src/archive.rs multiple_originals_sharing_a_post_id_are_not_suppressed and legacy_post_only_keys_do_not_falsely_suppress_other_media; full Linux CI 40218601459
   - [ ] Archive ID semantics across extractors
   - [ ] Cache expiry/locking/recovery
   - [ ] Migration and retry fixtures
