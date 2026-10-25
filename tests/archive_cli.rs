@@ -472,8 +472,8 @@ fn offline_import_respects_selected_custom_foreign_table() {
     let source = rusqlite::Connection::open(&foreign).unwrap();
     source
         .execute_batch(
-            "CREATE TABLE \\"stored items\\" (entry TEXT PRIMARY KEY) WITHOUT ROWID;
-             INSERT INTO \\"stored items\\" (entry) VALUES ('directlinkexample.org/item.jpg');",
+            "CREATE TABLE \"stored items\" (entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO \"stored items\" (entry) VALUES ('directlinkexample.org/item.jpg');",
         )
         .unwrap();
     drop(source);

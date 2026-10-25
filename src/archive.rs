@@ -131,7 +131,7 @@ fn upstream_directlink_key(item: &MediaItem) -> Option<String> {
 
 /// Quote a SQLite table identifier; never interpolate an unquoted user value.
 fn archive_table_identifier(name: &str) -> String {
-    format!("\\\"{}\\\"", name.replace('"', "\\\"\\\""))
+    format!("\"{}\"", name.replace('"', "\"\""))
 }
 
 fn has_upstream_table(connection: &Connection, name: &str) -> Result<bool, rusqlite::Error> {
@@ -643,7 +643,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
         let reference = root.join("source.sqlite");
-        let custom = "my \\"quoted\\" archive";
+        let custom = "my \"quoted\" archive";
         let source = Connection::open(&reference).unwrap();
         let sql = format!(
             "CREATE TABLE {}(entry TEXT PRIMARY KEY) WITHOUT ROWID;",
