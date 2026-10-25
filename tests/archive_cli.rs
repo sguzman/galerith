@@ -167,8 +167,7 @@ fn failed_download_is_not_archived_and_can_be_retried_on_next_invocation() {
         for response in [
             b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 .as_slice(),
-            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS"
-                .as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPASS".as_slice(),
         ] {
             let (mut socket, _) = listener.accept().unwrap();
             let mut buffer = [0u8; 1024];
