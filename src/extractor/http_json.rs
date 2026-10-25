@@ -65,6 +65,73 @@ mod tests {
     };
 
     #[tokio::test]
+    async fn shared_reader_uses_opt_in_pool_cache_without_network() {
+        let path = std::env::temp_dir()
+            .join(format!("galerith-reader-cache-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let cache = crate::cache::Cache::open(&path, 300).unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/88.json").unwrap();
+        cache
+            .fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[88,89]}))
+            })
+            .await
+            .unwrap();
+        // Explicit localhost proxy prevents outgoing requests. A cached hit
+        // through the actual shared extractor reader must still succeed.
+        let client = Client::builder()
+            .proxy(reqwest::Proxy::all("http://127.0.0.1:1").unwrap())
+            .timeout(std::time::Duration::from_millis(200))
+            .build()
+            .unwrap();
+        let hit = cache
+            .clone()
+            .scope(fetch_json_limited(&client, endpoint.clone(), 1024))
+            .await
+            .unwrap();
+        assert_eq!(hit["post_ids"][1], 89);
+        assert!(fetch_json_limited(&client, endpoint, 1024).await.is_err());
+        drop(cache);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn uncached_http_reader_exposes_redirect_destination() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (expected, reply) in [
+                (
+                    "/initial",
+                    "HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                ),
+                (
+                    "/final",
+                    "HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\n{\"post_ids\":[88]}",
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 1024];
+                let n = socket.read(&mut bytes).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&bytes[..n]).contains(expected),
+                    "unexpected request route"
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let start = Url::parse(&format!("http://{address}/initial")).unwrap();
+        let (value, final_url) =
+            fetch_json_uncached_with_final_url(&Client::new(), start.clone(), 128)
+                .await
+                .unwrap();
+        assert_eq!(value["post_ids"][0], 88);
+        assert_ne!(start, final_url);
+        assert_eq!(final_url.path(), "/final");
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn parses_small_json_within_limit() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
