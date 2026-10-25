@@ -352,7 +352,9 @@ fn next_page(html: &str, current: &Url) -> Option<Url> {
     let raw = text_between(html, " class=\"pager-next\">", "</a>")?;
     let href = text_between(raw, "<a href=\"", "\"")?;
     let lower = href.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|v| lower.contains(v))
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|v| lower.contains(v))
         || lower.ends_with("/..")
         || lower.ends_with("/.")
     {
