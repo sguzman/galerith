@@ -198,6 +198,77 @@ fn source_entry_url(host: &str, raw: &str) -> Option<Url> {
     .then_some(url)
 }
 
+/// Preserve source RFC3339 timezone information, but never normalize
+/// an impossible Gregorian calendar date or fabricate a missing zone.
+fn source_iso_date(raw: &str) -> Option<String> {
+    if raw.len() < 20 || raw.len() > 40 || !raw.is_ascii() {
+        return None;
+    }
+    let (date, clock_and_zone) = raw.split_once('T')?;
+    let date_parts = date.split('-').collect::<Vec<_>>();
+    let [year, month, day] = date_parts.as_slice() else { return None };
+    if year.len() != 4 || month.len() != 2 || day.len() != 2 {
+        return None;
+    }
+    let year = year.parse::<u32>().ok()?;
+    let month = month.parse::<u32>().ok()?;
+    let day = day.parse::<u32>().ok()?;
+    if year == 0 || month == 0 || month > 12 {
+        return None;
+    }
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    if day == 0 || day > days {
+        return None;
+    }
+    let (clock, zone) = if let Some(time) = clock_and_zone.strip_suffix('Z') {
+        (time, "Z")
+    } else {
+        let index = clock_and_zone.find(['+', '-'])?;
+        (&clock_and_zone[..index], &clock_and_zone[index..])
+    };
+    let fields = clock.split(':').collect::<Vec<_>>();
+    let [hours, minutes, seconds] = fields.as_slice() else { return None };
+    if hours.len() != 2 || minutes.len() != 2 {
+        return None;
+    }
+    let hours = hours.parse::<u32>().ok()?;
+    let minutes = minutes.parse::<u32>().ok()?;
+    let seconds_value = seconds.split_once('.').map_or(*seconds, |(head, _)| head);
+    if seconds_value.len() != 2 {
+        return None;
+    }
+    let seconds_number = seconds_value.parse::<u32>().ok()?;
+    if let Some((_, fraction)) = seconds.split_once('.') {
+        if fraction.is_empty() || fraction.len() > 9
+            || !fraction.bytes().all(|v| v.is_ascii_digit())
+        {
+            return None;
+        }
+    }
+    if hours > 23 || minutes > 59 || seconds_number > 59 {
+        return None;
+    }
+    if zone != "Z" {
+        let offset = &zone[1..];
+        let [zone_hour, zone_minute] = offset.split(':').collect::<Vec<_>>().as_slice() else {
+            return None;
+        };
+        if zone_hour.len() != 2 || zone_minute.len() != 2
+            || zone_hour.parse::<u32>().ok()? > 23
+            || zone_minute.parse::<u32>().ok()? > 59
+        {
+            return None;
+        }
+    }
+    Some(raw.to_owned())
+}
+
 fn image_records(
     article: &str,
     host: &str,
@@ -255,6 +326,9 @@ fn image_records(
         }
         if let Some(date) = published {
             metadata.insert("date_source".into(), date.into());
+            if let Some(validated) = source_iso_date(date) {
+                metadata.insert("date".into(), validated.into());
+            }
         }
         files.push((item, metadata));
     }
@@ -312,6 +386,9 @@ fn article_events(
                 .filter(|date| date.len() <= 64 && !date.chars().any(char::is_control))
             {
                 metadata.insert("date_source".into(), date.into());
+                if let Some(validated) = source_iso_date(date) {
+                    metadata.insert("date".into(), validated.into());
+                }
             }
             metadata
         };
@@ -595,7 +672,33 @@ mod tests {
         assert_eq!(records[0].1["entry"], "2026/10/25/test");
         assert_eq!(records[0].1["title"], "A & B");
         assert_eq!(records[0].1["date_source"], "2026-10-25T12:00:00+09:00");
+        assert_eq!(records[0].1["date"], "2026-10-25T12:00:00+09:00");
         assert!(records[0].0.url.ends_with("/original.jpg"));
+    }
+
+    #[test]
+    fn source_iso_dates_validate_gregorian_calendar_without_losing_timezone() {
+        for good in [
+            "2024-02-29T12:34:56Z",
+            "2000-02-29T00:00:00+09:00",
+            "2026-10-25T23:59:59.123-06:00",
+        ] {
+            assert_eq!(source_iso_date(good), Some(good.into()), "{good}");
+        }
+        for bad in [
+            "2023-02-29T12:00:00Z",
+            "1900-02-29T12:00:00Z",
+            "2026-04-31T12:00:00Z",
+            "2026-10-25T24:00:00Z",
+            "2026-10-25T12:60:00Z",
+            "2026-10-25T12:00:60Z",
+            "2026-10-25T12:00:00",
+            "2026-10-25T12:00:00+99:00",
+            "2026-10-25T12:00:00-06:99",
+            "2026-10-25T12:00:00.1234567890Z",
+        ] {
+            assert!(source_iso_date(bad).is_none(), "{bad}");
+        }
     }
 
     #[test]
