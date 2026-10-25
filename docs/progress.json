@@ -4344,7 +4344,7 @@
               "id": "T593",
               "emoji": "📁",
               "name": "Koofr public shared files and bounded recursive folders",
-              "progress": 80,
+              "progress": 83,
               "checks": [
                 {
                   "title": "Recognize pinned Koofr app/shared link origins and safe public link IDs, refusing credentials, private queries and forged hosts",
@@ -4367,7 +4367,12 @@
                   "evidence": "src/extractor/koofr.rs response_json, at_base, one_public_shared_file_uses_only_public_index_endpoint and bounded_two_directory_bundle_pages_keep_source_paths_and_order; full CI 40200014555"
                 },
                 {
-                  "title": "Match pinned short k00.fr redirect aliases, optional shared passwords, complete metadata/file templating, all publicUrlBase/CDN variations and live upstream differential parity",
+                  "title": "Resolve pinned k00.fr public aliases via one non-followed redirect and validate absolute first-party link targets without leaking credentials or following forged hosts",
+                  "passed": true,
+                  "evidence": "src/extractor/koofr/short.rs short_codes_reject_forged_hosts_and_private_fields, one_redirect_uses_canonical_public_link_without_following, foreign_and_private_destinations_are_rejected_without_following; full Linux CI 40200815609"
+                },
+                {
+                  "title": "Match shared password configuration, complete metadata/filename/archive, all Koofr CDN and redirect variations, unlimited folder history and live pinned upstream differential parity",
                   "passed": false
                 }
               ]

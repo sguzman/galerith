@@ -8,4 +8,6 @@ Public single-file shares return their validated, source-backed original URL and
 
 [Full CI 40200014555](https://github.com/sguzman/galerith/actions/runs/40200014555) passed Rust formatting, strict Clippy, unit/loopback HTTP tests and release build. The synthetic tests cover one shared file, two nested bundle API pages, unsafe filenames and hostile origins. **These tests do not establish live Koofr availability or unrestricted folder parity.**
 
-**Unaccepted:** `k00.fr` redirect-shortened links, shared password configuration, complete upstream template and archive formatting, all CDN-host variants, unlimited folder recursion, source timestamp conversion and live pinned-upstream differential verification.
+**Unaccepted:** shared password configuration, complete upstream template and archive formatting, all CDN-host variants, unlimited folder recursion, source timestamp conversion and live pinned-upstream differential verification.
+
+**Public `k00.fr` aliases:** Single-code short links now issue exactly one unauthenticated HTTPS request with redirect following disabled. They accept only an absolute, validated first-party `/links/ID` destination; raw traversal, credentials, foreign hosts, private queries and malformed redirects are rejected. The offline redirect and adversarial destination fixtures passed [CI 40200815609](https://github.com/sguzman/galerith/actions/runs/40200815609). Multi-hop links, passwords and live short-link behavior remain unaccepted.

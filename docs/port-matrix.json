@@ -1060,7 +1060,8 @@
         "src/extractor/mod.rs"
       ],
       "evidence": [
-        "Public password-free Koofr /links/ID shared originals, one-file and nested folder APIs; guarded JSON 2 MiB, file/dir caps (160 files, 48 entries, 32 directories, 4 levels), source-backed filenames, hashes, sizes and modified times. Strict first-party media URL validation, typed directory/URL messages and offline shared-file and nested two-bundle HTTP fixtures; full Linux CI 40200014555 passed format, Clippy, tests and release build. Short redirect codes, passwords, complete filename/archive and live upstream parity remain unaccepted."
+        "Public password-free Koofr /links/ID shared originals, one-file and nested folder APIs; guarded JSON 2 MiB, file/dir caps (160 files, 48 entries, 32 directories, 4 levels), source-backed filenames, hashes, sizes and modified times. Strict first-party media URL validation, typed directory/URL messages and offline shared-file and nested two-bundle HTTP fixtures; full Linux CI 40200014555 passed format, Clippy, tests and release build. Short redirect codes, passwords, complete filename/archive and live upstream parity remain unaccepted.",
+        "Bounded one-response k00.fr public alias resolution via dedicated no-redirect, no-cookie HTTPS client; accepts only validated absolute first-party Koofr /links/ID targets. Encoded traversal, forged hosts, private queries and foreign redirect URLs rejected; loopback redirect tests and full Linux CI 40200815609 passed. Passwords and live parity unaccepted."
       ]
     },
     {
