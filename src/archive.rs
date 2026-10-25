@@ -75,6 +75,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if is_booru_pool_category(category) && canonical_tag_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if category == "danbooru" && canonical_media_asset_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
             }
         }
         return None;
@@ -102,12 +105,23 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (is_booru_pool_category(category) && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
                 || (is_e621_favorite_category(category) && canonical_favorite_archive_suffix(bare))
-                || (is_booru_pool_category(category) && canonical_tag_archive_suffix(bare)))
+                || (is_booru_pool_category(category) && canonical_tag_archive_suffix(bare))
+                || (category == "danbooru" && canonical_media_asset_archive_suffix(bare)))
         {
             return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn canonical_media_asset_archive_suffix(suffix: &str) -> bool {
+    let Some(id) = suffix.strip_prefix('m') else {
+        return false;
+    };
+    let Ok(asset) = id.parse::<u64>() else {
+        return false;
+    };
+    asset > 0 && suffix == format!("m{asset}")
 }
 
 fn canonical_tag_archive_suffix(suffix: &str) -> bool {
@@ -357,9 +371,32 @@ fn booru_tag_search(item: &MediaItem, source_url: &str) -> Option<String> {
     found
 }
 
+/// Pinned DanbooruMediaassetExtractor uses m{id}. Galerith's media asset
+/// resolver preserves that asset ID as MediaItem.post_id, so confirm the
+/// exact source asset route before using the stable upstream identity.
+fn danbooru_media_asset(item: &MediaItem, source_url: &str) -> Option<u64> {
+    if item.extractor != "danbooru" {
+        return None;
+    }
+    let id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("danbooru.donmai.us")
+        || !source.username().is_empty()
+        || source.password().is_some()
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    match segments.as_slice() {
+        ["media_assets", source_id] if source_id.parse::<u64>().ok() == Some(id) => Some(id),
+        _ => None,
+    }
+}
+
 /// Scoped identity unifies native archive records, advisory locks and
 /// read-only upstream lookup for verified posts, pools, favorite groups,
-/// tag searches and account-specific e621-family favorites.
+/// tag searches, media assets and account-specific e621-family favorites.
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if let Some(id) = direct_booru_post(item, source_url) {
         return Some((direct_post_key(id), format!("{}{id}", item.extractor)));
@@ -382,12 +419,15 @@ fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, St
             format!("{}f_{user}_{post}", item.extractor),
         ));
     }
-    let tags = booru_tag_search(item, source_url)?;
-    let normalized = format!("{}t_{tags}_{}", item.extractor, item.post_id?);
-    Some((
-        format!("tag-sha256:{}", archive_key_digest(&normalized)),
-        normalized,
-    ))
+    if let Some(tags) = booru_tag_search(item, source_url) {
+        let normalized = format!("{}t_{tags}_{}", item.extractor, item.post_id?);
+        return Some((
+            format!("tag-sha256:{}", archive_key_digest(&normalized)),
+            normalized,
+        ));
+    }
+    let asset = danbooru_media_asset(item, source_url)?;
+    Some((format!("media-asset-id:{asset}"), format!("danboorum{asset}")))
 }
 
 fn philomena_id(item: &MediaItem) -> Option<u64> {
