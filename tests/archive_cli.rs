@@ -1,4 +1,5 @@
 //! Verify archive behavior through the native executable without any live site.
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{Read, Write},
@@ -7,7 +8,6 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-use sha2::{Digest, Sha256};
 
 fn temp(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
