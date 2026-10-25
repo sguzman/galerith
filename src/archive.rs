@@ -16,6 +16,9 @@ pub struct Archive {
     upstream_directlink_archive: bool,
     upstream_reference: Option<Connection>,
     upstream_reference_table: String,
+    // None = pinned default category prefix; Some = explicitly configured
+    // upstream prefix, including empty for configured archive-table.
+    upstream_reference_prefix: Option<String>,
 }
 
 /// Never unlink a held advisory lock file: doing so can split its namespace.
@@ -37,29 +40,66 @@ fn archive_key_digest(key: &str) -> String {
         .collect()
 }
 
-/// Only the pinned default directlink and Philomena formats are understood.
-/// These are category-scoped and all other upstream rows are ignored.
-fn import_category(entry: &str) -> Option<&'static str> {
-    if let Some(path) = entry.strip_prefix("directlink") {
-        // A directlink key contains the source domain, at least one slash,
-        // and a filename with a nonempty extension. Do not store the path.
-        let (host, name) = path.split_once('/')?;
-        if !host.is_empty()
-            && name
-                .rsplit_once('.')
-                .is_some_and(|(s, e)| !s.is_empty() && !e.is_empty())
-        {
-            return Some("directlink");
-        }
-    }
-    for category in ["derpibooru", "ponybooru", "furbooru"] {
-        if let Some(id) = entry.strip_prefix(category) {
-            if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
-                return Some(category);
+/// Recognize only default pinned archive templates. A configured archive
+/// table defaults to an *empty* prefix in upstream gallery-dl, so bare
+/// numeric image IDs cannot safely be assigned to any Philomena site.
+fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, String)> {
+    if prefix.is_none() {
+        if let Some(path) = entry.strip_prefix("directlink") {
+            if valid_directlink_format(path) {
+                return Some(("directlink", entry.to_owned()));
             }
+        }
+        for category in ["derpibooru", "ponybooru", "furbooru"] {
+            if let Some(id) = entry.strip_prefix(category) {
+                if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
+                    return Some((category, entry.to_owned()));
+                }
+            }
+        }
+        return None;
+    }
+
+    let prefix = prefix?;
+    let bare = entry.strip_prefix(prefix)?;
+    if valid_directlink_format(bare) {
+        return Some(("directlink", format!("directlink{bare}")));
+    }
+    // A numeric ID is only unambiguous if the supplied source prefix itself
+    // names the exact pinned category. Other custom prefixes might combine
+    // several boorus with overlapping numeric IDs; skip rather than guess.
+    for category in ["derpibooru", "ponybooru", "furbooru"] {
+        if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
+            return Some((category, format!("{category}{bare}")));
         }
     }
     None
+}
+
+fn valid_directlink_format(path: &str) -> bool {
+    let Some((host, file)) = path.split_once('/') else {
+        return false;
+    };
+    !host.is_empty()
+        && !host.contains(char::is_whitespace)
+        && file
+            .rsplit_once('.')
+            .is_some_and(|(stem, ext)| !stem.is_empty() && !ext.is_empty())
+}
+
+/// gallery-dl uses prefix + archive_fmt; for an explicitly named table its
+/// default prefix is empty instead of the extractor category.
+fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Option<String> {
+    let default = upstream_archive_key(item)?;
+    match prefix {
+        None => Some(default),
+        Some(prefix) => {
+            if philomena_id(item).is_some() && prefix != item.extractor {
+                return None;
+            }
+            Some(format!("{prefix}{}", default.strip_prefix(item.extractor)?))
+        }
+    }
 }
 
 fn philomena_id(item: &MediaItem) -> Option<u64> {
@@ -170,15 +210,32 @@ impl Archive {
         path: &Path,
         reference_path: Option<&Path>,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        Self::open_with_reference_table(path, reference_path, "archive")
+        Self::open_with_reference_options(path, reference_path, None, None)
     }
 
-    /// Read from one configured upstream table, never writing foreign rows.
+    /// Read from a configured upstream table. Unlike the implicit default
+    /// table, an explicitly configured table uses an empty default prefix.
+    /// Bare Philomena IDs in such a shared table are ambiguous, so cannot be
+    /// migrated without a category-specific explicit prefix.
     pub fn open_with_reference_table(
         path: &Path,
         reference_path: Option<&Path>,
         reference_table: &str,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::open_with_reference_options(path, reference_path, Some(reference_table), None)
+    }
+
+    pub fn open_with_reference_options(
+        path: &Path,
+        reference_path: Option<&Path>,
+        table_option: Option<&str>,
+        prefix_option: Option<&str>,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let reference_table = table_option.unwrap_or("archive");
+        let resolved_prefix = prefix_option.or_else(|| table_option.map(|_| ""));
+        if resolved_prefix.is_some_and(|p| p.len() > 128 || p.contains('\0')) {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid archive prefix").into());
+        }
         if reference_table.is_empty()
             || reference_table.len() > 128
             || reference_table.contains('\0')
@@ -269,6 +326,7 @@ impl Archive {
             upstream_directlink_archive,
             upstream_reference,
             upstream_reference_table: reference_table.to_owned(),
+            upstream_reference_prefix: resolved_prefix.map(str::to_owned),
         })
     }
 
@@ -334,9 +392,11 @@ impl Archive {
             )?;
             while let Some(row) = rows.next()? {
                 let entry: String = row.get(0)?;
-                if let Some(category) = import_category(&entry) {
+                if let Some((category, normalized)) =
+                    import_category(&entry, self.upstream_reference_prefix.as_deref())
+                {
                     matched += 1;
-                    inserted += insert.execute(params![category, archive_key_digest(&entry)])?;
+                    inserted += insert.execute(params![category, archive_key_digest(&normalized)])?;
                 }
             }
         }
@@ -398,9 +458,19 @@ impl Archive {
                     "SELECT EXISTS(SELECT 1 FROM {} WHERE entry = ?1)",
                     archive_table_identifier(table)
                 );
-                let upstream: i64 =
-                    source.query_row(&query, params![source_key], |row| row.get(0))?;
-                return Ok(upstream != 0);
+                let lookup_key = if self.upstream_reference.is_some() {
+                    upstream_archive_key_configured(
+                        item,
+                        self.upstream_reference_prefix.as_deref(),
+                    )
+                } else {
+                    Some(source_key)
+                };
+                if let Some(lookup_key) = lookup_key {
+                    let upstream: i64 =
+                        source.query_row(&query, params![lookup_key], |row| row.get(0))?;
+                    return Ok(upstream != 0);
+                }
             }
         }
         Ok(false)
@@ -657,7 +727,7 @@ mod tests {
                     "INSERT INTO {} (entry) VALUES (?1)",
                     archive_table_identifier(custom)
                 ),
-                params!["directlinkexample.org/photos/pinned.jpg"],
+                params!["example.org/photos/pinned.jpg"],
             )
             .unwrap();
         drop(source);
@@ -676,6 +746,27 @@ mod tests {
         assert!(native_only.contains(&item).unwrap());
         drop(native_only);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn named_table_skips_ambiguous_numeric_ids_without_explicit_site_prefix() {
+        assert_eq!(import_category("123", Some("")), None);
+        assert_eq!(import_category("123", Some("shared_")), None);
+        assert_eq!(import_category("derpibooru123", None),
+            Some(("derpibooru", "derpibooru123".to_owned())));
+        assert_eq!(import_category("derpibooru123", Some("derpibooru")),
+            Some(("derpibooru", "derpibooru123".to_owned())));
+        assert_eq!(import_category("example.org//photo.jpg", Some("")),
+            Some(("directlink", "directlinkexample.org//photo.jpg".to_owned())));
+        assert!(upstream_archive_key_configured(
+            &MediaItem {
+                url: "https://cdn.invalid/a.jpg".into(),
+                filename: "a.jpg".into(),
+                extractor: "ponybooru",
+                post_id: Some(123),
+            },
+            Some(""),
+        ).is_none());
     }
 
     #[test]

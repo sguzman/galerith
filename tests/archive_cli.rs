@@ -473,7 +473,7 @@ fn offline_import_respects_selected_custom_foreign_table() {
     source
         .execute_batch(
             "CREATE TABLE \"stored items\" (entry TEXT PRIMARY KEY) WITHOUT ROWID;
-             INSERT INTO \"stored items\" (entry) VALUES ('directlinkexample.org//item.jpg');",
+             INSERT INTO \"stored items\" (entry) VALUES ('example.org//item.jpg');",
         )
         .unwrap();
     drop(source);
@@ -508,5 +508,48 @@ fn offline_import_respects_selected_custom_foreign_table() {
         String::from_utf8_lossy(&verify.stderr)
     );
     assert!(String::from_utf8_lossy(&verify.stdout).contains("archived item.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn named_table_does_not_import_ambiguous_philomena_rows() {
+    let dir = temp("ambiguous-prefix");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let source = dir.join("foreign.sqlite");
+    let sqlite = rusqlite::Connection::open(&source).unwrap();
+    sqlite
+        .execute_batch(
+            "CREATE TABLE other (entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO other VALUES ('123');
+             INSERT INTO other VALUES ('example.org//photo.jpg');",
+        )
+        .unwrap();
+    drop(sqlite);
+    let run = |prefix: Option<&str>| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        cmd.arg("--download-archive")
+            .arg(&native)
+            .arg("--gallery-dl-archive")
+            .arg(&source)
+            .arg("--gallery-dl-archive-table")
+            .arg("other");
+        if let Some(prefix) = prefix {
+            cmd.arg("--gallery-dl-archive-prefix").arg(prefix);
+        }
+        cmd.arg("--archive-import").output().unwrap()
+    };
+    let first = run(None);
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(String::from_utf8_lossy(&first.stdout).contains("1 supported entries; 1 new"));
+    let second = run(None);
+    assert!(second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("1 supported entries; 0 new"));
+    let counted: i64 = rusqlite::Connection::open(&native)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(counted, 1);
     fs::remove_dir_all(dir).unwrap();
 }
