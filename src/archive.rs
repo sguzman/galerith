@@ -2627,6 +2627,121 @@ mod tests {
     }
 
     #[test]
+    fn day_month_popular_archive_scope_requires_explicit_valid_dates() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-popular-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.example.org/88.jpg?sig=old".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://other.example.org/88.png?sig=new".into(),
+            ..original.clone()
+        };
+        let daily =
+            "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25";
+        let monthly =
+            "https://e621.net/explore/posts/popular?scale=month&date=2026-10-25";
+        assert_eq!(
+            booru_popular(&original, daily),
+            Some("e621P_d_2026-10-25_88".into())
+        );
+        assert_eq!(
+            booru_popular(&original, monthly),
+            Some("e621P_m_2026-10_88".into())
+        );
+        archive.record_for_source(&original, daily).unwrap();
+        assert!(archive.contains_for_source(&rotated, daily).unwrap());
+        for other in [
+            monthly,
+            "https://e621.net/explore/posts/popular?scale=day&date=2026-10-24",
+            "https://e621.net/explore/posts/popular?scale=day",
+            "https://e621.net/explore/posts/popular?scale=week&date=2026-10-25",
+            "https://e621.net/explore/posts/popular?scale=day&date=2026-02-30",
+            "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25&date=2026-10-26",
+            "https://e926.net/explore/posts/popular?scale=day&date=2026-10-25",
+            "https://e621.net/posts/88",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, other).unwrap());
+        }
+        assert!(validated_calendar_date("2024-02-29").is_some());
+        assert!(validated_calendar_date("2025-02-29").is_none());
+        assert!(validated_calendar_date("0000-01-01").is_none());
+        assert!(canonical_popular_archive_suffix("P_d_2026-10-25_88"));
+        assert!(canonical_popular_archive_suffix("P_m_2026-10_88"));
+        for invalid in [
+            "P_d_2026-02-30_88",
+            "P_m_2026-13_88",
+            "P_w_2026-10-19_88",
+            "P_d_2026-10-25_0",
+            "P_d_2026-10-25_088",
+        ] {
+            assert!(!canonical_popular_archive_suffix(invalid));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dated_popular_archive_import_stays_private_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-popular-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let foreign = root.join("foreign.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danbooruP_d_2026-10-25_88');
+                 INSERT INTO archive VALUES ('e621P_m_2026-10_88');
+                 INSERT INTO archive VALUES ('e926P_d_2026-10-25_88');
+                 INSERT INTO archive VALUES ('e6aiP_m_2026-10_88');
+                 INSERT INTO archive VALUES ('e621P_w_2026-10-19_88');",
+            )
+            .unwrap();
+        drop(upstream);
+        let bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), bytes);
+        fs::remove_file(foreign).unwrap();
+        let saved = fs::read(&native).unwrap();
+        assert!(!saved
+            .windows(b"e621P_m_2026-10_88".len())
+            .any(|part| part == b"e621P_m_2026-10_88"));
+        let offline = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.example.org/88.jpg?sig=rotated".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        assert!(offline
+            .contains_for_source(
+                &media,
+                "https://e621.net/explore/posts/popular?scale=month&date=2026-10-01"
+            )
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(
+                &media,
+                "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25"
+            )
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
