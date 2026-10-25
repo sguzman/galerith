@@ -4061,6 +4061,115 @@ mod tests {
     }
 
     #[test]
+    fn fourchan_named_archive_table_requires_genuine_4chan_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-fourchan-named-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let original = Connection::open(&foreign).unwrap();
+        original
+            .execute_batch(
+                "CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO named VALUES ('a_123_456');
+                 INSERT INTO named VALUES ('4chana_123_456');",
+            )
+            .unwrap();
+        drop(original);
+        let foreign_bytes = fs::read(&foreign).unwrap();
+        let item = MediaItem {
+            url: "https://i.4cdn.org/a/456.jpg".into(),
+            filename: "456 fake.jpg".into(),
+            extractor: "4chan",
+            post_id: Some(456),
+        };
+        let input = "https://boards.4chan.org/a/thread/123";
+        let unknown = Archive::open_with_reference_table(
+            &root.join("unknown.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unknown.import_reference().unwrap(), (0, 0));
+        assert!(!unknown.contains_for_source(&item, input).unwrap());
+        drop(unknown);
+        let native = root.join("native.sqlite");
+        let valid = Archive::open_with_reference_options(
+            &native,
+            Some(&foreign),
+            Some("named"),
+            Some("4chan"),
+        )
+        .unwrap();
+        assert_eq!(valid.import_reference().unwrap(), (1, 1));
+        assert!(valid.contains_for_source(&item, input).unwrap());
+        drop(valid);
+        assert_eq!(fs::read(&foreign).unwrap(), foreign_bytes);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline.contains_for_source(&item, input).unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn fourchan_thread_archive_lock_serializes_same_tim_in_same_thread() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-fourchan-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let thread = "https://boards.4chan.org/a/thread/123";
+        let first_item = MediaItem {
+            url: "https://i.4cdn.org/a/456.jpg".into(),
+            filename: "456 red.jpg".into(),
+            extractor: "4chan",
+            post_id: Some(456),
+        };
+        let next_item = MediaItem {
+            url: "https://i.4cdn.org/a/456.png".into(),
+            filename: "456 red.png".into(),
+            ..first_item.clone()
+        };
+        assert_ne!(key(&first_item), key(&next_item));
+        let first = Archive::open(&db).unwrap();
+        let guard = first
+            .lock_item_for_source(&first_item, thread)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let db_again = db.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let second = Archive::open(&db_again).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = second
+                    .lock_item_for_source(&next_item, thread)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(second.contains_for_source(&next_item, thread).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&first_item, thread).unwrap();
+        drop(guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
