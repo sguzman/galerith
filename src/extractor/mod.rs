@@ -79,6 +79,7 @@ pub mod twochan;
 pub mod twochen;
 pub mod unsplash;
 pub mod urlshortener;
+pub mod urlgalleries;
 pub mod vanillarock;
 pub mod wallhaven;
 pub mod wallpapercave;
@@ -126,6 +127,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "recursive",
         "bounded explicit local URL-list queue discovery",
     ),
+    ("urlgalleries", "bounded source image-page original queues"),
     (
         "s3ndpics",
         "bounded public S3ndpics post, user and search files",
@@ -494,6 +496,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("recursive")
     } else if s3ndpics::match_url(input).is_some() {
         Some("s3ndpics")
+    } else if urlgalleries::match_url(input).is_some() {
+        Some("urlgalleries")
     } else if extract_direct_media(input).is_ok() {
         Some("directlink")
     } else {
@@ -797,6 +801,9 @@ pub async fn resolve(
     if let Some(target) = s3ndpics::match_url(input) {
         return s3ndpics::resolve(client, target, max_pages).await;
     }
+    if urlgalleries::match_url(input).is_some() {
+        return Err("Urlgalleries gallery originals require --dump-messages or --follow-queues".into());
+    }
     Ok(vec![extract_direct_media(input)?])
 }
 
@@ -1002,6 +1009,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = s3ndpics::match_url(input) {
         return s3ndpics::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = urlgalleries::match_url(input) {
+        return urlgalleries::resolve_messages(client, target).await;
     }
     if extractor_name(input) == Some("directlink") {
         return Ok(directlink::resolve_messages(input)?);
@@ -1362,6 +1372,7 @@ mod tests {
                 "s3ndpics",
             ),
             ("https://s3nd.pics/user/sample", "s3ndpics"),
+            ("https://urlgalleries.com/blog/12345/title", "urlgalleries"),
             ("https://kabe-uchiroom.com/mypage/?id=12345", "kabeuchi"),
             ("https://bit.ly/abc_12", "urlshortener"),
             ("https://t.co/abc123", "urlshortener"),
