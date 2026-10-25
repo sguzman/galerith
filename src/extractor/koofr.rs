@@ -6,7 +6,11 @@ use crate::{
 };
 use reqwest::Client;
 use serde_json::Value;
-use std::{collections::{HashSet, VecDeque}, error::Error, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    error::Error,
+    time::Duration,
+};
 use url::Url;
 
 const MAX_JSON: usize = 2 * 1024 * 1024;
@@ -32,19 +36,26 @@ fn safe_part(name: &str) -> bool {
 
 fn safe_share_id(id: &str) -> bool {
     (1..=96).contains(&id.len())
-        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 pub fn match_url(raw: &str) -> Option<Share> {
     let lower = raw.to_ascii_lowercase();
-    if ["%2e", "%2f", "%5c", "/../", "/./"].iter().any(|v| lower.contains(v))
+    if ["%2e", "%2f", "%5c", "/../", "/./"]
+        .iter()
+        .any(|v| lower.contains(v))
         || raw.contains('%')
     {
         return None;
     }
     let url = Url::parse(raw).ok()?;
     if !matches!(url.scheme(), "http" | "https")
-        || !matches!(url.host_str(), Some("koofr.net" | "koofr.eu" | "app.koofr.net" | "app.koofr.eu"))
+        || !matches!(
+            url.host_str(),
+            Some("koofr.net" | "koofr.eu" | "app.koofr.net" | "app.koofr.eu")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -55,8 +66,9 @@ pub fn match_url(raw: &str) -> Option<Share> {
     }
     let parts: Vec<_> = url.path_segments()?.collect();
     match parts.as_slice() {
-        ["links", id] | ["links", id, ""] if safe_share_id(id) =>
-            Some(Share { id: (*id).to_owned() }),
+        ["links", id] | ["links", id, ""] if safe_share_id(id) => Some(Share {
+            id: (*id).to_owned(),
+        }),
         _ => None,
     }
 }
@@ -66,15 +78,21 @@ async fn response_json(
     url: Url,
     referer: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    let response = client.get(url.clone())
+    let response = client
+        .get(url.clone())
         .header("Referer", referer)
         .header("X-Client", "newfrontend")
         .header("X-Koofr-Version", "2.1")
-        .send().await?.error_for_status()?;
+        .send()
+        .await?
+        .error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("Koofr public JSON redirected outside the source origin".into());
     }
-    if response.content_length().is_some_and(|n| n > MAX_JSON as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_JSON as u64)
+    {
         return Err("Koofr public JSON exceeded bounded response size".into());
     }
     let mut response = response;
@@ -97,7 +115,10 @@ fn source_download_origin(data: &Value, base: &Url) -> Result<Url, Box<dyn Error
     }
     let url = Url::parse(raw)?;
     if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("app.koofr.net" | "app.koofr.eu" | "koofr.net" | "koofr.eu"))
+        || !matches!(
+            url.host_str(),
+            Some("app.koofr.net" | "app.koofr.eu" | "koofr.net" | "koofr.eu")
+        )
         || !url.username().is_empty()
         || url.password().is_some()
         || url.port().is_some()
@@ -111,7 +132,9 @@ fn source_download_origin(data: &Value, base: &Url) -> Result<Url, Box<dyn Error
 }
 
 fn source_entry_name(item: &Value) -> Result<&str, Box<dyn Error + Send + Sync>> {
-    let name = item.get("name").and_then(Value::as_str)
+    let name = item
+        .get("name")
+        .and_then(Value::as_str)
         .ok_or("Koofr shared file lacks a source-backed name")?;
     if !safe_part(name) {
         return Err("Koofr source file name is unsafe".into());
@@ -120,7 +143,11 @@ fn source_entry_name(item: &Value) -> Result<&str, Box<dyn Error + Send + Sync>>
 }
 
 fn download_record(
-    file: &Value, share: &Share, title: &str, root: &Url, path: &[String],
+    file: &Value,
+    share: &Share,
+    title: &str,
+    root: &Url,
+    path: &[String],
     ordinal: usize,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let name = source_entry_name(file)?;
@@ -128,10 +155,14 @@ fn download_record(
         return Err("Koofr shared entry is not an original file".into());
     }
     let mut url = root.clone();
-    url.path_segments_mut().map_err(|_| "Koofr download URL has no path segments")?
+    url.path_segments_mut()
+        .map_err(|_| "Koofr download URL has no path segments")?
         .extend(["content", "links", &share.id, "files", "get", name]);
-    let relpath = if path.is_empty() { "/".to_owned() }
-        else { format!("/{}/{}", path.join("/"), name) };
+    let relpath = if path.is_empty() {
+        "/".to_owned()
+    } else {
+        format!("/{}/{}", path.join("/"), name)
+    };
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("path", &relpath);
@@ -159,7 +190,11 @@ fn download_record(
     metadata.insert("source_filename".into(), name.into());
     for field in ["id", "hash", "size", "modified", "contentType"] {
         if let Some(value) = file.get(field) {
-            if value.is_number() || value.as_str().is_some_and(|s| s.len() <= 240 && !s.chars().any(char::is_control)) {
+            if value.is_number()
+                || value
+                    .as_str()
+                    .is_some_and(|s| s.len() <= 240 && !s.chars().any(char::is_control))
+            {
                 metadata.insert(field.to_owned(), value.clone());
             }
         }
@@ -168,31 +203,48 @@ fn download_record(
 }
 
 async fn at_base(
-    client: &Client, share: &Share, base: &Url,
+    client: &Client,
+    share: &Share,
+    base: &Url,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("api/v2/public/links/{}", share.id))?;
     let referer = base.join(&format!("links/{}", share.id))?.to_string();
     let mut index_url = endpoint.clone();
     index_url.query_pairs_mut().append_pair("password", "");
     let data = response_json(client, index_url, &referer).await?;
-    let title = data.get("name").and_then(Value::as_str)
+    let title = data
+        .get("name")
+        .and_then(Value::as_str)
         .filter(|s| !s.is_empty() && s.len() <= 240 && !s.chars().any(char::is_control))
         .ok_or("Koofr share lacks a supported public title")?;
-    let source_id = data.get("id").and_then(Value::as_str)
+    let source_id = data
+        .get("id")
+        .and_then(Value::as_str)
         .ok_or("Koofr share lacks a source ID")?;
     if !safe_share_id(source_id) {
         return Err("Koofr share source ID is malformed".into());
     }
     let download_origin = source_download_origin(&data, base)?;
-    let root = data.get("file").ok_or("Koofr shared response lacks root file")?;
-    let typ = root.get("type").and_then(Value::as_str)
+    let root = data
+        .get("file")
+        .ok_or("Koofr shared response lacks root file")?;
+    let typ = root
+        .get("type")
+        .and_then(Value::as_str)
         .ok_or("Koofr shared root lacks a type")?;
     if typ != "dir" && typ != "file" {
         return Err("Koofr shared root has an unsupported type".into());
     }
     let mut result = Vec::new();
     if typ == "file" {
-        result.push(download_record(root, share, title, &download_origin, &[], 1)?);
+        result.push(download_record(
+            root,
+            share,
+            title,
+            &download_origin,
+            &[],
+            1,
+        )?);
         return Ok(result);
     }
     let mut queue = VecDeque::from([(Vec::<String>::new(), 0_usize)]);
@@ -205,10 +257,14 @@ async fn at_base(
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
         let mut bundle = base.join(&format!("api/v2/public/links/{}/bundle", share.id))?;
-        bundle.query_pairs_mut().append_pair("password", "")
+        bundle
+            .query_pairs_mut()
+            .append_pair("password", "")
             .append_pair("path", &format!("/{}", path.join("/")));
         let data = response_json(client, bundle, &referer).await?;
-        let files = data.get("files").and_then(Value::as_array)
+        let files = data
+            .get("files")
+            .and_then(Value::as_array)
             .ok_or("Koofr directory response lacks file entries")?;
         if files.len() > MAX_DIR_ENTRIES {
             return Err("Koofr directory response exceeds bounded item count".into());
@@ -228,7 +284,14 @@ async fn at_base(
                     if result.len() >= MAX_ITEMS {
                         return Err("Koofr public directory exceeds bounded media count".into());
                     }
-                    result.push(download_record(file, share, title, &download_origin, &path, result.len() + 1)?);
+                    result.push(download_record(
+                        file,
+                        share,
+                        title,
+                        &download_origin,
+                        &path,
+                        result.len() + 1,
+                    )?);
                 }
                 _ => return Err("Koofr directory includes unsupported entry type".into()),
             }
@@ -237,18 +300,32 @@ async fn at_base(
     Ok(result)
 }
 
-pub async fn resolve(client: &Client, share: Share) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve(
+    client: &Client,
+    share: Share,
+) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://app.koofr.net/")?;
-    Ok(at_base(client, &share, &base).await?
-        .into_iter().map(|(file, _)| file).collect())
+    Ok(at_base(client, &share, &base)
+        .await?
+        .into_iter()
+        .map(|(file, _)| file)
+        .collect())
 }
 
-pub async fn resolve_messages(client: &Client, share: Share) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
+pub async fn resolve_messages(
+    client: &Client,
+    share: Share,
+) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let base = Url::parse("https://app.koofr.net/")?;
     let mut messages = Vec::new();
     for (file, metadata) in at_base(client, &share, &base).await? {
-        messages.push(ExtractorMessage::Directory { metadata: metadata.clone() });
-        messages.push(ExtractorMessage::Url { url: file.url, metadata });
+        messages.push(ExtractorMessage::Directory {
+            metadata: metadata.clone(),
+        });
+        messages.push(ExtractorMessage::Url {
+            url: file.url,
+            metadata,
+        });
     }
     Ok(messages)
 }
@@ -256,7 +333,10 @@ pub async fn resolve_messages(client: &Client, share: Share) -> Result<Vec<Extra
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     fn share() -> Share {
         match_url("https://app.koofr.net/links/1234-abc").unwrap()
@@ -288,12 +368,22 @@ mod tests {
     fn strict_origin_and_filename_guards_reject_malicious_content() {
         let base = Url::parse("https://app.koofr.net/").unwrap();
         assert!(source_download_origin(
-            &serde_json::json!({"publicUrlBase":"https://evilkoofr.net/"}), &base
-        ).is_err());
+            &serde_json::json!({"publicUrlBase":"https://evilkoofr.net/"}),
+            &base
+        )
+        .is_err());
         assert!(source_download_origin(
-            &serde_json::json!({"publicUrlBase":"https://app.koofr.net/" }), &base
-        ).is_ok());
-        for name in ["../secret.jpg", "folder/path.png", "%2fprivate.pdf", ".", "line\nbreak.txt"] {
+            &serde_json::json!({"publicUrlBase":"https://app.koofr.net/" }),
+            &base
+        )
+        .is_ok());
+        for name in [
+            "../secret.jpg",
+            "folder/path.png",
+            "%2fprivate.pdf",
+            ".",
+            "line\nbreak.txt",
+        ] {
             assert!(!safe_part(name));
         }
         let file = serde_json::json!({"name": "../escape.jpg", "type": "file"});
@@ -311,14 +401,20 @@ mod tests {
             assert!(String::from_utf8_lossy(&request[..n])
                 .starts_with("GET /api/v2/public/links/1234-abc?password= HTTP/1.1"));
             let body = r#"{"id":"1234-abc","name":"Public files","file":{"type":"file","name":"Read Me.pdf","hash":"abc123","size":10,"modified":1710000000000}}"#;
-            let reply = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let files = at_base(&Client::new(), &share(), &base).await.unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].0.filename, "001_Read Me.pdf");
-        assert!(files[0].0.url.contains("/content/links/1234-abc/files/get/Read%20Me.pdf"));
+        assert!(files[0]
+            .0
+            .url
+            .contains("/content/links/1234-abc/files/get/Read%20Me.pdf"));
         assert_eq!(files[0].1["hash"], "abc123");
         server.await.unwrap();
     }
@@ -329,15 +425,27 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             for (prefix, body) in [
-                ("GET /api/v2/public/links/1234-abc?password=", r#"{"id":"1234-abc","name":"Public files","file":{"type":"dir","name":"Root","modified":1710000000000}}"#),
-                ("GET /api/v2/public/links/1234-abc/bundle?password=", r#"{"files":[{"type":"file","name":"one.jpg","hash":"h1"},{"type":"dir","name":"More"}]}"#),
-                ("GET /api/v2/public/links/1234-abc/bundle?password=", r#"{"files":[{"type":"file","name":"two.png","hash":"h2"}]}"#),
+                (
+                    "GET /api/v2/public/links/1234-abc?password=",
+                    r#"{"id":"1234-abc","name":"Public files","file":{"type":"dir","name":"Root","modified":1710000000000}}"#,
+                ),
+                (
+                    "GET /api/v2/public/links/1234-abc/bundle?password=",
+                    r#"{"files":[{"type":"file","name":"one.jpg","hash":"h1"},{"type":"dir","name":"More"}]}"#,
+                ),
+                (
+                    "GET /api/v2/public/links/1234-abc/bundle?password=",
+                    r#"{"files":[{"type":"file","name":"two.png","hash":"h2"}]}"#,
+                ),
             ] {
                 let (mut stream, _) = listener.accept().await.unwrap();
                 let mut request = [0u8; 4096];
                 let n = stream.read(&mut request).await.unwrap();
                 assert!(String::from_utf8_lossy(&request[..n]).starts_with(prefix));
-                let reply = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
                 stream.write_all(reply.as_bytes()).await.unwrap();
             }
         });
