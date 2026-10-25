@@ -74,9 +74,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if category != "wallhaven"
-                    && id.parse::<u64>().ok().is_some_and(|n| n > 0)
-                {
+                if category != "wallhaven" && id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
                 }
                 if (is_booru_pool_category(category) || is_moebooru_category(category))
@@ -138,8 +136,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
     ] {
         if prefix == category
             && ((category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (category != "wallhaven"
-                    && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
+                || (category != "wallhaven" && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -3514,7 +3511,10 @@ mod tests {
             "http://wallhaven.cc/w/94x38z",
             "https://wallhaven.cc:9443/w/94x38z",
         ] {
-            assert!(!archive.contains_for_source(&converted, unrelated).unwrap(), "{unrelated}");
+            assert!(
+                !archive.contains_for_source(&converted, unrelated).unwrap(),
+                "{unrelated}"
+            );
         }
         let mismatched = MediaItem {
             filename: "wallhaven-other.jpg".into(),
@@ -3528,7 +3528,9 @@ mod tests {
         assert!(wallhaven_archive_scope(&outside, post).is_none());
         let bytes = fs::read(root.join("native.sqlite")).unwrap();
         for sensitive in [b"blue sky".as_slice(), b"example-1".as_slice()] {
-            assert!(!bytes.windows(sensitive.len()).any(|chunk| chunk == sensitive));
+            assert!(!bytes
+                .windows(sensitive.len())
+                .any(|chunk| chunk == sensitive));
         }
         drop(archive);
         fs::remove_dir_all(root).unwrap();
@@ -3536,10 +3538,8 @@ mod tests {
 
     #[test]
     fn wallhaven_reference_import_is_idempotent_private_and_offline_reopenable() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-wallhaven-import-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-wallhaven-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
@@ -3589,7 +3589,9 @@ mod tests {
         drop(reopened);
         let stored = fs::read(&native).unwrap();
         for sensitive in [b"blue sky".as_slice(), b"example-1".as_slice()] {
-            assert!(!stored.windows(sensitive.len()).any(|chunk| chunk == sensitive));
+            assert!(!stored
+                .windows(sensitive.len())
+                .any(|chunk| chunk == sensitive));
         }
         fs::remove_dir_all(root).unwrap();
     }
