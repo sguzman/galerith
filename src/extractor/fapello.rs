@@ -172,16 +172,23 @@ fn listing_queue(
         if result.len() >= MAX_CHILDREN { break; }
         let Some((href, _)) = link.split_once('"') else { continue };
         if href == "javascript:void(0);" { continue; }
-        let Some((url, candidate)) = scoped_link(root, href) else { continue };
+        let Some((_, candidate)) = scoped_link(root, href) else { continue };
         let acceptable = match (target, candidate) {
             (Target::Model { model, .. }, Target::Post { model: child, .. }) => model == &child,
             (Target::Path { path, .. }, Target::Model { .. }) if
                 matches!(path.as_str(), "top-likes" | "top-followers") || root.ends_with(".su") && path == "trending" => true,
             (Target::Path { path, .. }, Target::Post { .. }) if
-                !matches!(path.as_str(), "top-likes" | "top-followers") => true,
+                !matches!(path.as_str(), "top-likes" | "top-followers")
+                    && !(root.ends_with(".su") && path == "trending") => true,
             _ => false,
         };
-        if !acceptable || !seen.insert(url.to_string()) { continue; }
+        if !acceptable { continue; }
+        let canonical = match candidate {
+            Target::Post { root, model, id } => format!("{root}/{model}/{id}/"),
+            Target::Model { root, model } => format!("{root}/{model}/"),
+            Target::Path { root, path } => format!("{root}/{path}/"),
+        };
+        if !seen.insert(canonical.clone()) { continue; }
         let mut metadata = Metadata::new();
         metadata.insert("category".into(), "fapello".into());
         metadata.insert("subcategory".into(), "queue".into());
@@ -190,7 +197,7 @@ fn listing_queue(
             Target::Path { path, .. } => { metadata.insert("listing".into(), path.clone().into()); }
             Target::Post { .. } => {}
         }
-        result.push(queued_url(url.to_string(), metadata));
+        result.push(queued_url(canonical, metadata));
     }
 }
 
