@@ -366,19 +366,37 @@ fn offline_import_migrates_verified_ids_without_original_database() {
     let native = dir.join("native.sqlite");
     let source = dir.join("reference.sqlite");
     let reference = rusqlite::Connection::open(&source).unwrap();
-    reference.execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;").unwrap();
-    for key in ["directlinkexample.org/photos/picture.jpg", "derpibooru987", "unsupported-site-data"] {
-        reference.execute("INSERT INTO archive(entry) VALUES (?1)", [key]).unwrap();
+    reference
+        .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+        .unwrap();
+    for key in [
+        "directlinkexample.org/photos/picture.jpg",
+        "derpibooru987",
+        "unsupported-site-data",
+    ] {
+        reference
+            .execute("INSERT INTO archive(entry) VALUES (?1)", [key])
+            .unwrap();
     }
     drop(reference);
     let original_bytes = fs::read(&source).unwrap();
 
-    let import = || Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .arg("--download-archive").arg(&native)
-        .arg("--gallery-dl-archive").arg(&source)
-        .arg("--archive-import").output().unwrap();
+    let import = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("--download-archive")
+            .arg(&native)
+            .arg("--gallery-dl-archive")
+            .arg(&source)
+            .arg("--archive-import")
+            .output()
+            .unwrap()
+    };
     let first = import();
-    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
     assert!(String::from_utf8_lossy(&first.stdout).contains("2 supported entries; 2 new"));
     let second = import();
     assert!(second.status.success());
@@ -388,17 +406,26 @@ fn offline_import_migrates_verified_ids_without_original_database() {
 
     // No HTTP server runs at example.org; the migrated match must skip it.
     let skipped = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .arg("--download-archive").arg(&native)
-        .arg("-d").arg(&dir)
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("-d")
+        .arg(&dir)
         .arg("https://example.org/photos/picture.jpg?signature=new")
-        .output().unwrap();
-    assert!(skipped.status.success(), "{}", String::from_utf8_lossy(&skipped.stderr));
+        .output()
+        .unwrap();
+    assert!(
+        skipped.status.success(),
+        "{}",
+        String::from_utf8_lossy(&skipped.stderr)
+    );
     assert!(String::from_utf8_lossy(&skipped.stdout).contains("archived picture.jpg"));
     assert!(!dir.join("picture.jpg").exists());
 
     let persisted = fs::read(&native).unwrap();
     for marker in ["picture.jpg", "example.org", "photos/"] {
-        assert!(!persisted.windows(marker.len()).any(|b| b == marker.as_bytes()));
+        assert!(!persisted
+            .windows(marker.len())
+            .any(|b| b == marker.as_bytes()));
     }
     fs::remove_dir_all(dir).unwrap();
 }
@@ -411,16 +438,24 @@ fn offline_import_rejects_urls_and_missing_reference_before_creating_native() {
     let native = dir.join("native.sqlite");
     let source = dir.join("missing.sqlite");
     let bad = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .arg("--download-archive").arg(&native)
-        .arg("--gallery-dl-archive").arg(&source)
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("--gallery-dl-archive")
+        .arg(&source)
         .arg("--archive-import")
-        .arg("https://example.org/asset.png").output().unwrap();
+        .arg("https://example.org/asset.png")
+        .output()
+        .unwrap();
     assert!(!bad.status.success());
     assert!(!native.exists());
     let missing = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .arg("--download-archive").arg(&native)
-        .arg("--gallery-dl-archive").arg(&source)
-        .arg("--archive-import").output().unwrap();
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("--gallery-dl-archive")
+        .arg(&source)
+        .arg("--archive-import")
+        .output()
+        .unwrap();
     assert!(!missing.status.success());
     assert!(!native.exists());
     assert!(!source.exists());

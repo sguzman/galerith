@@ -43,7 +43,11 @@ fn import_category(entry: &str) -> Option<&'static str> {
         // A directlink key contains the source domain, at least one slash,
         // and a filename with a nonempty extension. Do not store the path.
         let (host, name) = path.split_once('/')?;
-        if !host.is_empty() && name.rsplit_once('.').is_some_and(|(s, e)| !s.is_empty() && !e.is_empty()) {
+        if !host.is_empty()
+            && name
+                .rsplit_once('.')
+                .is_some_and(|(s, e)| !s.is_empty() && !e.is_empty())
+        {
             return Some("directlink");
         }
     }
@@ -284,7 +288,10 @@ impl Archive {
     /// successful Galerith download, and it does not alter the source file.
     pub fn import_reference(&self) -> Result<(usize, usize), Box<dyn Error + Send + Sync>> {
         let source = self.upstream_reference.as_ref().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "gallery-dl reference archive is required")
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "gallery-dl reference archive is required",
+            )
         })?;
         let mut select = source.prepare("SELECT entry FROM archive")?;
         let mut rows = select.query([])?;
@@ -595,16 +602,15 @@ mod tests {
 
     #[test]
     fn imported_supported_keys_are_private_idempotent_and_survive_reference_removal() {
-        let root = std::env::temp_dir()
-            .join(format!("galerith-import-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native_path = root.join("native.sqlite");
         let upstream_path = root.join("gallery-dl.sqlite");
         let upstream = Connection::open(&upstream_path).unwrap();
-        upstream.execute_batch(
-            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;",
-        ).unwrap();
+        upstream
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
         for key in [
             "directlinkexample.org/photos/hello.jpg",
             "derpibooru123",
@@ -613,7 +619,9 @@ mod tests {
             "danboorut_example_5",
             "not-supported",
         ] {
-            upstream.execute("INSERT INTO archive(entry) VALUES (?1)", params![key]).unwrap();
+            upstream
+                .execute("INSERT INTO archive(entry) VALUES (?1)", params![key])
+                .unwrap();
         }
         drop(upstream);
         let bytes = fs::read(&upstream_path).unwrap();
@@ -624,9 +632,8 @@ mod tests {
         assert_eq!(fs::read(&upstream_path).unwrap(), bytes);
         fs::remove_file(&upstream_path).unwrap();
         let local = Archive::open(&native_path).unwrap();
-        let url = extract_direct_media(
-            "https://example.org/photos/hello.jpg?signature=changed",
-        ).unwrap();
+        let url =
+            extract_direct_media("https://example.org/photos/hello.jpg?signature=changed").unwrap();
         assert!(local.contains(&url).unwrap());
         for (category, id) in [("derpibooru", 123), ("ponybooru", 321), ("furbooru", 456)] {
             let item = MediaItem {
@@ -636,7 +643,10 @@ mod tests {
                 post_id: Some(id),
             };
             assert!(local.contains(&item).unwrap());
-            let unrelated = MediaItem { post_id: Some(id + 1), ..item };
+            let unrelated = MediaItem {
+                post_id: Some(id + 1),
+                ..item
+            };
             assert!(!local.contains(&unrelated).unwrap());
         }
         let unsafe_media = MediaItem {
@@ -649,7 +659,9 @@ mod tests {
         drop(local);
         let native_bytes = fs::read(&native_path).unwrap();
         for forbidden in ["hello.jpg", "photos/", "example.org", "signature=changed"] {
-            assert!(!native_bytes.windows(forbidden.len()).any(|part| part == forbidden.as_bytes()));
+            assert!(!native_bytes
+                .windows(forbidden.len())
+                .any(|part| part == forbidden.as_bytes()));
         }
         fs::remove_dir_all(root).unwrap();
     }

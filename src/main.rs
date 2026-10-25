@@ -289,8 +289,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if !cli.urls.is_empty() || !cli.input_files.is_empty() {
             return Err("--archive-import is an offline command and does not accept URLs".into());
         }
-        let native = cli.download_archive.as_deref().ok_or("missing native archive")?;
-        let source = cli.gallery_dl_archive.as_deref().ok_or("missing reference archive")?;
+        let native = cli
+            .download_archive
+            .as_deref()
+            .ok_or("missing native archive")?;
+        let source = cli
+            .gallery_dl_archive
+            .as_deref()
+            .ok_or("missing reference archive")?;
         let archive = Archive::open_with_reference(native, Some(source))?;
         let (recognized, newly_imported) = archive.import_reference()?;
         println!("archive import: {recognized} supported entries; {newly_imported} new");
