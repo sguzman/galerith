@@ -25,7 +25,17 @@ fn safe_slug(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
+fn has_unsafe_path(raw: &str) -> bool {
+    let lower = raw.to_ascii_lowercase();
+    ["%2e", "%2f", "%5c", "/../", "/./", "\\"]
+        .iter()
+        .any(|needle| lower.contains(needle))
+}
+
 pub fn match_url(raw: &str) -> Option<Target> {
+    if has_unsafe_path(raw) {
+        return None;
+    }
     let url = Url::parse(raw).ok()?;
     if !matches!(url.scheme(), "http" | "https")
         || !matches!(
@@ -78,6 +88,9 @@ fn plain_text(s: &str) -> Option<String> {
 }
 
 fn media_url(base: &Url, input: &str) -> Option<(String, String)> {
+    if has_unsafe_path(input) {
+        return None;
+    }
     let mut url = base.join(input).ok()?;
     if url.scheme() == "http" {
         url.set_scheme("https").ok()?;
@@ -167,6 +180,9 @@ fn decode_post(
 }
 
 fn safe_post_href(raw: &str) -> Option<String> {
+    if has_unsafe_path(raw) {
+        return None;
+    }
     let url = Url::parse("https://vanilla-rock.com/")
         .ok()?
         .join(raw)
@@ -211,6 +227,9 @@ fn discover_posts(
 
 fn next_page(base: &Url, html: &str, kind: &str, tag: &str, current: u16) -> Option<Url> {
     let raw = capture(html, "class=\"next page-numbers\" href=\"", "\"")?;
+    if has_unsafe_path(raw) {
+        return None;
+    }
     let url = base.join(raw).ok()?;
     if url.origin() != base.origin()
         || !url.username().is_empty()
