@@ -295,3 +295,65 @@ fn process_crash_releases_archive_lock_and_next_run_can_download() {
     assert_eq!(fs::read(dir.join("recovery.jpg")).unwrap(), b"PASS");
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn cli_uses_external_gallery_dl_archive_without_modifying_source() {
+    let dir = temp("external-reference");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let external = dir.join("upstream.sqlite");
+    let source = rusqlite::Connection::open(&external).unwrap();
+    source
+        .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+        .unwrap();
+    source
+        .execute(
+            "INSERT INTO archive(entry) VALUES (?1)",
+            ["directlinkexample.org/images/old.jpg"],
+        )
+        .unwrap();
+    drop(source);
+    let original_bytes = fs::read(&external).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("--gallery-dl-archive")
+        .arg(&external)
+        .arg("-d")
+        .arg(&dir)
+        .arg("https://example.org/images/old.jpg?signature=rotated")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("archived old.jpg"));
+    assert_eq!(fs::read(&external).unwrap(), original_bytes);
+    assert!(native.exists());
+    assert!(!dir.join("old.jpg").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn cli_rejects_missing_reference_archive_without_creating_native_db() {
+    let dir = temp("missing-reference");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let external = dir.join("missing.sqlite");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive")
+        .arg(&native)
+        .arg("--gallery-dl-archive")
+        .arg(&external)
+        .arg("https://example.org/image.jpg")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!native.exists());
+    assert!(!external.exists());
+    fs::remove_dir_all(dir).unwrap();
+}

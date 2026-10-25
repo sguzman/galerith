@@ -1,7 +1,7 @@
 //! Native SQLite archive; its schema is not yet gallery-dl compatible.
 use crate::MediaItem;
 use fs2::FileExt;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 use std::{
     error::Error,
@@ -14,6 +14,7 @@ pub struct Archive {
     connection: Connection,
     lock_directory: Option<PathBuf>,
     upstream_directlink_archive: bool,
+    upstream_reference: Option<Connection>,
 }
 
 /// Never unlink a held advisory lock file: doing so can split its namespace.
@@ -77,8 +78,46 @@ fn upstream_directlink_key(item: &MediaItem) -> Option<String> {
     ))
 }
 
+fn has_upstream_table(connection: &Connection) -> Result<bool, rusqlite::Error> {
+    let found: i64 = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('archive') WHERE name = 'entry' AND pk = 1 AND UPPER(type) = 'TEXT')",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(found != 0)
+}
+
 impl Archive {
     pub fn open(path: &Path) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::open_with_reference(path, None)
+    }
+
+    /// Optionally use an *existing* gallery-dl archive as a strictly
+    /// read-only fallback for pinned directlink identities. Galerith writes
+    /// all completed downloads to its own database, never the reference.
+    pub fn open_with_reference(
+        path: &Path,
+        reference_path: Option<&Path>,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        // Validate the upstream source before creating Galerith's own DB.
+        // The READ_ONLY flag never creates a missing upstream file.
+        let upstream_reference = if let Some(reference_path) = reference_path {
+            let source = Connection::open_with_flags(
+                reference_path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY,
+            )?;
+            source.busy_timeout(Duration::from_secs(5))?;
+            if !has_upstream_table(&source)? {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "gallery-dl archive requires archive(entry TEXT PRIMARY KEY)",
+                )
+                .into());
+            }
+            Some(source)
+        } else {
+            None
+        };
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
@@ -105,15 +144,12 @@ impl Archive {
         };
         // Only consult a preexisting upstream archive table with the expected
         // primary-key column. Never create or mutate upstream's archive rows.
-        let upstream_directlink_archive: i64 = connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('archive') WHERE name = 'entry' AND pk > 0)",
-            [],
-            |row| row.get(0),
-        )?;
+        let upstream_directlink_archive = has_upstream_table(&connection)?;
         Ok(Self {
             connection,
             lock_directory,
-            upstream_directlink_archive: upstream_directlink_archive != 0,
+            upstream_directlink_archive,
+            upstream_reference,
         })
     }
 
@@ -160,9 +196,15 @@ impl Archive {
         if present != 0 {
             return Ok(true);
         }
-        if self.upstream_directlink_archive {
-            if let Some(source_key) = upstream_directlink_key(item) {
-                let upstream: i64 = self.connection.query_row(
+        if let Some(source_key) = upstream_directlink_key(item) {
+            // Explicit external reference takes precedence, then the
+            // existing same-file fallback for legacy mixed databases.
+            let source = self.upstream_reference.as_ref().or_else(|| {
+                self.upstream_directlink_archive
+                    .then_some(&self.connection)
+            });
+            if let Some(source) = source {
+                let upstream: i64 = source.query_row(
                     "SELECT EXISTS(SELECT 1 FROM archive WHERE entry = ?1)",
                     params![source_key],
                     |row| row.get(0),
@@ -395,6 +437,74 @@ mod tests {
             fs::remove_dir_all(lock_dir).unwrap();
         }
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn external_gallery_dl_archive_is_never_modified() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-external-archive-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let reference = root.join("gallery-dl.sqlite");
+        let original = Connection::open(&reference).unwrap();
+        original
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        original
+            .execute(
+                "INSERT INTO archive(entry) VALUES (?1)",
+                params!["directlinkexample.org/gallery/known.jpg"],
+            )
+            .unwrap();
+        drop(original);
+        let original_bytes = fs::read(&reference).unwrap();
+
+        let archive = Archive::open_with_reference(&native, Some(&reference)).unwrap();
+        let known = extract_direct_media("https://example.org/gallery/known.jpg?sig=new").unwrap();
+        assert!(archive.contains(&known).unwrap());
+        let unknown = extract_direct_media("https://example.org/gallery/new.png").unwrap();
+        assert!(!archive.contains(&unknown).unwrap());
+        archive.record(&unknown).unwrap();
+        assert!(archive.contains(&unknown).unwrap());
+        drop(archive);
+        assert_eq!(fs::read(&reference).unwrap(), original_bytes);
+        let foreign = Connection::open_with_flags(&reference, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .unwrap();
+        assert!(!has_upstream_table(&Connection::open(&native).unwrap()).unwrap());
+        assert!(has_upstream_table(&foreign).unwrap());
+        let rows: i64 = foreign
+            .query_row("SELECT COUNT(*) FROM archive", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+        drop(foreign);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn missing_or_malformed_external_archive_fails_without_creating_native() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-external-invalid-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let missing = root.join("missing.sqlite");
+        assert!(Archive::open_with_reference(&native, Some(&missing)).is_err());
+        assert!(!native.exists());
+        assert!(!missing.exists());
+        let invalid = root.join("invalid.sqlite");
+        let connection = Connection::open(&invalid).unwrap();
+        connection
+            .execute_batch("CREATE TABLE archive(entry INTEGER PRIMARY KEY);")
+            .unwrap();
+        drop(connection);
+        assert!(Archive::open_with_reference(&native, Some(&invalid)).is_err());
+        assert!(!native.exists());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

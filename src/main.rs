@@ -224,6 +224,10 @@ struct Cli {
     #[arg(long = "download-archive", value_name = "FILE")]
     download_archive: Option<PathBuf>,
 
+    /// Existing gallery-dl SQLite archive to consult read-only for direct links
+    #[arg(long = "gallery-dl-archive", value_name = "FILE", requires = "download_archive")]
+    gallery_dl_archive: Option<PathBuf>,
+
     /// Overwrite existing media instead of skipping
     #[arg(long)]
     no_skip: bool,
@@ -354,7 +358,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         } else {
             cli.download_archive
                 .as_ref()
-                .map(|path| Archive::open(path))
+                .map(|path| Archive::open_with_reference(path, cli.gallery_dl_archive.as_deref()))
                 .transpose()?
         };
     let selected = cli
