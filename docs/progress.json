@@ -3876,6 +3876,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T579",
+              "emoji": "🏙️",
+              "name": "Architizer public project media and firm-to-project queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match exact first-party public Architizer project and firm URLs, rejecting credentials, traversal, query fields and forged origins",
+                  "passed": true,
+                  "evidence": "src/extractor/architizer.rs strict_public_project_and_firm_routes; full CI 40146768502"
+                },
+                {
+                  "title": "Read source project OG secure-image originals with trusted first-party/Imgix URLs, deduplication and visible metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/architizer.rs canonical_project_images_and_visible_metadata; full CI 40146768502"
+                },
+                {
+                  "title": "Emit validated, first-seen typed project queues for public firm pages instead of eager downloads",
+                  "passed": true,
+                  "evidence": "src/extractor/architizer.rs firm_queues_deduplicate_project_slugs and src/extractor/mod.rs routed registry; full CI 40146768502"
+                },
+                {
+                  "title": "Bound public project and firm HTML reads, rejecting foreign redirects, with two sequential local HTTP source fixtures",
+                  "passed": true,
+                  "evidence": "src/extractor/architizer.rs project_html_and_firm_html_are_bounded_loopback_requests; full CI 40146768502"
+                },
+                {
+                  "title": "Match complete pinned rich project descriptions, alternate image origins, filename/archive/directory semantics, unrestricted firm listings and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

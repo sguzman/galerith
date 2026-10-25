@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 136 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 137 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -752,6 +752,12 @@
   - [x] Scope direct originals to trusted first-party Are.na media domains and bound JSON/100-block pages, media count and deduplication — src/extractor/arena.rs source_media, request_json, append_contents, first-party and byte-bound tests; full CI 40146310559
   - [x] Dispatch native flat and typed channel events via API channel metadata plus paged contents endpoint with local two-request HTTP verification — src/extractor/arena.rs public_channel_and_contents_make_two_bounded_api_requests; src/extractor/mod.rs routed registry fixture; full CI 40146310559
   - [ ] Complete full pinned external attachment hosts, nested metadata and exact filename/archive/directory options, unrestricted pagination and live upstream differential parity
+- 🏙️ **T579** Architizer public project media and firm-to-project queues — `████████░░ 80%`
+  - [x] Match exact first-party public Architizer project and firm URLs, rejecting credentials, traversal, query fields and forged origins — src/extractor/architizer.rs strict_public_project_and_firm_routes; full CI 40146768502
+  - [x] Read source project OG secure-image originals with trusted first-party/Imgix URLs, deduplication and visible metadata — src/extractor/architizer.rs canonical_project_images_and_visible_metadata; full CI 40146768502
+  - [x] Emit validated, first-seen typed project queues for public firm pages instead of eager downloads — src/extractor/architizer.rs firm_queues_deduplicate_project_slugs and src/extractor/mod.rs routed registry; full CI 40146768502
+  - [x] Bound public project and firm HTML reads, rejecting foreign redirects, with two sequential local HTTP source fixtures — src/extractor/architizer.rs project_html_and_firm_html_are_bounded_loopback_requests; full CI 40146768502
+  - [ ] Match complete pinned rich project descriptions, alternate image origins, filename/archive/directory semantics, unrestricted firm listings and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

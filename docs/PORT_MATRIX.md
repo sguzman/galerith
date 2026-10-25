@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 52 · Not ported: 220.**
+**Complete: 0 · Partial: 53 · Not ported: 219.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -26,7 +26,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/allporncomic.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/ao3.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/arcalive.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/architizer.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/architizer.py` | 🟡 Partial | `src/extractor/architizer.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/arena.py` | 🟡 Partial | `src/extractor/arena.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/artstation.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/aryion.py` | ⚪ Not ported | — |

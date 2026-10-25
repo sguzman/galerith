@@ -187,9 +187,14 @@
     {
       "path": "gallery_dl/extractor/architizer.py",
       "module": "architizer",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/architizer.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded Architizer project and firm preview: first-party /projects/SLUG and /firms/SLUG public routes, bounded 2 MiB original and firm HTML, first-party/selected Imgix HTTPS source originals with OG query stripping, 160 image cap, source-backed title/firm/location/GID fields, 128 first-seen typed deferred firm project queues, two-request loopback HTTP verification. CI 40146768502 passed formatting, Clippy, tests and release build. Full media/CDN/metadata/output and live source parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/arena.py",
