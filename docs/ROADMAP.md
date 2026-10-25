@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 139 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 140 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -771,6 +771,12 @@
   - [x] Validate exact same-album gallery continuations, first-party redirects and loopback HTTP image/listing fixtures — src/extractor/ahottie.rs gallery_continuation_rejects_prefix_matched_foreign_albums, public_album_and_tag_queue_use_bounded_loopback_html; full CI 40148211788
   - [x] Extract and deduplicate visible source tag labels from the Ahottie gallery tag container — src/extractor/ahottie.rs source_gallery_tag_container_deduplicates_visible_tag_labels; full CI 40148551950
   - [ ] Match complete ISO date, filenames/archive, placeholder JPEG response rejection, all pagination variants and live pinned upstream differential parity
+- 🎨 **T582** Foriio public image works and user-to-work discovery — `████████░░ 80%`
+  - [x] Route pinned Foriio work IDs and user profiles across both public domains with strict host, query and path constraints — src/extractor/foriio.rs routes_accept_pinned_work_and_user_forms_only; CI 40149290826
+  - [x] Decode original image works with source-backed IDs, author/title/dimension metadata and trusted Imgix originals — src/extractor/foriio.rs images_preserve_source_ids_and_reject_foreign_media; CI 40149290826
+  - [x] Enforce exact source work identity and reject foreign media or unsupported work types without silent success — src/extractor/foriio.rs images_preserve_source_ids_and_reject_foreign_media including absent/mismatched identity; CI 40149290826
+  - [x] Bound public API JSON, user pagination and typed first-seen deferred work queues through local one- and two-page HTTP fixtures — src/extractor/foriio.rs user_queue_deduplicates_and_validates_pagination_identity, public_work_and_user_queue_read_bounded_local_api, bounded_user_api_follows_two_pages_with_first_seen_work_ids; CI 40149290826
+  - [ ] Port pinned video/audio/article/copy-writing formats and their options, full filename/archive/author/date semantics, uncapped feeds and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.
