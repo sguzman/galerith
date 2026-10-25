@@ -221,3 +221,24 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         .expect("write pinned reference comparison evidence");
     }
 }
+
+#[test]
+fn pinned_philomena_archive_format_is_the_image_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl.extractor.philomena import PhilomenaExtractor; print(PhilomenaExtractor.archive_fmt)",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Philomena archive template").trim(),
+        "{id}"
+    );
+}
