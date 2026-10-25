@@ -1,7 +1,7 @@
 //! Offline differential against the pinned upstream gallery-dl directlink
 //! extractor. Upstream Python is executed ONLY by the isolated CI oracle job;
 //! Galerith and its runtime remain Rust-native.
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{env, path::Path, process::Command};
 
 const PINNED: &str = "7f226f74108501c8ac3120548370f68f19e6f9b3";
@@ -83,6 +83,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut verified_cases = Vec::with_capacity(URLS.len());
     for url in URLS {
         let rust = native_events(url);
         let source = pinned_events(root, url);
@@ -134,5 +135,30 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             basename.as_ref(),
             "{url}: native flat filename policy"
         );
+        verified_cases.push(json!({
+            "url": url,
+            "reference_events": source,
+            "native_events": rust,
+            "status": "source_fields_match",
+            "known_divergence": "upstream formatted extension is lowercase; native flat filename retains original extension case"
+        }));
+    }
+    if let Ok(report_path) = env::var("GALERITH_ORACLE_REPORT_PATH") {
+        let path = Path::new(&report_path);
+        std::fs::create_dir_all(path.parent().expect("oracle report parent"))
+            .expect("create oracle report directory");
+        let report = json!({
+            "schema_version": 1,
+            "upstream_commit": PINNED,
+            "scope": "pinned-directlink-offline-source-metadata",
+            "cases": verified_cases,
+            "limitations": [
+                "Source metadata equivalence only, not full filename/archive semantics",
+                "No non-directlink extractor or live source website was contacted",
+                "Only repository CI executes the original upstream Python interpreter"
+            ]
+        });
+        std::fs::write(path, format!("{}\n", serde_json::to_string_pretty(&report).unwrap()))
+            .expect("write pinned reference comparison evidence");
     }
 }

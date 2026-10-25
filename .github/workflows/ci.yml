@@ -28,6 +28,11 @@ jobs:
   pinned-reference:
     name: Pinned upstream directlink oracle
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -52,7 +57,18 @@ jobs:
           GALERITH_REFERENCE_ORACLE: "1"
           GALERITH_PINNED_REFERENCE_ROOT: .oracle/pinned-gallery-dl
           GALERITH_PINNED_REFERENCE_SHA: 7f226f74108501c8ac3120548370f68f19e6f9b3
+          GALERITH_ORACLE_REPORT_PATH: .oracle/reports/directlink.json
         run: cargo test --test reference_directlink
+      - name: Upload reproducible directlink oracle evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinned-directlink-oracle
+          path: .oracle/reports/directlink.json
+          if-no-files-found: error
+      - name: Sign directlink oracle report provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: .oracle/reports/directlink.json
 
   report-status:
     name: Publish Rust CI commit status
