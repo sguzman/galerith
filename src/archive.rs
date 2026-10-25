@@ -2179,6 +2179,110 @@ mod tests {
     }
 
     #[test]
+    fn tag_search_archive_identity_is_source_scoped_and_private() {
+        let root = std::env::temp_dir().join(format!("galerith-tag-id-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let original = MediaItem {
+            url: "https://old-cdn.example.org/88.jpg?sig=old".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://new-cdn.example.org/88.png?sig=new".into(),
+            ..original.clone()
+        };
+        let query = "https://e621.net/posts?tags=blue+fox";
+        assert_eq!(booru_tag_search(&original, query), Some("blue fox".into()));
+        archive.record_for_source(&original, query).unwrap();
+        assert!(archive.contains_for_source(&rotated, query).unwrap());
+        for different in [
+            "https://e621.net/posts?tags=blue+cat",
+            "https://e621.net/posts?tags=blue%2Bfox",
+            "https://e621.net/posts?tags=blue+fox&tags=blue+fox",
+            "https://e621.net/posts/88",
+            "https://e621.net/pools/88",
+            "https://e621.net/favorites?user_id=42",
+            "https://e926.net/posts?tags=blue+fox",
+            "https://attacker.example/posts?tags=blue+fox",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, different).unwrap());
+        }
+        let bytes = fs::read(&native).unwrap();
+        for secret in [b"blue fox".as_slice(), b"sig=old".as_slice()] {
+            assert!(!bytes.windows(secret.len()).any(|part| part == secret));
+        }
+        assert!(canonical_tag_archive_suffix("t_blue fox_88"));
+        assert!(canonical_tag_archive_suffix("t__88"));
+        for bad in ["t_cat_0", "t_cat_088", "t_cat_8_suffix", "f_42_88"] {
+            assert!(!canonical_tag_archive_suffix(bad));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn upstream_tag_archive_import_is_hashed_idempotent_and_offline_usable() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-tag-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let native = root.join("native.sqlite");
+        let upstream = Connection::open(&foreign).unwrap();
+        upstream
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danboorut_blue fox_88');
+                 INSERT INTO archive VALUES ('e621t_blue fox_88');
+                 INSERT INTO archive VALUES ('e926t_blue fox_88');
+                 INSERT INTO archive VALUES ('e6ait_blue fox_88');
+                 INSERT INTO archive VALUES ('e621f_42_88');",
+            )
+            .unwrap();
+        drop(upstream);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
+        assert_eq!(archive.import_reference().unwrap(), (5, 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(foreign).unwrap();
+        let saved = fs::read(&native).unwrap();
+        assert!(!saved
+            .windows(b"blue fox".len())
+            .any(|part| part == b"blue fox"));
+        let archive = Archive::open(&native).unwrap();
+        for (category, host) in [
+            ("danbooru", "danbooru.donmai.us"),
+            ("e621", "e621.net"),
+            ("e926", "e926.net"),
+            ("e6ai", "e6ai.net"),
+        ] {
+            let media = MediaItem {
+                url: "https://rotated.example.net/88.jpg".into(),
+                filename: "88.jpg".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            assert!(archive
+                .contains_for_source(&media, &format!("https://{host}/posts?tags=blue+fox"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&media, &format!("https://{host}/posts?tags=blue+cat"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&media, &format!("https://{host}/posts/88"))
+                .unwrap());
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
