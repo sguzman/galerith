@@ -140,7 +140,9 @@ fn decode_work(
     id: u64,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let work = root.get("work").ok_or("Foriio work object absent")?;
-    let actual = work.get("id").and_then(Value::as_u64)
+    let actual = work
+        .get("id")
+        .and_then(Value::as_u64)
         .ok_or("Foriio public work lacks numeric source identity")?;
     if actual != id {
         return Err("Foriio work ID differs from requested work".into());
