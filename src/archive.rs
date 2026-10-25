@@ -82,7 +82,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "danbooru",
         "e621",
         "e6ai",
-        ] {
+    ] {
         if prefix == category && bare.parse::<u64>().ok().is_some_and(|n| n > 0) {
             return Some((category, format!("{category}{bare}")));
         }
@@ -1111,12 +1111,66 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[tokio::test]
+    async fn direct_booru_post_source_locks_rotate_with_the_post_id() {
+        let root = std::env::temp_dir()
+            .join(format!("galerith-direct-post-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("native.sqlite");
+        let post_url = "https://e621.net/posts/88";
+        let original = MediaItem {
+            url: "https://static.e621.net/88.jpg?auth=first".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://static2.e621.net/88.jpg?auth=second".into(),
+            ..original.clone()
+        };
+        assert_ne!(key(&original), key(&rotated));
+        let first = Archive::open(&path).unwrap();
+        let first_guard = first
+            .lock_item_for_source(&original, post_url)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let other_path = path.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let second = Archive::open(&other_path).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = second
+                    .lock_item_for_source(&rotated, post_url)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(second.contains_for_source(&rotated, post_url).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&original, post_url).unwrap();
+        drop(first_guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn booru_post_source_scope_prevents_feed_and_cross_site_false_matches() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-direct-post-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-direct-post-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
@@ -1156,7 +1210,9 @@ mod tests {
             extractor: "danbooru",
             ..rotated.clone()
         };
-        assert!(!archive.contains_for_source(&wrong_category, direct).unwrap());
+        assert!(!archive
+            .contains_for_source(&wrong_category, direct)
+            .unwrap());
         assert!(!archive
             .contains_for_source(&wrong_category, "https://danbooru.donmai.us/posts/88")
             .unwrap());
@@ -1190,9 +1246,13 @@ mod tests {
         };
         let original_post = "https://danbooru.donmai.us/posts/99";
         archive.record(&item).unwrap();
-        assert!(!archive.contains_for_source(&rotated, original_post).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, original_post)
+            .unwrap());
         assert!(archive.contains_for_source(&item, original_post).unwrap());
-        assert!(archive.contains_for_source(&rotated, original_post).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, original_post)
+            .unwrap());
         assert!(!archive
             .contains_for_source(&rotated, "https://danbooru.donmai.us/posts?tags=rating:s")
             .unwrap());
