@@ -491,10 +491,8 @@ mod tests {
 
     #[test]
     fn same_file_reference_is_rejected_without_modifying_database() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-reference-alias-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-reference-alias-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let reference = root.join("gallery.sqlite");
