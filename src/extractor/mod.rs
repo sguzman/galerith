@@ -61,6 +61,7 @@ pub mod postimg;
 pub mod silverpic;
 pub mod slideshare;
 pub mod soundgasm;
+pub mod vanillarock;
 pub mod speakerdeck;
 pub mod telegraph;
 pub mod thirtyfivephoto;
@@ -252,6 +253,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "soundgasm",
         "public audio originals and bounded user discovery",
     ),
+    ("vanillarock", "public post images and bounded category/tag queues"),
     ("silverpic", "pinned public Silverpic original-image subset"),
     (
         "telegraph",
@@ -423,6 +425,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("slideshare")
     } else if soundgasm::match_url(input).is_some() {
         Some("soundgasm")
+    } else if vanillarock::match_url(input).is_some() {
+        Some("vanillarock")
     } else if wallhaven::match_url(input).is_some() {
         Some("wallhaven")
     } else if wallpapercave::match_url(input).is_some() {
@@ -688,6 +692,9 @@ pub async fn resolve(
     if let Some(target) = soundgasm::match_url(input) {
         return soundgasm::resolve(client, target).await;
     }
+    if let Some(target) = vanillarock::match_url(input) {
+        return vanillarock::resolve(client, target).await;
+    }
     if let Some(target) = wallhaven::match_url(input) {
         return wallhaven::resolve(client, target, max_pages).await;
     }
@@ -815,6 +822,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = soundgasm::match_url(input) {
         return soundgasm::resolve_messages(client, target).await;
+    }
+    if let Some(target) = vanillarock::match_url(input) {
+        return vanillarock::resolve_messages(client, target, max_pages).await;
     }
     if let Some(target) = listal::match_url(input) {
         return listal::resolve_messages(client, target, max_pages).await;
@@ -1288,6 +1298,7 @@ mod tests {
             ("https://speakerdeck.com/person/my-deck", "speakerdeck"),
             ("https://www.slideshare.net/speaker/my-deck", "slideshare"),
             ("https://soundgasm.net/u/alice/first", "soundgasm"),
+            ("https://vanilla-rock.com/my-post", "vanillarock"),
             ("https://wallpapercave.com/w/wp12345", "wallpapercave"),
             ("https://wallhaven.cc/w/94x38z", "wallhaven"),
             ("https://wallhaven.cc/search?q=blue+sky", "wallhaven"),
