@@ -147,19 +147,25 @@ fn decode_work(
     if actual != id {
         return Err("Foriio work ID differs from requested work".into());
     }
-    let files = work
-        .get("images")
-        .and_then(Value::as_array)
-        .ok_or("Foriio video/audio/external work type not supported by public image adapter")?;
+    let (files, copy_writing): (Vec<&Value>, bool) =
+        if let Some(images) = work.get("images").and_then(Value::as_array) {
+            (images.iter().collect(), false)
+        } else if let Some(copy) = work.get("copy_writing").filter(|value| value.is_object()) {
+            (vec![copy], true)
+        } else {
+            return Err("Foriio work media type not supported by public image adapter".into());
+        };
     if files.is_empty() || files.len() > MAX_IMAGES {
         return Err("Foriio public image work is empty or exceeds media cap".into());
     }
     let mut out = Vec::new();
     for (index, file) in files.iter().enumerate() {
-        let (url, ext) = file
-            .pointer("/urls/list")
-            .and_then(Value::as_str)
-            .and_then(original)
+        let source = if copy_writing {
+            file.get("image").and_then(Value::as_str)
+        } else {
+            file.pointer("/urls/list").and_then(Value::as_str)
+        };
+        let (url, ext) = source.and_then(original)
             .ok_or("Foriio image URL is not a trusted source thumbnail")?;
         let file_id = file
             .get("id")
@@ -387,6 +393,19 @@ mod tests {
         assert!(decode_work(&missing, 12345).is_err());
         let evil = serde_json::json!({"work":{"images":[{"id":1,"urls":{"list":"https://evilforiio.imgix.net/store/one.jpg"}}]}});
         assert!(decode_work(&evil, 12345).is_err());
+    }
+
+    #[test]
+    fn copy_writing_image_uses_original_and_source_file_id() {
+        let work = serde_json::json!({"work":{"id":4321,"type":"copy_writing",
+            "copy_writing":{"id":"letter1","image":"https://foriio.imgix.net/store/page.png?width=400"}}});
+        let images = decode_work(&work, 4321).unwrap();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].0.url, "https://foriio.imgix.net/store/page.png");
+        assert_eq!(images[0].0.filename, "01 letter1.png");
+        assert_eq!(images[0].1["count"], 1);
+        let unsupported = serde_json::json!({"work":{"id":4321,"type":"video","videos":[{"url":"https://video.example/video"}]}});
+        assert!(decode_work(&unsupported, 4321).is_err());
     }
 
     #[test]
