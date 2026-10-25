@@ -316,7 +316,7 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
 /// the same post ID but uses a different upstream archive template.
 fn direct_booru_post(item: &MediaItem, source_url: &str) -> Option<u64> {
     let parsed = url::Url::parse(source_url).ok()?;
-    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
+    if parsed.scheme() != "https" || parsed.port().is_some() || !parsed.username().is_empty() || parsed.password().is_some() {
         return None;
     }
     let host = parsed.host_str()?;
@@ -351,7 +351,7 @@ fn booru_pool(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     }
     let post = item.post_id.filter(|id| *id > 0)?;
     let parsed = url::Url::parse(source_url).ok()?;
-    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
+    if parsed.scheme() != "https" || parsed.port().is_some() || !parsed.username().is_empty() || parsed.password().is_some() {
         return None;
     }
     match (item.extractor, parsed.host_str()?) {
@@ -377,7 +377,7 @@ fn danbooru_favorite_group(item: &MediaItem, source_url: &str) -> Option<(u64, u
     }
     let post_id = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https"
+    if source.scheme() != "https" || source.port().is_some()
         || source.host_str() != Some("danbooru.donmai.us")
         || !source.username().is_empty()
         || source.password().is_some()
@@ -401,7 +401,7 @@ fn e621_favorite(item: &MediaItem, source_url: &str) -> Option<(u64, u64)> {
     }
     let post = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https"
+    if source.scheme() != "https" || source.port().is_some()
         || !source.username().is_empty()
         || source.password().is_some()
         || source.path() != "/favorites"
@@ -436,7 +436,7 @@ fn booru_tag_search(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || !source.username().is_empty() || source.password().is_some() {
+    if source.scheme() != "https" || source.port().is_some() || !source.username().is_empty() || source.password().is_some() {
         return None;
     }
     match (item.extractor, source.host_str()?, source.path()) {
@@ -474,7 +474,7 @@ fn danbooru_media_asset(item: &MediaItem, source_url: &str) -> Option<u64> {
     }
     let id = item.post_id.filter(|id| *id > 0)?;
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https"
+    if source.scheme() != "https" || source.port().is_some()
         || source.host_str() != Some("danbooru.donmai.us")
         || !source.username().is_empty()
         || source.password().is_some()
@@ -496,7 +496,7 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https" || !source.username().is_empty() || source.password().is_some() {
+    if source.scheme() != "https" || source.port().is_some() || !source.username().is_empty() || source.password().is_some() {
         return None;
     }
     let source_path = source.path();
@@ -2794,6 +2794,71 @@ mod tests {
             )
             .unwrap());
         drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn alternate_https_ports_cannot_reuse_scoped_booru_archive_ids() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-bool-alt-port-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        for (category, host, route) in [
+            ("danbooru", "danbooru.donmai.us", "/posts/88"),
+            ("danbooru", "danbooru.donmai.us", "/pools/77"),
+            ("danbooru", "danbooru.donmai.us", "/favorite_groups/77"),
+            ("danbooru", "danbooru.donmai.us", "/media_assets/88"),
+            ("danbooru", "danbooru.donmai.us", "/posts?tags=blue+fox"),
+            (
+                "danbooru",
+                "danbooru.donmai.us",
+                "/explore/posts/popular?scale=week&date=2026-10-25",
+            ),
+            ("e621", "e621.net", "/posts/88"),
+            ("e621", "e621.net", "/pools/77"),
+            ("e621", "e621.net", "/favorites?user_id=42"),
+            ("e621", "e621.net", "/posts?tags=blue+fox"),
+            (
+                "e621",
+                "e621.net",
+                "/explore/posts/popular?scale=month&date=2026-10-25",
+            ),
+            ("e926", "e926.net", "/favorites?user_id=42"),
+            ("e6ai", "e6ai.net", "/pools/77"),
+        ] {
+            let regular = format!("https://{host}{route}");
+            let alternate_port = format!("https://{host}:9443{route}");
+            let item = MediaItem {
+                url: format!("https://cdn.example.test/{category}/88.jpg?token=first"),
+                filename: "88.jpg".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            let rotated = MediaItem {
+                url: format!("https://cdn.example.test/{category}/88.webp?token=second"),
+                filename: "88.webp".into(),
+                ..item.clone()
+            };
+            assert!(
+                booru_archive_scope(&item, &regular).is_some(),
+                "expected source-specific archive identity for {regular}"
+            );
+            assert!(
+                booru_archive_scope(&rotated, &alternate_port).is_none(),
+                "unexpected archive identity for {alternate_port}"
+            );
+            archive.record_for_source(&item, &regular).unwrap();
+            assert!(
+                !archive
+                    .contains_for_source(&rotated, &alternate_port)
+                    .unwrap(),
+                "alternate port incorrectly matched {regular}"
+            );
+        }
+        drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
 
