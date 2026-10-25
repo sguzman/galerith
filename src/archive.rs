@@ -112,6 +112,16 @@ impl Archive {
                 )
                 .into());
             }
+            // A read-only handle does not protect the original if the native
+            // destination points to the *same* database via a relative path
+            // or symlink. Reject before CREATE TABLE can modify that file.
+            if path.exists() && fs::canonicalize(path)? == fs::canonicalize(reference_path)? {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "native archive and read-only gallery-dl archive must be different files",
+                )
+                .into());
+            }
             Some(source)
         } else {
             None
@@ -476,6 +486,43 @@ mod tests {
             .unwrap();
         assert_eq!(rows, 1);
         drop(foreign);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn same_file_reference_is_rejected_without_modifying_database() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-reference-alias-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let reference = root.join("gallery.sqlite");
+        let alias = root.join("alias.sqlite");
+        let original = Connection::open(&reference).unwrap();
+        original
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        drop(original);
+        let original_bytes = fs::read(&reference).unwrap();
+
+        assert!(Archive::open_with_reference(&reference, Some(&reference)).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&reference, &alias).unwrap();
+            assert!(Archive::open_with_reference(&alias, Some(&reference)).is_err());
+        }
+        assert_eq!(fs::read(&reference).unwrap(), original_bytes);
+        let existing = Connection::open(&reference).unwrap();
+        let native_table: i64 = existing
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='downloads')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(native_table, 0);
+        drop(existing);
         fs::remove_dir_all(root).unwrap();
     }
 
