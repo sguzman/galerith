@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 137 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 66%` across 138 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -237,7 +237,7 @@
   - [x] Preserve unfiltered image/search/gallery resolution and existing page conventions — src/extractor/philomena.rs resolve_at_base wrapper and regression suite; CI 40042877773
   - [ ] Complete upstream pagination, filters, site auth, metadata and live differential acceptance
 
-### 🧱 P5 — Shared website families — `████████░░ 77%`
+### 🧱 P5 — Shared website families — `████████░░ 78%`
 
 - 🖼️ **T501** Imageboard and booru API families — `░░░░░░░░░░ 0%`
   - [ ] Implement generic booru API contracts
@@ -758,6 +758,12 @@
   - [x] Emit validated, first-seen typed project queues for public firm pages instead of eager downloads — src/extractor/architizer.rs firm_queues_deduplicate_project_slugs and src/extractor/mod.rs routed registry; full CI 40146768502
   - [x] Bound public project and firm HTML reads, rejecting foreign redirects, with two sequential local HTTP source fixtures — src/extractor/architizer.rs project_html_and_firm_html_are_bounded_loopback_requests; full CI 40146768502
   - [ ] Match complete pinned rich project descriptions, alternate image origins, filename/archive/directory semantics, unrestricted firm listings and live differential parity
+- 🧬 **T580** Agn.ph bounded XML individual posts and tagged media searches — `████████░░ 80%`
+  - [x] Match only first-party public Agn.ph individual post and XML tag-search URLs, rejecting hostile hosts, duplicate search keys and invalid pagination — src/extractor/agnph.rs public_post_and_tag_routes_reject_bad_origin_parameters; full Linux CI 40147398949
+  - [x] Parse pinned XML individual posts and search responses into validated first-party originals, source IDs and available status/date/tag text — src/extractor/agnph.rs xml_post_fields_and_search_pagination_are_source_backed; full Linux CI 40147398949
+  - [x] Implement pinned 45-post XML offset/count page semantics, first-seen stable originals and bounded pagination — src/extractor/agnph.rs tag_pagination_reads_two_source_pages_and_preserves_media_order; full Linux CI 40147398949
+  - [x] Bound XML response sizes and first-party redirects and wire native flat/typed dispatch with original and search loopback regressions — src/extractor/agnph.rs single_post_and_tag_xml_use_public_bounded_api_requests, tag_pagination_reads_two_source_pages_and_preserves_media_order, read_xml; src/extractor/mod.rs routed fixture; full Linux CI 40147398949
+  - [ ] Match full pinned age-cookie handling, tag taxonomy and per-post HTML, rich metadata/date/file variants, archives/templates and live differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

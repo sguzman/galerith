@@ -3908,6 +3908,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T580",
+              "emoji": "🧬",
+              "name": "Agn.ph bounded XML individual posts and tagged media searches",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match only first-party public Agn.ph individual post and XML tag-search URLs, rejecting hostile hosts, duplicate search keys and invalid pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/agnph.rs public_post_and_tag_routes_reject_bad_origin_parameters; full Linux CI 40147398949"
+                },
+                {
+                  "title": "Parse pinned XML individual posts and search responses into validated first-party originals, source IDs and available status/date/tag text",
+                  "passed": true,
+                  "evidence": "src/extractor/agnph.rs xml_post_fields_and_search_pagination_are_source_backed; full Linux CI 40147398949"
+                },
+                {
+                  "title": "Implement pinned 45-post XML offset/count page semantics, first-seen stable originals and bounded pagination",
+                  "passed": true,
+                  "evidence": "src/extractor/agnph.rs tag_pagination_reads_two_source_pages_and_preserves_media_order; full Linux CI 40147398949"
+                },
+                {
+                  "title": "Bound XML response sizes and first-party redirects and wire native flat/typed dispatch with original and search loopback regressions",
+                  "passed": true,
+                  "evidence": "src/extractor/agnph.rs single_post_and_tag_xml_use_public_bounded_api_requests, tag_pagination_reads_two_source_pages_and_preserves_media_order, read_xml; src/extractor/mod.rs routed fixture; full Linux CI 40147398949"
+                },
+                {
+                  "title": "Match full pinned age-cookie handling, tag taxonomy and per-post HTML, rich metadata/date/file variants, archives/templates and live differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

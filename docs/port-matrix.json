@@ -152,9 +152,14 @@
     {
       "path": "gallery_dl/extractor/agnph.py",
       "module": "agnph",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/agnph.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Agn.ph XML booru subset: numeric /gallery/post/show/ID plus /gallery/post/?search=TAG, strict URL host/path/query validation, /show/ID/?api=xml and /gallery/post/?search=...&api=xml&page=N with 45-post offset/count continuation, 2 MiB XML cap, 4 pages/160 media, validated HTTPS first-party file URLs, source-backed status/timestamp/tags text and typed events. Unit/loopback API fixtures including two-page 46 media transition passed full Linux CI 40147398949. Age cookies, HTML tag taxonomy, full naming/archive and live differential parity remain unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/ahottie.py",
