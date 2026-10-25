@@ -105,16 +105,16 @@ fn is_booru_pool_category(category: &str) -> bool {
 /// The upstream pool template is p_{pool[id]}_{id}, with numeric IDs
 /// sourced from the pool object and the post. Never parse tag/favorite rows.
 fn canonical_pool_archive_suffix(suffix: &str) -> bool {
-    let Some((pool, post)) = suffix.strip_prefix("p_").and_then(|rest| rest.split_once('_'))
+    let Some((pool, post)) = suffix
+        .strip_prefix("p_")
+        .and_then(|rest| rest.split_once('_'))
     else {
         return false;
     };
     let (Ok(pool_id), Ok(post_id)) = (pool.parse::<u64>(), post.parse::<u64>()) else {
         return false;
     };
-    pool_id > 0
-        && post_id > 0
-        && suffix == format!("p_{pool_id}_{post_id}")
+    pool_id > 0 && post_id > 0 && suffix == format!("p_{pool_id}_{post_id}")
 }
 
 fn valid_directlink_format(path: &str) -> bool {
@@ -685,11 +685,7 @@ impl Archive {
             let configured = self.upstream_reference.as_ref().and_then(|_| {
                 self.upstream_reference_prefix
                     .as_deref()
-                    .map(|prefix| {
-                        (prefix == item.extractor)
-                            .then(|| normalized.strip_prefix(item.extractor).map(|id| format!("{prefix}{id}")))
-                            .flatten()
-                    })
+                    .map(|prefix| (prefix == item.extractor).then(|| normalized.clone()))
             });
             let upstream_key = if self.upstream_reference.is_some() {
                 match configured {
@@ -1448,6 +1444,169 @@ mod tests {
             .unwrap();
         assert_eq!(native, 1);
         drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pool_native_keys_do_not_collide_with_post_or_feed_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pool-scope-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let item = MediaItem {
+            url: "https://cdn.example.net/88.jpg?token=first".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let rotated = MediaItem {
+            url: "https://other.example.net/88.png?token=second".into(),
+            ..item.clone()
+        };
+        let pool = "https://e621.net/pools/42";
+        assert_eq!(booru_pool(&item, pool), Some((42, 88)));
+        assert!(!archive.contains_for_source(&rotated, pool).unwrap());
+        archive.record_for_source(&item, pool).unwrap();
+        assert!(archive.contains_for_source(&rotated, pool).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://e621.net/pool/show/42")
+            .unwrap());
+        for unrelated in [
+            "https://e621.net/pools/43",
+            "https://e621.net/posts/88",
+            "https://e621.net/posts?tags=pool:42",
+            "https://e621.net/favorites?user_id=42",
+            "https://e926.net/pools/42",
+        ] {
+            assert!(!archive.contains_for_source(&rotated, unrelated).unwrap());
+        }
+        let other_post = MediaItem {
+            post_id: Some(89),
+            ..rotated
+        };
+        assert!(!archive.contains_for_source(&other_post, pool).unwrap());
+        assert!(canonical_pool_archive_suffix("p_42_88"));
+        for invalid in ["p_0_88", "p_42_0", "p_042_88", "p_42_088", "p_42_88_9", "t_dog_88"] {
+            assert!(!canonical_pool_archive_suffix(invalid));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imported_pool_ids_are_category_scoped_and_usable_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pool-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let reference = root.join("gallery-dl.sqlite");
+        let original = Connection::open(&reference).unwrap();
+        original
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('danboorup_42_88');
+                 INSERT INTO archive VALUES ('e621p_42_88');
+                 INSERT INTO archive VALUES ('e926p_42_88');
+                 INSERT INTO archive VALUES ('e6aip_42_88');
+                 INSERT INTO archive VALUES ('e621t_dog_88');",
+            )
+            .unwrap();
+        drop(original);
+        let unchanged = fs::read(&reference).unwrap();
+        let archive = Archive::open_with_reference(&native, Some(&reference)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        for (category, host) in [
+            ("danbooru", "danbooru.donmai.us"),
+            ("e621", "e621.net"),
+            ("e926", "e926.net"),
+            ("e6ai", "e6ai.net"),
+        ] {
+            let item = MediaItem {
+                url: "https://cdn.example.net/88.jpg?auth=rotated".into(),
+                filename: "88.jpg".into(),
+                extractor: category,
+                post_id: Some(88),
+            };
+            assert!(archive
+                .contains_for_source(&item, &format!("https://{host}/pools/42"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&item, &format!("https://{host}/pools/43"))
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&item, &format!("https://{host}/posts/88"))
+                .unwrap());
+        }
+        drop(archive);
+        assert_eq!(fs::read(&reference).unwrap(), unchanged);
+        fs::remove_file(reference).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://new.example.net/88.png?auth=new".into(),
+            filename: "88.png".into(),
+            extractor: "e926",
+            post_id: Some(88),
+        };
+        assert!(offline
+            .contains_for_source(&item, "https://e926.net/pools/42")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&item, "https://e621.net/pools/42")
+            .unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn custom_pool_table_needs_matching_site_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pool-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let original = root.join("reference.sqlite");
+        let source = Connection::open(&original).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO named VALUES ('p_42_88');",
+            )
+            .unwrap();
+        drop(source);
+        let item = MediaItem {
+            url: "https://cdn.example.net/88.jpg".into(),
+            filename: "88.jpg".into(),
+            extractor: "e621",
+            post_id: Some(88),
+        };
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&original),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        assert!(!ambiguous
+            .contains_for_source(&item, "https://e621.net/pools/42")
+            .unwrap());
+        drop(ambiguous);
+        let target = root.join("target.sqlite");
+        let correct =
+            Archive::open_with_reference_options(&target, Some(&original), Some("named"), Some("e621"))
+                .unwrap();
+        assert_eq!(correct.import_reference().unwrap(), (1, 1));
+        assert!(correct
+            .contains_for_source(&item, "https://e621.net/pools/42")
+            .unwrap());
+        drop(correct);
+        fs::remove_file(original).unwrap();
+        let native = Archive::open(&target).unwrap();
+        assert!(native
+            .contains_for_source(&item, "https://e621.net/pools/42")
+            .unwrap());
+        drop(native);
         fs::remove_dir_all(root).unwrap();
     }
 
