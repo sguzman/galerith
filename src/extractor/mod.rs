@@ -1291,6 +1291,8 @@ mod tests {
                 "https://bsky.app/profile/alice.bsky.social/post/3n9",
                 "bluesky",
             ),
+            ("https://www.bbc.co.uk/programmes/p0abc", "bbc"),
+            ("https://www.bbc.co.uk/programmes/p0abc/galleries", "bbc"),
             ("https://catbox.moe/c/album123", "catbox"),
             (
                 "https://www.comedywildlifephoto.com/gallery/2026/finalists.php",
