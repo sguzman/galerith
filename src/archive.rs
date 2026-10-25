@@ -260,6 +260,14 @@ impl Archive {
                 |row| row.get(0),
             )?;
             if old != 0 {
+                // The exact legacy URL fingerprint proves which Philomena
+                // original was saved. Promote to its stable single-image ID
+                // without deleting the historical row or re-downloading.
+                // Never promote ambiguous post-only keys or foreign entries.
+                self.connection.execute(
+                    "INSERT OR IGNORE INTO downloads (category, identity) VALUES (?1, ?2)",
+                    params![item.extractor, key(item)],
+                )?;
                 return Ok(true);
             }
         }
@@ -639,14 +647,21 @@ mod tests {
             )
             .unwrap();
         assert!(archive.contains(&previously_saved).unwrap());
-        // The legacy URL digest cannot prove a *rotated* old URL belongs to
-        // the same original. That requires a new stable record or reference.
+        // An exact legacy URL digest is proof of the saved original. The
+        // successful archive check promotes it without a second download.
+        let migrated: i64 = archive
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM downloads WHERE category = ?1 AND identity = ?2",
+                params![previously_saved.extractor, key(&previously_saved)],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(migrated, 1);
         let unknown_rotation = MediaItem {
             url: "https://cdn.example.net/991.jpg?token=changed".into(),
             ..previously_saved.clone()
         };
-        assert!(!archive.contains(&unknown_rotation).unwrap());
-        archive.record(&previously_saved).unwrap();
         assert!(archive.contains(&unknown_rotation).unwrap());
         drop(archive);
         fs::remove_file(path).unwrap();
