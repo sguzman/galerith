@@ -236,10 +236,7 @@ fn listing_urls(html: &str, seen: &mut HashSet<String>, out: &mut Vec<ExtractorM
 fn next_listing(html: &str, current: &Url) -> Option<Url> {
     let (_, tail) = html.split_once("class=\"pages\"><span>")?;
     let (pages, _) = tail.split_once(">&gt;&gt;<")?;
-    let (before, _) = pages.rsplit_once("href=\"")?;
-    let href = before.rsplit_once("href=\"").map(|(_, raw)| raw)
-        .or_else(|| pages.rsplit_once("href=\"").map(|(_, raw)| raw))?;
-    let href = href.split_once('"').map(|(raw, _)| raw)?;
+    let href = pages.rsplit_once("href=\"")?.1.split_once('"')?.0;
     let next = current.join(href).ok()?;
     if next.origin() != current.origin() || next.path() == current.path()
         || !matches!(match_url(next.as_str()), Some(Target::Search(_)))
@@ -352,6 +349,17 @@ mod tests {
         listing_urls(html,&mut ids,&mut events);
         assert_eq!(events.len(),2);
         assert_eq!(serde_json::to_value(&events[1]).unwrap()["url"],"https://fuskator.com/thumbs/Def34/");
+    }
+
+    #[test]
+    fn bounded_search_next_page_uses_last_link_and_rejects_foreign_hosts() {
+        let current = Url::parse("https://fuskator.com/search/cats").unwrap();
+        let markup = r#"<div class="pages"><span><a href="/page/one">1</a><a href="/page/two">2</a><a href="/page/three">&gt;&gt;</a>"#;
+        assert_eq!(next_listing(markup, &current).unwrap().path(), "/page/three");
+        assert!(next_listing(
+            r#"<div class="pages"><span><a href="https://evil-fuskator.com/page/two">&gt;&gt;</a>"#,
+            &current
+        ).is_none());
     }
 
     #[tokio::test]
