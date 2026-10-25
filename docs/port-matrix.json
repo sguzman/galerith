@@ -705,9 +705,14 @@
     {
       "path": "gallery_dl/extractor/hatenablog.py",
       "module": "hatenablog",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/hatenablog.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent public Hatena Blog entry, home, archive/category and search subset on four trusted blog domain families; Hatena Fotolife images, source title/entry/date, one typed directory per article including empty-image posts, per-article count, trusted child queues, strict raw and normalized path origin, 2 MiB per source HTML, four-page/160-media/128-child caps with paced pagination. Public entry GET and two archive-page real loopback HTTP fixtures. Full Linux CI 40202535138 passed including format, Clippy, tests and release build. Custom domains, exact filename/archive/date parity and live upstream differential conformance unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/hentai2read.py",

@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 151 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 152 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -846,6 +846,12 @@
   - [x] Enforce 2 MiB JSON response, 160-file/48-entry/32-directory/4-level limits and fixed first-party API requests with local HTTP fixtures — src/extractor/koofr.rs response_json, at_base, one_public_shared_file_uses_only_public_index_endpoint and bounded_two_directory_bundle_pages_keep_source_paths_and_order; full CI 40200014555
   - [x] Resolve pinned k00.fr public aliases via one non-followed redirect and validate absolute first-party link targets without leaking credentials or following forged hosts — src/extractor/koofr/short.rs short_codes_reject_forged_hosts_and_private_fields, one_redirect_uses_canonical_public_link_without_following, foreign_and_private_destinations_are_rejected_without_following; full Linux CI 40200815609
   - [ ] Match shared password configuration, complete metadata/filename/archive, all Koofr CDN and redirect variations, unlimited folder history and live pinned upstream differential parity
+- 📝 **T594** Hatena Blog public entry originals, article directories and archive queues — `████████░░ 80%`
+  - [x] Route pinned Hatena Blog public entry, home, archive/category and search URLs on trusted blog domains and reject hostile queries — src/extractor/hatenablog.rs routes_scoped_to_public_hatena_blog_domains_and_source_paths; native src/extractor/mod.rs dispatcher; Linux CI 40202535138
+  - [x] Parse Hatena Fotolife source image originals with source-backed post title, published string, entry path and independent article image indices — src/extractor/hatenablog.rs article_media_are_source_scoped_and_keep_entry_metadata and full_article_listing_keeps_distinct_posts_sharing_a_media_original; Linux CI 40202535138
+  - [x] Bound public entry HTML, multi-page home/archive/search discovery and first-party deferred archive child queues with loopback HTTP fixtures — src/extractor/hatenablog.rs public_entry_uses_one_bounded_html_request, two_archive_pages_queue_first_party_entries_once and archived_entry_queues_exclude_forged_hosts_and_duplicates; Linux CI 40202535138
+  - [x] Preserve one source-backed directory event per article including image-less posts, exact article image counts, and raw-path traversal rejection — src/extractor/hatenablog.rs imageless_article_emits_directory_and_multi_image_article_has_one_directory, source_entry_queues_reject_raw_traversal_before_url_normalization; Linux CI 40202535138
+  - [ ] Match custom-domain alias URLs, all Hatena HTML/media variants, exact date and filename/archive/directory templates, unbounded pagination, and live upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

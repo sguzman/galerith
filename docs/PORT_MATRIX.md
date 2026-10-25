@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 67 · Not ported: 205.**
+**Complete: 0 · Partial: 68 · Not ported: 204.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -87,7 +87,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/girlsreleased.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/girlswithmuscle.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/gofile.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/hatenablog.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/hatenablog.py` | 🟡 Partial | `src/extractor/hatenablog.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/hentai2read.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/hentaicosplays.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/hentaihere.py` | ⚪ Not ported | — |
