@@ -144,7 +144,9 @@ mod tests {
         drop(archive);
         let bytes = fs::read(&path).unwrap();
         for sensitive in ["secret-first", "secret-second", "https://cdn.example.org"] {
-            assert!(!bytes.windows(sensitive.len()).any(|part| part == sensitive.as_bytes()));
+            assert!(!bytes
+                .windows(sensitive.len())
+                .any(|part| part == sensitive.as_bytes()));
         }
         fs::remove_file(path).unwrap();
     }
@@ -163,10 +165,13 @@ mod tests {
             post_id: Some(77),
         };
         let archive = Archive::open(&path).unwrap();
-        archive.connection.execute(
-            "INSERT INTO downloads (category, identity) VALUES (?1, ?2)",
-            params!["multiple", "post:77"],
-        ).unwrap();
+        archive
+            .connection
+            .execute(
+                "INSERT INTO downloads (category, identity) VALUES (?1, ?2)",
+                params!["multiple", "post:77"],
+            )
+            .unwrap();
         // The old format does not say which media original was downloaded.
         // Favor a safe re-download over suppressing potentially missing files.
         assert!(!archive.contains(&item).unwrap());
