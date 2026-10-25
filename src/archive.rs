@@ -462,10 +462,7 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
         return None;
     }
     let source = url::Url::parse(source_url).ok()?;
-    if source.scheme() != "https"
-        || !source.username().is_empty()
-        || source.password().is_some()
-    {
+    if source.scheme() != "https" || !source.username().is_empty() || source.password().is_some() {
         return None;
     }
     let source_path = source.path();
@@ -495,7 +492,10 @@ fn booru_popular(item: &MediaItem, source_url: &str) -> Option<String> {
         "month" => ("m", date[..7].to_owned()),
         _ => return None,
     };
-    Some(format!("{}P_{initial}_{normalized_date}_{}", item.extractor, item.post_id?))
+    Some(format!(
+        "{}P_{initial}_{normalized_date}_{}",
+        item.extractor, item.post_id?
+    ))
 }
 
 /// Scoped identity unifies native archive records, advisory locks and
@@ -2628,8 +2628,7 @@ mod tests {
 
     #[test]
     fn day_month_popular_archive_scope_requires_explicit_valid_dates() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-popular-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-popular-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let archive = Archive::open(&root.join("native.sqlite")).unwrap();
@@ -2643,10 +2642,8 @@ mod tests {
             url: "https://other.example.org/88.png?sig=new".into(),
             ..original.clone()
         };
-        let daily =
-            "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25";
-        let monthly =
-            "https://e621.net/explore/posts/popular?scale=month&date=2026-10-25";
+        let daily = "https://e621.net/explore/posts/popular?scale=day&date=2026-10-25";
+        let monthly = "https://e621.net/explore/posts/popular?scale=month&date=2026-10-25";
         assert_eq!(
             booru_popular(&original, daily),
             Some("e621P_d_2026-10-25_88".into())
