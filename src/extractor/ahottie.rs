@@ -185,7 +185,10 @@ async fn gallery_at(client:&Client,base:&Url,id:&str,max_pages:u16)
         let html=read_html(client,page.clone()).await?;
         gallery_page(&html,id,&mut meta,&mut seen,&mut out)?;
         let Some(next)=next_link(&html,&page) else {break};
-        if !next.path().starts_with(&format!("/albums/{id}")) {return Err("Ahottie gallery pagination left its album".into());}
+        let scoped = format!("/albums/{id}");
+        if next.path() != scoped && next.path() != format!("{scoped}/") {
+            return Err("Ahottie gallery pagination left its exact album".into());
+        }
         page=next;
     }
     Ok(out)
@@ -272,6 +275,29 @@ mod tests {
         queue_gallery_links(html,&mut HashSet::new(),&mut out,"tag");
         assert_eq!(out.len(),2);
         assert_eq!(serde_json::to_value(&out[0]).unwrap()["url"],"https://ahottie.top/albums/One");
+    }
+
+    #[tokio::test]
+    async fn gallery_continuation_rejects_prefix_matched_foreign_albums() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 4096];
+            let size = socket.read(&mut request).await.unwrap();
+            assert!(String::from_utf8_lossy(&request[..size])
+                .starts_with("GET /albums/One HTTP/1.1"));
+            let html = r#"<time datetime="2025-01-01"></time><a href="/albums/OneTwo?page=2" rel="next">Next</a>"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                html.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let result = gallery_at(&Client::new(), &base, "One", 2).await;
+        assert!(result.is_err());
+        server.await.unwrap();
     }
 
     #[tokio::test]
