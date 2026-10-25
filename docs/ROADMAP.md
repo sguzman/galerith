@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 67%` across 148 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 149 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -827,6 +827,12 @@
   - [x] Reject foreign, encoded, double-encoded and normalized traversal paths while validating bounded public media extensions — src/extractor/picazor.rs file_origins_and_encoded_path_escapes_are_rejected; CI 40197408931
   - [x] Bound paginated JSON and media emission, preserve pinned Referer header and ordered directory/URL events through offline HTTP test — src/extractor/picazor.rs bounded_user_file_api_fetches_source_order_with_pinned_referer and src/extractor/mod.rs dispatcher; CI 40197408931
   - [ ] Match unrestricted public history, all file types and source metadata, exact filename/archive/folder templates, browser compatibility and live differential parity
+- 🖼️ **T591** Pictoa guarded public image originals and album child queues — `████████░░ 80%`
+  - [x] Match pinned Pictoa single-image and album URL families with validated numeric IDs and strict first-party scope — src/extractor/pictoa.rs pinned_album_and_single_image_routes_reject_host_forgeries; CI 40198045711
+  - [x] Resolve canonical single image original from source OG metadata with album title, trusted media and source identifiers — src/extractor/pictoa.rs image_og_metadata_preserves_album_id_and_safe_first_party_originals and original_image_uses_one_get_from_canonical_source; CI 40198045711
+  - [x] Preserve source album titles and supported category tags, first-seen deduplicated image child URLs and bounded HTML — src/extractor/pictoa.rs album_queues_first_party_children_with_dedup_and_source_tags, album_children and source_html; CI 40198045711
+  - [x] Bound album paging to four first-party pages and 128 children, reject off-origin/skipped page links, verify two-page HTTP fixture — src/extractor/pictoa.rs album_continuation_rejects_forged_origins_and_page_jumps and two_public_album_pages_yield_ordered_deduplicated_child_queues; CI 40198045711
+  - [ ] Match complete upstream URL host aliases, HTML markup/pagination dialects, rich metadata, filename/archive templates and live pinned differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

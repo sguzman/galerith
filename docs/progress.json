@@ -4275,6 +4275,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T591",
+              "emoji": "🖼️",
+              "name": "Pictoa guarded public image originals and album child queues",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Match pinned Pictoa single-image and album URL families with validated numeric IDs and strict first-party scope",
+                  "passed": true,
+                  "evidence": "src/extractor/pictoa.rs pinned_album_and_single_image_routes_reject_host_forgeries; CI 40198045711"
+                },
+                {
+                  "title": "Resolve canonical single image original from source OG metadata with album title, trusted media and source identifiers",
+                  "passed": true,
+                  "evidence": "src/extractor/pictoa.rs image_og_metadata_preserves_album_id_and_safe_first_party_originals and original_image_uses_one_get_from_canonical_source; CI 40198045711"
+                },
+                {
+                  "title": "Preserve source album titles and supported category tags, first-seen deduplicated image child URLs and bounded HTML",
+                  "passed": true,
+                  "evidence": "src/extractor/pictoa.rs album_queues_first_party_children_with_dedup_and_source_tags, album_children and source_html; CI 40198045711"
+                },
+                {
+                  "title": "Bound album paging to four first-party pages and 128 children, reject off-origin/skipped page links, verify two-page HTTP fixture",
+                  "passed": true,
+                  "evidence": "src/extractor/pictoa.rs album_continuation_rejects_forged_origins_and_page_jumps and two_public_album_pages_yield_ordered_deduplicated_child_queues; CI 40198045711"
+                },
+                {
+                  "title": "Match complete upstream URL host aliases, HTML markup/pagination dialects, rich metadata, filename/archive templates and live pinned differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

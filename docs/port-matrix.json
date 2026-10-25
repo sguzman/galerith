@@ -1473,9 +1473,14 @@
     {
       "path": "gallery_dl/extractor/pictoa.py",
       "module": "pictoa",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/pictoa.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Guarded Pictoa image/album preview: numeric canonical /albums/ID/IMAGE.html and /albums/ID.html, first-party OG originals with album title, source album tags/h1, deduplicated typed child image URLs, 2 MiB HTML cap, 4-page and 128-child bounds, same-origin monotonic continuation and one-image/two-album-page loopback HTTP tests; strict Rust CI 40198045711 passed. Full upstream host/source markup, output naming/archive and live differential parity unaccepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/piczel.py",

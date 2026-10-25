@@ -4,7 +4,7 @@
 
 This is an inventory of **272 upstream Python source files** within `gallery_dl/extractor/`, including helper files and `__init__.py`, not a claim of 272 separate sites. Individual modules may define multiple extractors, and the supported-site list is a separate audit.
 
-**Complete: 0 · Partial: 64 · Not ported: 208.**
+**Complete: 0 · Partial: 65 · Not ported: 207.**
 
 | Upstream module | Status | Rust counterpart |
 |---|---|---|
@@ -173,7 +173,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/photovogue.py` | 🟡 Partial | `src/extractor/photovogue.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/picarto.py` | 🟡 Partial | `src/extractor/picarto.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/picazor.py` | 🟡 Partial | `src/extractor/picazor.rs`, `src/extractor/mod.rs` |
-| `gallery_dl/extractor/pictoa.py` | ⚪ Not ported | — |
+| `gallery_dl/extractor/pictoa.py` | 🟡 Partial | `src/extractor/pictoa.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/piczel.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pillowfort.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/pinterest.py` | ⚪ Not ported | — |
