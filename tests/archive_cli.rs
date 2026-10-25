@@ -240,7 +240,10 @@ fn process_crash_releases_archive_lock_and_next_run_can_download() {
                     return;
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    assert!(std::time::Instant::now() < deadline, "recovery request timed out");
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "recovery request timed out"
+                    );
                     std::thread::sleep(Duration::from_millis(25));
                 }
                 Err(error) => panic!("recovery listener error: {error}"),
