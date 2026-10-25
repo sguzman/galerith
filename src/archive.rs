@@ -624,7 +624,9 @@ mod tests {
         assert!(native.import_reference().is_err());
         let count: i64 = native
             .connection
-            .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM imported_gallery_dl", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 0, "failed imports must be atomic");
         drop(native);
