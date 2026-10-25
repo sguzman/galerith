@@ -473,7 +473,7 @@ fn offline_import_respects_selected_custom_foreign_table() {
     source
         .execute_batch(
             "CREATE TABLE \"stored items\" (entry TEXT PRIMARY KEY) WITHOUT ROWID;
-             INSERT INTO \"stored items\" (entry) VALUES ('directlinkexample.org/item.jpg');",
+             INSERT INTO \"stored items\" (entry) VALUES ('directlinkexample.org//item.jpg');",
         )
         .unwrap();
     drop(source);
