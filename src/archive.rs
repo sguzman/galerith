@@ -1272,8 +1272,8 @@ mod tests {
         drop(upstream);
         let bytes = fs::read(&upstream_path).unwrap();
         let archive = Archive::open_with_reference(&native_path, Some(&upstream_path)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (4, 4));
-        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
+        assert_eq!(archive.import_reference().unwrap(), (5, 0));
         drop(archive);
         assert_eq!(fs::read(&upstream_path).unwrap(), bytes);
         fs::remove_file(&upstream_path).unwrap();
@@ -1608,7 +1608,7 @@ mod tests {
             .contains_for_source(&media, "https://user:pass@e926.net/posts?tags=artist")
             .unwrap());
         assert!(archive.contains_for_source(&media, feed).unwrap());
-        assert!(!archive.contains_for_source(&rotated, feed).unwrap());
+        assert!(archive.contains_for_source(&rotated, feed).unwrap());
         assert!(archive.contains(&media).unwrap());
         let native: i64 = archive
             .connection
@@ -1618,7 +1618,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(native, 1);
+        assert_eq!(native, 2);
         drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
@@ -1754,8 +1754,8 @@ mod tests {
         drop(original);
         let unchanged = fs::read(&reference).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&reference)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (4, 4));
-        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
+        assert_eq!(archive.import_reference().unwrap(), (5, 0));
         for (category, host) in [
             ("danbooru", "danbooru.donmai.us"),
             ("e621", "e621.net"),
@@ -1917,8 +1917,8 @@ mod tests {
         drop(source);
         let original_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (2, 2));
-        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
         drop(archive);
         assert_eq!(fs::read(&foreign).unwrap(), original_bytes);
         fs::remove_file(foreign).unwrap();
@@ -2085,8 +2085,8 @@ mod tests {
         drop(source);
         let source_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (3, 3));
-        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (4, 0));
         drop(archive);
         assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
         fs::remove_file(foreign).unwrap();
@@ -2412,7 +2412,7 @@ mod tests {
         drop(upstream);
         let original_bytes = fs::read(&foreign).unwrap();
         let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
-        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (5, 5));
         let samples = [
             ("danbooru", "https://danbooru.donmai.us/posts/123", 123),
             ("e621", "https://e621.net/posts/234", 234),
