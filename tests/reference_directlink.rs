@@ -451,3 +451,24 @@ fn pinned_danbooru_media_asset_id_is_distinct_from_post_id() {
         "m{id}|{id}"
     );
 }
+
+#[test]
+fn pinned_dated_popular_archive_matches_runtime_metadata_formatting() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for popular metadata oracle");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://danbooru.donmai.us/explore/posts/popular?scale=day&date=2026-10-25','https://e621.net/explore/posts/popular?scale=month&date=2026-10-25','https://e926.net/explore/posts/popular?scale=day&date=2026-10-25','https://e6ai.net/explore/posts/popular?scale=month&date=2026-10-25'); e=[extractor.find(url) for url in urls]; print('|'.join(x.category+x.archive_fmt.format(id=88,**x.metadata()) for x in e))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned dated popular archive metadata").trim(),
+        "danbooruP_d_2026-10-25_88|e621P_m_2026-10_88|e926P_d_2026-10-25_88|e6aiP_m_2026-10_88"
+    );
+}
