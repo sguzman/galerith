@@ -68,8 +68,12 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "tbib",
             "hypnohub",
             "xbooru",
+            "wallhaven",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
+                if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
                 if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
                     return Some((category, entry.to_owned()));
                 }
@@ -128,9 +132,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "tbib",
         "hypnohub",
         "xbooru",
+        "wallhaven",
     ] {
         if prefix == category
-            && (bare.parse::<u64>().ok().is_some_and(|n| n > 0)
+            && ((category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
+                || bare.parse::<u64>().ok().is_some_and(|n| n > 0)
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -328,6 +334,132 @@ fn canonical_favorite_group_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     group_id > 0 && post_id > 0 && suffix == format!("fg_{group_id}_{post_id}")
+}
+
+fn valid_wallhaven_id(id: &str) -> bool {
+    (6..=32).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn valid_wallhaven_user(user: &str) -> bool {
+    (1..=64).contains(&user.len())
+        && user
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn canonical_wallhaven_archive_suffix(suffix: &str) -> bool {
+    if valid_wallhaven_id(suffix) {
+        return true;
+    }
+    if let Some((query, id)) = suffix
+        .strip_prefix("s_")
+        .and_then(|rest| rest.rsplit_once('_'))
+    {
+        return !query.trim().is_empty()
+            && query.len() <= 240
+            && !query.chars().any(char::is_control)
+            && valid_wallhaven_id(id);
+    }
+    if let Some((user, id)) = suffix
+        .strip_prefix("u_")
+        .and_then(|rest| rest.rsplit_once('_'))
+    {
+        return valid_wallhaven_user(user) && valid_wallhaven_id(id);
+    }
+    false
+}
+
+/// The existing Wallhaven parser validates CDN/ID coherence. Verify the
+/// same origin and path again here before inferring IDs from MediaItem,
+/// which intentionally has no string-valued post_id field.
+fn wallhaven_wallpaper_id(item: &MediaItem) -> Option<String> {
+    if item.extractor != "wallhaven" {
+        return None;
+    }
+    let url = url::Url::parse(&item.url).ok()?;
+    if url.scheme() != "https"
+        || url.host_str() != Some("w.wallhaven.cc")
+        || url.port().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    let segments: Vec<_> = url.path_segments()?.collect();
+    let (group, filename) = match segments.as_slice() {
+        ["full", group, filename] | [group, filename] => (*group, *filename),
+        _ => return None,
+    };
+    if group.len() != 2 || !group.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    if filename != item.filename {
+        return None;
+    }
+    let (id, ext) = filename.strip_prefix("wallhaven-")?.rsplit_once('.')?;
+    if !valid_wallhaven_id(id) || !matches!(ext, "jpg" | "jpeg" | "png" | "webp") {
+        return None;
+    }
+    Some(id.to_owned())
+}
+
+/// Pinned Wallhaven archive classes: image/collection={id},
+/// search=s_{search[q]}_{id}, uploads=u_{username}_{id}.
+fn wallhaven_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    let id = wallhaven_wallpaper_id(item)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("wallhaven.cc")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let path: Vec<_> = source.path_segments()?.collect();
+    let key = match path.as_slice() {
+        ["w", source_id] if source.query().is_none() && *source_id == id => {
+            format!("wallhaven{id}")
+        }
+        ["user", user, "favorites", collection]
+            if source.query().is_none()
+                && valid_wallhaven_user(user)
+                && collection.parse::<u64>().ok().is_some_and(|x| x > 0) =>
+        {
+            format!("wallhaven{id}")
+        }
+        ["search"] | ["search", "" ] => {
+            let mut query = source.query_pairs();
+            let (param, search) = query.next()?;
+            if param != "q"
+                || query.next().is_some()
+                || search.trim().is_empty()
+                || search.len() > 240
+                || search.chars().any(char::is_control)
+            {
+                return None;
+            }
+            format!("wallhavens_{search}_{id}")
+        }
+        ["user", user] | ["user", user, ""] | ["user", user, "uploads"]
+            if source.query().is_none() && valid_wallhaven_user(user) =>
+        {
+            format!("wallhavenu_{user}_{id}")
+        }
+        _ => return None,
+    };
+    let identity = if key == format!("wallhaven{id}") {
+        format!("wallpaper-id:{id}")
+    } else {
+        format!("wallhaven-sha256:{}", archive_key_digest(&key))
+    };
+    Some((identity, key))
 }
 
 fn valid_directlink_format(path: &str) -> bool {
@@ -732,6 +864,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     booru_archive_scope(item, source_url)
         .or_else(|| moebooru_archive_scope(item, source_url))
         .or_else(|| gelbooru_archive_scope(item, source_url))
+        .or_else(|| wallhaven_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
