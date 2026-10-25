@@ -13,6 +13,7 @@ use std::{
 pub struct Archive {
     connection: Connection,
     lock_directory: Option<PathBuf>,
+    upstream_directlink_archive: bool,
 }
 
 /// Never unlink a held advisory lock file: doing so can split its namespace.
@@ -36,6 +37,41 @@ fn key(item: &MediaItem) -> String {
         Some(id) => format!("post:{id}:url-sha256:{hex}"),
         None => format!("url-sha256:{hex}"),
     }
+}
+
+/// The pinned gallery-dl directlink archive format is the category prefix
+/// followed by "{domain}/{path}/{filename}.{extension}". The upstream
+/// path field retains its leading slash; therefore keys typically contain
+/// two slashes following the domain. A signed query is not part of this key.
+/// Do not write these potentially sensitive plaintext path keys from Galerith.
+fn upstream_directlink_key(item: &MediaItem) -> Option<String> {
+    if item.extractor != "directlink" {
+        return None;
+    }
+    let parsed = url::Url::parse(&item.url).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return None;
+    }
+    let domain = parsed.host_str()?;
+    let authority = match parsed.port() {
+        Some(port) => format!("{domain}:{port}"),
+        None => domain.to_owned(),
+    };
+    let decoded = percent_encoding::percent_decode_str(parsed.path())
+        .decode_utf8()
+        .ok()?;
+    let (directory, name) = decoded.rsplit_once('/')?;
+    let (stem, ext) = name.rsplit_once('.')?;
+    if stem.is_empty() || ext.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "directlink{authority}/{directory}/{stem}.{}",
+        ext.to_ascii_lowercase()
+    ))
 }
 
 impl Archive {
@@ -64,9 +100,17 @@ impl Archive {
             name.push(".galerith-locks");
             Some(PathBuf::from(name))
         };
+        // Only consult a preexisting upstream archive table with the expected
+        // primary-key column. Never create or mutate upstream's archive rows.
+        let upstream_directlink_archive: i64 = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('archive') WHERE name = 'entry' AND pk > 0)",
+            [],
+            |row| row.get(0),
+        )?;
         Ok(Self {
             connection,
             lock_directory,
+            upstream_directlink_archive: upstream_directlink_archive != 0,
         })
     }
 
@@ -110,7 +154,20 @@ impl Archive {
             params![item.extractor, key(item)],
             |row| row.get(0),
         )?;
-        Ok(present != 0)
+        if present != 0 {
+            return Ok(true);
+        }
+        if self.upstream_directlink_archive {
+            if let Some(source_key) = upstream_directlink_key(item) {
+                let upstream: i64 = self.connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM archive WHERE entry = ?1)",
+                    params![source_key],
+                    |row| row.get(0),
+                )?;
+                return Ok(upstream != 0);
+            }
+        }
+        Ok(false)
     }
 
     /// Call only after a successful download and completion rename. Merely
@@ -284,6 +341,73 @@ mod tests {
         let locks = first.lock_directory.clone().unwrap();
         drop(first);
         fs::remove_dir_all(locks).unwrap();
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn reads_pinned_gallery_dl_directlink_entries_without_writing_to_them() {
+        let path = std::env::temp_dir().join(format!(
+            "galerith-upstream-archive-{}.sqlite",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&path);
+        let original = Connection::open(&path).unwrap();
+        original
+            .execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        original
+            .execute(
+                "INSERT INTO archive(entry) VALUES (?1)",
+                params!["directlinkexample.org//images/photo.jpg"],
+            )
+            .unwrap();
+        drop(original);
+
+        let archive = Archive::open(&path).unwrap();
+        let old = extract_direct_media(
+            "https://example.org/images/photo.JPG?X-Amz-Signature=old",
+        )
+        .unwrap();
+        assert!(archive.contains(&old).unwrap());
+        let rotated = extract_direct_media(
+            "https://example.org/images/photo.JPG?X-Amz-Signature=rotated",
+        )
+        .unwrap();
+        assert!(archive.contains(&rotated).unwrap());
+        let another = extract_direct_media("https://example.org/images/other.jpg").unwrap();
+        assert!(!archive.contains(&another).unwrap());
+        archive.record(&another).unwrap();
+        assert!(archive.contains(&another).unwrap());
+        let entries: i64 = archive
+            .connection
+            .query_row("SELECT COUNT(*) FROM archive", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(entries, 1);
+        let lock_dir = archive.lock_directory.clone().unwrap();
+        drop(archive);
+        if lock_dir.exists() {
+            fs::remove_dir_all(lock_dir).unwrap();
+        }
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn unrelated_archive_table_does_not_trigger_false_matches() {
+        let path = std::env::temp_dir().join(format!(
+            "galerith-unrelated-archive-{}.sqlite",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&path);
+        let con = Connection::open(&path).unwrap();
+        con.execute_batch("CREATE TABLE archive(other TEXT PRIMARY KEY);")
+            .unwrap();
+        drop(con);
+        let archive = Archive::open(&path).unwrap();
+        assert!(!archive.upstream_directlink_archive);
+        assert!(!archive.contains(
+            &extract_direct_media("https://example.org/image.jpg").unwrap()
+        ).unwrap());
+        drop(archive);
         fs::remove_file(path).unwrap();
     }
 
