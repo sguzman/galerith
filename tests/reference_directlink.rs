@@ -182,11 +182,29 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             .query_row("SELECT COUNT(*) FROM archive", [], |row| row.get(0))
             .unwrap();
         assert_eq!(unchanged, 1, "foreign archive must remain untouched");
+        assert_eq!(
+            native_archive.import_reference().unwrap(),
+            (1, 1),
+            "{url}: import must recognize exactly one upstream archive key"
+        );
         drop(native_archive);
         assert_eq!(
             std::fs::read(&archive_path).unwrap(),
             upstream_bytes,
             "{url}: external upstream archive bytes must not change"
+        );
+        let reopened = galerith::archive::Archive::open(&native_path).unwrap();
+        assert!(
+            reopened.contains(&item).unwrap(),
+            "{url}: imported key must work without the upstream connection"
+        );
+        drop(reopened);
+        let native_bytes = std::fs::read(&native_path).unwrap();
+        assert!(
+            !native_bytes
+                .windows(upstream_key.len())
+                .any(|part| part == upstream_key.as_bytes()),
+            "{url}: imported archive must not persist plaintext upstream IDs"
         );
         verified_cases.push(json!({
             "url": url,
@@ -195,6 +213,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             "status": "source_fields_and_readonly_archive_match",
             "archive_key_compatible": true,
             "external_archive_read_only": true,
+            "offline_migration_recognized": true,
             "known_divergence": "upstream formatted extension is lowercase; native flat filename retains original extension case"
         }));
     }
