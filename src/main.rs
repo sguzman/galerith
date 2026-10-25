@@ -288,7 +288,10 @@ struct Cli {
 
 // Cache and download/reference archives must never alias: otherwise opening
 // the cache may create tables or prune entries in an unrelated database.
-fn same_cache_archive_file(left: &std::path::Path, right: &std::path::Path) -> std::io::Result<bool> {
+fn same_cache_archive_file(
+    left: &std::path::Path,
+    right: &std::path::Path,
+) -> std::io::Result<bool> {
     if left.exists() && right.exists() {
         if std::fs::canonicalize(left)? == std::fs::canonicalize(right)? {
             return Ok(true);
@@ -307,10 +310,19 @@ fn same_cache_archive_file(left: &std::path::Path, right: &std::path::Path) -> s
     }
     // If either file is not created yet, compare the *parent directory*
     // after resolving symlinks, to catch ./ and symlinked directory aliases.
-    let left_parent = left.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
-    let right_parent = right.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+    let left_parent = left
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
+    let right_parent = right
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
     if left.file_name() == right.file_name() {
-        if let (Ok(a), Ok(b)) = (std::fs::canonicalize(left_parent), std::fs::canonicalize(right_parent)) {
+        if let (Ok(a), Ok(b)) = (
+            std::fs::canonicalize(left_parent),
+            std::fs::canonicalize(right_parent),
+        ) {
             return Ok(a == b);
         }
     }
@@ -354,9 +366,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         for archive in [
             cli.download_archive.as_deref(),
             cli.gallery_dl_archive.as_deref(),
-        ].into_iter().flatten() {
+        ]
+        .into_iter()
+        .flatten()
+        {
             if same_cache_archive_file(cache, archive)? {
-                return Err("--cache-db must be separate from native and gallery-dl archive files".into());
+                return Err(
+                    "--cache-db must be separate from native and gallery-dl archive files".into(),
+                );
             }
         }
     }
