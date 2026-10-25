@@ -201,7 +201,7 @@ impl Cache {
 
     /// Single-flight via stable advisory files; OS crash releases the lock,
     /// and SQLite makes replacement atomic. Only successful JSON is cached.
-    pub async fn fetch<F, Fut>(
+    pub(crate) async fn fetch<F, Fut>(
         &self,
         endpoint: &Url,
         limit: usize,
@@ -213,6 +213,11 @@ impl Cache {
     {
         if limit == 0 {
             return Err("JSON response byte limit must be positive".into());
+        }
+        // Never persist an out-of-scope endpoint, including through direct
+        // internal calls that bypass the HTTP reader's safety gate.
+        if !Self::allows(endpoint) {
+            return refresh().await;
         }
         let key = digest(endpoint.as_str());
         let _guard = self.lock(&key).await?;
@@ -295,6 +300,41 @@ mod tests {
         ] {
             assert!(!Cache::allows(&Url::parse(url).unwrap()), "{url}");
         }
+    }
+
+    #[tokio::test]
+    async fn out_of_scope_refresh_never_creates_a_cache_record() {
+        let path = path("disallowed");
+        let _ = fs::remove_file(&path);
+        let cache = Cache::open(&path, 60).unwrap();
+        let outside = Url::parse("https://other.example/pools/42.json").unwrap();
+        assert_eq!(
+            cache
+                .fetch(&outside, 1024, || async {
+                    Ok(serde_json::json!({"post_ids":[1]}))
+                })
+                .await
+                .unwrap()["post_ids"][0],
+            1
+        );
+        assert_eq!(
+            cache
+                .fetch(&outside, 1024, || async {
+                    Ok(serde_json::json!({"post_ids":[2]}))
+                })
+                .await
+                .unwrap()["post_ids"][0],
+            2
+        );
+        let count: i64 = connection(&path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM public_collection_cache", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0);
+        drop(cache);
+        let _ = fs::remove_file(path);
     }
 
     #[tokio::test]
