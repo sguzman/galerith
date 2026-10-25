@@ -233,7 +233,11 @@ struct Cli {
     gallery_dl_archive: Option<PathBuf>,
 
     /// Named source archive table (default: archive)
-    #[arg(long = "gallery-dl-archive-table", value_name = "TABLE", requires = "gallery_dl_archive")]
+    #[arg(
+        long = "gallery-dl-archive-table",
+        value_name = "TABLE",
+        requires = "gallery_dl_archive"
+    )]
     gallery_dl_archive_table: Option<String>,
 
     /// Import recognized default gallery-dl archive entries once, offline

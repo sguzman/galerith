@@ -179,7 +179,10 @@ impl Archive {
         reference_path: Option<&Path>,
         reference_table: &str,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        if reference_table.is_empty() || reference_table.len() > 128 || reference_table.contains('\\0') {
+        if reference_table.is_empty()
+            || reference_table.len() > 128
+            || reference_table.contains('\0')
+        {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "invalid gallery-dl archive table name",
