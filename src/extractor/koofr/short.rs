@@ -24,7 +24,7 @@ pub fn match_url(raw: &str) -> Option<Code> {
         return None;
     }
     let parts: Vec<_> = url.path_segments()?.collect();
-    let [code] | [code, ""] = parts.as_slice() else {
+    let ([code] | [code, ""]) = parts.as_slice() else {
         return None;
     };
     if !(1..=96).contains(&code.len())
