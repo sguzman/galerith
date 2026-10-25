@@ -3597,6 +3597,125 @@ mod tests {
     }
 
     #[test]
+    fn wallhaven_named_reference_requires_real_matching_category_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-wallhaven-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let original = Connection::open(&foreign).unwrap();
+        original
+            .execute_batch(
+                "CREATE TABLE selected(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO selected VALUES ('94x38z');
+                 INSERT INTO selected VALUES ('wallhaven94x38z');
+                 INSERT INTO selected VALUES ('s_blue sky_94x38z');
+                 INSERT INTO selected VALUES ('wallhavens_blue sky_94x38z');",
+            )
+            .unwrap();
+        drop(original);
+        let before = fs::read(&foreign).unwrap();
+        let item = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg".into(),
+            filename: "wallhaven-94x38z.jpg".into(),
+            extractor: "wallhaven",
+            post_id: None,
+        };
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "selected",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        assert!(!ambiguous
+            .contains_for_source(&item, "https://wallhaven.cc/w/94x38z")
+            .unwrap());
+        drop(ambiguous);
+        let path = root.join("native.sqlite");
+        let supported = Archive::open_with_reference_options(
+            &path,
+            Some(&foreign),
+            Some("selected"),
+            Some("wallhaven"),
+        )
+        .unwrap();
+        assert_eq!(supported.import_reference().unwrap(), (2, 2));
+        assert!(supported
+            .contains_for_source(&item, "https://wallhaven.cc/w/94x38z")
+            .unwrap());
+        assert!(supported
+            .contains_for_source(&item, "https://wallhaven.cc/search?q=blue+sky")
+            .unwrap());
+        drop(supported);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&path).unwrap();
+        assert!(reopened
+            .contains_for_source(&item, "https://wallhaven.cc/search?q=blue+sky")
+            .unwrap());
+        drop(reopened);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn wallhaven_wallpaper_archive_lock_handles_cdn_extension_rotation() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-wallhaven-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let image = "https://wallhaven.cc/w/94x38z";
+        let original = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.jpg".into(),
+            filename: "wallhaven-94x38z.jpg".into(),
+            extractor: "wallhaven",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38z.png".into(),
+            filename: "wallhaven-94x38z.png".into(),
+            ..original.clone()
+        };
+        assert_ne!(key(&original), key(&rotated));
+        let first = Archive::open(&db).unwrap();
+        let guard = first
+            .lock_item_for_source(&original, image)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let other_db = db.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let other = Archive::open(&other_db).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = other
+                    .lock_item_for_source(&rotated, image)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(other.contains_for_source(&rotated, image).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&original, image).unwrap();
+        drop(guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
