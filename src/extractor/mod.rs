@@ -17,6 +17,7 @@ pub mod fappic;
 pub mod fivehundredpx;
 pub mod foolfuuka;
 pub mod foriio;
+pub mod dankefuerslesen;
 pub mod fourarchive;
 pub mod fourchan;
 pub mod fourchanarchives;
@@ -89,6 +90,7 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "public bounded Ahottie albums and tag/search queues",
     ),
     ("foriio", "public image works and bounded user-work queues"),
+    ("dankefuerslesen", "public Danke manga chapters and deferred series queues"),
     ("agnph", "bounded public Agn.ph XML posts and tag searches"),
     (
         "architizer",
@@ -257,6 +259,8 @@ pub fn extractor_name(input: &str) -> Option<&'static str> {
         Some("ahottie")
     } else if foriio::match_url(input).is_some() {
         Some("foriio")
+    } else if dankefuerslesen::match_url(input).is_some() {
+        Some("dankefuerslesen")
     } else if agnph::match_url(input).is_some() {
         Some("agnph")
     } else if architizer::match_url(input).is_some() {
@@ -418,6 +422,9 @@ pub async fn resolve(
     }
     if let Some(target) = foriio::match_url(input) {
         return foriio::resolve(client, target).await;
+    }
+    if let Some(target) = dankefuerslesen::match_url(input) {
+        return dankefuerslesen::resolve(client, target).await;
     }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve(client, target, max_pages).await;
@@ -672,6 +679,9 @@ pub async fn resolve_messages(
     }
     if let Some(target) = foriio::match_url(input) {
         return foriio::resolve_messages(client, target, max_pages).await;
+    }
+    if let Some(target) = dankefuerslesen::match_url(input) {
+        return dankefuerslesen::resolve_messages(client, target).await;
     }
     if let Some(target) = agnph::match_url(input) {
         return agnph::resolve_messages(client, target, max_pages).await;
@@ -1093,6 +1103,8 @@ mod tests {
             ("https://agn.ph/gallery/post/show/12345/", "agnph"),
             ("https://ahottie.top/albums/Album12", "ahottie"),
             ("https://foriio.com/works/12345", "foriio"),
+            ("https://danke.moe/read/manga/series/1/1/", "dankefuerslesen"),
+            ("https://danke.moe/read/manga/series", "dankefuerslesen"),
             ("https://foriio.com/artist", "foriio"),
             ("https://boards.4chan.org/g/thread/123", "4chan"),
             ("https://2ch.org/a/res/12345.html", "2ch"),
