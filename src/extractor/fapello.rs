@@ -174,7 +174,7 @@ fn listing_queue(
         if href == "javascript:void(0);" { continue; }
         let Some((_, candidate)) = scoped_link(root, href) else { continue };
         let acceptable = match (target, &candidate) {
-            (Target::Model { model, .. }, Target::Post { model: child, .. }) => model == &child,
+            (Target::Model { model, .. }, Target::Post { model: child, .. }) => model == child,
             (Target::Path { path, .. }, Target::Model { .. }) if
                 matches!(path.as_str(), "top-likes" | "top-followers") || root.ends_with(".su") && path == "trending" => true,
             (Target::Path { path, .. }, Target::Post { .. }) if
