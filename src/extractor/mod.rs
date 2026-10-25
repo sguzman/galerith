@@ -2,9 +2,9 @@
 //! are enabled. Unsupported gallery URLs fail rather than pretending parity.
 pub mod agnph;
 pub mod ahottie;
-pub mod audiochan;
 pub mod architizer;
 pub mod arena;
+pub mod audiochan;
 pub mod basic_hosts;
 pub mod bluesky;
 pub mod catbox;
@@ -96,7 +96,10 @@ pub const PREVIEW_EXTRACTORS: &[(&str, &str)] = &[
         "comicvine",
         "bounded public ComicVine tag gallery originals",
     ),
-    ("audiochan", "public Audiochan originals and bounded user queues"),
+    (
+        "audiochan",
+        "public Audiochan originals and bounded user queues",
+    ),
     (
         "dankefuerslesen",
         "public Danke manga chapters and deferred series queues",
