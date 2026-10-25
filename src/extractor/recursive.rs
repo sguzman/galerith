@@ -2,8 +2,8 @@
 //! Explicit local file lists and public HTTP(S) sources are supported.
 //! Every response and child queue is bounded; no implicit media download.
 use crate::message::{queued_url, ExtractorMessage, Metadata};
-use std::{error::Error, net::IpAddr, path::PathBuf, time::Duration};
 use reqwest::{redirect::Policy, Client};
+use std::{error::Error, net::IpAddr, path::PathBuf, time::Duration};
 use tokio::io::AsyncReadExt;
 use url::{Host, Url};
 
@@ -22,11 +22,21 @@ fn public_host(host: &str) -> bool {
         && host.len() <= 253
         && !host.is_empty()
         && ![
-            "localhost", ".localhost", ".local", ".internal", ".test",
-            ".invalid", ".onion", ".home", ".lan",
-        ].iter().any(|suffix| host == *suffix || host.ends_with(suffix))
+            "localhost",
+            ".localhost",
+            ".local",
+            ".internal",
+            ".test",
+            ".invalid",
+            ".onion",
+            ".home",
+            ".lan",
+        ]
+        .iter()
+        .any(|suffix| host == *suffix || host.ends_with(suffix))
         && host.split('.').all(|part| {
-            !part.is_empty() && part.len() <= 63
+            !part.is_empty()
+                && part.len() <= 63
                 && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
         })
 }
@@ -82,7 +92,10 @@ fn public_address(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(addr) => {
             let [a, b, c, _] = addr.octets();
-            !(a == 0 || a == 10 || a == 127 || a >= 224
+            !(a == 0
+                || a == 10
+                || a == 127
+                || a >= 224
                 || (a == 100 && (64..=127).contains(&b))
                 || (a == 169 && b == 254)
                 || (a == 172 && (16..=31).contains(&b))
@@ -95,7 +108,9 @@ fn public_address(ip: IpAddr) -> bool {
                 return public_address(IpAddr::V4(v4));
             }
             let parts = addr.segments();
-            !(addr.is_loopback() || addr.is_unspecified() || addr.is_multicast()
+            !(addr.is_loopback()
+                || addr.is_unspecified()
+                || addr.is_multicast()
                 || (parts[0] & 0xfe00) == 0xfc00
                 || (parts[0] & 0xffc0) == 0xfe80
                 || (parts[0] == 0x2001 && parts[1] == 0x0db8))
@@ -104,10 +119,14 @@ fn public_address(ip: IpAddr) -> bool {
 }
 
 async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let host = url.host_str().ok_or("Recursive remote URL has no host")?;
-    let port = url.port_or_known_default().ok_or("Recursive URL has no port")?;
-    let mut addresses = tokio::net::lookup_host((host, port)).await?;
-    let first = addresses.next().ok_or("Recursive remote DNS has no addresses")?;
+    let host = url.host_str().ok_or("Recursive remote URL has no host")?.to_owned();
+    let port = url
+        .port_or_known_default()
+        .ok_or("Recursive URL has no port")?;
+    let mut addresses = tokio::net::lookup_host((host.as_str(), port)).await?;
+    let first = addresses
+        .next()
+        .ok_or("Recursive remote DNS has no addresses")?;
     if !public_address(first.ip()) || addresses.any(|addr| !public_address(addr.ip())) {
         return Err("Recursive URL resolves to private or special-use network".into());
     }
@@ -115,10 +134,13 @@ async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>
         .redirect(Policy::none())
         .no_proxy()
         .timeout(Duration::from_secs(15))
-        .resolve(host, first)
+        .resolve(&host, first)
         .build()?;
     let mut response = client.get(url).send().await?.error_for_status()?;
-    if response.content_length().is_some_and(|n| n > MAX_BYTES as u64) {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_BYTES as u64)
+    {
         return Err("Recursive remote URL list exceeds 2 MiB".into());
     }
     let mut bytes = Vec::new();
@@ -196,7 +218,9 @@ pub async fn resolve_messages(
         Source::Local(path) => {
             let file = tokio::fs::File::open(path).await?;
             let mut bytes = Vec::new();
-            file.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes).await?;
+            file.take((MAX_BYTES + 1) as u64)
+                .read_to_end(&mut bytes)
+                .await?;
             if bytes.len() > MAX_BYTES {
                 return Err("Recursive local URL list exceeds 2 MiB".into());
             }
@@ -217,16 +241,32 @@ mod tests {
             match_url("recursive:file:///tmp/galerith-source.txt"),
             Some(Source::Local(PathBuf::from("/tmp/galerith-source.txt")))
         );
-        assert!(matches!(match_url("r:file:///tmp/urls.txt"), Some(Source::Local(_))));
-        assert!(matches!(match_url("recursive:https://pastebin.com/raw/FLwrCYsT"), Some(Source::Remote(_))));
-        assert!(matches!(match_url("r:example.org/public/urls.txt"), Some(Source::Remote(_))));
+        assert!(matches!(
+            match_url("r:file:///tmp/urls.txt"),
+            Some(Source::Local(_))
+        ));
+        assert!(matches!(
+            match_url("recursive:https://pastebin.com/raw/FLwrCYsT"),
+            Some(Source::Remote(_))
+        ));
+        assert!(matches!(
+            match_url("r:example.org/public/urls.txt"),
+            Some(Source::Remote(_))
+        ));
         for bad in [
-            "recursive:", "r:file:///tmp/../secret.txt", "r:file:///tmp/%2e%2e/private.txt",
-            "r:file://elsewhere.example.org/tmp/list.txt", "r:file:///tmp/urls.txt?key=secret",
-            "r:file:///tmp/urls.txt#fragment", "r:http://127.0.0.1/urls",
-            "r:https://localhost/list", "r:http://myservice.internal/data",
-            "r:http://example.org:8080/list", "r:http://name:password@example.org/data",
-            "r:http://example.org/#fragment", "r:ftp://example.org/list",
+            "recursive:",
+            "r:file:///tmp/../secret.txt",
+            "r:file:///tmp/%2e%2e/private.txt",
+            "r:file://elsewhere.example.org/tmp/list.txt",
+            "r:file:///tmp/urls.txt?key=secret",
+            "r:file:///tmp/urls.txt#fragment",
+            "r:http://127.0.0.1/urls",
+            "r:https://localhost/list",
+            "r:http://myservice.internal/data",
+            "r:http://example.org:8080/list",
+            "r:http://name:password@example.org/data",
+            "r:http://example.org/#fragment",
+            "r:ftp://example.org/list",
         ] {
             assert!(match_url(bad).is_none(), "{bad}");
         }
@@ -235,10 +275,20 @@ mod tests {
     #[test]
     fn public_dns_guard_rejects_special_use_ip_ranges() {
         for raw in [
-            "127.0.0.1", "10.3.4.5", "172.16.0.1", "192.168.1.2",
-            "169.254.169.254", "100.100.100.100", "0.1.1.1",
-            "198.18.1.1", "203.0.113.2", "::1", "fc00::1",
-            "fe80::1", "2001:db8::1", "::ffff:127.0.0.1",
+            "127.0.0.1",
+            "10.3.4.5",
+            "172.16.0.1",
+            "192.168.1.2",
+            "169.254.169.254",
+            "100.100.100.100",
+            "0.1.1.1",
+            "198.18.1.1",
+            "203.0.113.2",
+            "::1",
+            "fc00::1",
+            "fe80::1",
+            "2001:db8::1",
+            "::ffff:127.0.0.1",
         ] {
             assert!(!public_address(raw.parse().unwrap()), "{raw}");
         }
@@ -264,7 +314,10 @@ mod tests {
 
     #[tokio::test]
     async fn remote_response_reader_caps_streamed_body_and_rejects_redirects() {
-        use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
@@ -280,10 +333,18 @@ mod tests {
             }
         });
         let client = Client::builder().redirect(Policy::none()).build().unwrap();
-        let page = client.get(format!("http://{addr}/list")).send().await.unwrap();
+        let page = client
+            .get(format!("http://{addr}/list"))
+            .send()
+            .await
+            .unwrap();
         let body = page.error_for_status().unwrap().text().await.unwrap();
         assert_eq!(decode_links(&body).unwrap().len(), 1);
-        let page = client.get(format!("http://{addr}/redirect")).send().await.unwrap();
+        let page = client
+            .get(format!("http://{addr}/redirect"))
+            .send()
+            .await
+            .unwrap();
         assert_eq!(page.status(), reqwest::StatusCode::FOUND);
         server.await.unwrap();
     }
