@@ -213,6 +213,37 @@ impl Cache {
 
     /// Single-flight via stable advisory files; OS crash releases the lock,
     /// and SQLite makes replacement atomic. Only successful JSON is cached.
+    /// The verified final response URL is part of the persistence decision.
+    /// Redirected responses remain usable to callers, but never poison a
+    /// first-party cache key with content from a different endpoint.
+    async fn fetch_with_final_url<F, Fut>(
+        &self,
+        endpoint: &Url,
+        limit: usize,
+        refresh: F,
+    ) -> Result<Value, Box<dyn Error + Send + Sync>>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<(Value, Url), Box<dyn Error + Send + Sync>>>,
+    {
+        if limit == 0 {
+            return Err("JSON response byte limit must be positive".into());
+        }
+        if !Self::allows(endpoint) {
+            return Ok(refresh().await?.0);
+        }
+        let key = digest(endpoint.as_str());
+        let _guard = self.lock(&key).await?;
+        if let Some(value) = self.read(&key, limit)? {
+            return Ok(value);
+        }
+        let (fresh, final_url) = refresh().await?;
+        if final_url == *endpoint && valid_collection(&fresh) {
+            self.write(&key, &fresh, limit)?;
+        }
+        Ok(fresh)
+    }
+
     pub(crate) async fn fetch<F, Fut>(
         &self,
         endpoint: &Url,
@@ -223,26 +254,10 @@ impl Cache {
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<Value, Box<dyn Error + Send + Sync>>>,
     {
-        if limit == 0 {
-            return Err("JSON response byte limit must be positive".into());
-        }
-        // Never persist an out-of-scope endpoint, including through direct
-        // internal calls that bypass the HTTP reader's safety gate.
-        if !Self::allows(endpoint) {
-            return refresh().await;
-        }
-        let key = digest(endpoint.as_str());
-        let _guard = self.lock(&key).await?;
-        if let Some(value) = self.read(&key, limit)? {
-            return Ok(value);
-        }
-        let fresh = refresh().await?;
-        // Let the extractor report malformed source metadata, but do not
-        // poison future calls with a persistent successful cache record.
-        if valid_collection(&fresh) {
-            self.write(&key, &fresh, limit)?;
-        }
-        Ok(fresh)
+        self.fetch_with_final_url(endpoint, limit, || async {
+            Ok((refresh().await?, endpoint.clone()))
+        })
+        .await
     }
 
     pub async fn fetch_json(
@@ -251,25 +266,12 @@ impl Cache {
         endpoint: Url,
         limit: usize,
     ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-        // Defense in depth: even callers bypassing the shared HTTP wrapper
-        // must not persist credentials, unusual ports, or foreign responses.
-        if !Self::allows(&endpoint) {
-            return crate::extractor::http_json::fetch_json_uncached(client, endpoint, limit).await;
-        }
-        self.fetch(&endpoint, limit, || async {
-            let (value, final_url) =
-                crate::extractor::http_json::fetch_json_uncached_with_final_url(
-                    client,
-                    endpoint.clone(),
-                    limit,
-                )
-                .await?;
-            // Reqwest follows redirects by default. Never cache a response
-            // from a different endpoint under the original permitted key.
-            if final_url != endpoint {
-                return Err("redirected collection metadata is not cacheable".into());
-            }
-            Ok(value)
+        self.fetch_with_final_url(&endpoint, limit, || {
+            crate::extractor::http_json::fetch_json_uncached_with_final_url(
+                client,
+                endpoint.clone(),
+                limit,
+            )
         })
         .await
     }
@@ -312,6 +314,47 @@ mod tests {
         ] {
             assert!(!Cache::allows(&Url::parse(url).unwrap()), "{url}");
         }
+    }
+
+    #[tokio::test]
+    async fn redirected_response_is_returned_but_not_cached() {
+        let path = path("redirect");
+        let _ = fs::remove_file(&path);
+        let cache = Cache::open(&path, 60).unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/321.json").unwrap();
+        let final_url = Url::parse("https://other.example.org/api/error").unwrap();
+        let redirected = cache
+            .fetch_with_final_url(&endpoint, 1024, || async {
+                Ok((serde_json::json!({"post_ids":[321]}), final_url))
+            })
+            .await
+            .unwrap();
+        assert_eq!(redirected["post_ids"][0], 321);
+        let count: i64 = connection(&path)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM public_collection_cache", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0);
+        let proper = cache
+            .fetch_with_final_url(&endpoint, 1024, || async {
+                Ok((serde_json::json!({"post_ids":[322]}), endpoint.clone()))
+            })
+            .await
+            .unwrap();
+        assert_eq!(proper["post_ids"][0], 322);
+        assert_eq!(
+            cache
+                .fetch(&endpoint, 1024, || async {
+                    Err::<Value, Box<dyn Error + Send + Sync>>("network unexpectedly used".into())
+                })
+                .await
+                .unwrap()["post_ids"][0],
+            322
+        );
+        drop(cache);
+        let _ = fs::remove_file(path);
     }
 
     #[tokio::test]
