@@ -4115,6 +4115,38 @@
                   "passed": false
                 }
               ]
+            },
+            {
+              "id": "T586",
+              "emoji": "📊",
+              "name": "Slideshare public Next.js slide images and presentation metadata",
+              "progress": 80,
+              "checks": [
+                {
+                  "title": "Route first-party public Slideshare desktop/mobile presentation pages with validated user/slug and hostile URL rejection",
+                  "passed": true,
+                  "evidence": "src/extractor/slideshare.rs public_slideshare_canonical_and_mobile_paths_only; full Linux CI 40155515706"
+                },
+                {
+                  "title": "Read pinned __NEXT_DATA__ slideshow into ordered CDN originals and actual title, description, user, views, likes and source date metadata",
+                  "passed": true,
+                  "evidence": "src/extractor/slideshare.rs source_slides_preserve_image_numbering_metadata_and_trusted_cdn; full Linux CI 40155515706"
+                },
+                {
+                  "title": "Reject malicious CDN origins, unsafe image paths, zero/unbounded slide counts and unsupported Next.js hydration",
+                  "passed": true,
+                  "evidence": "src/extractor/slideshare.rs source_slides_preserve_image_numbering_metadata_and_trusted_cdn; full Linux CI 40155515706"
+                },
+                {
+                  "title": "Bound HTML to 2 MiB and source slide count to 256 with real single-request loopback public presentation regression and typed native dispatch",
+                  "passed": true,
+                  "evidence": "src/extractor/slideshare.rs single_bounded_http_get_produces_three_slide_urls; src/extractor/mod.rs routing fixture; full CI 40155515706"
+                },
+                {
+                  "title": "Match complete original slideshow formats/hosts, unrestricted slide counts, exact filename/directory/archive and date semantics, redirect/content behavior, and live pinned upstream differential parity",
+                  "passed": false
+                }
+              ]
             }
           ]
         }

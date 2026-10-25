@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 66%` across 143 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 67%` across 144 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 66%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -797,6 +797,12 @@
   - [x] Reject unsupported segmented-stream and untrusted media URLs without false success, and emit bounded, deduplicated deferred user audio queues — src/extractor/audiochan.rs media_original_and_nested_text_tags_preserve_source_identity, source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481
   - [x] Bound first-party public audio/user JSON API, preserve request headers and verify one-/two-page loops via real HTTP fixtures — src/extractor/audiochan.rs public_audio_get_and_user_queues_preserve_pinned_api_headers and source_user_pagination_follows_has_more_and_deduplicates_audio_slugs; CI 40154632481
   - [ ] Support stream_url segmented fallback, public collections/search, configurable media headers, complete naming/date/archive semantics and live pinned upstream differential parity
+- 📊 **T586** Slideshare public Next.js slide images and presentation metadata — `████████░░ 80%`
+  - [x] Route first-party public Slideshare desktop/mobile presentation pages with validated user/slug and hostile URL rejection — src/extractor/slideshare.rs public_slideshare_canonical_and_mobile_paths_only; full Linux CI 40155515706
+  - [x] Read pinned __NEXT_DATA__ slideshow into ordered CDN originals and actual title, description, user, views, likes and source date metadata — src/extractor/slideshare.rs source_slides_preserve_image_numbering_metadata_and_trusted_cdn; full Linux CI 40155515706
+  - [x] Reject malicious CDN origins, unsafe image paths, zero/unbounded slide counts and unsupported Next.js hydration — src/extractor/slideshare.rs source_slides_preserve_image_numbering_metadata_and_trusted_cdn; full Linux CI 40155515706
+  - [x] Bound HTML to 2 MiB and source slide count to 256 with real single-request loopback public presentation regression and typed native dispatch — src/extractor/slideshare.rs single_bounded_http_get_produces_three_slide_urls; src/extractor/mod.rs routing fixture; full CI 40155515706
+  - [ ] Match complete original slideshow formats/hosts, unrestricted slide counts, exact filename/directory/archive and date semantics, redirect/content behavior, and live pinned upstream differential parity
 
 ## 🕸️ M3 — Full upstream extractor catalog — `█░░░░░░░░░ 12%`
 **Acceptance gate:** All pinned upstream extractor modules have independently accepted functionality; 0 missing supported sites.

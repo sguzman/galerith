@@ -1735,9 +1735,14 @@
     {
       "path": "gallery_dl/extractor/slideshare.py",
       "module": "slideshare",
-      "status": "not_ported",
-      "rust_paths": [],
-      "evidence": []
+      "status": "partial",
+      "rust_paths": [
+        "src/extractor/slideshare.rs",
+        "src/extractor/mod.rs"
+      ],
+      "evidence": [
+        "Independent guarded public Slideshare Next.js slideshow reader: exact first-party presentation paths, validated __NEXT_DATA__ presentation source, source title/user/description/views/likes/date, ordered slide CDN URLs, 2 MiB HTML/256 image limits, strict slidesharecdn.com image host and path validation, desktop/mobile route and single-page loopback fixture; full CI 40155515706 passed format, strict Clippy, tests and release build. Unrestricted slide counts, other CDN formats, date/output/archive and live site parity are not accepted."
+      ]
     },
     {
       "path": "gallery_dl/extractor/smugmug.py",
