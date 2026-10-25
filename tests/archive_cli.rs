@@ -676,3 +676,113 @@ fn simultaneous_imports_share_one_durable_set_of_archive_keys() {
     assert_eq!(fs::read(&reference).unwrap(), original_bytes);
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn archive_event_skip_persists_only_when_explicitly_selected() {
+    let dir = temp("archive-event-skip");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("native.sqlite");
+    let file = dir.join("preexisting.jpg");
+    fs::write(&file, b"existing").unwrap();
+    let url = "https://example.org/preexisting.jpg";
+    let execute = |event: Option<&str>| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        cmd.arg("-d").arg(&dir).arg("--download-archive").arg(&db);
+        if let Some(event) = event {
+            cmd.arg("--archive-event").arg(event);
+        }
+        cmd.arg(url).output().unwrap()
+    };
+
+    let skipped = execute(Some("skip"));
+    assert!(
+        skipped.status.success(),
+        "{}",
+        String::from_utf8_lossy(&skipped.stderr)
+    );
+    assert!(String::from_utf8_lossy(&skipped.stdout).contains("skipped"));
+    fs::remove_file(&file).unwrap();
+
+    // Nothing is listening on example.org: a network attempt would fail.
+    let archived = execute(None);
+    assert!(
+        archived.status.success(),
+        "{}",
+        String::from_utf8_lossy(&archived.stderr)
+    );
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived preexisting.jpg"));
+
+    let invalid = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive")
+        .arg(&db)
+        .arg("--archive-event")
+        .arg("after")
+        .arg(url)
+        .output()
+        .unwrap();
+    assert!(!invalid.status.success());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn archive_event_file_preserves_default_and_skip_only_omits_new_downloads() {
+    let dir = temp("archive-event-file");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("present.png");
+    fs::write(&file, b"preexisting").unwrap();
+    let db = dir.join("saved.sqlite");
+    let preexisting = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("-d")
+        .arg(&dir)
+        .arg("--download-archive")
+        .arg(&db)
+        .arg("--archive-event")
+        .arg("file")
+        .arg("https://example.org/present.png")
+        .output()
+        .unwrap();
+    assert!(preexisting.status.success());
+    let saved: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(saved, 0, "default file event cannot claim existing files");
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("http://{}/new.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0u8; 1024];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nDATA")
+            .unwrap();
+    });
+    let only_skip = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("-d")
+        .arg(&dir)
+        .arg("--download-archive")
+        .arg(&db)
+        .arg("--archive-event")
+        .arg("skip")
+        .arg("--retries")
+        .arg("0")
+        .arg(&endpoint)
+        .output()
+        .unwrap();
+    assert!(
+        only_skip.status.success(),
+        "{}",
+        String::from_utf8_lossy(&only_skip.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("new.jpg")).unwrap(), b"DATA");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0, "skip-only mode must not archive a new download");
+    fs::remove_dir_all(dir).unwrap();
+}

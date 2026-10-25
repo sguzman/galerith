@@ -224,6 +224,15 @@ struct Cli {
     #[arg(long = "download-archive", value_name = "FILE")]
     download_archive: Option<PathBuf>,
 
+    /// Archive recording events: file (default), skip, file,skip or skip,file
+    #[arg(
+        long = "archive-event",
+        value_name = "EVENTS",
+        requires = "download_archive",
+        value_parser = ["file", "skip", "file,skip", "skip,file"]
+    )]
+    archive_event: Option<String>,
+
     /// Existing gallery-dl SQLite archive to consult read-only for supported IDs
     #[arg(
         long = "gallery-dl-archive",
@@ -417,6 +426,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 })
                 .transpose()?
         };
+    let record_download = cli
+        .archive_event
+        .as_deref()
+        .map_or(true, |events| events.split(',').any(|event| event == "file"));
+    let record_skip = cli
+        .archive_event
+        .as_deref()
+        .is_some_and(|events| events.split(',').any(|event| event == "skip"));
     let selected = cli
         .file_range
         .as_deref()
@@ -572,8 +589,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
                         }
-                        if let Some(ref archive) = archive {
-                            archive.record(&item)?;
+                        if record_download {
+                            if let Some(ref archive) = archive {
+                                archive.record(&item)?;
+                            }
                         }
                         if !cli.quiet {
                             println!("saved {}", path.display());
@@ -582,6 +601,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     Ok(DownloadOutcome::Skipped(path)) => {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
+                        }
+                        if record_skip {
+                            if let Some(ref archive) = archive {
+                                archive.record(&item)?;
+                            }
                         }
                         if !cli.quiet {
                             println!("skipped {}", path.display());

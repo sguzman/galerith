@@ -217,9 +217,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         let custom_path = db_dir.join(format!("custom-{case_index}.sqlite"));
         let custom_source = rusqlite::Connection::open(&custom_path).unwrap();
         custom_source
-            .execute_batch(
-                "CREATE TABLE named (entry TEXT PRIMARY KEY) WITHOUT ROWID;",
-            )
+            .execute_batch("CREATE TABLE named (entry TEXT PRIMARY KEY) WITHOUT ROWID;")
             .unwrap();
         custom_source
             .execute(
