@@ -3990,7 +3990,14 @@ mod tests {
         };
         assert!(fourchan_archive_scope(&wrong_tim, first).is_none());
         assert!(canonical_fourchan_archive_suffix("a_123_456"));
-        for malformed in ["a_0_456", "a_123_0", "a_0123_456", "a_123_0456", "A_123_456", "a_123_456_7"] {
+        for malformed in [
+            "a_0_456",
+            "a_123_0",
+            "a_0123_456",
+            "a_123_0456",
+            "A_123_456",
+            "a_123_456_7",
+        ] {
             assert!(!canonical_fourchan_archive_suffix(malformed));
         }
         drop(archive);
@@ -4033,7 +4040,10 @@ mod tests {
         };
         for thread in [123, 124] {
             assert!(archive
-                .contains_for_source(&item, &format!("https://boards.4chan.org/a/thread/{thread}"))
+                .contains_for_source(
+                    &item,
+                    &format!("https://boards.4chan.org/a/thread/{thread}")
+                )
                 .unwrap());
         }
         assert!(!archive
@@ -4044,7 +4054,9 @@ mod tests {
             .unwrap());
         drop(archive);
         let bytes = fs::read(&native).unwrap();
-        assert!(!bytes.windows(b"4chana_123_456".len()).any(|part| part == b"4chana_123_456"));
+        assert!(!bytes
+            .windows(b"4chana_123_456".len())
+            .any(|part| part == b"4chana_123_456"));
         fs::remove_dir_all(root).unwrap();
     }
 
