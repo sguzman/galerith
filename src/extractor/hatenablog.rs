@@ -256,7 +256,8 @@ fn source_iso_date(raw: &str) -> Option<String> {
     }
     if zone != "Z" {
         let offset = &zone[1..];
-        let [zone_hour, zone_minute] = offset.split(':').collect::<Vec<_>>().as_slice() else {
+        let zone_parts = offset.split(':').collect::<Vec<_>>();
+        let [zone_hour, zone_minute] = zone_parts.as_slice() else {
             return None;
         };
         if zone_hour.len() != 2 || zone_minute.len() != 2
