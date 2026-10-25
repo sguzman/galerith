@@ -31,6 +31,19 @@ fn digest(text: &str) -> String {
         .collect()
 }
 
+/// Both supported metadata extractors require a post_ids array. Never
+/// retain a syntactically valid API error document as a reusable cache hit.
+fn valid_collection(value: &Value) -> bool {
+    value
+        .get("post_ids")
+        .and_then(Value::as_array)
+        .is_some_and(|posts| {
+            posts
+                .iter()
+                .all(|post| post.as_u64().is_some_and(|id| id > 0))
+        })
+}
+
 fn now() -> Result<i64, Box<dyn Error + Send + Sync>> {
     Ok(i64::try_from(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
@@ -128,7 +141,9 @@ impl Cache {
         if let Some((body, expires)) = row {
             if expires > now()? && body.len() <= limit {
                 if let Ok(value) = serde_json::from_slice(&body) {
-                    return Ok(Some(value));
+                    if valid_collection(&value) {
+                        return Ok(Some(value));
+                    }
                 }
             }
             // Expiration, size-limit changes and malformed stored JSON recover
@@ -204,7 +219,11 @@ impl Cache {
             return Ok(value);
         }
         let fresh = refresh().await?;
-        self.write(&key, &fresh, limit)?;
+        // Let the extractor report malformed source metadata, but do not
+        // poison future calls with a persistent successful cache record.
+        if valid_collection(&fresh) {
+            self.write(&key, &fresh, limit)?;
+        }
         Ok(fresh)
     }
 
@@ -318,6 +337,53 @@ mod tests {
             3
         );
         assert_eq!(calls.load(Ordering::SeqCst), 3);
+        drop(cache);
+        let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn valid_json_with_wrong_schema_is_never_cached_or_reused() {
+        let path = path("schema");
+        let _ = fs::remove_file(&path);
+        let cache = Cache::open(&path, 30).unwrap();
+        let endpoint = Url::parse("https://e621.net/pools/77.json").unwrap();
+        let bad = cache
+            .fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"message":"permission denied"}))
+            })
+            .await
+            .unwrap();
+        assert_eq!(bad["message"], "permission denied");
+        let recovered = cache
+            .fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[77]}))
+            })
+            .await
+            .unwrap();
+        assert_eq!(recovered["post_ids"][0], 77);
+        connection(&path)
+            .unwrap()
+            .execute(
+                "UPDATE public_collection_cache SET body_json = ?1 WHERE key_sha256 = ?2",
+                params![
+                    serde_json::to_vec(&serde_json::json!({"message":"stale error"})).unwrap(),
+                    digest(endpoint.as_str())
+                ],
+            )
+            .unwrap();
+        let refreshed = cache
+            .fetch(&endpoint, 1024, || async {
+                Ok(serde_json::json!({"post_ids":[78]}))
+            })
+            .await
+            .unwrap();
+        assert_eq!(refreshed["post_ids"][0], 78);
+        assert!(cache
+            .fetch(&endpoint, 1024, || async {
+                Err::<Value, Box<dyn Error + Send + Sync>>("must not hit network".into())
+            })
+            .await
+            .is_ok());
         drop(cache);
         let _ = fs::remove_file(path);
     }
