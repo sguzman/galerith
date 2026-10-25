@@ -28,6 +28,35 @@ impl Drop for ArchiveItemLock {
 
 /// Only these pinned source categories guarantee one original per image
 /// ID, with the same {id} archive contract for posts/searches/galleries.
+/// Hash external archive keys before persisting them in the native DB.
+fn archive_key_digest(key: &str) -> String {
+    Sha256::digest(key.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// Only the pinned default directlink and Philomena formats are understood.
+/// These are category-scoped and all other upstream rows are ignored.
+fn import_category(entry: &str) -> Option<&'static str> {
+    if let Some(path) = entry.strip_prefix("directlink") {
+        // A directlink key contains the source domain, at least one slash,
+        // and a filename with a nonempty extension. Do not store the path.
+        let (host, name) = path.split_once('/')?;
+        if !host.is_empty() && name.rsplit_once('.').is_some_and(|(s, e)| !s.is_empty() && !e.is_empty()) {
+            return Some("directlink");
+        }
+    }
+    for category in ["derpibooru", "ponybooru", "furbooru"] {
+        if let Some(id) = entry.strip_prefix(category) {
+            if id.parse::<u64>().ok().is_some_and(|n| n > 0) {
+                return Some(category);
+            }
+        }
+    }
+    None
+}
+
 fn philomena_id(item: &MediaItem) -> Option<u64> {
     match item.extractor {
         "derpibooru" | "ponybooru" | "furbooru" => item.post_id.filter(|id| *id != 0),
@@ -186,7 +215,12 @@ impl Archive {
                 identity TEXT NOT NULL,
                 recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(category, identity)
-            );",
+            );
+            CREATE TABLE IF NOT EXISTS imported_gallery_dl (
+                category TEXT NOT NULL,
+                archive_sha256 TEXT NOT NULL,
+                PRIMARY KEY(category, archive_sha256)
+            ) WITHOUT ROWID;",
         )?;
         // Canonicalize the newly opened database path: relative and symlink
         // aliases must share the same interprocess lock namespace.
@@ -242,6 +276,37 @@ impl Archive {
         }
     }
 
+    /// One-time, explicit offline migration of *supported* default upstream
+    /// archive keys into SHA-256 native keys. Streams rows through a single
+    /// SQLite transaction; failed imports roll back. Safe to re-run.
+    ///
+    /// This does not imply that an unsupported upstream archive entry is a
+    /// successful Galerith download, and it does not alter the source file.
+    pub fn import_reference(&self) -> Result<(usize, usize), Box<dyn Error + Send + Sync>> {
+        let source = self.upstream_reference.as_ref().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "gallery-dl reference archive is required")
+        })?;
+        let mut select = source.prepare("SELECT entry FROM archive")?;
+        let mut rows = select.query([])?;
+        let transaction = self.connection.unchecked_transaction()?;
+        let mut matched = 0usize;
+        let mut inserted = 0usize;
+        {
+            let mut insert = transaction.prepare(
+                "INSERT OR IGNORE INTO imported_gallery_dl (category, archive_sha256) VALUES (?1, ?2)",
+            )?;
+            while let Some(row) = rows.next()? {
+                let entry: String = row.get(0)?;
+                if let Some(category) = import_category(&entry) {
+                    matched += 1;
+                    inserted += insert.execute(params![category, archive_key_digest(&entry)])?;
+                }
+            }
+        }
+        transaction.commit()?;
+        Ok((matched, inserted))
+    }
+
     pub fn contains(&self, item: &MediaItem) -> Result<bool, rusqlite::Error> {
         let present: i64 = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM downloads WHERE category = ?1 AND identity = ?2)",
@@ -272,6 +337,14 @@ impl Archive {
             }
         }
         if let Some(source_key) = upstream_archive_key(item) {
+            let migrated: i64 = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM imported_gallery_dl WHERE category = ?1 AND archive_sha256 = ?2)",
+                params![item.extractor, archive_key_digest(&source_key)],
+                |row| row.get(0),
+            )?;
+            if migrated != 0 {
+                return Ok(true);
+            }
             // Explicit external reference takes precedence, then the
             // existing same-file fallback for legacy mixed databases.
             let source = self
@@ -518,6 +591,67 @@ mod tests {
             fs::remove_dir_all(lock_dir).unwrap();
         }
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn imported_supported_keys_are_private_idempotent_and_survive_reference_removal() {
+        let root = std::env::temp_dir()
+            .join(format!("galerith-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native_path = root.join("native.sqlite");
+        let upstream_path = root.join("gallery-dl.sqlite");
+        let upstream = Connection::open(&upstream_path).unwrap();
+        upstream.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;",
+        ).unwrap();
+        for key in [
+            "directlinkexample.org/photos/hello.jpg",
+            "derpibooru123",
+            "ponybooru321",
+            "furbooru456",
+            "danboorut_example_5",
+            "not-supported",
+        ] {
+            upstream.execute("INSERT INTO archive(entry) VALUES (?1)", params![key]).unwrap();
+        }
+        drop(upstream);
+        let bytes = fs::read(&upstream_path).unwrap();
+        let archive = Archive::open_with_reference(&native_path, Some(&upstream_path)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (4, 4));
+        assert_eq!(archive.import_reference().unwrap(), (4, 0));
+        drop(archive);
+        assert_eq!(fs::read(&upstream_path).unwrap(), bytes);
+        fs::remove_file(&upstream_path).unwrap();
+        let local = Archive::open(&native_path).unwrap();
+        let url = extract_direct_media(
+            "https://example.org/photos/hello.jpg?signature=changed",
+        ).unwrap();
+        assert!(local.contains(&url).unwrap());
+        for (category, id) in [("derpibooru", 123), ("ponybooru", 321), ("furbooru", 456)] {
+            let item = MediaItem {
+                url: format!("https://cdn.example.net/{id}.png?token=rotated"),
+                filename: format!("{id}.png"),
+                extractor: category,
+                post_id: Some(id),
+            };
+            assert!(local.contains(&item).unwrap());
+            let unrelated = MediaItem { post_id: Some(id + 1), ..item };
+            assert!(!local.contains(&unrelated).unwrap());
+        }
+        let unsafe_media = MediaItem {
+            url: "https://cdn.example.net/5.jpg".into(),
+            filename: "5.jpg".into(),
+            extractor: "danbooru",
+            post_id: Some(5),
+        };
+        assert!(!local.contains(&unsafe_media).unwrap());
+        drop(local);
+        let native_bytes = fs::read(&native_path).unwrap();
+        for forbidden in ["hello.jpg", "photos/", "example.org", "signature=changed"] {
+            assert!(!native_bytes.windows(forbidden.len()).any(|part| part == forbidden.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

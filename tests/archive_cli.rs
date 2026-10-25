@@ -357,3 +357,72 @@ fn cli_rejects_missing_reference_archive_without_creating_native_db() {
     assert!(!external.exists());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn offline_import_migrates_verified_ids_without_original_database() {
+    let dir = temp("offline-import");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let source = dir.join("reference.sqlite");
+    let reference = rusqlite::Connection::open(&source).unwrap();
+    reference.execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;").unwrap();
+    for key in ["directlinkexample.org/photos/picture.jpg", "derpibooru987", "unsupported-site-data"] {
+        reference.execute("INSERT INTO archive(entry) VALUES (?1)", [key]).unwrap();
+    }
+    drop(reference);
+    let original_bytes = fs::read(&source).unwrap();
+
+    let import = || Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive").arg(&native)
+        .arg("--gallery-dl-archive").arg(&source)
+        .arg("--archive-import").output().unwrap();
+    let first = import();
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    assert!(String::from_utf8_lossy(&first.stdout).contains("2 supported entries; 2 new"));
+    let second = import();
+    assert!(second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("2 supported entries; 0 new"));
+    assert_eq!(fs::read(&source).unwrap(), original_bytes);
+    fs::remove_file(source).unwrap();
+
+    // No HTTP server runs at example.org; the migrated match must skip it.
+    let skipped = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive").arg(&native)
+        .arg("-d").arg(&dir)
+        .arg("https://example.org/photos/picture.jpg?signature=new")
+        .output().unwrap();
+    assert!(skipped.status.success(), "{}", String::from_utf8_lossy(&skipped.stderr));
+    assert!(String::from_utf8_lossy(&skipped.stdout).contains("archived picture.jpg"));
+    assert!(!dir.join("picture.jpg").exists());
+
+    let persisted = fs::read(&native).unwrap();
+    for marker in ["picture.jpg", "example.org", "photos/"] {
+        assert!(!persisted.windows(marker.len()).any(|b| b == marker.as_bytes()));
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn offline_import_rejects_urls_and_missing_reference_before_creating_native() {
+    let dir = temp("import-errors");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let native = dir.join("native.sqlite");
+    let source = dir.join("missing.sqlite");
+    let bad = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive").arg(&native)
+        .arg("--gallery-dl-archive").arg(&source)
+        .arg("--archive-import")
+        .arg("https://example.org/asset.png").output().unwrap();
+    assert!(!bad.status.success());
+    assert!(!native.exists());
+    let missing = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("--download-archive").arg(&native)
+        .arg("--gallery-dl-archive").arg(&source)
+        .arg("--archive-import").output().unwrap();
+    assert!(!missing.status.success());
+    assert!(!native.exists());
+    assert!(!source.exists());
+    fs::remove_dir_all(dir).unwrap();
+}
