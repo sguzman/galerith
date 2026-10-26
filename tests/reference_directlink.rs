@@ -871,3 +871,24 @@ fn pinned_webmshare_source_video_archive_is_id_not_title() {
         "webmshare|video|ABc_123|video99"
     );
 }
+
+#[test]
+fn pinned_catbox_album_and_file_archive_formats_are_disjoint() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Catbox archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://files.catbox.moe/abc123.jpg'); b=extractor.find('https://catbox.moe/c/Album123'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(filename='abc123'),b.category,b.subcategory,b.archive_fmt.format(album_id='Album123',filename='abc123'))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Catbox source-scoped archive formats").trim(),
+        "catbox|file|abc123|catbox|album|Album123_abc123"
+    );
+}
