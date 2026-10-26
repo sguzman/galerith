@@ -997,3 +997,24 @@ fn pinned_imagebam_single_and_gallery_keys_are_distinct() {
         "imagebam|image|Mabc123|imagebam|gallery|Gabc123_Mabc123"
     );
 }
+
+#[test]
+fn pinned_postimg_image_tokens_and_gallery_queue_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Postimages archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://postimg.cc/PhJZt1Rw'); b=extractor.find('https://postimg.cc/image/PhJZt1Rw'); g=extractor.find('https://postimg.cc/gallery/wxpDLgX'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='PhJZt1Rw'),b.subcategory,b.archive_fmt.format(token='PhJZt1Rw'),g.subcategory)))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Postimages image-token and gallery queue archive keys").trim(),
+        "postimg|image|PhJZt1Rw|image|PhJZt1Rw|gallery"
+    );
+}
