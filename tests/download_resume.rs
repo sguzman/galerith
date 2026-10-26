@@ -214,7 +214,10 @@ async fn disguised_206_error_suffix_is_discarded_before_clean_retry() {
     // must not become an apparently successful media download.
     for (label, mime) in [
         ("untyped-206-block", ""),
-        ("octet-206-block", "Content-Type: application/octet-stream\r\n"),
+        (
+            "octet-206-block",
+            "Content-Type: application/octet-stream\r\n",
+        ),
         ("typed-206-block", "Content-Type: text/html\r\n"),
     ] {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -264,7 +267,10 @@ async fn disguised_206_error_suffix_is_discarded_before_clean_retry() {
                 .unwrap(),
             DownloadOutcome::Saved(path.join("photo.jpg"))
         );
-        assert_eq!(fs::read(path.join("photo.jpg")).unwrap(), b"MEDIA123ABCDEFGH");
+        assert_eq!(
+            fs::read(path.join("photo.jpg")).unwrap(),
+            b"MEDIA123ABCDEFGH"
+        );
         assert!(!path.join("photo.jpg.part").exists());
         assert!(!path.join("photo.jpg.part.json").exists());
         server.await.unwrap();
