@@ -1115,9 +1115,9 @@ fn imagetwist_archive_scope(item: &MediaItem, source_url: &str) -> Option<(Strin
             if canonical_imagetwist_token(token)
                 && (5..=220).contains(&hint.len())
                 && !hint.contains("..")
-                && hint
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+                && hint.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+                })
                 && hint.rsplit_once('.').is_some_and(|(_, ext)| {
                     matches!(
                         ext.to_ascii_lowercase().as_str(),
@@ -1147,7 +1147,10 @@ fn imagetwist_archive_scope(item: &MediaItem, source_url: &str) -> Option<(Strin
     let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
     if filename.is_empty()
         || filename.len() > 240
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -1214,7 +1217,10 @@ fn turboimagehost_archive_scope(item: &MediaItem, source_url: &str) -> Option<(S
     let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
     if filename.is_empty()
         || filename.len() > 240
-        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+        || !matches!(
+            ext.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
     {
         return None;
     }
@@ -4577,12 +4583,17 @@ mod tests {
         };
         let turbo_source = "https://turboimagehost.com/p/12345/old.jpg.html";
         assert_eq!(
-            turboimagehost_archive_scope(&turbo, turbo_source).unwrap().1,
+            turboimagehost_archive_scope(&turbo, turbo_source)
+                .unwrap()
+                .1,
             "turboimagehost12345"
         );
         archive.record_for_source(&turbo, turbo_source).unwrap();
         assert!(archive
-            .contains_for_source(&turbo_new, "https://www.turboimagehost.com/p/12345/new.webp.html")
+            .contains_for_source(
+                &turbo_new,
+                "https://www.turboimagehost.com/p/12345/new.webp.html"
+            )
             .unwrap());
         for bad in [
             "https://turboimagehost.com/p/12346/new.webp.html",
@@ -4600,7 +4611,10 @@ mod tests {
         assert!(turboimagehost_archive_scope(&malicious, turbo_source).is_none());
         drop(archive);
         let bytes = fs::read(&native).unwrap();
-        for token in [b"123456abcdef".as_slice(), b"turboimagehost12345".as_slice()] {
+        for token in [
+            b"123456abcdef".as_slice(),
+            b"turboimagehost12345".as_slice(),
+        ] {
             assert!(!bytes.windows(token.len()).any(|part| part == token));
         }
         fs::remove_dir_all(root).unwrap();
@@ -4608,8 +4622,10 @@ mod tests {
 
     #[test]
     fn imagetwist_and_turboimagehost_reference_migrations_are_read_only_and_offline() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-twist-turbo-import-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "galerith-twist-turbo-import-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("reference.sqlite");
