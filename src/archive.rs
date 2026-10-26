@@ -91,12 +91,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "unsplash",
             "lexica",
             "pixeldrain",
+            "listal",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "listal" && canonical_listal_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "pixeldrain" && canonical_pixeldrain_file_id(id) {
@@ -151,6 +155,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "unsplash"
                         | "lexica"
                         | "pixeldrain"
+                        | "listal"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -227,9 +232,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "unsplash",
         "lexica",
         "pixeldrain",
+        "listal",
     ] {
         if prefix == category
-            && ((category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
+            && ((category == "listal" && canonical_listal_archive_suffix(bare))
+                || (category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
                 || (category == "lexica" && canonical_lexica_image_id(bare))
                 || (category == "unsplash" && canonical_unsplash_photo_id(bare))
                 || (category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
@@ -259,6 +266,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "unsplash"
                         | "lexica"
                         | "pixeldrain"
+                        | "listal"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -445,6 +453,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "unsplash"
                 | "lexica"
                 | "pixeldrain"
+                | "listal"
         )
 }
 
@@ -835,6 +844,83 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned Pixeldrain file and album extractors archive by each file's
 /// source ID, not its filename or containing list. Filesystem/folder mode
 /// uses an unrelated path+position archive template and fails closed here.
+/// Pinned Listal archive_fmt is "{id}/{filename}", where filename is
+/// the original media basename without its extension. Same image IDs can
+/// therefore have distinct originals; raw post ID alone is insufficient.
+fn canonical_listal_archive_suffix(suffix: &str) -> bool {
+    let Some((id, name)) = suffix.split_once('/') else {
+        return false;
+    };
+    canonical_numeric_archive_suffix(id)
+        && id.len() <= 16
+        && (1..=180).contains(&name.len())
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        && !name.contains("..")
+}
+
+fn listal_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "listal" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("listal.com" | "www.listal.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let ["viewimage", id] = source_parts.as_slice() else {
+        return None;
+    };
+    if !canonical_numeric_archive_suffix(id) || id.len() > 16 {
+        return None;
+    }
+    let prefix = format!("{id}_");
+    let name = item.filename.strip_prefix(&prefix)?;
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(host == "listal.com"
+            || host == "lisimg.com"
+            || host.ends_with(".listal.com")
+            || host.ends_with(".lisimg.com"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+    {
+        return None;
+    }
+    if name != media.path_segments()?.next_back()? {
+        return None;
+    }
+    let (stem, extension) = name.rsplit_once('.')?;
+    if !matches!(
+        extension,
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
+        return None;
+    }
+    let suffix = format!("{id}/{stem}");
+    if !canonical_listal_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("listal{suffix}");
+    Some((
+        format!("original-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_pixeldrain_file_id(id: &str) -> bool {
     (1..=128).contains(&id.len())
         && id
@@ -1992,6 +2078,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| unsplash_archive_scope(item, source_url))
         .or_else(|| lexica_archive_scope(item, source_url))
         .or_else(|| pixeldrain_archive_scope(item, source_url))
+        .or_else(|| listal_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
