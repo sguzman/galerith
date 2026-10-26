@@ -3120,6 +3120,7 @@ mod tests {
             "unsplashabc-A",
             "lexicaabc-A",
             "pixeldrainFile12",
+            "listal12345/full",
         ];
         let rejected = [
             "danbooru00123",
@@ -3137,6 +3138,7 @@ mod tests {
             "unsplashbad%2fid",
             "lexicabad%2fid",
             "pixeldrainbad%2fid",
+            "listal012345/full",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3264,6 +3266,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://pixeldrain.com/l/album_99",
+            ),
+            (
+                MediaItem {
+                    url: "https://cdn.lisimg.com/rotated/full.png".into(),
+                    filename: "12345_full.png".into(),
+                    extractor: "listal",
+                    post_id: None,
+                },
+                "https://www.listal.com/viewimage/12345",
             ),
             (
                 MediaItem {
@@ -7232,6 +7243,135 @@ mod tests {
             .contains_for_source(&other, "https://pixeldrain.com/l/album_99")
             .unwrap());
         drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn listal_originals_keep_separate_ids_with_same_post() {
+        let root = std::env::temp_dir().join(format!("galerith-listal-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://image.listal.com/pics/full.png".into(),
+            filename: "12345_full.png".into(),
+            extractor: "listal",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://cdn.lisimg.com/new/full.png".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            url: "https://image.listal.com/pics/other.png".into(),
+            filename: "12345_other.png".into(),
+            ..first.clone()
+        };
+        let source = "https://www.listal.com/viewimage/12345";
+        archive.record_for_source(&first, source).unwrap();
+        assert_eq!(
+            listal_archive_scope(&first, source).unwrap().1,
+            "listal12345/full"
+        );
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(!archive.contains_for_source(&second, source).unwrap());
+        for bad in [
+            "https://www.listal.com/viewimage/012345",
+            "https://www.listal.com/alice/pictures",
+            "https://listal.com/viewimage/54321",
+            "https://listal.com/viewimage/12345?token=private",
+            "https://evil.listal.com/viewimage/12345",
+        ] {
+            assert!(listal_archive_scope(&first, bad).is_none());
+        }
+        for wrong in [
+            "https://image.listal.com/pics/other.png",
+            "https://image.listal.com.evil.test/pics/full.png",
+            "https://image.listal.com/pics/full.png?token=private",
+        ] {
+            let item = MediaItem {
+                url: wrong.into(),
+                ..first.clone()
+            };
+            assert!(listal_archive_scope(&item, source).is_none());
+        }
+        for bad in ["012345/full", "12345/../full", "12345/", "12345/full%2f"] {
+            assert!(!canonical_listal_archive_suffix(bad));
+        }
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        for secret in ["12345/full", "full.png"] {
+            assert!(!bytes
+                .windows(secret.len())
+                .any(|part| part == secret.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn listal_reference_migration_preserves_individual_originals_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-listal-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('listal12345/full');
+             INSERT INTO archive VALUES ('listal12345/other');
+             INSERT INTO archive VALUES ('listal012345/full');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('12345/full');
+             INSERT INTO named VALUES ('listal12345/full');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("listal"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://cdn.lisimg.com/rotated/full.png".into(),
+            filename: "12345_full.png".into(),
+            extractor: "listal",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&item, "https://www.listal.com/viewimage/12345")
+            .unwrap());
+        let different = MediaItem {
+            url: "https://cdn.lisimg.com/rotated/third.png".into(),
+            filename: "12345_third.png".into(),
+            ..item
+        };
+        assert!(!offline
+            .contains_for_source(&different, "https://www.listal.com/viewimage/12345")
+            .unwrap());
+        drop(offline);
         fs::remove_dir_all(root).unwrap();
     }
 
