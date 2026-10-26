@@ -4463,8 +4463,8 @@ mod tests {
         drop(db);
         let original = fs::read(&source).unwrap();
 
-        let default = Archive::open_with_reference(&root.join("default.sqlite"), Some(&source))
-            .unwrap();
+        let default =
+            Archive::open_with_reference(&root.join("default.sqlite"), Some(&source)).unwrap();
         assert_eq!(default.import_reference().unwrap(), (1, 1));
         assert_eq!(default.import_reference().unwrap(), (1, 0));
         drop(default);
