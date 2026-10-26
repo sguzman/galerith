@@ -88,12 +88,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "foriio",
             "piczel",
             "35photo",
+            "unsplash",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "unsplash" && canonical_unsplash_photo_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "35photo" && canonical_thirtyfivephoto_archive_suffix(id) {
@@ -136,6 +140,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "foriio"
                         | "piczel"
                         | "35photo"
+                        | "unsplash"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -209,9 +214,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "foriio",
         "piczel",
         "35photo",
+        "unsplash",
     ] {
         if prefix == category
-            && ((category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
+            && ((category == "unsplash" && canonical_unsplash_photo_id(bare))
+                || (category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
                 || (category == "piczel" && canonical_piczel_archive_suffix(bare))
                 || (category == "foriio" && canonical_foriio_archive_suffix(bare))
                 || (category == "lightroom" && canonical_lightroom_asset_id(bare))
@@ -235,6 +242,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "foriio"
                         | "piczel"
                         | "35photo"
+                        | "unsplash"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -418,6 +426,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "foriio"
                 | "piczel"
                 | "35photo"
+                | "unsplash"
         )
 }
 
@@ -800,6 +809,80 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned 35photo image/user archive key: "{id}_{num}".
 /// Tag and genre extractors use DIFFERENT archives, so only an exact public
 /// individual-photo source URL proves this unprefixed image identity.
+/// All pinned public Unsplash extractors archive by the API photo "{id}".
+/// The native photo resolver already emits this ID as "id.jpg" for every
+/// family, including favorites, collections and searches.
+fn canonical_unsplash_photo_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn unsplash_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "unsplash" {
+        return None;
+    }
+    let id = item.filename.strip_suffix(".jpg")?;
+    if !canonical_unsplash_photo_id(id) {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("unsplash.com")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let is_photo = matches!(source_parts.as_slice(), ["photos", value] if *value == id);
+    let is_user = matches!(source_parts.as_slice(), [user] if user
+        .strip_prefix('@').is_some_and(canonical_unsplash_photo_id));
+    let is_likes = matches!(source_parts.as_slice(), [user, "likes"] if user
+        .strip_prefix('@').is_some_and(canonical_unsplash_photo_id));
+    let is_collection = matches!(source_parts.as_slice(), ["collections", value] | ["collections", value, _] if canonical_unsplash_photo_id(value));
+    let is_search = matches!(source_parts.as_slice(), ["s", "photos", value] if canonical_unsplash_photo_id(value));
+    if !(is_photo || is_user || is_likes || is_collection || is_search) {
+        return None;
+    }
+    if source.query().is_some() {
+        if !is_search {
+            return None;
+        }
+        let mut pairs = source.query_pairs();
+        let (key, value) = pairs.next()?;
+        if key != "orientation"
+            || !matches!(value.as_ref(), "landscape" | "portrait" | "squarish")
+            || pairs.next().is_some()
+        {
+            return None;
+        }
+    }
+
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || !matches!(
+            media.host_str(),
+            Some("images.unsplash.com" | "plus.unsplash.com")
+        )
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let upstream = format!("unsplash{id}");
+    Some((
+        format!("photo-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_thirtyfivephoto_archive_suffix(suffix: &str) -> bool {
     let Some((id, position)) = suffix.split_once('_') else {
         return false;
@@ -1757,6 +1840,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| foriio_archive_scope(item, source_url))
         .or_else(|| piczel_archive_scope(item, source_url))
         .or_else(|| thirtyfivephoto_archive_scope(item, source_url))
+        .or_else(|| unsplash_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
