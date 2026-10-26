@@ -1139,3 +1139,24 @@ fn pinned_imgclick_uses_individual_imagehost_token_archive_keys() {
         "imgclick|image|4tbrre1oxew9|imgclick|image|ABc_123"
     );
 }
+
+#[test]
+fn pinned_fappic_and_imgpv_imagehost_tokens_match_their_source_pages() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for image-host token differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://fappic.com/abcde12345/name.jpg'); b=extractor.find('https://fappic.com/i/123/abcde12345_t/thumb.jpg'); c=extractor.find('https://www.imgpv.com/a1b2c3d4f5g6/name.jpg.html'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token=a.token),b.category,b.token,b.archive_fmt.format(token=b.token),c.category,c.subcategory,c.archive_fmt.format(token='a1b2c3d4f5g6'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Fappic thumbnail and Imgpv individual archive tokens").trim(),
+        "fappic|image|abcde12345|fappic|abcde12345|abcde12345|imgpv|image|a1b2c3d4f5g6"
+    );
+}

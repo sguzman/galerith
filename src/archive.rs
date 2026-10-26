@@ -106,12 +106,20 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imxto",
             "imgadult",
             "imgclick",
+            "fappic",
+            "imgpv",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "fappic" && canonical_fappic_token(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imgpv" && canonical_imgpv_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imgclick" && canonical_imgclick_token(id) {
@@ -226,6 +234,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imxto"
                         | "imgadult"
                         | "imgclick"
+                        | "fappic"
+                        | "imgpv"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -317,9 +327,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imxto",
         "imgadult",
         "imgclick",
+        "fappic",
+        "imgpv",
     ] {
         if prefix == category
-            && ((category == "imgclick" && canonical_imgclick_token(bare))
+            && ((category == "fappic" && canonical_fappic_token(bare))
+                || (category == "imgpv" && canonical_imgpv_token(bare))
+                || (category == "imgclick" && canonical_imgclick_token(bare))
                 || (category == "imgadult" && canonical_imgadult_token(bare))
                 || (category == "imxto" && canonical_imxto_image_token(bare))
                 || (category == "imagepond" && canonical_imagepond_file_id(bare))
@@ -379,6 +393,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imxto"
                         | "imgadult"
                         | "imgclick"
+                        | "fappic"
+                        | "imgpv"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -580,6 +596,8 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imxto"
                 | "imgadult"
                 | "imgclick"
+                | "fappic"
+                | "imgpv"
         )
 }
 
@@ -999,6 +1017,166 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned FappicImageExtractor strips "_t" from its thumbnail source
+/// token and inherits the common image-host "{token}" archive format.
+fn canonical_fappic_token(token: &str) -> bool {
+    (10..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn fappic_host(host: &str) -> bool {
+    matches!(host, "fappic.com" | "www.fappic.com")
+        || host
+            .strip_prefix("img")
+            .and_then(|rest| rest.strip_suffix(".fappic.com"))
+            .is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+            })
+}
+
+fn fappic_page_hint(name: &str) -> bool {
+    (5..=180).contains(&name.len())
+        && !name.contains("..")
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn fappic_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "fappic" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !fappic_host(source.host_str()?)
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let token = match parts.as_slice() {
+        [token, hint] if canonical_fappic_token(token) && fappic_page_hint(hint) => *token,
+        ["i", folder, thumb, hint]
+            if (1..=10).contains(&folder.len())
+                && folder.bytes().all(|byte| byte.is_ascii_digit())
+                && fappic_page_hint(hint) =>
+        {
+            let token = thumb.strip_suffix("_t")?;
+            if !canonical_fappic_token(token) {
+                return None;
+            }
+            token
+        }
+        _ => return None,
+    };
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == "fappic.com" || host.ends_with(".fappic.com"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("fappic{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
+/// Pinned ImgpvImageExtractor also inherits "{token}", but its page URLs
+/// use a lowercase alphanumeric token followed by a filename hint.
+fn canonical_imgpv_token(token: &str) -> bool {
+    (10..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn imgpv_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imgpv" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("imgpv.com" | "www.imgpv.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let paths: Vec<_> = source.path_segments()?.collect();
+    let [token, page] = paths.as_slice() else {
+        return None;
+    };
+    if !canonical_imgpv_token(token)
+        || !(6..=200).contains(&page.len())
+        || !page.ends_with(".html")
+        || page.contains("..")
+        || !page
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    {
+        return None;
+    }
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == "imgpv.com" || host.ends_with(".imgpv.com"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("imgpv{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned ImgclickImageExtractor inherits "{token}" from the shared
 /// image-host extractor. Only a directly verified image page may use it.
 fn canonical_imgclick_token(token: &str) -> bool {
@@ -3291,6 +3469,8 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imxto_archive_scope(item, source_url))
         .or_else(|| imgadult_archive_scope(item, source_url))
         .or_else(|| imgclick_archive_scope(item, source_url))
+        .or_else(|| fappic_archive_scope(item, source_url))
+        .or_else(|| imgpv_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3899,6 +4079,194 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn fappic_normal_and_thumbnail_urls_share_only_proven_image_tokens() {
+        let root = std::env::temp_dir().join(format!("galerith-fappic-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://cdn.fappic.com/photos/old.jpg".into(),
+            filename: "old.jpg".into(),
+            extractor: "fappic",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://img8.fappic.com/images/renamed.webp".into(),
+            filename: "renamed.webp".into(),
+            ..first.clone()
+        };
+        let source = "https://fappic.com/abcde12345/first.jpg";
+        assert_eq!(
+            fappic_archive_scope(&first, source).unwrap().1,
+            "fappicabcde12345"
+        );
+        archive.record_for_source(&first, source).unwrap();
+        for alias in [
+            source,
+            "https://www.fappic.com/abcde12345/renamed.png",
+            "https://img5.fappic.com/i/123/abcde12345_t/thumb.jpg",
+        ] {
+            assert!(archive.contains_for_source(&changed, alias).unwrap());
+        }
+        for bad in [
+            "https://fappic.com/abcde99999/photo.jpg",
+            "https://fappic.com/i/123/abcde99999_t/thumb.jpg",
+            "https://fappic.com/i/123/abcde12345/thumb.jpg",
+            "https://fappic.com/abcde12345/bad..jpg",
+            "https://fappic.com/abcde12345/first.jpg?token=1",
+            "https://fappic.com:8443/abcde12345/first.jpg",
+            "https://evil.fappic.com.attacker.invalid/abcde12345/first.jpg",
+            "https://fappic.com/%61bcde12345/first.jpg",
+        ] {
+            assert!(!archive.contains_for_source(&changed, bad).unwrap(), "{bad}");
+        }
+        let foreign = MediaItem {
+            url: "https://evil.fappic.com.attacker.invalid/file.jpg".into(),
+            ..changed
+        };
+        assert!(fappic_archive_scope(&foreign, source).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"abcde12345".len())
+            .any(|part| part == b"abcde12345"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgpv_token_is_stable_but_filename_hint_is_not_archive_identity() {
+        let root = std::env::temp_dir().join(format!("galerith-imgpv-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://cdn.imgpv.com/original/old.png".into(),
+            filename: "old.png".into(),
+            extractor: "imgpv",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://imgpv.com/original/changed.webp".into(),
+            filename: "changed.webp".into(),
+            ..item.clone()
+        };
+        let original = "https://imgpv.com/a1b2c3d4f5g6/name.jpg.html";
+        assert_eq!(
+            imgpv_archive_scope(&item, original).unwrap().1,
+            "imgpva1b2c3d4f5g6"
+        );
+        archive.record_for_source(&item, original).unwrap();
+        assert!(archive
+            .contains_for_source(
+                &changed,
+                "https://www.imgpv.com/a1b2c3d4f5g6/changed.webp.html"
+            )
+            .unwrap());
+        for bad in [
+            "https://imgpv.com/z1b2c3d4f5g6/name.jpg.html",
+            "https://imgpv.com/A1B2C3D4F5G6/name.jpg.html",
+            "https://imgpv.com/a1b2c3d4f5g6/name..jpg.html",
+            "https://imgpv.com/a1b2c3d4f5g6/name.jpg.html?token=1",
+            "https://imgpv.com:8443/a1b2c3d4f5g6/name.jpg.html",
+            "https://imgpv.com.evil.invalid/a1b2c3d4f5g6/name.jpg.html",
+            "https://imgpv.com/%611b2c3d4f5g6/name.jpg.html",
+        ] {
+            assert!(!archive.contains_for_source(&changed, bad).unwrap(), "{bad}");
+        }
+        let foreign = MediaItem {
+            url: "https://cdn.imgpv.com.evil.invalid/photo.jpg".into(),
+            ..changed
+        };
+        assert!(imgpv_archive_scope(&foreign, original).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"a1b2c3d4f5g6".len())
+            .any(|part| part == b"a1b2c3d4f5g6"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pinned_fappic_and_imgpv_reference_migration_is_private_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imagehost-pair-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('fappicabcde12345');
+            INSERT INTO archive VALUES ('imgpva1b2c3d4f5g6');
+            INSERT INTO archive VALUES ('fappicbad token');
+            INSERT INTO archive VALUES ('imgpvUPPERCASE');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('abcde12345');
+            INSERT INTO named VALUES ('a1b2c3d4f5g6');
+            INSERT INTO named VALUES ('fappicabcde12345');
+            INSERT INTO named VALUES ('imgpva1b2c3d4f5g6');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        for category in ["fappic", "imgpv"] {
+            let named = Archive::open_with_reference_options(
+                &root.join(format!("{category}.sqlite")),
+                Some(&foreign),
+                Some("named"),
+                Some(category),
+            )
+            .unwrap();
+            assert_eq!(named.import_reference().unwrap(), (1, 1));
+        }
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(&foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let fappic = MediaItem {
+            url: "https://cdn.fappic.com/renamed.webp".into(),
+            filename: "renamed.webp".into(),
+            extractor: "fappic",
+            post_id: None,
+        };
+        let imgpv = MediaItem {
+            url: "https://cdn.imgpv.com/renamed.webp".into(),
+            filename: "renamed.webp".into(),
+            extractor: "imgpv",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&fappic, "https://fappic.com/abcde12345/new.png")
+            .unwrap());
+        assert!(offline
+            .contains_for_source(&imgpv, "https://imgpv.com/a1b2c3d4f5g6/new.jpg.html")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&imgpv, "https://imgpv.com/other123456/new.jpg.html")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        for token in [b"abcde12345".as_slice(), b"a1b2c3d4f5g6".as_slice()] {
+            assert!(!bytes.windows(token.len()).any(|part| part == token));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn imgclick_source_token_survives_filename_hints_without_false_archive_hits() {
