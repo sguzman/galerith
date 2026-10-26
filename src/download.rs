@@ -71,6 +71,9 @@ struct PartMetadata {
     source_sha256: String,
     etag: Option<String>,
     last_modified: Option<String>,
+    // Optional for backwards compatibility with pre-invariant .part.json files.
+    #[serde(default)]
+    total_length: Option<u64>,
 }
 
 impl PartMetadata {
@@ -79,6 +82,7 @@ impl PartMetadata {
             source_sha256: fingerprint(url),
             etag: header(response, ETAG),
             last_modified: header(response, LAST_MODIFIED),
+            total_length: response.content_length(),
         }
     }
 
@@ -200,7 +204,10 @@ async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Opt
         Some(meta) => meta,
         None => return (0, None),
     };
-    if meta.source_sha256 != fingerprint(url) || meta.validator().is_none() {
+    if meta.source_sha256 != fingerprint(url)
+        || meta.validator().is_none()
+        || meta.total_length.is_some_and(|total| size >= total)
+    {
         return (0, None);
     }
     (size, Some(meta))
@@ -469,7 +476,20 @@ pub async fn download(
         } else {
             None
         };
-        if let Some((expected, _)) = resume_range {
+        if let Some((expected, total)) = resume_range {
+            if prior
+                .as_ref()
+                .and_then(|old| old.total_length)
+                .is_some_and(|original_total| original_total != total)
+            {
+                // Even matching validators do not authorize a silently
+                // changing representation size across resumed chunks.
+                invalidate(&part, &metadata).await?;
+                if attempt < options.retries {
+                    continue;
+                }
+                return Err(error("resumed representation total changed; partial reset"));
+            }
             if response
                 .content_length()
                 .is_some_and(|declared| declared != expected)
@@ -516,6 +536,15 @@ pub async fn download(
             invalidate(&part, &metadata).await?;
             write_metadata_atomically(&metadata, &PartMetadata::for_response(&item.url, &response))
                 .await?;
+        } else if let (Some((_, total)), Some(old)) = (resume_range, prior.as_ref()) {
+            if old.total_length.is_none() {
+                // Upgrade a legacy sidecar as soon as the first validated 206
+                // reveals the full representation size. Persist before append
+                // so another invocation cannot silently change it.
+                let mut upgraded = old.clone();
+                upgraded.total_length = Some(total);
+                write_metadata_atomically(&metadata, &upgraded).await?;
+            }
         }
         let mut file = if append {
             fs::OpenOptions::new().append(true).open(&part).await?

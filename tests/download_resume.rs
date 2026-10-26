@@ -473,6 +473,121 @@ async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
 }
 
 #[tokio::test]
+async fn changed_resume_total_resets_partial_and_restarts_without_range() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let request_text = request(&mut first).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"same\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+        let mut changed = next(&listener).await;
+        let request_text = request(&mut changed).await;
+        assert!(request_text.contains("\r\nrange: bytes=4-\r\n"), "{request_text}");
+        assert!(request_text.contains("\r\nif-range: \"same\"\r\n"), "{request_text}");
+        changed
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-10/11\r\nContent-Length: 7\r\nETag: \"same\"\r\nConnection: close\r\n\r\nEFGHIJK",
+            )
+            .await
+            .unwrap();
+        drop(changed);
+        let mut fresh = next(&listener).await;
+        let request_text = request(&mut fresh).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        assert!(!request_text.contains("\r\nif-range:"), "{request_text}");
+        fresh
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"new\"\r\nConnection: close\r\n\r\nGOODABCDEF",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("changed-content-range-total");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/photo.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("photo.jpg"))
+    );
+    assert_eq!(fs::read(path.join("photo.jpg")).unwrap(), b"GOODABCDEF");
+    assert!(!path.join("photo.jpg.part").exists());
+    assert!(!path.join("photo.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn legacy_sidecar_learns_total_from_first_partial_chunk_and_rejects_drift() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        request(&mut first).await;
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+        let mut chunk = next(&listener).await;
+        let request_text = request(&mut chunk).await;
+        assert!(request_text.contains("\r\nrange: bytes=4-\r\n"), "{request_text}");
+        chunk
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-6/10\r\nContent-Length: 3\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nEFG",
+            )
+            .await
+            .unwrap();
+        drop(chunk);
+        let mut drift = next(&listener).await;
+        let request_text = request(&mut drift).await;
+        assert!(request_text.contains("\r\nrange: bytes=7-\r\n"), "{request_text}");
+        drift
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-10/11\r\nContent-Length: 4\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nHIJK",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("legacy-resume-total");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/photo.jpg")).unwrap();
+    assert!(download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .is_err());
+    let sidecar_path = path.join("photo.jpg.part.json");
+    let mut legacy: serde_json::Value =
+        serde_json::from_slice(&fs::read(&sidecar_path).unwrap()).unwrap();
+    legacy.as_object_mut().unwrap().remove("total_length");
+    fs::write(&sidecar_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    assert!(download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .is_err());
+    assert_eq!(fs::read(path.join("photo.jpg.part")).unwrap(), b"ABCDEFG");
+    let upgraded: serde_json::Value =
+        serde_json::from_slice(&fs::read(&sidecar_path).unwrap()).unwrap();
+    assert_eq!(upgraded["total_length"].as_u64(), Some(10));
+    assert!(download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .is_err());
+    assert!(!path.join("photo.jpg").exists());
+    assert!(!path.join("photo.jpg.part").exists());
+    assert!(!sidecar_path.exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn bounded_206_subranges_continue_to_final_total_without_publishing_intermediate_file() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
