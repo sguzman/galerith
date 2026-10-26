@@ -977,9 +977,9 @@ fn speakerdeck_archive_scope(item: &MediaItem, source_url: &str) -> Option<(Stri
     if basename.is_empty()
         || basename.len() > 220
         || basename.contains("..")
-        || !basename.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
-        })
+        || !basename
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
     {
         return None;
     }
