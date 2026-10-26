@@ -6327,6 +6327,148 @@ mod tests {
     }
 
     #[test]
+    fn thirtyfivephoto_archive_keeps_series_originals_distinct() {
+        let root = std::env::temp_dir().join(format!("galerith-35photo-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let archive = Archive::open(&db).unwrap();
+        let first = MediaItem {
+            url: "https://img.35photo.pro/a.jpg".into(),
+            filename: "12345_01.jpg".into(),
+            extractor: "35photo",
+            post_id: Some(12345),
+        };
+        let rotated = MediaItem {
+            url: "https://cdn.35photo.pro/new.jpg".into(),
+            ..first.clone()
+        };
+        let other = MediaItem {
+            url: "https://cdn.35photo.pro/b.jpg".into(),
+            filename: "12345_02.jpg".into(),
+            ..first.clone()
+        };
+        let source = "https://35photo.pro/photo_12345/";
+        assert_eq!(
+            thirtyfivephoto_archive_scope(&first, source).unwrap().1,
+            "35photo12345_1"
+        );
+        archive.record_for_source(&first, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(!archive.contains_for_source(&other, source).unwrap());
+        for bad in [
+            "https://35photo.pro/tags/people",
+            "https://35photo.pro/genre_10/",
+            "https://35photo.pro/photo_012345/",
+            "https://35photo.pro/photo_12345?token=private",
+            "https://evil35photo.pro/photo_12345",
+        ] {
+            assert!(thirtyfivephoto_archive_scope(&first, bad).is_none(), "{bad}");
+        }
+        for bad in ["12345_00.jpg", "12345_33.jpg", "12345_1.jpg", "12345_01.png"] {
+            let item = MediaItem {
+                filename: bad.into(),
+                ..first.clone()
+            };
+            assert!(thirtyfivephoto_archive_scope(&item, source).is_none(), "{bad}");
+        }
+        let evil = MediaItem {
+            url: "https://img.35photo.pro.evil.test/a.jpg".into(),
+            ..first
+        };
+        assert!(thirtyfivephoto_archive_scope(&evil, source).is_none());
+        for invalid in ["012345_1", "12345_01", "12345_0", "12345_33"] {
+            assert!(!canonical_thirtyfivephoto_archive_suffix(invalid));
+        }
+        drop(archive);
+        let bytes = fs::read(db).unwrap();
+        for plaintext in ["12345_1", "new.jpg", "a.jpg"] {
+            assert!(!bytes
+                .windows(plaintext.len())
+                .any(|part| part == plaintext.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn thirtyfivephoto_import_rejects_ambiguous_tag_and_genre_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-35photo-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('35photo12345_1');
+             INSERT INTO archive VALUES ('35photo12345_2');
+             INSERT INTO archive VALUES ('35photo12345_01');
+             INSERT INTO archive VALUES ('35phototcats_12345_1');
+             INSERT INTO archive VALUES ('35photog10_12345_1');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('12345_1');
+             INSERT INTO named VALUES ('35photo12345_1');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("35photo"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        let original = MediaItem {
+            url: "https://cdn.35photo.pro/rotated.jpg".into(),
+            filename: "12345_01.jpg".into(),
+            extractor: "35photo",
+            post_id: Some(12345),
+        };
+        assert!(reopened
+            .contains_for_source(&original, "https://35photo.pro/photo_12345/")
+            .unwrap());
+        let second = MediaItem {
+            filename: "12345_02.jpg".into(),
+            ..original.clone()
+        };
+        assert!(reopened
+            .contains_for_source(&second, "https://35photo.pro/photo_12345/")
+            .unwrap());
+        let third = MediaItem {
+            filename: "12345_03.jpg".into(),
+            ..original
+        };
+        assert!(!reopened
+            .contains_for_source(&third, "https://35photo.pro/photo_12345/")
+            .unwrap());
+        drop(reopened);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"35photo12345_1".len())
+            .any(|part| part == b"35photo12345_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imgur_album_and_single_image_identities_keep_originals_separate() {
         let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
