@@ -736,8 +736,14 @@ fn rejected_range_416_discards_stale_partial_without_creating_archive_hit() {
         let count = second.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
         assert!(request.contains("/outdated.jpg"), "{request}");
-        assert!(!request.contains("range:"), "stale range was reused: {request}");
-        assert!(!request.contains("if-range:"), "stale validator was reused: {request}");
+        assert!(
+            !request.contains("range:"),
+            "stale range was reused: {request}"
+        );
+        assert!(
+            !request.contains("if-range:"),
+            "stale validator was reused: {request}"
+        );
         second.write_all(
             b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nABCDEFGH",
         ).unwrap();
