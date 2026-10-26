@@ -95,12 +95,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "lensdump",
             "webmshare",
             "catbox",
+            "slideshare",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "slideshare" && canonical_slideshare_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "catbox" && canonical_catbox_archive_suffix(id) {
@@ -171,6 +175,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lensdump"
                         | "webmshare"
                         | "catbox"
+                        | "slideshare"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -251,9 +256,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "lensdump",
         "webmshare",
         "catbox",
+        "slideshare",
     ] {
         if prefix == category
-            && ((category == "catbox" && canonical_catbox_archive_suffix(bare))
+            && ((category == "slideshare" && canonical_slideshare_archive_suffix(bare))
+                || (category == "catbox" && canonical_catbox_archive_suffix(bare))
                 || (category == "webmshare" && canonical_webmshare_video_id(bare))
                 || (category == "lensdump" && canonical_lensdump_image_id(bare))
                 || (category == "listal" && canonical_listal_archive_suffix(bare))
@@ -291,6 +298,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lensdump"
                         | "webmshare"
                         | "catbox"
+                        | "slideshare"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -481,6 +489,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "lensdump"
                 | "webmshare"
                 | "catbox"
+                | "slideshare"
         )
 }
 
@@ -885,6 +894,97 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// = "{album_id}_{filename}". Upstream filename is the extensionless basename.
 /// Only disjoint unambiguous subformats are imported: file stems contain no
 /// underscores and album IDs contain no underscores.
+/// Pinned Slideshare presentation archive_fmt = "{presentation}_{num}".
+/// The native extractor emits "presentation-NN.jpg" with one-based slide
+/// positions and official numbered CDN originals.
+fn canonical_slideshare_presentation(id: &str) -> bool {
+    (1..=120).contains(&id.len())
+        && !id.contains("..")
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn canonical_slideshare_archive_suffix(suffix: &str) -> bool {
+    let Some((slug, pos)) = suffix.rsplit_once('_') else {
+        return false;
+    };
+    canonical_slideshare_presentation(slug)
+        && pos
+            .parse::<u16>()
+            .ok()
+            .is_some_and(|n| (1..=256).contains(&n) && pos == n.to_string())
+}
+
+fn slideshare_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "slideshare" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("slideshare.net" | "www.slideshare.net")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let (user, slug) = match parts.as_slice() {
+        [user, slug] | [user, slug, ""] => (*user, *slug),
+        ["mobile", user, slug] | ["mobile", user, slug, ""] => (*user, *slug),
+        _ => return None,
+    };
+    if !canonical_slideshare_presentation(user) || !canonical_slideshare_presentation(slug) {
+        return None;
+    }
+    let pos = item
+        .filename
+        .strip_prefix(&format!("{slug}-"))?
+        .strip_suffix(".jpg")?;
+    let num = pos.parse::<u16>().ok()?;
+    if !(1..=256).contains(&num) || pos != format!("{num:02}") {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(host == "slidesharecdn.com" || host.ends_with(".slidesharecdn.com"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path().contains("..")
+    {
+        return None;
+    }
+    let path: Vec<_> = media.path_segments()?.collect();
+    if path.len() < 3 || path[path.len() - 2] != "95" {
+        return None;
+    }
+    let basename = path.last()?;
+    if !basename.ends_with(&format!("-{num}-1024.jpg")) {
+        return None;
+    }
+    let suffix = format!("{slug}_{num}");
+    if !canonical_slideshare_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("slideshare{suffix}");
+    Some((
+        format!("slide-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_catbox_stem(stem: &str) -> bool {
     (1..=120).contains(&stem.len())
         && stem
@@ -2335,6 +2435,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| lensdump_archive_scope(item, source_url))
         .or_else(|| webmshare_archive_scope(item, source_url))
         .or_else(|| catbox_archive_scope(item, source_url))
+        .or_else(|| slideshare_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
