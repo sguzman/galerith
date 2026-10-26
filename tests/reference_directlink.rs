@@ -1014,7 +1014,11 @@ fn pinned_postimg_image_tokens_and_gallery_queue_are_distinct() {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
-        spawn(cmd, "pinned Postimages image-token and gallery queue archive keys").trim(),
+        spawn(
+            cmd,
+            "pinned Postimages image-token and gallery queue archive keys"
+        )
+        .trim(),
         "postimg|image|PhJZt1Rw|image|PhJZt1Rw|gallery"
     );
 }
