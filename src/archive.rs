@@ -100,12 +100,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "speakerdeck",
             "imgbox",
             "imagebam",
+            "postimg",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "postimg" && canonical_postimg_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imagebam" && canonical_imagebam_image_key(id) {
@@ -196,6 +200,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "speakerdeck"
                         | "imgbox"
                         | "imagebam"
+                        | "postimg"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -281,9 +286,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "speakerdeck",
         "imgbox",
         "imagebam",
+        "postimg",
     ] {
         if prefix == category
-            && ((category == "imagebam" && canonical_imagebam_image_key(bare))
+            && ((category == "postimg" && canonical_postimg_token(bare))
+                || (category == "imagebam" && canonical_imagebam_image_key(bare))
                 || (category == "imgbox" && canonical_imgbox_image_key(bare))
                 || (category == "speakerdeck" && canonical_speakerdeck_archive_suffix(bare))
                 || (category == "issuu" && canonical_issuu_archive_suffix(bare))
@@ -331,6 +338,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "speakerdeck"
                         | "imgbox"
                         | "imagebam"
+                        | "postimg"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -526,6 +534,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "speakerdeck"
                 | "imgbox"
                 | "imagebam"
+                | "postimg"
         )
 }
 
@@ -945,6 +954,83 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// The pinned imagehosts.PostimgImageExtractor archives the public page
+/// token, not its mutable display filename or image CDN basename.
+fn canonical_postimg_token(token: &str) -> bool {
+    (1..=48).contains(&token.len()) && token.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn postimg_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "postimg" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some(
+                "postimg.cc"
+                    | "www.postimg.cc"
+                    | "postimages.org"
+                    | "www.postimages.org"
+                    | "pixxxels.cc"
+                    | "www.pixxxels.cc"
+            )
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let token = match segments.as_slice() {
+        [token] | ["image", token] if canonical_postimg_token(token) => *token,
+        _ => return None,
+    };
+    if matches!(token, "gallery" | "json" | "image") {
+        return None;
+    }
+
+    // The resolved single-image page must point at the corresponding official
+    // original CDN token; otherwise an arbitrary source page could acquire
+    // someone else's archive hit. A gallery URL has no token proof here.
+    let original = url::Url::parse(&item.url).ok()?;
+    if original.scheme() != "https"
+        || original.host_str() != Some("i.postimg.cc")
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.fragment().is_some()
+        || original.query().is_some_and(|query| query != "dl=1")
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let media_segments: Vec<_> = original.path_segments()?.collect();
+    let [folder, original_name] = media_segments.as_slice() else {
+        return None;
+    };
+    if folder != &token || original_name.is_empty() || original_name.len() > 240 {
+        return None;
+    }
+    let extension = original_name.rsplit_once('.')?.1.to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
+        return None;
+    }
+    let upstream = format!("postimg{token}");
+    Some((
+        format!("image-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_imagebam_image_key(key: &str) -> bool {
     (1..=128).contains(&key.len()) && key.bytes().all(|byte| byte.is_ascii_alphanumeric())
 }
@@ -2802,6 +2888,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| speakerdeck_archive_scope(item, source_url))
         .or_else(|| imgbox_archive_scope(item, source_url))
         .or_else(|| imagebam_archive_scope(item, source_url))
+        .or_else(|| postimg_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3410,6 +3497,145 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn postimg_source_token_survives_original_rotation_without_gallery_false_hits() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-postimg-archive-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://i.postimg.cc/PhJZt1Rw/old-name.png?dl=1".into(),
+            filename: "An Original Title.png".into(),
+            extractor: "postimg",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://i.postimg.cc/PhJZt1Rw/new-name.webp".into(),
+            filename: "Different Title.webp".into(),
+            ..first.clone()
+        };
+        let direct = "https://postimg.cc/PhJZt1Rw";
+        assert_eq!(
+            postimg_archive_scope(&first, direct).unwrap().1,
+            "postimgPhJZt1Rw"
+        );
+        archive.record_for_source(&first, direct).unwrap();
+        for source in [
+            direct,
+            "https://postimages.org/image/PhJZt1Rw",
+            "https://pixxxels.cc/PhJZt1Rw",
+        ] {
+            assert!(archive.contains_for_source(&changed, source).unwrap());
+        }
+        for bad in [
+            "https://postimg.cc/gallery/PhJZt1Rw",
+            "https://postimg.cc/Different",
+            "https://postimg.cc/PhJZt1Rw?auth=1",
+            "https://postimg.cc:8443/PhJZt1Rw",
+            "https://postimg.cc.evil.test/PhJZt1Rw",
+            "https://postimg.cc/%50hJZt1Rw",
+            "https://postimg.cc/gallery",
+        ] {
+            assert!(postimg_archive_scope(&changed, bad).is_none(), "{bad}");
+        }
+        for bad in [
+            "https://i.postimg.cc/Other123/new-name.webp",
+            "https://i.postimg.cc/PhJZt1Rw/new-name.webp?secret=1",
+            "https://i.postimg.cc.evil.test/PhJZt1Rw/new-name.webp",
+            "https://i.postimg.cc:8443/PhJZt1Rw/new-name.webp",
+            "https://i.postimg.cc/PhJZt1Rw/new-name.exe",
+            "https://i.postimg.cc/PhJZt1Rw/extra/new-name.webp",
+        ] {
+            let item = MediaItem {
+                url: bad.into(),
+                ..changed.clone()
+            };
+            assert!(postimg_archive_scope(&item, direct).is_none(), "{bad}");
+        }
+        let foreign = MediaItem {
+            url: "https://i.postimg.cc/Other123/other.jpg".into(),
+            ..changed
+        };
+        assert!(!archive.contains_for_source(&foreign, direct).unwrap());
+        drop(archive);
+        let raw = fs::read(&native).unwrap();
+        assert!(!raw.windows(b"PhJZt1Rw".len()).any(|b| b == b"PhJZt1Rw"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn postimg_reference_migration_is_private_read_only_and_offline_idempotent() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-postimg-migration-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('postimgPhJZt1Rw');
+            INSERT INTO archive VALUES ('postimgDifferent');
+            INSERT INTO archive VALUES ('postimgbad_token');
+            INSERT INTO archive VALUES ('postimg');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('PhJZt1Rw');
+            INSERT INTO named VALUES ('postimgPhJZt1Rw');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        let media = MediaItem {
+            url: "https://i.postimg.cc/PhJZt1Rw/renamed.webp".into(),
+            filename: "Renamed.webp".into(),
+            extractor: "postimg",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://postimg.cc/image/PhJZt1Rw")
+            .unwrap());
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("postimg"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(&foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline
+            .contains_for_source(&media, "https://postimg.cc/PhJZt1Rw")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&media, "https://postimg.cc/gallery/PhJZt1Rw")
+            .unwrap());
+        drop(offline);
+        let raw = fs::read(&native).unwrap();
+        assert!(!raw.windows(b"PhJZt1Rw".len()).any(|b| b == b"PhJZt1Rw"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn successful_records_survive_reopen_without_persisting_token_url() {
