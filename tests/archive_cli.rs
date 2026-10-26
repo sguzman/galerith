@@ -1188,6 +1188,98 @@ fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() 
 }
 
 #[test]
+fn unexpected_304_and_412_clear_partial_without_false_archive_entries() {
+    for (label, status) in [
+        ("not-modified", "304 Not Modified"),
+        ("precondition", "412 Precondition Failed"),
+    ] {
+        let dir = temp(label);
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("archive.sqlite");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/resume.jpg", listener.local_addr().unwrap());
+        seed_resumable_partial(&dir, "resume.jpg", &url, r#""stable""#);
+        let response_status = status.to_owned();
+        let server = std::thread::spawn(move || {
+            listener.set_nonblocking(true).unwrap();
+            for stage in 0..2 {
+                let deadline = std::time::Instant::now() + Duration::from_secs(8);
+                let mut stream = loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => break stream,
+                        Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(
+                                std::time::Instant::now() < deadline,
+                                "timeout waiting for rejected resume and fresh transfer"
+                            );
+                            std::thread::sleep(Duration::from_millis(20));
+                        }
+                        Err(err) => panic!("resume HTTP fixture failed: {err}"),
+                    }
+                };
+                let mut request = [0_u8; 2048];
+                let count = stream.read(&mut request).unwrap();
+                let text = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
+                if stage == 0 {
+                    assert!(text.contains("range: bytes=4-"), "{text}");
+                    assert!(text.contains("if-range: \"stable\""), "{text}");
+                    let answer = format!(
+                        "HTTP/1.1 {response_status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                    stream.write_all(answer.as_bytes()).unwrap();
+                } else {
+                    assert!(!text.contains("range:"), "{text}");
+                    assert!(!text.contains("if-range:"), "{text}");
+                    stream
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nWXYZQRST",
+                        )
+                        .unwrap();
+                }
+            }
+        });
+        let invoke = || {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+                .arg("-d")
+                .arg(&dir)
+                .arg("--download-archive")
+                .arg(&db)
+                .args(["--retries", "0", "--http-timeout", "3"])
+                .arg(&url)
+                .output()
+                .unwrap()
+        };
+        let rejected = invoke();
+        assert!(!rejected.status.success());
+        assert!(!dir.join("resume.jpg").exists());
+        assert!(!dir.join("resume.jpg.part").exists());
+        assert!(!dir.join("resume.jpg.part.json").exists());
+        let count = |db: &Path| -> i64 {
+            rusqlite::Connection::open(db)
+                .unwrap()
+                .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+                .unwrap()
+        };
+        assert_eq!(count(&db), 0);
+        let saved = invoke();
+        assert!(
+            saved.status.success(),
+            "{}",
+            String::from_utf8_lossy(&saved.stderr)
+        );
+        server.join().unwrap();
+        assert_eq!(fs::read(dir.join("resume.jpg")).unwrap(), b"WXYZQRST");
+        assert_eq!(count(&db), 1);
+        fs::remove_file(dir.join("resume.jpg")).unwrap();
+        let archived = invoke();
+        assert!(archived.status.success());
+        assert!(String::from_utf8_lossy(&archived.stdout).contains("archived resume.jpg"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[test]
 fn missing_resumed_content_range_discards_partial_and_never_archives_failed_attempt() {
     let dir = temp("missing-content-range");
     let _ = fs::remove_dir_all(&dir);
