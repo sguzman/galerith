@@ -766,7 +766,7 @@ fn pinned_unsplash_archive_uses_one_global_photo_id_across_extractor_families() 
         "unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A"
     );
 }
-    
+
 #[test]
 fn pinned_lexica_search_archive_uses_api_image_id() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
