@@ -172,6 +172,40 @@ async fn stale_temporary_metadata_symlink_is_not_followed() {
 }
 
 #[tokio::test]
+async fn legitimate_html_body_can_be_saved_by_downloader_library() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut stream = next(&listener).await;
+        let received = request(&mut stream).await;
+        assert!(received.contains("/index.html"), "{received}");
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 17\r\nConnection: close\r\n\r\n<html>OK</html>!",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("legitimate-html-library");
+    clean(&path);
+    let item = MediaItem {
+        url: format!("http://{addr}/index.html"),
+        filename: "index.html".into(),
+        extractor: "test",
+        post_id: None,
+    };
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 0))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("index.html"))
+    );
+    assert_eq!(fs::read(path.join("index.html")).unwrap(), b"<html>OK</html>!");
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn resumes_interrupted_http_body_with_matching_etag() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

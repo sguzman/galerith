@@ -131,7 +131,7 @@ fn existing_symlink_does_not_count_as_archive_skip_or_overwrite_target() {
 }
 
 #[test]
-fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
+fn pdf_soft_error_does_not_create_an_archive_entry() {
     let dir = temp("pdf-soft-error");
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
@@ -147,7 +147,6 @@ fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
                 b"<html>Blocked</html>".as_slice(),
             ),
             ("/manual.pdf", "application/pdf", b"%PDF-TEST".as_slice()),
-            ("/index.html", "text/html", b"<html>Valid</html>".as_slice()),
         ] {
             let deadline = std::time::Instant::now() + Duration::from_secs(8);
             let mut stream = loop {
@@ -204,14 +203,8 @@ fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
     );
     assert_eq!(fs::read(dir.join("manual.pdf")).unwrap(), b"%PDF-TEST");
     assert_eq!(count(&db), 1);
-    let html = invoke("index.html");
-    assert!(html.status.success());
-    assert_eq!(
-        fs::read(dir.join("index.html")).unwrap(),
-        b"<html>Valid</html>"
-    );
     server.join().unwrap();
-    assert_eq!(count(&db), 2);
+    assert_eq!(count(&db), 1);
     fs::remove_file(dir.join("manual.pdf")).unwrap();
     let archived = invoke("manual.pdf");
     assert!(archived.status.success());
