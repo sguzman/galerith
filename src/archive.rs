@@ -6100,7 +6100,10 @@ mod tests {
             ..first.clone()
         };
         let user = "https://piczel.tv/gallery/artist";
-        assert_eq!(piczel_archive_scope(&first, user).unwrap().1, "piczel1001_0");
+        assert_eq!(
+            piczel_archive_scope(&first, user).unwrap().1,
+            "piczel1001_0"
+        );
         archive.record_for_source(&first, user).unwrap();
         assert!(archive.contains_for_source(&moved, user).unwrap());
         assert!(archive
