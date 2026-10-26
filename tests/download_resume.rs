@@ -87,6 +87,60 @@ async fn resumes_interrupted_http_body_with_matching_etag() {
 }
 
 #[tokio::test]
+async fn missing_content_range_recovers_within_retry_budget() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let req = request(&mut first).await;
+        assert!(!req.contains("\r\nrange:"));
+        first.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"old\"\r\nConnection: close\r\n\r\n1234",
+        )
+        .await
+        .unwrap();
+        drop(first);
+
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: \"old\"\r\n"), "{req}");
+        second
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nETag: \"old\"\r\nConnection: close\r\n\r\n5678",
+            )
+            .await
+            .unwrap();
+        drop(second);
+
+        let mut third = next(&listener).await;
+        let req = request(&mut third).await;
+        assert!(!req.contains("\r\nrange:"), "{req}");
+        assert!(!req.contains("\r\nif-range:"), "{req}");
+        third
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"new\"\r\nConnection: close\r\n\r\nABCDEFGH",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("missing-content-range");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/range.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("range.jpg"))
+    );
+    assert_eq!(fs::read(path.join("range.jpg")).unwrap(), b"ABCDEFGH");
+    assert!(!path.join("range.jpg.part").exists());
+    assert!(!path.join("range.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn persists_verified_partial_across_invocations() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
