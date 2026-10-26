@@ -1043,3 +1043,24 @@ fn pinned_imgpile_post_slug_and_media_ids_are_independent() {
         "imgpile|post|AbCdEfG_17|AbCdEfG_18|user"
     );
 }
+
+#[test]
+fn pinned_imagepond_file_ids_and_album_queue_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for ImagePond archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://www.imagepond.net/i/file.A7'); b=extractor.find('https://www.imagepond.net/video/clip.B8'); q=extractor.find('https://www.imagepond.net/a/gallery123'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(id='file.A7'),b.subcategory,b.archive_fmt.format(id='clip.B8'),q.subcategory)))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned ImagePond file-image, video and album queue archive IDs").trim(),
+        "imagepond|file|file.A7|file|clip.B8|album"
+    );
+}

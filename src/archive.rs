@@ -102,12 +102,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imagebam",
             "postimg",
             "imgpile",
+            "imagepond",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imagepond" && canonical_imagepond_file_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imgpile" && canonical_imgpile_archive_suffix(id) {
@@ -206,6 +210,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imagebam"
                         | "postimg"
                         | "imgpile"
+                        | "imagepond"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -293,9 +298,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imagebam",
         "postimg",
         "imgpile",
+        "imagepond",
     ] {
         if prefix == category
-            && ((category == "imgpile" && canonical_imgpile_archive_suffix(bare))
+            && ((category == "imagepond" && canonical_imagepond_file_id(bare))
+                || (category == "imgpile" && canonical_imgpile_archive_suffix(bare))
                 || (category == "postimg" && canonical_postimg_token(bare))
                 || (category == "imagebam" && canonical_imagebam_image_key(bare))
                 || (category == "imgbox" && canonical_imgbox_image_key(bare))
@@ -347,6 +354,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imagebam"
                         | "postimg"
                         | "imgpile"
+                        | "imagepond"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -544,6 +552,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imagebam"
                 | "postimg"
                 | "imgpile"
+                | "imagepond"
         )
 }
 
@@ -963,6 +972,77 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// The pinned ImagepondFileExtractor archives "{id}" for a single file,
+/// including image and video pages. Album/user sources only queue file URLs.
+fn canonical_imagepond_file_id(id: &str) -> bool {
+    (1..=180).contains(&id.len())
+        && id != "."
+        && id != ".."
+        && !id.contains("..")
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
+fn imagepond_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imagepond" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("imagepond.net" | "www.imagepond.net")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let [route, id] = segments.as_slice() else {
+        return None;
+    };
+    if !matches!(*route, "i" | "img" | "image" | "video")
+        || !canonical_imagepond_file_id(id)
+    {
+        return None;
+    }
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == "imagepond.net" || host.ends_with(".imagepond.net"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    if filename.is_empty() || filename.len() > 240 {
+        return None;
+    }
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "mp4" | "webm"
+    ) {
+        return None;
+    }
+    let upstream = format!("imagepond{id}");
+    Some((
+        format!("file-id-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned ImgpilePostExtractor uses "{post[id_slug]}_{id}": source
 /// post slug followed by the individual media numeric ID, not the post ID.
 fn canonical_imgpile_post_slug(slug: &str) -> bool {
@@ -2968,6 +3048,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imagebam_archive_scope(item, source_url))
         .or_else(|| postimg_archive_scope(item, source_url))
         .or_else(|| imgpile_archive_scope(item, source_url))
+        .or_else(|| imagepond_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3576,6 +3657,145 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn imagepond_file_id_survives_media_rotation_without_cross_source_matches() {
+        let root = std::env::temp_dir().join(format!("galerith-imagepond-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("native.sqlite");
+        let archive = Archive::open(&path).unwrap();
+        let first = MediaItem {
+            url: "https://cdn.imagepond.net/photo/old.jpg".into(),
+            filename: "old.jpg".into(),
+            extractor: "imagepond",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://imagepond.net/media/new.webp".into(),
+            filename: "new.webp".into(),
+            ..first.clone()
+        };
+        let direct = "https://www.imagepond.net/i/file.A7";
+        assert_eq!(
+            imagepond_archive_scope(&first, direct).unwrap().1,
+            "imagepondfile.A7"
+        );
+        archive.record_for_source(&first, direct).unwrap();
+        for source in [
+            direct,
+            "https://imagepond.net/img/file.A7",
+            "https://www.imagepond.net/image/file.A7",
+            "https://www.imagepond.net/video/file.A7",
+        ] {
+            assert!(archive.contains_for_source(&changed, source).unwrap());
+        }
+        for different in [
+            "https://imagepond.net/i/other.B7",
+            "https://imagepond.net/a/file.A7",
+            "https://imagepond.net/album/file.A7",
+            "https://imagepond.net/user/file.A7",
+            "https://imagepond.net/i/file.A7?token=secret",
+            "https://imagepond.net:8443/i/file.A7",
+            "https://imagepond.net.evil.invalid/i/file.A7",
+            "https://imagepond.net/i/%66ile.A7",
+            "https://imagepond.net/i/file..A7",
+        ] {
+            assert!(!archive.contains_for_source(&changed, different).unwrap(), "{different}");
+        }
+        for bad in [
+            "https://evil.imagepond.net.attacker.invalid/file.jpg",
+            "http://cdn.imagepond.net/file.jpg",
+            "https://cdn.imagepond.net:8443/file.jpg",
+            "https://cdn.imagepond.net/file.jpg?secret=1",
+            "https://cdn.imagepond.net/file.jpg#part",
+            "https://cdn.imagepond.net/file.exe",
+        ] {
+            let item = MediaItem {
+                url: bad.into(),
+                ..changed.clone()
+            };
+            assert!(imagepond_archive_scope(&item, direct).is_none(), "{bad}");
+        }
+        let video = MediaItem {
+            url: "https://cdn.imagepond.net/clip.webm".into(),
+            ..changed
+        };
+        assert!(archive
+            .contains_for_source(&video, "https://imagepond.net/video/file.A7")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&path).unwrap();
+        assert!(!bytes.windows(b"file.A7".len()).any(|part| part == b"file.A7"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imagepond_sqlite_reference_import_is_idempotent_read_only_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imagepond-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imagepondfile.A7');
+            INSERT INTO archive VALUES ('imagepondother.B7');
+            INSERT INTO archive VALUES ('imagepondbad..name');
+            INSERT INTO archive VALUES ('imagepond');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('file.A7');
+            INSERT INTO named VALUES ('imagepondfile.A7');",
+        )
+        .unwrap();
+        drop(db);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("shared.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let prefixed = Archive::open_with_reference_options(
+            &root.join("prefixed.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("imagepond"),
+        )
+        .unwrap();
+        assert_eq!(prefixed.import_reference().unwrap(), (1, 1));
+        drop(prefixed);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(&foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.imagepond.net/renamed.webp".into(),
+            filename: "renamed.webp".into(),
+            extractor: "imagepond",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://imagepond.net/video/file.A7")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imagepond.net/a/file.A7")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imagepond.net/i/other.C7")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"file.A7".len()).any(|part| part == b"file.A7"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn imgpile_post_slug_and_media_id_remain_distinct_across_originals() {
