@@ -7531,7 +7531,9 @@ mod tests {
         drop(archive);
         let data = fs::read(native).unwrap();
         for secret in ["AbCd12", "original.jpg"] {
-            assert!(!data.windows(secret.len()).any(|part| part == secret.as_bytes()));
+            assert!(!data
+                .windows(secret.len())
+                .any(|part| part == secret.as_bytes()));
         }
         fs::remove_dir_all(root).unwrap();
     }
