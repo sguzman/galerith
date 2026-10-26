@@ -2504,6 +2504,7 @@ mod tests {
             "fapachimodel_123",
             "fapellophoto_model_123",
             "fapellovideo_model_123",
+            "lightroomasset-A",
         ];
         let rejected = [
             "danbooru00123",
@@ -2514,6 +2515,7 @@ mod tests {
             "photovogue0123",
             "fapachimodel_0123",
             "fapellophoto_model_0123",
+            "lightroombad%2fid",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -2577,6 +2579,15 @@ mod tests {
                     post_id: Some(123),
                 },
                 "https://fapachi.com/model/media/123",
+            ),
+            (
+                MediaItem {
+                    url: "https://assets.adobe.net/rotated.webp".into(),
+                    filename: "0020_asset-A.webp".into(),
+                    extractor: "lightroom",
+                    post_id: None,
+                },
+                "https://lightroom.adobe.com/shares/abc",
             ),
             (
                 MediaItem {
