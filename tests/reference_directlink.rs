@@ -724,3 +724,24 @@ fn pinned_piczel_image_and_folder_archive_templates() {
         "user|image|folder|1001_0|1001_1|f5_1001_0"
     );
 }
+
+#[test]
+fn pinned_thirtyfivephoto_series_archive_uses_one_based_position() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned gallery-dl reference required for 35photo archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://35photo.pro/photo_12345/'); t=extractor.find('https://35photo.pro/tags/flower/'); g=extractor.find('https://35photo.pro/genre_10/'); print('|'.join((a.category+a.archive_fmt.format(id=12345,num=n) for n in (1,2)))+'|'+t.category+t.archive_fmt.format(search_tag='flower',id=12345,num=1)+'|'+g.category+g.archive_fmt.format(genre_id=10,id=12345,num=1))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned 35photo series/tag/genre archive formats").trim(),
+        "35photo12345_1|35photo12345_2|35phototflower_12345_1|35photog10_12345_1"
+    );
+}
