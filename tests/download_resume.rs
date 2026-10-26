@@ -473,6 +473,58 @@ async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
 }
 
 #[tokio::test]
+async fn impossible_saved_total_prevents_range_reuse_and_recovers_full_file() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let request_text = request(&mut first).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+        let mut second = next(&listener).await;
+        let request_text = request(&mut second).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        assert!(!request_text.contains("\r\nif-range:"), "{request_text}");
+        second
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nGOODABCDEF",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("impossible-saved-total");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/photo.jpg")).unwrap();
+    assert!(download(&client(), &item, &settings(path.clone(), 0))
+        .await
+        .is_err());
+    let part = path.join("photo.jpg.part");
+    let sidecar = path.join("photo.jpg.part.json");
+    assert_eq!(fs::read(&part).unwrap(), b"ABCD");
+    let mut metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(&sidecar).unwrap()).unwrap();
+    metadata["total_length"] = 3.into();
+    fs::write(&sidecar, serde_json::to_vec(&metadata).unwrap()).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 0))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("photo.jpg"))
+    );
+    assert_eq!(fs::read(path.join("photo.jpg")).unwrap(), b"GOODABCDEF");
+    assert!(!part.exists());
+    assert!(!sidecar.exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn changed_resume_total_resets_partial_and_restarts_without_range() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
