@@ -193,7 +193,12 @@ pub async fn download(
     let _lock = lock_output(&options.destination, &item.filename).await?;
     let target = options.destination.join(&item.filename);
     if !options.no_skip && fs::try_exists(&target).await? {
-        return Ok(DownloadOutcome::Skipped(target));
+        let existing = fs::metadata(&target).await?;
+        // A zero-byte placeholder is not completed media and must not become
+        // an archive hit via --archive-event skip. A directory is not media.
+        if existing.is_file() && existing.len() > 0 {
+            return Ok(DownloadOutcome::Skipped(target));
+        }
     }
     let part = options.destination.join(format!("{}.part", item.filename));
     let metadata = options

@@ -586,6 +586,57 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
 }
 
 #[test]
+fn zero_byte_existing_output_is_not_skipped_or_archived_as_success() {
+    let dir = temp("zero-output-recovery");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let target = dir.join("recovery.jpg");
+    fs::write(&target, b"").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/recovery.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0_u8; 2048];
+        let count = stream.read(&mut request).unwrap();
+        let request = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
+        assert!(request.contains("/recovery.jpg"), "{request}");
+        stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+        ).unwrap();
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--archive-event", "skip", "--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let saved = invoke();
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"GOOD");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(&target).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived recovery.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() {
     let dir = temp("empty-http-media");
     let _ = fs::remove_dir_all(&dir);
