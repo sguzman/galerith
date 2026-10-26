@@ -2798,6 +2798,7 @@ mod tests {
             "lightroomasset-A",
             "foriio12345/10/1",
             "piczel1001_0",
+            "35photo12345_1",
         ];
         let rejected = [
             "danbooru00123",
@@ -2811,6 +2812,7 @@ mod tests {
             "lightroombad%2fid",
             "foriio12345/10/01",
             "piczel1001_00",
+            "35photo12345_01",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -2901,6 +2903,15 @@ mod tests {
                     post_id: Some(1001),
                 },
                 "https://piczel.tv/gallery/artist",
+            ),
+            (
+                MediaItem {
+                    url: "https://img.35photo.pro/one.jpg".into(),
+                    filename: "12345_01.jpg".into(),
+                    extractor: "35photo",
+                    post_id: Some(12345),
+                },
+                "https://35photo.pro/photo_12345",
             ),
             (
                 MediaItem {
