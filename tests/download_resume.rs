@@ -123,7 +123,10 @@ async fn preexisting_output_and_resume_aliases_cannot_overwrite_other_files() {
     }
     fs::hard_link(&victim, &part).unwrap();
     let failed = download(&client(), &item, &settings(dest.clone(), 0)).await;
-    assert!(failed.is_err(), "hard-linked partial was unexpectedly trusted");
+    assert!(
+        failed.is_err(),
+        "hard-linked partial was unexpectedly trusted"
+    );
     assert_eq!(fs::read(&victim).unwrap(), b"UNRELATED-CONTENT");
     fs::remove_file(part).unwrap();
     clean(&dest);
