@@ -383,7 +383,14 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
         || is_gelbooru_category(category)
         || matches!(
             category,
-            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello" | "lightroom"
+            "wallhaven"
+                | "4chan"
+                | "imgur"
+                | "500px"
+                | "photovogue"
+                | "fapachi"
+                | "fapello"
+                | "lightroom"
         )
 }
 
