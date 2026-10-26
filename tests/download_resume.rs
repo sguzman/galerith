@@ -105,9 +105,7 @@ async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
         let request_text = request(&mut second).await;
         assert!(!request_text.contains("\r\nrange:"), "{request_text}");
         second
-            .write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
-            )
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD")
             .await
             .unwrap();
     });
