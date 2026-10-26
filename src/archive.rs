@@ -1007,9 +1007,7 @@ fn imagepond_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String
     let [route, id] = segments.as_slice() else {
         return None;
     };
-    if !matches!(*route, "i" | "img" | "image" | "video")
-        || !canonical_imagepond_file_id(id)
-    {
+    if !matches!(*route, "i" | "img" | "image" | "video") || !canonical_imagepond_file_id(id) {
         return None;
     }
     let original = url::Url::parse(&item.url).ok()?;
@@ -3701,7 +3699,10 @@ mod tests {
             "https://imagepond.net/i/%66ile.A7",
             "https://imagepond.net/i/file..A7",
         ] {
-            assert!(!archive.contains_for_source(&changed, different).unwrap(), "{different}");
+            assert!(
+                !archive.contains_for_source(&changed, different).unwrap(),
+                "{different}"
+            );
         }
         for bad in [
             "https://evil.imagepond.net.attacker.invalid/file.jpg",
@@ -3726,7 +3727,9 @@ mod tests {
             .unwrap());
         drop(archive);
         let bytes = fs::read(&path).unwrap();
-        assert!(!bytes.windows(b"file.A7".len()).any(|part| part == b"file.A7"));
+        assert!(!bytes
+            .windows(b"file.A7".len())
+            .any(|part| part == b"file.A7"));
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -3793,7 +3796,9 @@ mod tests {
             .unwrap());
         drop(archive);
         let bytes = fs::read(&native).unwrap();
-        assert!(!bytes.windows(b"file.A7".len()).any(|part| part == b"file.A7"));
+        assert!(!bytes
+            .windows(b"file.A7".len())
+            .any(|part| part == b"file.A7"));
         fs::remove_dir_all(root).unwrap();
     }
 

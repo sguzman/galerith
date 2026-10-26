@@ -1060,7 +1060,11 @@ fn pinned_imagepond_file_ids_and_album_queue_are_distinct() {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
-        spawn(cmd, "pinned ImagePond file-image, video and album queue archive IDs").trim(),
+        spawn(
+            cmd,
+            "pinned ImagePond file-image, video and album queue archive IDs"
+        )
+        .trim(),
         "imagepond|file|file.A7|file|clip.B8|album"
     );
 }
