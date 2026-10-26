@@ -196,6 +196,49 @@ async fn retryable_rate_limit_preserves_resumable_partial_and_validator() {
 }
 
 #[tokio::test]
+async fn weak_etag_without_last_modified_cannot_authorize_resume() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let req = request(&mut first).await;
+        assert!(!req.contains("\r\nrange:"));
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: W/\"weak\"\r\nConnection: close\r\n\r\n1234",
+            )
+            .await
+            .unwrap();
+        drop(first);
+
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(!req.contains("\r\nrange:"), "{req}");
+        assert!(!req.contains("\r\nif-range:"), "{req}");
+        second
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"strong\"\r\nConnection: close\r\n\r\nABCDEFGH",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("weak-validator");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/weak.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 1))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("weak.jpg"))
+    );
+    assert_eq!(fs::read(path.join("weak.jpg")).unwrap(), b"ABCDEFGH");
+    assert!(!path.join("weak.jpg.part").exists());
+    assert!(!path.join("weak.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn persists_verified_partial_across_invocations() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
