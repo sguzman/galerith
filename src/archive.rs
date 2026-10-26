@@ -2330,10 +2330,9 @@ mod tests {
         fs::remove_file(foreign).unwrap();
 
         let archive = Archive::open(&native).unwrap();
-        let direct = extract_direct_media(
-            "https://example.org/photo.jpg?signature=rotated-and-private",
-        )
-        .unwrap();
+        let direct =
+            extract_direct_media("https://example.org/photo.jpg?signature=rotated-and-private")
+                .unwrap();
         assert!(archive.contains(&direct).unwrap());
         for (item, source) in [
             (
@@ -2391,7 +2390,11 @@ mod tests {
         assert!(!archive.contains(&absent).unwrap());
         drop(archive);
         let bytes = fs::read(&native).unwrap();
-        for plaintext in ["example.org", "fapachimodel_123", "signature=rotated-and-private"] {
+        for plaintext in [
+            "example.org",
+            "fapachimodel_123",
+            "signature=rotated-and-private",
+        ] {
             assert!(!bytes
                 .windows(plaintext.len())
                 .any(|chunk| chunk == plaintext.as_bytes()));
