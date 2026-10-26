@@ -904,10 +904,7 @@ fn listal_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
         return None;
     }
     let (stem, extension) = name.rsplit_once('.')?;
-    if !matches!(
-        extension,
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
-    ) {
+    if !matches!(extension, "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
         return None;
     }
     let suffix = format!("{id}/{stem}");
