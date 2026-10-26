@@ -892,3 +892,24 @@ fn pinned_catbox_album_and_file_archive_formats_are_disjoint() {
         "catbox|file|abc123|catbox|album|Album123_abc123"
     );
 }
+
+#[test]
+fn pinned_slideshare_presentation_archive_uses_slug_and_page() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Slideshare archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; x=extractor.find('https://www.slideshare.net/speaker/my-deck'); print('|'.join((x.category,x.subcategory,x.archive_fmt.format(presentation='my-deck',num=1),x.archive_fmt.format(presentation='my-deck',num=2))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Slideshare presentation-page archive format").trim(),
+        "slideshare|presentation|my-deck_1|my-deck_2"
+    );
+}
