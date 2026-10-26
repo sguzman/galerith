@@ -2266,6 +2266,140 @@ mod tests {
     }
 
     #[test]
+    fn mixed_supported_archive_matrix_migrates_only_source_verified_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-import-matrix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let native = root.join("native.sqlite");
+        let supported = [
+            "directlinkexample.org//photo.jpg",
+            "derpibooru123",
+            "ponybooru123",
+            "furbooru123",
+            "danbooru123",
+            "e621123",
+            "e926123",
+            "e6ai123",
+            "yandere123",
+            "konachan123",
+            "sakugabooru123",
+            "lolibooru123",
+            "gelbooru123",
+            "rule34123",
+            "safebooru123",
+            "tbib123",
+            "hypnohub123",
+            "xbooru123",
+            "wallhaven94x38z",
+            "4chana_123_456",
+            "imgurabcdefg",
+            "500px123",
+            "photovogue123",
+            "fapachimodel_123",
+        ];
+        let rejected = [
+            "danbooru00123",
+            "e6210",
+            "4chan123",
+            "4chana_0123_456",
+            "500px0123",
+            "photovogue0123",
+            "fapachimodel_0123",
+            "totally-unsupported-entry",
+        ];
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch("CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;")
+            .unwrap();
+        for &entry in supported.iter().chain(rejected.iter()) {
+            db.execute("INSERT INTO archive(entry) VALUES (?1)", [entry])
+                .unwrap();
+        }
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(
+            archive.import_reference().unwrap(),
+            (supported.len(), supported.len())
+        );
+        assert_eq!(archive.import_reference().unwrap(), (supported.len(), 0));
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+
+        let archive = Archive::open(&native).unwrap();
+        let direct = extract_direct_media(
+            "https://example.org/photo.jpg?signature=rotated-and-private",
+        )
+        .unwrap();
+        assert!(archive.contains(&direct).unwrap());
+        for (item, source) in [
+            (
+                MediaItem {
+                    url: "https://i.4cdn.org/a/456.jpg".into(),
+                    filename: "456.jpg".into(),
+                    extractor: "4chan",
+                    post_id: Some(456),
+                },
+                "https://boards.4chan.org/a/thread/123",
+            ),
+            (
+                MediaItem {
+                    url: "https://img.500px.com/rotated.jpg".into(),
+                    filename: "123.jpg".into(),
+                    extractor: "500px",
+                    post_id: Some(123),
+                },
+                "https://500px.com/photo/123",
+            ),
+            (
+                MediaItem {
+                    url: "https://assets.vogue.com/rotated.webp".into(),
+                    filename: "123.webp".into(),
+                    extractor: "photovogue",
+                    post_id: Some(123),
+                },
+                "https://www.vogue.com/photovogue/photographers/777",
+            ),
+            (
+                MediaItem {
+                    url: "https://fapachi.com/uploads/rotated.jpg".into(),
+                    filename: "model_123.jpg".into(),
+                    extractor: "fapachi",
+                    post_id: Some(123),
+                },
+                "https://fapachi.com/model/media/123",
+            ),
+            (
+                MediaItem {
+                    url: "https://i.imgur.com/abcdefg.webp".into(),
+                    filename: "abcdefg.webp".into(),
+                    extractor: "imgur",
+                    post_id: None,
+                },
+                "https://imgur.com/abcdefg",
+            ),
+        ] {
+            assert!(
+                archive.contains_for_source(&item, source).unwrap(),
+                "imported source not recognized: {source}"
+            );
+        }
+        let absent = extract_direct_media("https://example.org/missing.jpg").unwrap();
+        assert!(!archive.contains(&absent).unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for plaintext in ["example.org", "fapachimodel_123", "signature=rotated-and-private"] {
+            assert!(!bytes
+                .windows(plaintext.len())
+                .any(|chunk| chunk == plaintext.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn failed_archive_import_rolls_back_all_native_rows() {
         let root =
             std::env::temp_dir().join(format!("galerith-import-rollback-{}", std::process::id()));
