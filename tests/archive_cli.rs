@@ -691,6 +691,100 @@ fn changed_etag_resume_discards_partial_before_archival() {
 }
 
 #[test]
+fn rejected_range_416_discards_stale_partial_without_creating_archive_hit() {
+    let dir = temp("range-416-recovery");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/outdated.jpg", listener.local_addr().unwrap());
+    seed_resumable_partial(&dir, "outdated.jpg", &url, r#""stale""#);
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let accept = || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => {
+                        socket.set_nonblocking(false).unwrap();
+                        return socket;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for 416 recovery HTTP request"
+                        );
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                    Err(error) => panic!("416 recovery listener error: {error}"),
+                }
+            }
+        };
+        let mut first = accept();
+        let mut buffer = [0u8; 2048];
+        let count = first.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(request.contains("/outdated.jpg"), "{request}");
+        assert!(request.contains("range: bytes=4-"), "{request}");
+        assert!(request.contains("if-range: \"stale\""), "{request}");
+        first.write_all(
+            b"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */3\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        ).unwrap();
+        drop(first);
+
+        let mut second = accept();
+        let count = second.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(request.contains("/outdated.jpg"), "{request}");
+        assert!(!request.contains("range:"), "stale range was reused: {request}");
+        assert!(!request.contains("if-range:"), "stale validator was reused: {request}");
+        second.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nABCDEFGH",
+        ).unwrap();
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let rejected = invoke();
+    assert!(!rejected.status.success());
+    assert!(!dir.join("outdated.jpg").exists());
+    assert!(!dir.join("outdated.jpg.part").exists());
+    assert!(!dir.join("outdated.jpg.part.json").exists());
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0, "HTTP 416 must not create a durable archive hit");
+
+    let recovered = invoke();
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("outdated.jpg")).unwrap(), b"ABCDEFGH");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "only the completed download should be archived");
+    fs::remove_file(dir.join("outdated.jpg")).unwrap();
+    let offline = invoke();
+    assert!(offline.status.success());
+    assert!(String::from_utf8_lossy(&offline.stdout).contains("archived outdated.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn process_crash_releases_archive_lock_and_next_run_can_download() {
     let dir = temp("crash-recovery");
     let _ = fs::remove_dir_all(&dir);
