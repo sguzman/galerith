@@ -976,3 +976,24 @@ fn pinned_imgbox_single_and_gallery_archive_keys() {
         "imgbox|image|a1B2c3D4|imgbox|gallery|abcdefghij_a1B2c3D4"
     );
 }
+
+#[test]
+fn pinned_imagebam_single_and_gallery_keys_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for ImageBam archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://www.imagebam.com/view/Mabc123'); b=extractor.find('https://www.imagebam.com/view/Gabc123'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(image_key='Mabc123'),b.category,b.subcategory,b.archive_fmt.format(gallery_key='Gabc123',image_key='Mabc123'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned ImageBam single/gallery source IDs").trim(),
+        "imagebam|image|Mabc123|imagebam|gallery|Gabc123_Mabc123"
+    );
+}
