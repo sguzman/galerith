@@ -955,3 +955,24 @@ fn pinned_speakerdeck_presentation_archive_uses_page_position() {
         "speakerdeck|presentation|my-deck_1|my-deck_2"
     );
 }
+
+#[test]
+fn pinned_imgbox_single_and_gallery_archive_keys() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Imgbox archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://imgbox.com/a1B2c3D4'); b=extractor.find('https://imgbox.com/g/abcdefghij'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(image_key='a1B2c3D4'),b.category,b.subcategory,b.archive_fmt.format(gallery_key='abcdefghij',image_key='a1B2c3D4'))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Imgbox image and gallery archive keys").trim(),
+        "imgbox|image|a1B2c3D4|imgbox|gallery|abcdefghij_a1B2c3D4"
+    );
+}
