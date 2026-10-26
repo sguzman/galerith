@@ -1131,7 +1131,11 @@ fn pinned_imgclick_uses_individual_imagehost_token_archive_keys() {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
-        spawn(cmd, "pinned Imgclick image-host token and optional URL hint").trim(),
+        spawn(
+            cmd,
+            "pinned Imgclick image-host token and optional URL hint"
+        )
+        .trim(),
         "imgclick|image|4tbrre1oxew9|imgclick|image|ABc_123"
     );
 }

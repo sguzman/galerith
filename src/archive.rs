@@ -1023,10 +1023,7 @@ fn imgclick_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     }
     let source = url::Url::parse(source_url).ok()?;
     if source.scheme() != "https"
-        || !matches!(
-            source.host_str(),
-            Some("imgclick.net" | "www.imgclick.net")
-        )
+        || !matches!(source.host_str(), Some("imgclick.net" | "www.imgclick.net"))
         || source.port().is_some()
         || !source.username().is_empty()
         || source.password().is_some()
