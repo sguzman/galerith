@@ -209,6 +209,70 @@ async fn legitimate_html_body_can_be_saved_by_downloader_library() {
 }
 
 #[tokio::test]
+async fn disguised_206_error_suffix_is_discarded_before_clean_retry() {
+    // A truncated file followed by an HTML/JSON-style block-page suffix
+    // must not become an apparently successful media download.
+    for (label, mime) in [
+        ("untyped-206-block", ""),
+        ("octet-206-block", "Content-Type: application/octet-stream\r\n"),
+        ("typed-206-block", "Content-Type: text/html\r\n"),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mime = mime.to_owned();
+        let server = tokio::spawn(async move {
+            let mut initial = next(&listener).await;
+            let req = request(&mut initial).await;
+            assert!(!req.contains("\r\nrange:"), "{req}");
+            initial
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nETag: \"stable\"\r\nContent-Length: 16\r\nConnection: close\r\n\r\nMEDIA123",
+                )
+                .await
+                .unwrap();
+            drop(initial);
+
+            let mut rejected = next(&listener).await;
+            let req = request(&mut rejected).await;
+            assert!(req.contains("\r\nrange: bytes=8-\r\n"), "{req}");
+            assert!(req.contains("\r\nif-range: \"stable\"\r\n"), "{req}");
+            let header = format!(
+                "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 8-15/16\r\nContent-Length: 8\r\nETag: \"stable\"\r\n{mime}Connection: close\r\n\r\n"
+            );
+            rejected.write_all(header.as_bytes()).await.unwrap();
+            rejected.write_all(b"<html>NO").await.unwrap();
+            drop(rejected);
+
+            let mut fresh = next(&listener).await;
+            let req = request(&mut fresh).await;
+            assert!(!req.contains("\r\nrange:"), "{req}");
+            assert!(!req.contains("\r\nif-range:"), "{req}");
+            fresh
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nETag: \"new\"\r\nContent-Length: 16\r\nConnection: close\r\n\r\nMEDIA123ABCDEFGH",
+                )
+                .await
+                .unwrap();
+        });
+
+        let path = dir(label);
+        clean(&path);
+        let item = extract_direct_media(&format!("http://{addr}/photo.jpg")).unwrap();
+        assert_eq!(
+            download(&client(), &item, &settings(path.clone(), 2))
+                .await
+                .unwrap(),
+            DownloadOutcome::Saved(path.join("photo.jpg"))
+        );
+        assert_eq!(fs::read(path.join("photo.jpg")).unwrap(), b"MEDIA123ABCDEFGH");
+        assert!(!path.join("photo.jpg.part").exists());
+        assert!(!path.join("photo.jpg.part.json").exists());
+        server.await.unwrap();
+        clean(&path);
+    }
+}
+
+#[tokio::test]
 async fn unexpected_304_or_412_during_resume_clears_partial_and_retries_full_body() {
     for (label, status) in [
         ("not-modified", "304 Not Modified"),

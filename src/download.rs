@@ -408,6 +408,14 @@ pub async fn download(
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
         if header(&response, CONTENT_TYPE).is_some_and(|mime| media_error_document(item, &mime)) {
+            // A 206 block page cannot provide the promised media suffix.
+            // Discard the old partial before retrying a full un-ranged GET.
+            if offset > 0 && status == StatusCode::PARTIAL_CONTENT {
+                invalidate(&part, &metadata).await?;
+                if attempt < options.retries {
+                    continue;
+                }
+            }
             return Err(error("application error document instead of media"));
         }
         // Even when identity was requested, an HTTP server can ignore it.
@@ -520,7 +528,7 @@ pub async fn download(
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
-                    if !append && first_bytes.len() < 160 {
+                    if first_bytes.len() < 160 {
                         let count = (160 - first_bytes.len()).min(chunk.len());
                         first_bytes.extend_from_slice(&chunk[..count]);
                     }
@@ -537,7 +545,7 @@ pub async fn download(
                 }
             }
         }
-        let misleading_error_body = !append && looks_like_soft_error_body(item, &first_bytes);
+        let misleading_error_body = looks_like_soft_error_body(item, &first_bytes);
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
         }
@@ -574,8 +582,8 @@ pub async fn download(
         drop(file);
         if let Some(err) = transfer_error {
             if misleading_error_body || (received == 0 && !append) {
-                // Drop a deceptive or empty fresh response and its sidecar. A retained
-                // validated partial from a failed resume is still recoverable.
+                // Drop a deceptive response (fresh or resumed) and its sidecar.
+                // Never retain a partial contaminated by a block-page suffix.
                 invalidate(&part, &metadata).await?;
             }
             if attempt < options.retries {
