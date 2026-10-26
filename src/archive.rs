@@ -90,12 +90,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "35photo",
             "unsplash",
             "lexica",
+            "pixeldrain",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "pixeldrain" && canonical_pixeldrain_file_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "lexica" && canonical_lexica_image_id(id) {
@@ -146,6 +150,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "35photo"
                         | "unsplash"
                         | "lexica"
+                        | "pixeldrain"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -221,9 +226,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "35photo",
         "unsplash",
         "lexica",
+        "pixeldrain",
     ] {
         if prefix == category
-            && ((category == "lexica" && canonical_lexica_image_id(bare))
+            && ((category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
+                || (category == "lexica" && canonical_lexica_image_id(bare))
                 || (category == "unsplash" && canonical_unsplash_photo_id(bare))
                 || (category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
                 || (category == "piczel" && canonical_piczel_archive_suffix(bare))
@@ -251,6 +258,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "35photo"
                         | "unsplash"
                         | "lexica"
+                        | "pixeldrain"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -436,6 +444,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "35photo"
                 | "unsplash"
                 | "lexica"
+                | "pixeldrain"
         )
 }
 
@@ -823,6 +832,77 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// family, including favorites, collections and searches.
 /// Pinned Lexica search archive_fmt = "{id}". Unlike arbitrary
 /// search-result files, the native Lexica media URL itself embeds the API ID.
+/// Pinned Pixeldrain file and album extractors archive by each file's
+/// source ID, not its filename or containing list. Filesystem/folder mode
+/// uses an unrelated path+position archive template and fails closed here.
+fn canonical_pixeldrain_file_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn pixeldrain_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "pixeldrain" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("pixeldrain.com")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let direct_id = match parts.as_slice() {
+        ["u", id] | ["api", "file", id] if canonical_pixeldrain_file_id(id) => Some(*id),
+        _ => None,
+    };
+    let album = match parts.as_slice() {
+        ["l", id] | ["api", "list", id] if canonical_pixeldrain_file_id(id) => Some(*id),
+        _ => None,
+    };
+    if direct_id.is_none() && album.is_none() {
+        return None;
+    }
+    if let Some(fragment) = source.fragment() {
+        if album.is_none()
+            || !fragment
+                .strip_prefix("item=")
+                .and_then(|value| value.parse::<usize>().ok())
+                .is_some_and(|value| value < 2000)
+        {
+            return None;
+        }
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("pixeldrain.com")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query() != Some("download")
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let media_parts: Vec<_> = media.path_segments()?.collect();
+    let ["api", "file", id] = media_parts.as_slice() else {
+        return None;
+    };
+    if !canonical_pixeldrain_file_id(id) || direct_id.is_some_and(|direct| direct != *id) {
+        return None;
+    }
+    let upstream = format!("pixeldrain{id}");
+    Some((
+        format!("file-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_lexica_image_id(id: &str) -> bool {
     (1..=128).contains(&id.len())
         && id
@@ -1911,6 +1991,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| thirtyfivephoto_archive_scope(item, source_url))
         .or_else(|| unsplash_archive_scope(item, source_url))
         .or_else(|| lexica_archive_scope(item, source_url))
+        .or_else(|| pixeldrain_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
