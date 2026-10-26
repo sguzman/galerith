@@ -3588,6 +3588,7 @@ mod tests {
             "catboxabc123",
             "catboxAlbum123_abc123",
             "slidesharemy-deck_1",
+            "issuupub34_1",
         ];
         let rejected = [
             "danbooru00123",
@@ -3610,6 +3611,7 @@ mod tests {
             "webmsharebad%2fid",
             "catboxAlbum123_abc_123",
             "slidesharemy-deck_01",
+            "issuupub34_01",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3782,6 +3784,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://www.slideshare.net/speaker/my-deck",
+            ),
+            (
+                MediaItem {
+                    url: "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg".into(),
+                    filename: "pub34_001.jpg".into(),
+                    extractor: "issuu",
+                    post_id: None,
+                },
+                "https://issuu.com/press/docs/fall-2026",
             ),
             (
                 MediaItem {
@@ -8491,6 +8502,166 @@ mod tests {
         assert!(!native_bytes
             .windows(b"slidesharemy-deck_1".len())
             .any(|part| part == b"slidesharemy-deck_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn issuu_publication_pages_remain_distinct_across_revision_changes() {
+        let root = std::env::temp_dir().join(format!("galerith-issuu-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg".into(),
+            filename: "pub34_001.jpg".into(),
+            extractor: "issuu",
+            post_id: None,
+        };
+        let revised = MediaItem {
+            url: "https://image.isu.pub/updated-rev-pub34/jpg/page_1.jpg".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            url: "https://image.isu.pub/rev12-pub34/jpg/page_2.jpg".into(),
+            filename: "pub34_002.jpg".into(),
+            ..first.clone()
+        };
+        let another = MediaItem {
+            url: "https://image.isu.pub/rev12-other77/jpg/page_1.jpg".into(),
+            filename: "other77_001.jpg".into(),
+            ..first.clone()
+        };
+        let source = "https://issuu.com/press/docs/fall-2026";
+        assert_eq!(
+            issuu_archive_scope(&first, source).unwrap().1,
+            "issuupub34_1"
+        );
+        archive.record_for_source(&first, source).unwrap();
+        assert!(archive.contains_for_source(&revised, source).unwrap());
+        assert!(archive
+            .contains_for_source(
+                &revised,
+                "https://www.issuu.com/otherpress/docs/another-book",
+            )
+            .unwrap());
+        assert!(!archive.contains_for_source(&second, source).unwrap());
+        assert!(!archive.contains_for_source(&another, source).unwrap());
+        for bad in [
+            "https://evilissuu.com/press/docs/fall-2026",
+            "https://issuu.com/press/docs/fall-2026?token=1",
+            "https://issuu.com:8443/press/docs/fall-2026",
+            "https://issuu.com/press/docs/fall-2026/extra",
+        ] {
+            assert!(issuu_archive_scope(&first, bad).is_none(), "{bad}");
+        }
+        for bad_media in [
+            "https://image.isu.pub.evil.test/rev12-pub34/jpg/page_1.jpg",
+            "https://image.isu.pub/rev12-pub34/jpg/page_2.jpg",
+            "https://image.isu.pub/rev12-other77/jpg/page_1.jpg",
+            "https://image.isu.pub/rev12-pub34/jpg/page_1.jpg?secret=1",
+        ] {
+            let forged = MediaItem {
+                url: bad_media.into(),
+                ..first.clone()
+            };
+            assert!(issuu_archive_scope(&forged, source).is_none());
+        }
+        for bad_name in ["pub34_1.jpg", "pub34_000.jpg", "pub34_241.jpg", "pub-34_001.jpg"] {
+            let forged = MediaItem {
+                filename: bad_name.into(),
+                ..first.clone()
+            };
+            assert!(issuu_archive_scope(&forged, source).is_none());
+        }
+        for bad in ["pub34_01", "pub34_0", "pub34_241", "pub-34_1"] {
+            assert!(!canonical_issuu_archive_suffix(bad));
+        }
+        drop(archive);
+        let data = fs::read(native).unwrap();
+        for private in ["pub34", "rev12-pub34"] {
+            assert!(!data
+                .windows(private.len())
+                .any(|part| part == private.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn issuu_publication_archive_import_is_idempotent_private_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-issuu-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('issuupub34_1');
+             INSERT INTO archive VALUES ('issuupub34_2');
+             INSERT INTO archive VALUES ('issuupub34_01');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('pub34_1');
+             INSERT INTO named VALUES ('issuupub34_1');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("issuu"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        let page = MediaItem {
+            url: "https://image.isu.pub/changed-pub34/jpg/page_1.jpg".into(),
+            filename: "pub34_001.jpg".into(),
+            extractor: "issuu",
+            post_id: None,
+        };
+        assert!(reopened
+            .contains_for_source(&page, "https://issuu.com/press/docs/fall-2026")
+            .unwrap());
+        let other = MediaItem {
+            url: "https://image.isu.pub/changed-pub34/jpg/page_2.jpg".into(),
+            filename: "pub34_002.jpg".into(),
+            ..page.clone()
+        };
+        assert!(reopened
+            .contains_for_source(&other, "https://issuu.com/press/docs/fall-2026")
+            .unwrap());
+        let absent = MediaItem {
+            url: "https://image.isu.pub/changed-pub34/jpg/page_3.jpg".into(),
+            filename: "pub34_003.jpg".into(),
+            ..page
+        };
+        assert!(!reopened
+            .contains_for_source(&absent, "https://issuu.com/press/docs/fall-2026")
+            .unwrap());
+        drop(reopened);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"issuupub34_1".len())
+            .any(|part| part == b"issuupub34_1"));
         fs::remove_dir_all(root).unwrap();
     }
 
