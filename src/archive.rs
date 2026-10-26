@@ -876,8 +876,9 @@ fn listal_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
         return None;
     }
     let source_parts: Vec<_> = source.path_segments()?.collect();
-    let ["viewimage", id] = source_parts.as_slice() else {
-        return None;
+    let id = match source_parts.as_slice() {
+        ["viewimage", id] | ["viewimage", id, ""] => *id,
+        _ => return None,
     };
     if !canonical_numeric_archive_suffix(id) || id.len() > 16 {
         return None;
@@ -7272,6 +7273,9 @@ mod tests {
             "listal12345/full"
         );
         assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://www.listal.com/viewimage/12345/")
+            .unwrap());
         assert!(!archive.contains_for_source(&second, source).unwrap());
         for bad in [
             "https://www.listal.com/viewimage/012345",
