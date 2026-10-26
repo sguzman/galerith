@@ -1196,11 +1196,7 @@ fn disguised_resume_suffix_cannot_create_a_durable_archive_hit() {
             "Content-Type: application/octet-stream\r\n",
             b"<html>NO".as_slice(),
         ),
-        (
-            "untyped-json-206",
-            "",
-            br#"{"error":"denied"}"#.as_slice(),
-        ),
+        ("untyped-json-206", "", br#"{"error":"denied"}"#.as_slice()),
         (
             "typed-html-206",
             "Content-Type: text/html\r\n",
@@ -1269,7 +1265,10 @@ fn disguised_resume_suffix_cannot_create_a_durable_archive_hit() {
                 .unwrap()
         };
         let failed = invoke();
-        assert!(!failed.status.success(), "disguised suffix was accepted: {label}");
+        assert!(
+            !failed.status.success(),
+            "disguised suffix was accepted: {label}"
+        );
         assert!(!dir.join("image.jpg").exists());
         assert!(!dir.join("image.jpg.part").exists());
         assert!(!dir.join("image.jpg.part.json").exists());
