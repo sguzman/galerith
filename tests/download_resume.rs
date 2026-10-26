@@ -200,7 +200,10 @@ async fn legitimate_html_body_can_be_saved_by_downloader_library() {
             .unwrap(),
         DownloadOutcome::Saved(path.join("index.html"))
     );
-    assert_eq!(fs::read(path.join("index.html")).unwrap(), b"<html>OK</html>!");
+    assert_eq!(
+        fs::read(path.join("index.html")).unwrap(),
+        b"<html>OK</html>!"
+    );
     server.await.unwrap();
     clean(&path);
 }
