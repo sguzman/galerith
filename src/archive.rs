@@ -72,6 +72,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "4chan",
             "imgur",
             "500px",
+        "photovogue",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
@@ -80,13 +81,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if category == "photovogue" && canonical_photovogue_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
                 if category == "500px" && canonical_500px_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imgur" && canonical_imgur_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if !matches!(category, "wallhaven" | "imgur" | "500px")
+                if !matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue")
                     && id.parse::<u64>().ok().is_some_and(|n| n > 0)
                 {
                     return Some((category, entry.to_owned()));
@@ -150,13 +154,15 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "4chan",
         "imgur",
         "500px",
+    "photovogue",
     ] {
         if prefix == category
-            && ((category == "500px" && canonical_500px_archive_suffix(bare))
+            && ((category == "photovogue" && canonical_photovogue_archive_suffix(bare))
+                || (category == "500px" && canonical_500px_archive_suffix(bare))
                 || (category == "imgur" && canonical_imgur_archive_suffix(bare))
                 || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (!matches!(category, "wallhaven" | "imgur" | "500px")
+                || (!matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue")
                     && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -327,7 +333,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
     is_booru_pool_category(category)
         || is_moebooru_category(category)
         || is_gelbooru_category(category)
-        || matches!(category, "wallhaven" | "4chan" | "imgur" | "500px")
+        || matches!(category, "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -418,6 +424,56 @@ fn fivehundredpx_archive_scope(item: &MediaItem, source_url: &str) -> Option<(St
         return None;
     }
     Some((format!("image-id:{id}"), format!("500px{id}")))
+}
+
+fn canonical_photovogue_archive_suffix(suffix: &str) -> bool {
+    suffix
+        .parse::<u64>()
+        .ok()
+        .is_some_and(|id| id > 0 && suffix == id.to_string())
+}
+
+/// The pinned PhotoVogue photographer feed uses archive_fmt = "{id}" for
+/// photos, without photographer in the key. Reject unverified or foreign
+/// sources so a CDN URL can only inherit a proven photo's global ID.
+fn photovogue_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "photovogue" {
+        return None;
+    }
+    let id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("vogue.com" | "www.vogue.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let ["photovogue", "photographers", photographer] = parts.as_slice() else {
+        return None;
+    };
+    if photographer.is_empty()
+        || photographer.len() > 18
+        || !photographer.bytes().all(|byte| byte.is_ascii_digit())
+        || photographer.parse::<u64>().ok()? == 0
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(host == "vogue.com" || host.ends_with(".vogue.com"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+    {
+        return None;
+    }
+    Some((format!("image-id:{id}"), format!("photovogue{id}")))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
@@ -1114,6 +1170,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| fourchan_archive_scope(item, source_url))
         .or_else(|| imgur_archive_scope(item, source_url))
         .or_else(|| fivehundredpx_archive_scope(item, source_url))
+        .or_else(|| photovogue_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4472,6 +4529,112 @@ mod tests {
         let offline = Archive::open(&native).unwrap();
         assert!(offline.contains_for_source(&media, page).unwrap());
         drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn photovogue_photo_identity_is_global_across_verified_photographers() {
+        let root = std::env::temp_dir().join(format!("galerith-photovogue-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let photo = MediaItem {
+            url: "https://assets.vogue.com/photo/one.jpg?sig=old".into(),
+            filename: "145 Autumn.jpg".into(),
+            extractor: "photovogue",
+            post_id: Some(145),
+        };
+        let rotated = MediaItem {
+            url: "https://assets.vogue.com/photo/next.webp?sig=new".into(),
+            filename: "145 Autumn.webp".into(),
+            ..photo.clone()
+        };
+        let first = "https://www.vogue.com/photovogue/photographers/12345";
+        let second = "https://vogue.com/photovogue/photographers/67890";
+        assert_eq!(photovogue_archive_scope(&photo, first).unwrap().1, "photovogue145");
+        archive.record_for_source(&photo, first).unwrap();
+        assert!(archive.contains_for_source(&rotated, second).unwrap());
+        let unrelated = MediaItem {
+            post_id: Some(146),
+            ..rotated.clone()
+        };
+        assert!(!archive.contains_for_source(&unrelated, second).unwrap());
+        for bad in [
+            "https://fakevogue.com/photovogue/photographers/12345",
+            "https://www.vogue.com/photovogue/photographers/12345?account=1",
+            "https://www.vogue.com:8443/photovogue/photographers/12345",
+            "https://www.vogue.com/photovogue/photographers/abcde",
+            "https://www.vogue.com/photovogue/photo/145",
+        ] {
+            assert!(photovogue_archive_scope(&rotated, bad).is_none(), "{bad}");
+        }
+        let attacker = MediaItem {
+            url: "https://assets.vogue.com.evil.test/one.jpg".into(),
+            ..rotated
+        };
+        assert!(photovogue_archive_scope(&attacker, first).is_none());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn photovogue_archive_import_is_private_and_requires_named_table_prefix() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-photovogue-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let connection = Connection::open(&foreign).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('photovogue145');
+                 INSERT INTO archive VALUES ('photovogue0145');
+                 INSERT INTO archive VALUES ('photovogue0');
+                 CREATE TABLE custom(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO custom VALUES ('145');
+                 INSERT INTO custom VALUES ('photovogue145');",
+            )
+            .unwrap();
+        drop(connection);
+        let before = fs::read(&foreign).unwrap();
+        let media = MediaItem {
+            url: "https://assets.vogue.com/rotated.webp?sig=new".into(),
+            filename: "145 Autumn.webp".into(),
+            extractor: "photovogue",
+            post_id: Some(145),
+        };
+        let origin = "https://www.vogue.com/photovogue/photographers/12345";
+        let native = root.join("native.sqlite");
+        let default = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(default.import_reference().unwrap(), (1, 1));
+        assert_eq!(default.import_reference().unwrap(), (1, 0));
+        drop(default);
+        let unscoped =
+            Archive::open_with_reference_table(&root.join("unscoped.sqlite"), Some(&foreign), "custom")
+                .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        assert!(!unscoped.contains_for_source(&media, origin).unwrap());
+        drop(unscoped);
+        let scoped = Archive::open_with_reference_options(
+            &root.join("custom.sqlite"),
+            Some(&foreign),
+            Some("custom"),
+            Some("photovogue"),
+        )
+        .unwrap();
+        assert_eq!(scoped.import_reference().unwrap(), (1, 1));
+        assert!(scoped.contains_for_source(&media, origin).unwrap());
+        drop(scoped);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let detached = Archive::open(&native).unwrap();
+        assert!(detached.contains_for_source(&media, origin).unwrap());
+        drop(detached);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"photovogue145".len())
+            .any(|part| part == b"photovogue145"));
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -598,3 +598,24 @@ fn pinned_500px_archive_uses_photo_id_for_single_images() {
         "500px12345|500px12346"
     );
 }
+
+#[test]
+fn pinned_photovogue_archive_is_photo_id_across_photographers() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for PhotoVogue archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://www.vogue.com/photovogue/photographers/12345','https://vogue.com/photovogue/photographers/67890'); print('|'.join(ex.category+ex.archive_fmt.format(id=145) for ex in (extractor.find(url) for url in urls)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned PhotoVogue photo archive format").trim(),
+        "photovogue145|photovogue145"
+    );
+}
