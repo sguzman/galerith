@@ -4777,6 +4777,10 @@ mod tests {
         }
         assert!(canonical_fapachi_archive_suffix("model_name_12345"));
         drop(archive);
+        let bytes = fs::read(root.join("native.sqlite")).unwrap();
+        assert!(!bytes
+            .windows(b"model_12345".len())
+            .any(|part| part == b"model_12345"));
         fs::remove_dir_all(root).unwrap();
     }
 
