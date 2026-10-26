@@ -93,12 +93,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "pixeldrain",
             "listal",
             "lensdump",
+            "webmshare",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "webmshare" && canonical_webmshare_video_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "lensdump" && canonical_lensdump_image_id(id) {
@@ -161,6 +165,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "pixeldrain"
                         | "listal"
                         | "lensdump"
+                        | "webmshare"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -239,9 +244,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "pixeldrain",
         "listal",
         "lensdump",
+        "webmshare",
     ] {
         if prefix == category
-            && ((category == "lensdump" && canonical_lensdump_image_id(bare))
+            && ((category == "webmshare" && canonical_webmshare_video_id(bare))
+                || (category == "lensdump" && canonical_lensdump_image_id(bare))
                 || (category == "listal" && canonical_listal_archive_suffix(bare))
                 || (category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
                 || (category == "lexica" && canonical_lexica_image_id(bare))
@@ -275,6 +282,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "pixeldrain"
                         | "listal"
                         | "lensdump"
+                        | "webmshare"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -463,6 +471,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "pixeldrain"
                 | "listal"
                 | "lensdump"
+                | "webmshare"
         )
 }
 
@@ -860,6 +869,77 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// inherits "{gallery_id}_{num}" from GalleryExtractor. Reject underscores
 /// in imported image IDs so an album-position key cannot masquerade as a
 /// completed individual image.
+/// Pinned Webmshare video archive_fmt = "{id}". Its native preview
+/// retains the full source ID, including alphanumeric and underscore IDs,
+/// in the output basename even when MediaItem.post_id is nonnumeric.
+fn canonical_webmshare_video_id(id: &str) -> bool {
+    (3..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn webmshare_host(host: &str) -> bool {
+    matches!(host, "webmshare.com" | "www.webmshare.com")
+        || host
+            .strip_prefix('s')
+            .and_then(|part| part.strip_suffix(".webmshare.com"))
+            .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn webmshare_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "webmshare" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !webmshare_host(source.host_str()?)
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let id = match parts.as_slice() {
+        [id] | ["play", id] | ["download-webm", id] => *id,
+        _ => return None,
+    };
+    if !canonical_webmshare_video_id(id) {
+        return None;
+    }
+    let filename = item.filename.strip_suffix(".webm")?;
+    let title = filename.strip_prefix(id)?;
+    if !title.is_empty()
+        && (!title.starts_with(' ')
+            || title.trim().is_empty()
+            || title.len() > 190
+            || title.chars().any(char::is_control))
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || !webmshare_host(media.host_str()?)
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path().contains("..")
+        || !media.path().ends_with(".webm")
+    {
+        return None;
+    }
+    let upstream = format!("webmshare{id}");
+    Some((
+        format!("video-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_lensdump_image_id(id: &str) -> bool {
     (1..=80).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
@@ -2154,6 +2234,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| pixeldrain_archive_scope(item, source_url))
         .or_else(|| listal_archive_scope(item, source_url))
         .or_else(|| lensdump_archive_scope(item, source_url))
+        .or_else(|| webmshare_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
