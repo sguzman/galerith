@@ -181,7 +181,7 @@ async fn legitimate_html_body_can_be_saved_by_downloader_library() {
         assert!(received.contains("/index.html"), "{received}");
         stream
             .write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 17\r\nConnection: close\r\n\r\n<html>OK</html>!",
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 16\r\nConnection: close\r\n\r\n<html>OK</html>!",
             )
             .await
             .unwrap();
