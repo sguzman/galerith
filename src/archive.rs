@@ -94,12 +94,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "listal",
             "lensdump",
             "webmshare",
+            "catbox",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "catbox" && canonical_catbox_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "webmshare" && canonical_webmshare_video_id(id) {
@@ -166,6 +170,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "listal"
                         | "lensdump"
                         | "webmshare"
+                        | "catbox"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -245,9 +250,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "listal",
         "lensdump",
         "webmshare",
+        "catbox",
     ] {
         if prefix == category
-            && ((category == "webmshare" && canonical_webmshare_video_id(bare))
+            && ((category == "catbox" && canonical_catbox_archive_suffix(bare))
+                || (category == "webmshare" && canonical_webmshare_video_id(bare))
                 || (category == "lensdump" && canonical_lensdump_image_id(bare))
                 || (category == "listal" && canonical_listal_archive_suffix(bare))
                 || (category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
@@ -283,6 +290,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "listal"
                         | "lensdump"
                         | "webmshare"
+                        | "catbox"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -472,6 +480,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "listal"
                 | "lensdump"
                 | "webmshare"
+                | "catbox"
         )
 }
 
@@ -872,6 +881,96 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned Webmshare video archive_fmt = "{id}". Its native preview
 /// retains the full source ID, including alphanumeric and underscore IDs,
 /// in the output basename even when MediaItem.post_id is nonnumeric.
+/// Pinned Catbox file archive_fmt = "{filename}" and album archive_fmt
+/// = "{album_id}_{filename}". Upstream filename is the extensionless basename.
+/// Only disjoint unambiguous subformats are imported: file stems contain no
+/// underscores and album IDs contain no underscores.
+fn canonical_catbox_stem(stem: &str) -> bool {
+    (1..=120).contains(&stem.len())
+        && stem
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+fn canonical_catbox_archive_suffix(suffix: &str) -> bool {
+    if canonical_catbox_stem(suffix) {
+        return true;
+    }
+    suffix
+        .split_once('_')
+        .is_some_and(|(album, file)| canonical_catbox_stem(album) && canonical_catbox_stem(file))
+}
+
+fn catbox_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "catbox" {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !matches!(
+            host,
+            "files.catbox.moe" | "litter.catbox.moe" | "de.catbox.moe"
+        )
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+    {
+        return None;
+    }
+    let media_parts: Vec<_> = media.path_segments()?.collect();
+    let [media_name] = media_parts.as_slice() else {
+        return None;
+    };
+    if *media_name != item.filename {
+        return None;
+    }
+    let (stem, ext) = media_name.rsplit_once('.')?;
+    if !canonical_catbox_stem(stem)
+        || ext.is_empty()
+        || ext.len() > 12
+        || !ext.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let suffix = match (source.host_str()?, parts.as_slice()) {
+        ("catbox.moe" | "www.catbox.moe", ["c", album])
+            if host == "files.catbox.moe" && canonical_catbox_stem(album) =>
+        {
+            format!("{album}_{stem}")
+        }
+        ("files.catbox.moe" | "litter.catbox.moe" | "de.catbox.moe", [name])
+            if *name == *media_name && source.as_str() == media.as_str() =>
+        {
+            stem.to_owned()
+        }
+        _ => return None,
+    };
+    if !canonical_catbox_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("catbox{suffix}");
+    Some((
+        format!("file-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_webmshare_video_id(id: &str) -> bool {
     (3..=128).contains(&id.len())
         && id
@@ -2235,6 +2334,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| listal_archive_scope(item, source_url))
         .or_else(|| lensdump_archive_scope(item, source_url))
         .or_else(|| webmshare_archive_scope(item, source_url))
+        .or_else(|| catbox_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
