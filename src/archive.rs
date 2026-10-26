@@ -96,7 +96,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 }
                 if !matches!(
                     category,
-                    "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi"
+                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
                 ) && id.parse::<u64>().ok().is_some_and(|n| n > 0)
                 {
                     return Some((category, entry.to_owned()));
@@ -132,7 +132,10 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
 
     let prefix = prefix?;
     let bare = entry.strip_prefix(prefix)?;
-    if valid_directlink_format(bare) {
+    // An empty named-table prefix can be a directlink entry, as can the
+    // explicit directlink category prefix. Other source prefixes do not
+    // prove directlink provenance even when their payload resembles a URL.
+    if (prefix.is_empty() || prefix == "directlink") && valid_directlink_format(bare) {
         return Some(("directlink", format!("directlink{bare}")));
     }
     // A numeric ID is only unambiguous if the supplied source prefix itself
@@ -172,7 +175,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
                 || (!matches!(
                     category,
-                    "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi"
+                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
                 ) && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -2132,6 +2135,37 @@ mod tests {
             Some(""),
         )
         .is_none());
+    }
+
+    #[test]
+    fn offline_import_rejects_cross_category_directlinks_and_numeric_4chan_keys() {
+        // A 4chan archive key must identify its board, thread and media tim,
+        // never just an unscoped integer from a foreign archive.
+        assert_eq!(import_category("4chan123", None), None);
+        assert_eq!(import_category("123", Some("4chan")), None);
+        assert_eq!(
+            import_category("4chana_123_456", None),
+            Some(("4chan", "4chana_123_456".to_owned()))
+        );
+        assert_eq!(
+            import_category("a_123_456", Some("4chan")),
+            Some(("4chan", "4chana_123_456".to_owned()))
+        );
+        // A named archive for an unrelated extractor must not silently
+        // import a URL-shaped row under the directlink category.
+        assert_eq!(import_category("booru.example/photo.jpg", Some("booru")), None);
+        assert_eq!(
+            import_category("fapachiexample.org/photo.jpg", Some("fapachi")),
+            None
+        );
+        assert_eq!(
+            import_category("example.org//photo.jpg", Some("")),
+            Some(("directlink", "directlinkexample.org//photo.jpg".to_owned()))
+        );
+        assert_eq!(
+            import_category("directlinkexample.org//photo.jpg", Some("directlink")),
+            Some(("directlink", "directlinkexample.org//photo.jpg".to_owned()))
+        );
     }
 
     #[test]
