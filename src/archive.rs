@@ -8567,7 +8567,12 @@ mod tests {
             };
             assert!(issuu_archive_scope(&forged, source).is_none());
         }
-        for bad_name in ["pub34_1.jpg", "pub34_000.jpg", "pub34_241.jpg", "pub-34_001.jpg"] {
+        for bad_name in [
+            "pub34_1.jpg",
+            "pub34_000.jpg",
+            "pub34_241.jpg",
+            "pub-34_001.jpg",
+        ] {
             let forged = MediaItem {
                 filename: bad_name.into(),
                 ..first.clone()
