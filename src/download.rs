@@ -138,8 +138,8 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .map(|(_, ext)| ext.to_ascii_lowercase());
     let binary_extensions = [
         "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
-        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg", "pdf", "zip", "rar", "7z",
-        "tar", "gz", "xz",
+        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg", "pdf", "zip", "rar", "7z", "tar",
+        "gz", "xz",
     ];
     if !extension
         .as_deref()
@@ -610,8 +610,14 @@ mod tests {
             b"\xef\xbb\xbf  <!DOCTYPE HTML><html>blocked</html>"
         ));
         assert!(looks_like_soft_error_body(&item, b"<HTML>Forbidden</HTML>"));
-        assert!(looks_like_soft_error_body(&item, b"{ \"error\": \"forbidden\" }"));
-        assert!(looks_like_soft_error_body(&item, b"{\"errors\":[\"denied\"]}"));
+        assert!(looks_like_soft_error_body(
+            &item,
+            b"{ \"error\": \"forbidden\" }"
+        ));
+        assert!(looks_like_soft_error_body(
+            &item,
+            b"{\"errors\":[\"denied\"]}"
+        ));
         assert!(!looks_like_soft_error_body(&item, b"\xff\xd8\xff\xe0JPEG"));
         let pdf = MediaItem {
             filename: "manual.pdf".into(),
@@ -627,7 +633,10 @@ mod tests {
             filename: "data.json".into(),
             ..item
         };
-        assert!(!looks_like_soft_error_body(&json, b"{\"error\":\"actual JSON\"}"));
+        assert!(!looks_like_soft_error_body(
+            &json,
+            b"{\"error\":\"actual JSON\"}"
+        ));
     }
 
     #[test]
