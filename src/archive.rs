@@ -3852,6 +3852,7 @@ mod tests {
             "issuupub34_1",
             "speakerdeckmy-deck_1",
             "imgboxa1B2c3D4",
+            "imagebamMabc123",
         ];
         let rejected = [
             "danbooru00123",
@@ -3877,6 +3878,7 @@ mod tests {
             "issuupub34_01",
             "speakerdeckmy-deck_01",
             "imgboxshort",
+            "imagebamabc456_gallery",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -4076,6 +4078,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://imgbox.com/a1B2c3D4",
+            ),
+            (
+                MediaItem {
+                    url: "https://images12.imagebam.com/new/rotated.jpg".into(),
+                    filename: "rotated.jpg".into(),
+                    extractor: "imagebam",
+                    post_id: None,
+                },
+                "https://imagebam.com/view/Mabc123",
             ),
             (
                 MediaItem {
@@ -9243,6 +9254,133 @@ mod tests {
         assert!(!bytes
             .windows(b"imgboxa1B2c3D4".len())
             .any(|part| part == b"imgboxa1B2c3D4"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imagebam_single_image_identity_survives_cdn_change_without_gallery_skips() {
+        let root = std::env::temp_dir().join(format!("galerith-imagebam-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://images2.imagebam.com/aa/bb/first.jpg".into(),
+            filename: "first.jpg".into(),
+            extractor: "imagebam",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://images19.imagebam.com/new/changed.webp?token=private".into(),
+            filename: "title.webp".into(),
+            ..first.clone()
+        };
+        let image = "https://www.imagebam.com/view/Mabc123";
+        assert_eq!(
+            imagebam_archive_scope(&first, image).unwrap().1,
+            "imagebamMabc123"
+        );
+        archive.record_for_source(&first, image).unwrap();
+        assert!(archive.contains_for_source(&rotated, image).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://imagebam.com/view/Manother")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://imagebam.com/gallery/abcd1234")
+            .unwrap());
+        for source in [
+            "https://imagebam.com/view/Gallery12",
+            "https://imagebam.com/view/Mabc123?secret=1",
+            "https://imagebam.com:8443/view/Mabc123",
+            "https://evilimagebam.com/view/Mabc123",
+            "https://imagebam.com/view/Mabc123/extra",
+        ] {
+            assert!(imagebam_archive_scope(&first, source).is_none(), "{source}");
+        }
+        let spoofed = MediaItem {
+            url: "https://images2.imagebam.com.evil.test/first.jpg".into(),
+            ..first
+        };
+        assert!(imagebam_archive_scope(&spoofed, image).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for plain in ["imagebamMabc123", "private", "first.jpg"] {
+            assert!(
+                !bytes
+                    .windows(plain.len())
+                    .any(|part| part == plain.as_bytes()),
+                "{plain}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imagebam_single_image_import_is_private_idempotent_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imagebam-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&source).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('imagebamMabc123');
+             INSERT INTO archive VALUES ('imagebamabc456');
+             INSERT INTO archive VALUES ('imagebamabc456_gallery');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('Mabc123');
+             INSERT INTO named VALUES ('imagebamMabc123');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&source).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&source),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&source),
+            Some("named"),
+            Some("imagebam"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&source).unwrap(), before);
+        fs::remove_file(source).unwrap();
+
+        let offline = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://images5.imagebam.com/changed.jpg?token=rotated".into(),
+            filename: "title.jpg".into(),
+            extractor: "imagebam",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&first, "https://imagebam.com/view/Mabc123")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&first, "https://imagebam.com/view/Mdifferent")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&first, "https://imagebam.com/gallery/abcdefghij")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"imagebamMabc123".len())
+            .any(|part| part == b"imagebamMabc123"));
         fs::remove_dir_all(root).unwrap();
     }
 
