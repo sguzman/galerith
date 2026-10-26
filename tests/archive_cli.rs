@@ -592,7 +592,10 @@ fn missing_resumed_content_range_discards_partial_and_never_archives_failed_atte
     fs::create_dir_all(&dir).unwrap();
     let db = dir.join("archive.sqlite");
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!("http://{}/missing-range.jpg", listener.local_addr().unwrap());
+    let url = format!(
+        "http://{}/missing-range.jpg",
+        listener.local_addr().unwrap()
+    );
     seed_resumable_partial(&dir, "missing-range.jpg", &url, r#""original""#);
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
@@ -629,8 +632,14 @@ fn missing_resumed_content_range_discards_partial_and_never_archives_failed_atte
         let mut second = accept();
         let count = second.read(&mut buffer).unwrap();
         let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
-        assert!(!request.contains("range:"), "stale Range was reused: {request}");
-        assert!(!request.contains("if-range:"), "stale If-Range was reused: {request}");
+        assert!(
+            !request.contains("range:"),
+            "stale Range was reused: {request}"
+        );
+        assert!(
+            !request.contains("if-range:"),
+            "stale If-Range was reused: {request}"
+        );
         second.write_all(
             b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nABCDEFGH",
         ).unwrap();
@@ -655,7 +664,10 @@ fn missing_resumed_content_range_discards_partial_and_never_archives_failed_atte
         .unwrap()
         .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(recorded, 0, "missing Content-Range cannot record an archive hit");
+    assert_eq!(
+        recorded, 0,
+        "missing Content-Range cannot record an archive hit"
+    );
 
     let recovered = invoke();
     assert!(
@@ -664,7 +676,10 @@ fn missing_resumed_content_range_discards_partial_and_never_archives_failed_atte
         String::from_utf8_lossy(&recovered.stderr)
     );
     server.join().unwrap();
-    assert_eq!(fs::read(dir.join("missing-range.jpg")).unwrap(), b"ABCDEFGH");
+    assert_eq!(
+        fs::read(dir.join("missing-range.jpg")).unwrap(),
+        b"ABCDEFGH"
+    );
     let recorded: i64 = rusqlite::Connection::open(&db)
         .unwrap()
         .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
