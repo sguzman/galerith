@@ -489,8 +489,14 @@ async fn changed_resume_total_resets_partial_and_restarts_without_range() {
         drop(first);
         let mut changed = next(&listener).await;
         let request_text = request(&mut changed).await;
-        assert!(request_text.contains("\r\nrange: bytes=4-\r\n"), "{request_text}");
-        assert!(request_text.contains("\r\nif-range: \"same\"\r\n"), "{request_text}");
+        assert!(
+            request_text.contains("\r\nrange: bytes=4-\r\n"),
+            "{request_text}"
+        );
+        assert!(
+            request_text.contains("\r\nif-range: \"same\"\r\n"),
+            "{request_text}"
+        );
         changed
             .write_all(
                 b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-10/11\r\nContent-Length: 7\r\nETag: \"same\"\r\nConnection: close\r\n\r\nEFGHIJK",
@@ -541,7 +547,10 @@ async fn legacy_sidecar_learns_total_from_first_partial_chunk_and_rejects_drift(
         drop(first);
         let mut chunk = next(&listener).await;
         let request_text = request(&mut chunk).await;
-        assert!(request_text.contains("\r\nrange: bytes=4-\r\n"), "{request_text}");
+        assert!(
+            request_text.contains("\r\nrange: bytes=4-\r\n"),
+            "{request_text}"
+        );
         chunk
             .write_all(
                 b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-6/10\r\nContent-Length: 3\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nEFG",
@@ -551,7 +560,10 @@ async fn legacy_sidecar_learns_total_from_first_partial_chunk_and_rejects_drift(
         drop(chunk);
         let mut drift = next(&listener).await;
         let request_text = request(&mut drift).await;
-        assert!(request_text.contains("\r\nrange: bytes=7-\r\n"), "{request_text}");
+        assert!(
+            request_text.contains("\r\nrange: bytes=7-\r\n"),
+            "{request_text}"
+        );
         drift
             .write_all(
                 b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-10/11\r\nContent-Length: 4\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nHIJK",
