@@ -73,7 +73,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgur",
             "500px",
             "photovogue",
-        "fapachi",
+            "fapachi",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
@@ -94,8 +94,10 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "imgur" && canonical_imgur_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if !matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi")
-                    && id.parse::<u64>().ok().is_some_and(|n| n > 0)
+                if !matches!(
+                    category,
+                    "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi"
+                ) && id.parse::<u64>().ok().is_some_and(|n| n > 0)
                 {
                     return Some((category, entry.to_owned()));
                 }
@@ -159,7 +161,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgur",
         "500px",
         "photovogue",
-    "fapachi",
+        "fapachi",
     ] {
         if prefix == category
             && ((category == "fapachi" && canonical_fapachi_archive_suffix(bare))
@@ -168,8 +170,10 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "imgur" && canonical_imgur_archive_suffix(bare))
                 || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (!matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi")
-                    && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
+                || (!matches!(
+                    category,
+                    "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi"
+                ) && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -4736,7 +4740,10 @@ mod tests {
             filename: "model_12345.webp".into(),
             ..item.clone()
         };
-        assert_eq!(fapachi_archive_scope(&item, first).unwrap().1, "fapachimodel_12345");
+        assert_eq!(
+            fapachi_archive_scope(&item, first).unwrap().1,
+            "fapachimodel_12345"
+        );
         archive.record_for_source(&item, first).unwrap();
         assert!(archive.contains_for_source(&rotated, first).unwrap());
         assert!(!archive.contains_for_source(&item, other).unwrap());
@@ -4774,7 +4781,8 @@ mod tests {
 
     #[test]
     fn fapachi_import_requires_canonical_user_and_read_only_source() {
-        let root = std::env::temp_dir().join(format!("galerith-fapachi-import-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-fapachi-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("foreign.sqlite");
