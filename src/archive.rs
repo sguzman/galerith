@@ -3196,6 +3196,7 @@ mod tests {
             "lexicaabc-A",
             "pixeldrainFile12",
             "listal12345/full",
+            "lensdumpAbCd12",
         ];
         let rejected = [
             "danbooru00123",
@@ -3214,6 +3215,7 @@ mod tests {
             "lexicabad%2fid",
             "pixeldrainbad%2fid",
             "listal012345/full",
+            "lensdumpAlbum88_1",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3350,6 +3352,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://www.listal.com/viewimage/12345",
+            ),
+            (
+                MediaItem {
+                    url: "https://i2.lensdump.com/pics/original.jpg".into(),
+                    filename: "lensdump_AbCd12_original.jpg".into(),
+                    extractor: "lensdump",
+                    post_id: None,
+                },
+                "https://lensdump.com/i/AbCd12",
             ),
             (
                 MediaItem {
@@ -7450,6 +7461,149 @@ mod tests {
             .contains_for_source(&different, "https://www.listal.com/viewimage/12345")
             .unwrap());
         drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lensdump_image_keys_are_distinct_from_albums_and_respect_media_provenance() {
+        let root = std::env::temp_dir().join(format!("galerith-lensdump-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let image = MediaItem {
+            url: "https://i2.lensdump.com/pics/original.jpg".into(),
+            filename: "lensdump_AbCd12_original.jpg".into(),
+            extractor: "lensdump",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://x.l3n.co/other/original.jpg".into(),
+            ..image.clone()
+        };
+        let different = MediaItem {
+            url: "https://i2.lensdump.com/pics/different.jpg".into(),
+            filename: "lensdump_Other77_different.jpg".into(),
+            ..image.clone()
+        };
+        let album_item = MediaItem {
+            url: "https://i2.lensdump.com/pics/original.jpg".into(),
+            filename: "Album88_AbCd12_original.jpg".into(),
+            ..image.clone()
+        };
+        let source = "https://lensdump.com/i/AbCd12";
+        assert_eq!(
+            lensdump_archive_scope(&image, source).unwrap().1,
+            "lensdumpAbCd12"
+        );
+        archive.record_for_source(&image, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(!archive
+            .contains_for_source(&different, "https://lensdump.com/i/Other77")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&album_item, "https://lensdump.com/a/Album88")
+            .unwrap());
+        for source in [
+            "https://lensdump.com/a/AbCd12",
+            "https://lensdump.com/i/AbCd12?private=1",
+            "http://lensdump.com/i/AbCd12",
+            "https://evil.lensdump.com/i/AbCd12",
+            "https://lensdump.com:8443/i/AbCd12",
+            "https://lensdump.com/i/Ab_Cd12",
+        ] {
+            assert!(lensdump_archive_scope(&image, source).is_none(), "{source}");
+        }
+        for media_url in [
+            "https://x.l3n.co/other/renamed.jpg",
+            "https://x.l3n.co/other/original.jpg?auth=secret",
+            "https://x.l3n.co.evil.test/other/original.jpg",
+        ] {
+            let forged = MediaItem {
+                url: media_url.into(),
+                ..image.clone()
+            };
+            assert!(lensdump_archive_scope(&forged, "https://lensdump.com/i/AbCd12").is_none());
+        }
+        for bad in ["Album88_1", "_1", "AbCd12_01", "", "bad%2fid"] {
+            assert!(!canonical_lensdump_image_id(bad), "{bad}");
+        }
+        drop(archive);
+        let data = fs::read(native).unwrap();
+        for secret in ["AbCd12", "original.jpg"] {
+            assert!(!data.windows(secret.len()).any(|part| part == secret.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lensdump_image_reference_migration_rejects_album_keys_and_is_offline_usable() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-lensdump-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('lensdumpAbCd12');
+             INSERT INTO archive VALUES ('lensdumpOther77');
+             INSERT INTO archive VALUES ('lensdumpAlbum88_1');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('AbCd12');
+             INSERT INTO named VALUES ('lensdumpAbCd12');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("lensdump"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+
+        let offline = Archive::open(&native).unwrap();
+        let image = MediaItem {
+            url: "https://z.l3n.co/new/original.jpg".into(),
+            filename: "lensdump_AbCd12_original.jpg".into(),
+            extractor: "lensdump",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&image, "https://lensdump.com/i/AbCd12")
+            .unwrap());
+        let absent = MediaItem {
+            url: "https://i2.lensdump.com/other/absent.jpg".into(),
+            filename: "lensdump_Missing10_absent.jpg".into(),
+            ..image
+        };
+        assert!(!offline
+            .contains_for_source(&absent, "https://lensdump.com/i/Missing10")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"lensdumpAbCd12".len())
+            .any(|part| part == b"lensdumpAbCd12"));
         fs::remove_dir_all(root).unwrap();
     }
 
