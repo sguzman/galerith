@@ -4431,6 +4431,62 @@ mod tests {
     }
 
     #[test]
+    fn fourchan_numeric_foreign_entries_are_not_counted_as_migratable() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-fourchan-numeric-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&source).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('4chan123');
+             INSERT INTO archive VALUES ('4chana_123_456');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('123');
+             INSERT INTO named VALUES ('a_123_456');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&source).unwrap();
+
+        let default = Archive::open_with_reference(&root.join("default.sqlite"), Some(&source))
+            .unwrap();
+        assert_eq!(default.import_reference().unwrap(), (1, 1));
+        assert_eq!(default.import_reference().unwrap(), (1, 0));
+        drop(default);
+        let custom = Archive::open_with_reference_options(
+            &root.join("custom.sqlite"),
+            Some(&source),
+            Some("named"),
+            Some("4chan"),
+        )
+        .unwrap();
+        assert_eq!(custom.import_reference().unwrap(), (1, 1));
+        assert_eq!(custom.import_reference().unwrap(), (1, 0));
+        drop(custom);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        fs::remove_file(source).unwrap();
+
+        let item = MediaItem {
+            url: "https://i.4cdn.org/a/456.jpg".into(),
+            filename: "456.jpg".into(),
+            extractor: "4chan",
+            post_id: Some(456),
+        };
+        for path in ["default.sqlite", "custom.sqlite"] {
+            let archive = Archive::open(&root.join(path)).unwrap();
+            assert!(archive
+                .contains_for_source(&item, "https://boards.4chan.org/a/thread/123")
+                .unwrap());
+            assert!(!archive
+                .contains_for_source(&item, "https://boards.4chan.org/a/thread/124")
+                .unwrap());
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn fourchan_named_archive_table_requires_genuine_4chan_prefix() {
         let root =
             std::env::temp_dir().join(format!("galerith-fourchan-named-{}", std::process::id()));
