@@ -84,12 +84,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "photovogue",
             "fapachi",
             "fapello",
+            "lightroom",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "lightroom" && canonical_lightroom_asset_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "fapello" && canonical_fapello_archive_suffix(id) {
@@ -116,6 +120,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "photovogue"
                         | "fapachi"
                         | "fapello"
+                        | "lightroom"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -185,9 +190,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "photovogue",
         "fapachi",
         "fapello",
+        "lightroom",
     ] {
         if prefix == category
-            && ((category == "fapello" && canonical_fapello_archive_suffix(bare))
+            && ((category == "lightroom" && canonical_lightroom_asset_id(bare))
+                || (category == "fapello" && canonical_fapello_archive_suffix(bare))
                 || (category == "fapachi" && canonical_fapachi_archive_suffix(bare))
                 || (category == "photovogue" && canonical_photovogue_archive_suffix(bare))
                 || (category == "500px" && canonical_500px_archive_suffix(bare))
@@ -203,6 +210,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "photovogue"
                         | "fapachi"
                         | "fapello"
+                        | "lightroom"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -375,7 +383,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
         || is_gelbooru_category(category)
         || matches!(
             category,
-            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
+            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello" | "lightroom"
         )
 }
 
@@ -580,6 +588,82 @@ fn fapachi_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
     Some((
         format!("post-sha256:{}", archive_key_digest(&normalized)),
         normalized,
+    ))
+}
+
+/// The pinned Lightroom gallery extractor's archive_fmt is "{id}".
+/// The native Lightroom extractor derives an indexed filename from the asset
+/// ID returned by Adobe's image-list API; only this canonical shape proves
+/// which asset owns a media rendition.
+fn canonical_lightroom_asset_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn lightroom_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "lightroom" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("lightroom.adobe.com")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let album = match parts.as_slice() {
+        ["shares", id] => *id,
+        _ => return None,
+    };
+    if !(1..=128).contains(&album.len())
+        || !album
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return None;
+    }
+    let (ordinal, asset_extension) = item.filename.split_once('_')?;
+    if ordinal.len() != 4
+        || !ordinal.bytes().all(|byte| byte.is_ascii_digit())
+        || ordinal.parse::<u16>().ok()? == 0
+    {
+        return None;
+    }
+    let (id, ext) = asset_extension.rsplit_once('.')?;
+    if !canonical_lightroom_asset_id(id)
+        || ext.is_empty()
+        || ext.len() > 12
+        || !ext.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !["adobe.com", "adobe.io", "adobe.net", "adobecdn.com"]
+            .iter()
+            .any(|domain| host == *domain || host.ends_with(&format!(".{domain}")))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+    {
+        return None;
+    }
+    let media_extension = media.path_segments()?.next_back()?.rsplit_once('.')?.1;
+    if media_extension != ext {
+        return None;
+    }
+    let upstream = format!("lightroom{id}");
+    Some((
+        format!("asset-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
     ))
 }
 
@@ -1378,6 +1462,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| photovogue_archive_scope(item, source_url))
         .or_else(|| fapachi_archive_scope(item, source_url))
         .or_else(|| fapello_archive_scope(item, source_url))
+        .or_else(|| lightroom_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
