@@ -5570,7 +5570,10 @@ mod tests {
             "https://evil.lightroom.adobe.com/shares/abc",
             "https://lightroom.adobe.com/shares/abc?secret=1",
         ] {
-            assert!(lightroom_archive_scope(&first, invalid).is_none(), "{invalid}");
+            assert!(
+                lightroom_archive_scope(&first, invalid).is_none(),
+                "{invalid}"
+            );
         }
         for invalid in [
             "0000_asset-A.jpg",
