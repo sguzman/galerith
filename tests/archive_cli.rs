@@ -213,6 +213,94 @@ fn pdf_soft_error_does_not_create_an_archive_entry() {
 }
 
 #[test]
+fn misleading_binary_mime_or_missing_content_type_cannot_poison_archive() {
+    let dir = temp("misleading-binary-soft-errors");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/image.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for (mime, body) in [
+            (Some("application/octet-stream"), b"<html>Blocked</html>".as_slice()),
+            (None, b"{\"error\":\"denied\"}".as_slice()),
+            (Some("image/jpeg"), b"GOOD".as_slice()),
+        ] {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for disguised media fixture"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("disguised media fixture listener error: {err}"),
+                }
+            };
+            let mut buffer = [0_u8; 2048];
+            let n = stream.read(&mut buffer).unwrap();
+            assert!(
+                String::from_utf8_lossy(&buffer[..n]).contains("/image.jpg")
+            );
+            let declared = mime
+                .map(|mime| format!("Content-Type: {mime}\r\n"))
+                .unwrap_or_default();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\n{declared}Content-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(body).unwrap();
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    for _ in 0..2 {
+        let failed = invoke();
+        assert!(!failed.status.success(), "disguised error was accepted");
+        assert!(!dir.join("image.jpg").exists());
+        assert!(!dir.join("image.jpg.part").exists());
+        assert!(!dir.join("image.jpg.part.json").exists());
+        let count: i64 = rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    let saved = invoke();
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(dir.join("image.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived image.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn soft_200_error_documents_cannot_become_archived_image_media() {
     let dir = temp("soft-200-error-document");
     let _ = fs::remove_dir_all(&dir);
