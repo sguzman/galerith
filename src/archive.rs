@@ -71,6 +71,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "wallhaven",
             "4chan",
             "imgur",
+            "500px",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
@@ -79,10 +80,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
+                if category == "500px" && canonical_500px_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
                 if category == "imgur" && canonical_imgur_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if !matches!(category, "wallhaven" | "imgur")
+                if !matches!(category, "wallhaven" | "imgur" | "500px")
                     && id.parse::<u64>().ok().is_some_and(|n| n > 0)
                 {
                     return Some((category, entry.to_owned()));
@@ -145,12 +149,14 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "wallhaven",
         "4chan",
         "imgur",
+        "500px",
     ] {
         if prefix == category
-            && ((category == "imgur" && canonical_imgur_archive_suffix(bare))
+            && ((category == "500px" && canonical_500px_archive_suffix(bare))
+                || (category == "imgur" && canonical_imgur_archive_suffix(bare))
                 || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (!matches!(category, "wallhaven" | "imgur")
+                || (!matches!(category, "wallhaven" | "imgur" | "500px")
                     && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -321,7 +327,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
     is_booru_pool_category(category)
         || is_moebooru_category(category)
         || is_gelbooru_category(category)
-        || matches!(category, "wallhaven" | "4chan" | "imgur")
+        || matches!(category, "wallhaven" | "4chan" | "imgur" | "500px")
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -356,6 +362,62 @@ fn canonical_favorite_group_archive_suffix(suffix: &str) -> bool {
         return false;
     };
     group_id > 0 && post_id > 0 && suffix == format!("fg_{group_id}_{post_id}")
+}
+
+fn canonical_500px_archive_suffix(suffix: &str) -> bool {
+    suffix.len() <= 18
+        && suffix
+            .parse::<u64>()
+            .ok()
+            .is_some_and(|id| id > 0 && suffix == id.to_string())
+}
+
+/// The pinned 500px archive_fmt is "{id}". Use its photo ID only when a
+/// single-photo input and a trusted source-media host prove the same image.
+fn fivehundredpx_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "500px" {
+        return None;
+    }
+    let id = item.post_id.filter(|id| *id > 0)?;
+    if !canonical_500px_archive_suffix(&id.to_string()) {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if !matches!(source.scheme(), "http" | "https")
+        || !matches!(source.host_str(), Some("500px.com" | "web.500px.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let source_id = match parts.as_slice() {
+        ["photo", source_id]
+        | ["photo", source_id, ""]
+        | ["photo", source_id, _]
+        | ["photo", source_id, _, ""] => *source_id,
+        _ => return None,
+    };
+    if !canonical_500px_archive_suffix(source_id) || source_id.parse::<u64>().ok()? != id {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    let approved = ["500px.com", "500px.org", "500pxcdn.com"]
+        .iter()
+        .any(|root| host == *root || host.ends_with(&format!(".{root}")));
+    if media.scheme() != "https"
+        || !approved
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+    {
+        return None;
+    }
+    Some((format!("image-id:{id}"), format!("500px{id}")))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
@@ -1051,6 +1113,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| wallhaven_archive_scope(item, source_url))
         .or_else(|| fourchan_archive_scope(item, source_url))
         .or_else(|| imgur_archive_scope(item, source_url))
+        .or_else(|| fivehundredpx_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4253,6 +4316,106 @@ mod tests {
         assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
         worker.join().unwrap();
         drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fivehundredpx_single_photo_id_survives_changed_cdn_url_without_cross_matches() {
+        let root = std::env::temp_dir().join(format!("galerith-500px-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let original = MediaItem {
+            url: "https://img.500px.com/original.jpg?sig=one".into(),
+            filename: "12345.jpg".into(),
+            extractor: "500px",
+            post_id: Some(12345),
+        };
+        let rotated = MediaItem {
+            url: "https://drscdn.500px.org/changed.webp?sig=two".into(),
+            filename: "12345.webp".into(),
+            ..original.clone()
+        };
+        let source = "https://500px.com/photo/12345/Golden-Landscape";
+        assert_eq!(
+            fivehundredpx_archive_scope(&original, source).unwrap().1,
+            "500px12345"
+        );
+        assert_ne!(key(&original), key(&rotated));
+        archive.record_for_source(&original, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://web.500px.com/photo/12345")
+            .unwrap());
+        for invalid in [
+            "https://500px.com/photo/12346",
+            "https://500px.com/photo/12345?secret=1",
+            "https://500px.com:8443/photo/12345",
+            "https://other.invalid/photo/12345",
+            "https://500px.com/alice/galleries/12345",
+        ] {
+            assert!(fivehundredpx_archive_scope(&rotated, invalid).is_none());
+        }
+        let other = MediaItem {
+            post_id: Some(12346),
+            ..rotated.clone()
+        };
+        assert!(!archive
+            .contains_for_source(&other, "https://500px.com/photo/12346")
+            .unwrap());
+        let attacker = MediaItem {
+            url: "https://fake500px.com/photo/12345.jpg".into(),
+            ..rotated
+        };
+        assert!(fivehundredpx_archive_scope(&attacker, source).is_none());
+        for invalid in ["0", "012345", "123abc", "18446744073709551616"] {
+            assert!(!canonical_500px_archive_suffix(invalid));
+        }
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fivehundredpx_import_is_idempotent_private_and_works_without_reference() {
+        let root = std::env::temp_dir().join(format!("galerith-500px-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("foreign.sqlite");
+        let reference = Connection::open(&source).unwrap();
+        reference.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('500px12345');
+             INSERT INTO archive VALUES ('500px012345');
+             INSERT INTO archive VALUES ('500px0');
+             INSERT INTO archive VALUES ('500px12346');",
+        ).unwrap();
+        drop(reference);
+        let before = fs::read(&source).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        assert_eq!(fs::read(&source).unwrap(), before);
+        fs::remove_file(source).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let photo = MediaItem {
+            url: "https://drscdn.500px.org/rotated.jpg?token=secret".into(),
+            filename: "12345.jpg".into(),
+            extractor: "500px",
+            post_id: Some(12345),
+        };
+        assert!(offline
+            .contains_for_source(&photo, "https://500px.com/photo/12345")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&photo, "https://500px.com/photo/12347")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"500px12345".len())
+            .any(|chunk| chunk == b"500px12345"));
         fs::remove_dir_all(root).unwrap();
     }
 
