@@ -585,9 +585,6 @@ fn wallhaven_wallpaper_id(item: &MediaItem) -> Option<String> {
     if group.len() != 2 || !group.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return None;
     }
-    if filename != item.filename {
-        return None;
-    }
     let (id, ext) = filename.strip_prefix("wallhaven-")?.rsplit_once('.')?;
     if !valid_wallhaven_id(id) || !matches!(ext, "jpg" | "jpeg" | "png" | "webp") {
         return None;
@@ -3724,8 +3721,13 @@ mod tests {
                 "{unrelated}"
             );
         }
+        let renamed = MediaItem {
+            filename: "my-custom-wallpaper.jpg".into(),
+            ..first.clone()
+        };
+        assert!(wallhaven_archive_scope(&renamed, post).is_some());
         let mismatched = MediaItem {
-            filename: "wallhaven-other.jpg".into(),
+            url: "https://w.wallhaven.cc/full/94/wallhaven-94x38y.jpg".into(),
             ..first.clone()
         };
         assert!(wallhaven_archive_scope(&mismatched, post).is_none());
