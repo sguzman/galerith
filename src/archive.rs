@@ -86,12 +86,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "fapello",
             "lightroom",
             "foriio",
+            "piczel",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "piczel" && canonical_piczel_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "foriio" && canonical_foriio_archive_suffix(id) {
@@ -126,6 +130,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "fapello"
                         | "lightroom"
                         | "foriio"
+                        | "piczel"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -197,9 +202,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "fapello",
         "lightroom",
         "foriio",
+        "piczel",
     ] {
         if prefix == category
-            && ((category == "foriio" && canonical_foriio_archive_suffix(bare))
+            && ((category == "piczel" && canonical_piczel_archive_suffix(bare))
+                || (category == "foriio" && canonical_foriio_archive_suffix(bare))
                 || (category == "lightroom" && canonical_lightroom_asset_id(bare))
                 || (category == "fapello" && canonical_fapello_archive_suffix(bare))
                 || (category == "fapachi" && canonical_fapachi_archive_suffix(bare))
@@ -219,6 +226,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "fapello"
                         | "lightroom"
                         | "foriio"
+                        | "piczel"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -400,6 +408,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "fapello"
                 | "lightroom"
                 | "foriio"
+                | "piczel"
         )
 }
 
@@ -867,6 +876,86 @@ fn foriio_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
         format!("work-file-sha256:{}", archive_key_digest(&upstream)),
         upstream,
     ))
+}
+
+/// Pinned Piczel user/image archive_fmt = "{id}_{num}". Folder mode
+/// instead uses "f{folder[id]}_{id}_{num}"; MediaItem lacks independently
+/// verified folder metadata, so it must never be guessed here.
+fn canonical_piczel_archive_suffix(suffix: &str) -> bool {
+    let Some((post, num)) = suffix.rsplit_once('_') else {
+        return false;
+    };
+    canonical_numeric_archive_suffix(post)
+        && num
+            .parse::<u8>()
+            .ok()
+            .is_some_and(|n| n <= 15 && num == n.to_string())
+}
+
+fn piczel_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "piczel" {
+        return None;
+    }
+    let id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("piczel.tv" | "www.piczel.tv"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    match parts.as_slice() {
+        ["gallery", "image", post] | ["gallery", "image", post, ""]
+            if *post == id.to_string() => {}
+        ["gallery", user] | ["gallery", user, ""]
+            if (1..=96).contains(&user.len())
+                && user
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_')) => {}
+        // Folder keys need per-post folder[id], not merely the requested URL.
+        _ => return None,
+    }
+    let prefix = format!("piczel_{id}_");
+    let stem = item.filename.strip_prefix(&prefix)?;
+    let (title, numbered_extension) = stem.rsplit_once('_')?;
+    if title.is_empty() {
+        return None;
+    }
+    let (number, ext) = numbered_extension.rsplit_once('.')?;
+    let num = number.parse::<u8>().ok()?;
+    if num > 15
+        || number != format!("{num:02}")
+        || !matches!(
+            ext,
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "mp4" | "webm"
+        )
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(host == "piczel.tv" || host.ends_with(".piczel.tv"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path_segments()?.next_back()?.rsplit_once('.')?.1 != ext
+    {
+        return None;
+    }
+    let suffix = format!("{id}_{num}");
+    if !canonical_piczel_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("piczel{suffix}");
+    Some((format!("post-sha256:{}", archive_key_digest(&upstream)), upstream))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
@@ -1573,6 +1662,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| fapello_archive_scope(item, source_url))
         .or_else(|| lightroom_archive_scope(item, source_url))
         .or_else(|| foriio_archive_scope(item, source_url))
+        .or_else(|| piczel_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
