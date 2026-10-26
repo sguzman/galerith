@@ -913,3 +913,24 @@ fn pinned_slideshare_presentation_archive_uses_slug_and_page() {
         "slideshare|presentation|my-deck_1|my-deck_2"
     );
 }
+
+#[test]
+fn pinned_issuu_publication_page_archive_keys() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Issuu archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; x=extractor.find('https://issuu.com/press/docs/fall-2026'); print('|'.join((x.category,x.subcategory,x.archive_fmt.format(document={'publicationId':'pub34'},num=1),x.archive_fmt.format(document={'publicationId':'pub34'},num=2))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Issuu publication-page archive format").trim(),
+        "issuu|publication|pub34_1|pub34_2"
+    );
+}
