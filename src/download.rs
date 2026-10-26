@@ -4,7 +4,7 @@
 use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
-    header::{CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER},
+    header::{ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER},
     Client, StatusCode,
 };
 use serde::{Deserialize, Serialize};
@@ -207,7 +207,9 @@ pub async fn download(
 
     for attempt in 0..=options.retries {
         let (offset, prior) = partial_info(&part, &metadata, &item.url).await;
-        let mut request = client.get(&item.url);
+        // Resume offsets refer to the raw representation: opt out of
+        // HTTP content encoding to keep sidecar byte counts meaningful.
+        let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
         if offset > 0 {
             request = request.header(RANGE, format!("bytes={offset}-")).header(
                 IF_RANGE,
@@ -246,6 +248,18 @@ pub async fn download(
             ));
         }
         let mut response = response.error_for_status()?;
+        // Even when identity was requested, an HTTP server can ignore it.
+        // Saving encoded response bytes under the original filename or
+        // appending them to an identity partial would corrupt the media.
+        if header(&response, CONTENT_ENCODING)
+            .is_some_and(|encoding| !encoding.eq_ignore_ascii_case("identity"))
+        {
+            invalidate(&part, &metadata).await?;
+            if attempt < options.retries {
+                continue;
+            }
+            return Err(error("non-identity Content-Encoding; partial reset"));
+        }
         let append = offset > 0 && status == StatusCode::PARTIAL_CONTENT;
         if status == StatusCode::PARTIAL_CONTENT && !append {
             return Err(error("unexpected partial response without a range request"));
