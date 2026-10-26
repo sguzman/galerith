@@ -100,6 +100,35 @@ async fn redirect_disabled_and_accepted_status_are_not_completed_downloads() {
     clean(&dest);
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn preexisting_output_and_resume_aliases_cannot_overwrite_other_files() {
+    use std::os::unix::fs::symlink;
+    let dest = dir("output-alias-rejection");
+    clean(&dest);
+    fs::create_dir_all(&dest).unwrap();
+    let victim = dest.join("unrelated.txt");
+    fs::write(&victim, b"UNRELATED-CONTENT").unwrap();
+    let media = dest.join("photo.jpg");
+    let part = dest.join("photo.jpg.part");
+    let sidecar = dest.join("photo.jpg.part.json");
+    let item = extract_direct_media("http://127.0.0.1:1/photo.jpg").unwrap();
+
+    for alias in [&media, &part, &sidecar] {
+        symlink(&victim, alias).unwrap();
+        let failed = download(&client(), &item, &settings(dest.clone(), 0)).await;
+        assert!(failed.is_err(), "unexpectedly followed alias: {alias:?}");
+        assert_eq!(fs::read(&victim).unwrap(), b"UNRELATED-CONTENT");
+        fs::remove_file(alias).unwrap();
+    }
+    fs::hard_link(&victim, &part).unwrap();
+    let failed = download(&client(), &item, &settings(dest.clone(), 0)).await;
+    assert!(failed.is_err(), "hard-linked partial was unexpectedly trusted");
+    assert_eq!(fs::read(&victim).unwrap(), b"UNRELATED-CONTENT");
+    fs::remove_file(part).unwrap();
+    clean(&dest);
+}
+
 #[tokio::test]
 async fn resumes_interrupted_http_body_with_matching_etag() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
