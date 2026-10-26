@@ -3278,6 +3278,7 @@ mod tests {
             "pixeldrainFile12",
             "listal12345/full",
             "lensdumpAbCd12",
+            "webmshareABc_123",
         ];
         let rejected = [
             "danbooru00123",
@@ -3297,6 +3298,7 @@ mod tests {
             "pixeldrainbad%2fid",
             "listal012345/full",
             "lensdumpAlbum88_1",
+            "webmsharebad%2fid",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3442,6 +3444,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://lensdump.com/i/AbCd12",
+            ),
+            (
+                MediaItem {
+                    url: "https://s4.webmshare.com/video.webm".into(),
+                    filename: "ABc_123.webm".into(),
+                    extractor: "webmshare",
+                    post_id: None,
+                },
+                "https://webmshare.com/play/ABc_123",
             ),
             (
                 MediaItem {
@@ -7687,6 +7698,157 @@ mod tests {
         assert!(!bytes
             .windows(b"lensdumpAbCd12".len())
             .any(|part| part == b"lensdumpAbCd12"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn webmshare_video_identity_ignores_cdn_and_title_but_not_source_id() {
+        let root = std::env::temp_dir().join(format!("galerith-webmshare-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let video = MediaItem {
+            url: "https://s4.webmshare.com/media/first.webm?signature=private".into(),
+            filename: "ABc_123 Birds in Flight.webm".into(),
+            extractor: "webmshare",
+            post_id: None,
+        };
+        let renamed = MediaItem {
+            url: "https://s9.webmshare.com/media/rotated.webm?signature=changed".into(),
+            filename: "ABc_123.webm".into(),
+            ..video.clone()
+        };
+        let different = MediaItem {
+            url: "https://s4.webmshare.com/media/other.webm".into(),
+            filename: "video99.webm".into(),
+            ..video.clone()
+        };
+        let source = "https://webmshare.com/play/ABc_123";
+        assert_eq!(
+            webmshare_archive_scope(&video, source).unwrap().1,
+            "webmshareABc_123"
+        );
+        archive.record_for_source(&video, source).unwrap();
+        assert!(archive.contains_for_source(&renamed, source).unwrap());
+        assert!(archive
+            .contains_for_source(&renamed, "https://s4.webmshare.com/download-webm/ABc_123")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&different, "https://webmshare.com/video99")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&video, "https://webmshare.com/play/ABc_12")
+            .unwrap());
+        for bad in [
+            "http://webmshare.com/play/ABc_123",
+            "https://fakewebmshare.com/play/ABc_123",
+            "https://webmshare.com/play/ABc_123?secret=1",
+            "https://webmshare.com:8443/play/ABc_123",
+            "https://webmshare.com/play/ABc_123/extra",
+        ] {
+            assert!(webmshare_archive_scope(&video, bad).is_none(), "{bad}");
+        }
+        for bad_url in [
+            "https://sbad.webmshare.com/video.webm",
+            "https://s3.webmshare.com/video.mp4",
+            "https://s3.webmshare.com/video.webm#private",
+            "https://s3.webmshare.com.evil.test/video.webm",
+        ] {
+            let changed = MediaItem {
+                url: bad_url.into(),
+                ..video.clone()
+            };
+            assert!(webmshare_archive_scope(&changed, source).is_none(), "{bad_url}");
+        }
+        for bad_filename in ["ABc_1234.webm", "ABc_123.mp4", "ABC_123.webm"] {
+            let changed = MediaItem {
+                filename: bad_filename.into(),
+                ..video.clone()
+            };
+            assert!(webmshare_archive_scope(&changed, source).is_none());
+        }
+        for bad in ["ab", "bad%2fid", "A-B", ""] {
+            assert!(!canonical_webmshare_video_id(bad));
+        }
+        drop(archive);
+        let db_bytes = fs::read(native).unwrap();
+        for secret in ["ABc_123", "Birds in Flight", "signature=private"] {
+            assert!(!db_bytes
+                .windows(secret.len())
+                .any(|piece| piece == secret.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn webmshare_reference_import_remains_private_and_source_free() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-webmshare-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('webmshareABc_123');
+             INSERT INTO archive VALUES ('webmsharevideo99');
+             INSERT INTO archive VALUES ('webmsharebad%2fid');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('ABc_123');
+             INSERT INTO named VALUES ('webmshareABc_123');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("webmshare"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+
+        let reopened = Archive::open(&native).unwrap();
+        let video = MediaItem {
+            url: "https://s4.webmshare.com/rotated.webm".into(),
+            filename: "ABc_123.webm".into(),
+            extractor: "webmshare",
+            post_id: None,
+        };
+        assert!(reopened
+            .contains_for_source(&video, "https://webmshare.com/ABc_123")
+            .unwrap());
+        let missing = MediaItem {
+            url: "https://s4.webmshare.com/other.webm".into(),
+            filename: "missing9.webm".into(),
+            ..video
+        };
+        assert!(!reopened
+            .contains_for_source(&missing, "https://webmshare.com/missing9")
+            .unwrap());
+        drop(reopened);
+        let native_bytes = fs::read(native).unwrap();
+        assert!(!native_bytes
+            .windows(b"webmshareABc_123".len())
+            .any(|part| part == b"webmshareABc_123"));
         fs::remove_dir_all(root).unwrap();
     }
 
