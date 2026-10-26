@@ -105,34 +105,27 @@ fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Op
         .map(str::to_owned)
 }
 
-/// An HTML/JSON application error with HTTP 200 is not image or video
-/// content, even when its URL and output filename have a media extension.
-/// Keep generic direct-file downloads (e.g. an actual .html file) intact.
+/// A synthetic success response containing an HTML/JSON error document
+/// cannot complete an unrelated media, PDF, archive or other direct file.
+/// Legitimate HTML/JSON downloads with corresponding extensions are allowed.
 fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
     let extension = item
         .filename
         .rsplit_once('.')
         .map(|(_, ext)| ext.to_ascii_lowercase());
-    let media_exts = [
-        "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
-        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg",
-    ];
-    let expects_media = extension
-        .as_deref()
-        .is_some_and(|ext| media_exts.contains(&ext));
-    if !expects_media {
-        return false;
-    }
     let mime = content_type
         .split(';')
         .next()
         .unwrap_or("")
         .trim()
         .to_ascii_lowercase();
-    matches!(
-        mime.as_str(),
-        "text/html" | "application/xhtml+xml" | "application/json" | "application/problem+json"
-    )
+    match mime.as_str() {
+        "text/html" => !matches!(extension.as_deref(), Some("html" | "htm")),
+        "application/xhtml+xml" => extension.as_deref() != Some("xhtml"),
+        "application/json" => !matches!(extension.as_deref(), Some("json" | "jsonl")),
+        "application/problem+json" => true,
+        _ => false,
+    }
 }
 
 fn error(message: &str) -> Box<dyn Error + Send + Sync> {
@@ -581,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_error_documents_only_for_media_filenames() {
+    fn reject_mismatched_soft_error_documents_for_direct_files() {
         let item = MediaItem {
             url: "https://example.test/media.jpg".into(),
             filename: "photo.jpg".into(),
@@ -598,6 +591,26 @@ mod tests {
             ..item
         };
         assert!(!media_error_document(&html, "text/html"));
+        assert!(media_error_document(&html, "application/problem+json"));
+        let pdf = MediaItem {
+            filename: "documents.pdf".into(),
+            ..html.clone()
+        };
+        assert!(media_error_document(&pdf, "text/html"));
+        assert!(media_error_document(&pdf, "application/json"));
+        assert!(!media_error_document(&pdf, "application/pdf"));
+        let archive = MediaItem {
+            filename: "media.7z".into(),
+            ..html.clone()
+        };
+        assert!(media_error_document(&archive, "text/html"));
+        let json = MediaItem {
+            filename: "data.json".into(),
+            ..html
+        };
+        assert!(!media_error_document(&json, "application/json"));
+        assert!(media_error_document(&json, "text/html"));
+        assert!(media_error_document(&json, "application/problem+json"));
     }
 
     #[test]
