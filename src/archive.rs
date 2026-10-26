@@ -836,10 +836,7 @@ fn foriio_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
     }
     let (file_id, ext) = filename.rsplit_once('.')?;
     if !canonical_foriio_file_id(file_id)
-        || !matches!(
-            ext,
-            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
-        )
+        || !matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
     {
         return None;
     }
