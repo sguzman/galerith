@@ -5873,7 +5873,12 @@ mod tests {
                 "{wrong_filename}"
             );
         }
-        for key in ["012345/file-A/1", "12345/file-A/01", "12345/file-A/0", "12345/file-A/129"] {
+        for key in [
+            "012345/file-A/1",
+            "12345/file-A/01",
+            "12345/file-A/0",
+            "12345/file-A/129",
+        ] {
             assert!(!canonical_foriio_archive_suffix(key), "{key}");
         }
         drop(archive);
