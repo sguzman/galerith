@@ -62,7 +62,10 @@ async fn redirect_disabled_and_accepted_status_are_not_completed_downloads() {
         ] {
             let mut stream = next(&listener).await;
             let request_text = request(&mut stream).await;
-            assert!(request_text.starts_with("get /media.jpg "), "{request_text}");
+            assert!(
+                request_text.starts_with("get /media.jpg "),
+                "{request_text}"
+            );
             let response = format!(
                 "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
                 body.len()

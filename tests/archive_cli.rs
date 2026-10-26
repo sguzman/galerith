@@ -101,8 +101,14 @@ fn soft_200_error_documents_cannot_become_archived_image_media() {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         for (content_type, body) in [
-            ("text/html; charset=utf-8", b"<html>Blocked</html>".as_slice()),
-            ("application/problem+json", b"{\"error\":\"blocked\"}".as_slice()),
+            (
+                "text/html; charset=utf-8",
+                b"<html>Blocked</html>".as_slice(),
+            ),
+            (
+                "application/problem+json",
+                b"{\"error\":\"blocked\"}".as_slice(),
+            ),
             ("image/jpeg", b"GOOD".as_slice()),
         ] {
             let deadline = std::time::Instant::now() + Duration::from_secs(8);
