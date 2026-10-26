@@ -73,12 +73,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgur",
             "500px",
             "photovogue",
+        "fapachi",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "fapachi" && canonical_fapachi_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "photovogue" && canonical_photovogue_archive_suffix(id) {
@@ -90,7 +94,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if category == "imgur" && canonical_imgur_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
-                if !matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue")
+                if !matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi")
                     && id.parse::<u64>().ok().is_some_and(|n| n > 0)
                 {
                     return Some((category, entry.to_owned()));
@@ -155,14 +159,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgur",
         "500px",
         "photovogue",
+    "fapachi",
     ] {
         if prefix == category
-            && ((category == "photovogue" && canonical_photovogue_archive_suffix(bare))
+            && ((category == "fapachi" && canonical_fapachi_archive_suffix(bare))
+                || (category == "photovogue" && canonical_photovogue_archive_suffix(bare))
                 || (category == "500px" && canonical_500px_archive_suffix(bare))
                 || (category == "imgur" && canonical_imgur_archive_suffix(bare))
                 || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
-                || (!matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue")
+                || (!matches!(category, "wallhaven" | "imgur" | "500px" | "photovogue" | "fapachi")
                     && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -335,7 +341,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
         || is_gelbooru_category(category)
         || matches!(
             category,
-            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue"
+            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
         )
 }
 
@@ -477,6 +483,69 @@ fn photovogue_archive_scope(item: &MediaItem, source_url: &str) -> Option<(Strin
         return None;
     }
     Some((format!("image-id:{id}"), format!("photovogue{id}")))
+}
+
+fn canonical_fapachi_archive_suffix(suffix: &str) -> bool {
+    let Some((user, raw_id)) = suffix.rsplit_once('_') else {
+        return false;
+    };
+    if !(1..=80).contains(&user.len())
+        || user == "search"
+        || !user
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || raw_id.len() > 18
+    {
+        return false;
+    }
+    raw_id
+        .parse::<u64>()
+        .ok()
+        .is_some_and(|id| id > 0 && suffix == format!("{user}_{id}"))
+}
+
+/// Pinned post archive format is {user}_{id}. The username is part of the
+/// archive identity even for equal numeric post IDs or media URLs.
+fn fapachi_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "fapachi" {
+        return None;
+    }
+    let id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if !matches!(source.scheme(), "http" | "https")
+        || !matches!(source.host_str(), Some("fapachi.com" | "www.fapachi.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let (user, source_id) = match parts.as_slice() {
+        [user, "media", source_id] | [user, "media", source_id, ""] => (*user, *source_id),
+        _ => return None,
+    };
+    let suffix = format!("{user}_{source_id}");
+    if !canonical_fapachi_archive_suffix(&suffix) || source_id.parse::<u64>().ok()? != id {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("fapachi.com")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    Some((
+        format!("user:{user}:post-id:{id}"),
+        format!("fapachi{suffix}"),
+    ))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
@@ -1174,6 +1243,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imgur_archive_scope(item, source_url))
         .or_else(|| fivehundredpx_archive_scope(item, source_url))
         .or_else(|| photovogue_archive_scope(item, source_url))
+        .or_else(|| fapachi_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4644,6 +4714,125 @@ mod tests {
         assert!(!bytes
             .windows(b"photovogue145".len())
             .any(|part| part == b"photovogue145"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fapachi_source_archive_is_user_scoped_even_for_identical_media_url() {
+        let root = std::env::temp_dir().join(format!("galerith-fapachi-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let item = MediaItem {
+            url: "https://fapachi.com/uploads/12345.jpg".into(),
+            filename: "model_12345.jpg".into(),
+            extractor: "fapachi",
+            post_id: Some(12345),
+        };
+        let first = "https://fapachi.com/model/media/12345";
+        let other = "https://fapachi.com/another/media/12345";
+        let rotated = MediaItem {
+            url: "https://fapachi.com/uploads/12345.webp".into(),
+            filename: "model_12345.webp".into(),
+            ..item.clone()
+        };
+        assert_eq!(fapachi_archive_scope(&item, first).unwrap().1, "fapachimodel_12345");
+        archive.record_for_source(&item, first).unwrap();
+        assert!(archive.contains_for_source(&rotated, first).unwrap());
+        assert!(!archive.contains_for_source(&item, other).unwrap());
+        assert!(!archive
+            .contains_for_source(&item, "https://fapachi.com/model/media/12346")
+            .unwrap());
+        for invalid in [
+            "https://fapachi.com/model/media/012345",
+            "https://fapachi.com/model/page/1",
+            "https://fapachi.com/search/media/12345",
+            "https://fakefapachi.com/model/media/12345",
+            "https://fapachi.com:8443/model/media/12345",
+            "https://fapachi.com/model/media/12345?token=secret",
+        ] {
+            assert!(fapachi_archive_scope(&item, invalid).is_none(), "{invalid}");
+        }
+        let attacker = MediaItem {
+            url: "https://fapachi.com.evil.test/uploads/12345.jpg".into(),
+            ..item
+        };
+        assert!(fapachi_archive_scope(&attacker, first).is_none());
+        for invalid in [
+            "model_0",
+            "model_012345",
+            "search_12345",
+            "model_18446744073709551616",
+            "model_12345_other",
+        ] {
+            assert!(!canonical_fapachi_archive_suffix(invalid), "{invalid}");
+        }
+        assert!(canonical_fapachi_archive_suffix("model_name_12345"));
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fapachi_import_requires_canonical_user_and_read_only_source() {
+        let root = std::env::temp_dir().join(format!("galerith-fapachi-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let connection = Connection::open(&foreign).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO archive VALUES ('fapachimodel_12345');
+                 INSERT INTO archive VALUES ('fapachianother_12345');
+                 INSERT INTO archive VALUES ('fapachimodel_012345');
+                 INSERT INTO archive VALUES ('fapachisearch_12345');
+                 CREATE TABLE custom(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO custom VALUES ('model_12345');
+                 INSERT INTO custom VALUES ('fapachimodel_12345');",
+            )
+            .unwrap();
+        drop(connection);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let item = MediaItem {
+            url: "https://fapachi.com/uploads/rotated.webp".into(),
+            filename: "model_12345.webp".into(),
+            extractor: "fapachi",
+            post_id: Some(12345),
+        };
+        let page = "https://fapachi.com/model/media/12345";
+        let unnamed = Archive::open_with_reference_table(
+            &root.join("unnamed.sqlite"),
+            Some(&foreign),
+            "custom",
+        )
+        .unwrap();
+        assert_eq!(unnamed.import_reference().unwrap(), (0, 0));
+        assert!(!unnamed.contains_for_source(&item, page).unwrap());
+        drop(unnamed);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("custom"),
+            Some("fapachi"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        assert!(named.contains_for_source(&item, page).unwrap());
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline.contains_for_source(&item, page).unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"fapachimodel_12345".len())
+            .any(|part| part == b"fapachimodel_12345"));
         fs::remove_dir_all(root).unwrap();
     }
 

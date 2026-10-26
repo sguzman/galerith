@@ -619,3 +619,24 @@ fn pinned_photovogue_archive_is_photo_id_across_photographers() {
         "photovogue145|photovogue145"
     );
 }
+
+#[test]
+fn pinned_fapachi_post_archive_keys_include_username() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Fapachi archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://fapachi.com/model/media/12345','https://fapachi.com/another/media/12345'); print('|'.join(ex.category+ex.archive_fmt.format(user=ex.user,id=ex.id) for ex in (extractor.find(url) for url in urls)))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Fapachi source-scoped archive format").trim(),
+        "fapachimodel_12345|fapachianother_12345"
+    );
+}
