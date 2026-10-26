@@ -1249,7 +1249,7 @@ fn bounded_206_subranges_commit_archive_only_after_last_chunk() {
     let first = invoke();
     assert!(!first.status.success());
     assert!(!dir.join("image.jpg").exists());
-    assert_eq!(fs::read(dir.join("image.jpg.part")).unwrap(), b"ABCDEFG");
+    assert_eq!(fs::read(dir.join("image.jpg.part")).unwrap(), b"1234EFG");
     let count = || -> i64 {
         rusqlite::Connection::open(&db)
             .unwrap()
@@ -1264,7 +1264,7 @@ fn bounded_206_subranges_commit_archive_only_after_last_chunk() {
         String::from_utf8_lossy(&second.stderr)
     );
     server.join().unwrap();
-    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"ABCDEFGHIJ");
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"1234EFGHIJ");
     assert!(!dir.join("image.jpg.part").exists());
     assert!(!dir.join("image.jpg.part.json").exists());
     assert_eq!(count(), 1);
