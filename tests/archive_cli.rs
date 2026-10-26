@@ -91,6 +91,90 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
 }
 
 #[test]
+fn soft_200_error_documents_cannot_become_archived_image_media() {
+    let dir = temp("soft-200-error-document");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/media.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for (content_type, body) in [
+            ("text/html; charset=utf-8", b"<html>Blocked</html>".as_slice()),
+            ("application/problem+json", b"{\"error\":\"blocked\"}".as_slice()),
+            ("image/jpeg", b"GOOD".as_slice()),
+        ] {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for soft error document test"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("soft document server error: {err}"),
+                }
+            };
+            let mut buffer = [0_u8; 2048];
+            let count = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..count]);
+            assert!(request.contains("/media.jpg"), "{request}");
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(header.as_bytes()).unwrap();
+            stream.write_all(body).unwrap();
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    for _ in 0..2 {
+        let failed = invoke();
+        assert!(!failed.status.success(), "error document was accepted");
+        assert!(!dir.join("media.jpg").exists());
+        assert!(!dir.join("media.jpg.part").exists());
+        assert!(!dir.join("media.jpg.part.json").exists());
+        let count: i64 = rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "HTML/JSON error must never become an archive hit");
+    }
+    let successful = invoke();
+    assert!(
+        successful.status.success(),
+        "{}",
+        String::from_utf8_lossy(&successful.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("media.jpg")).unwrap(), b"GOOD");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(dir.join("media.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived media.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn failed_download_never_creates_an_archive_hit_but_later_retry_does() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
