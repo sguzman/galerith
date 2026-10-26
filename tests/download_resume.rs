@@ -51,6 +51,53 @@ fn clean(path: &PathBuf) {
 }
 
 #[tokio::test]
+async fn redirect_disabled_and_accepted_status_are_not_completed_downloads() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for (status, extra, body) in [
+            ("302 Found", "Location: /other\r\n", b"REDIRECT".as_slice()),
+            ("202 Accepted", "", b"PENDING".as_slice()),
+            ("200 OK", "Content-Type: image/jpeg\r\n", b"GOOD".as_slice()),
+        ] {
+            let mut stream = next(&listener).await;
+            let request_text = request(&mut stream).await;
+            assert!(request_text.starts_with("get /media.jpg "), "{request_text}");
+            let response = format!(
+                "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+            stream.write_all(body).await.unwrap();
+        }
+    });
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let dest = dir("unaccepted-http-status");
+    clean(&dest);
+    let item = extract_direct_media(&format!("http://{addr}/media.jpg")).unwrap();
+    for _ in 0..2 {
+        let result = download(&client, &item, &settings(dest.clone(), 0)).await;
+        assert!(result.is_err(), "unaccepted response status was saved");
+        assert!(!dest.join("media.jpg").exists());
+        assert!(!dest.join("media.jpg.part").exists());
+        assert!(!dest.join("media.jpg.part.json").exists());
+    }
+    assert_eq!(
+        download(&client, &item, &settings(dest.clone(), 0))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dest.join("media.jpg"))
+    );
+    assert_eq!(fs::read(dest.join("media.jpg")).unwrap(), b"GOOD");
+    server.await.unwrap();
+    clean(&dest);
+}
+
+#[tokio::test]
 async fn resumes_interrupted_http_body_with_matching_etag() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
