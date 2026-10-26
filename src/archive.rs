@@ -87,12 +87,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "lightroom",
             "foriio",
             "piczel",
+            "35photo",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "35photo" && canonical_thirtyfivephoto_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "piczel" && canonical_piczel_archive_suffix(id) {
@@ -131,6 +135,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lightroom"
                         | "foriio"
                         | "piczel"
+                        | "35photo"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -203,9 +208,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "lightroom",
         "foriio",
         "piczel",
+        "35photo",
     ] {
         if prefix == category
-            && ((category == "piczel" && canonical_piczel_archive_suffix(bare))
+            && ((category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
+                || (category == "piczel" && canonical_piczel_archive_suffix(bare))
                 || (category == "foriio" && canonical_foriio_archive_suffix(bare))
                 || (category == "lightroom" && canonical_lightroom_asset_id(bare))
                 || (category == "fapello" && canonical_fapello_archive_suffix(bare))
@@ -227,6 +234,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lightroom"
                         | "foriio"
                         | "piczel"
+                        | "35photo"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -409,6 +417,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "lightroom"
                 | "foriio"
                 | "piczel"
+                | "35photo"
         )
 }
 
@@ -788,6 +797,92 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// The pinned Foriio work archive template is "{work_id}/{file_id}/{num}".
 /// All three parts are required: a work can contain multiple originals, and
 /// the same file ID can recur at another position.
+/// Pinned 35photo image/user archive key: "{id}_{num}".
+/// Tag and genre extractors use DIFFERENT archives, so only an exact public
+/// individual-photo source URL proves this unprefixed image identity.
+fn canonical_thirtyfivephoto_archive_suffix(suffix: &str) -> bool {
+    let Some((id, position)) = suffix.split_once('_') else {
+        return false;
+    };
+    canonical_numeric_archive_suffix(id)
+        && position
+            .parse::<u8>()
+            .ok()
+            .is_some_and(|num| (1..=32).contains(&num) && position == num.to_string())
+}
+
+fn thirtyfivephoto_archive_scope(
+    item: &MediaItem,
+    source_url: &str,
+) -> Option<(String, String)> {
+    if item.extractor != "35photo" {
+        return None;
+    }
+    let id = item.post_id.filter(|value| *value > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    let host = source.host_str()?;
+    let host_ok = host == "35photo.pro"
+        || host.strip_suffix(".35photo.pro").is_some_and(|part| {
+            (1..=24).contains(&part.len())
+                && part.bytes().all(|ch| ch.is_ascii_lowercase())
+        });
+    if source.scheme() != "https"
+        || !host_ok
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let route = match source_parts.as_slice() {
+        [route] | [route, ""] => *route,
+        _ => return None,
+    };
+    let photo_id = route.strip_prefix("photo_")?;
+    if photo_id != id.to_string() {
+        return None;
+    }
+    let (filename_id, rest) = item.filename.split_once('_')?;
+    if filename_id != photo_id {
+        return None;
+    }
+    let (padded, ext) = rest.rsplit_once('.')?;
+    let num = padded.parse::<u8>().ok()?;
+    if !(1..=32).contains(&num)
+        || padded != format!("{num:02}")
+        || !matches!(ext, "jpg" | "jpeg" | "png" | "webp" | "gif")
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let media_host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(media_host == "35photo.pro" || media_host.ends_with(".35photo.pro"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path().contains("..")
+        || media.path_segments()?.next_back()?.rsplit_once('.')?.1 != ext
+    {
+        return None;
+    }
+    let suffix = format!("{id}_{num}");
+    if !canonical_thirtyfivephoto_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("35photo{suffix}");
+    Some((
+        format!("photo-series-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_foriio_file_id(id: &str) -> bool {
     (1..=96).contains(&id.len())
         && id
@@ -1665,6 +1760,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| lightroom_archive_scope(item, source_url))
         .or_else(|| foriio_archive_scope(item, source_url))
         .or_else(|| piczel_archive_scope(item, source_url))
+        .or_else(|| thirtyfivephoto_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
