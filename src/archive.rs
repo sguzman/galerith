@@ -5521,6 +5521,150 @@ mod tests {
     }
 
     #[test]
+    fn lightroom_asset_ids_survive_rendition_rotation_without_confusing_assets() {
+        let root = std::env::temp_dir().join(format!("galerith-lightroom-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://assets.adobe.io/original.jpg?token=private".into(),
+            filename: "0001_asset-A.jpg".into(),
+            extractor: "lightroom",
+            post_id: None,
+        };
+        let rendition = MediaItem {
+            url: "https://images.adobecdn.com/renditions/rotated.webp?token=changed".into(),
+            filename: "0019_asset-A.webp".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            filename: "0002_asset-B.jpg".into(),
+            ..first.clone()
+        };
+        let share = "https://lightroom.adobe.com/shares/012345abcdef";
+        assert_eq!(
+            lightroom_archive_scope(&first, share).unwrap().1,
+            "lightroomasset-A"
+        );
+        archive.record_for_source(&first, share).unwrap();
+        assert!(archive.contains_for_source(&rendition, share).unwrap());
+        assert!(archive
+            .contains_for_source(
+                &rendition,
+                "https://lightroom.adobe.com/shares/fedcba012345",
+            )
+            .unwrap());
+        assert!(!archive.contains_for_source(&second, share).unwrap());
+        for invalid in [
+            "https://lightroom.adobe.com/shares/GGG",
+            "https://lightroom.adobe.com/shares/abc/extra",
+            "https://lightroom.adobe.com:8443/shares/abc",
+            "https://evil.lightroom.adobe.com/shares/abc",
+            "https://lightroom.adobe.com/shares/abc?secret=1",
+        ] {
+            assert!(lightroom_archive_scope(&first, invalid).is_none(), "{invalid}");
+        }
+        for invalid in [
+            "0000_asset-A.jpg",
+            "10000_asset-A.jpg",
+            "0001_asset-A.png",
+            "0001_abc%2fdef.jpg",
+        ] {
+            let item = MediaItem {
+                filename: invalid.into(),
+                ..first.clone()
+            };
+            assert!(lightroom_archive_scope(&item, share).is_none(), "{invalid}");
+        }
+        let malicious = MediaItem {
+            url: "https://adobe.io.evil.test/asset-A.jpg".into(),
+            ..first
+        };
+        assert!(lightroom_archive_scope(&malicious, share).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for secret in ["asset-A", "private", "rotated.webp"] {
+            assert!(
+                !bytes
+                    .windows(secret.len())
+                    .any(|chunk| chunk == secret.as_bytes()),
+                "{secret}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lightroom_import_requires_proven_category_and_survives_offline_reopen() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-lightroom-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('lightroomasset-A');
+             INSERT INTO archive VALUES ('lightroomasset-B');
+             INSERT INTO archive VALUES ('lightroombad%2fid');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('asset-A');
+             INSERT INTO named VALUES ('lightroomasset-A');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("lightroom"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let local = Archive::open(&native).unwrap();
+        let found = MediaItem {
+            url: "https://assets.adobe.net/changed.webp?token=rotated".into(),
+            filename: "0021_asset-A.webp".into(),
+            extractor: "lightroom",
+            post_id: None,
+        };
+        assert!(local
+            .contains_for_source(&found, "https://lightroom.adobe.com/shares/abc")
+            .unwrap());
+        let missing = MediaItem {
+            filename: "0001_asset-C.webp".into(),
+            ..found
+        };
+        assert!(!local
+            .contains_for_source(&missing, "https://lightroom.adobe.com/shares/abc")
+            .unwrap());
+        drop(local);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"lightroomasset-A".len())
+            .any(|chunk| chunk == b"lightroomasset-A"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imgur_album_and_single_image_identities_keep_originals_separate() {
         let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
