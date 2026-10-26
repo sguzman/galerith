@@ -548,6 +548,14 @@ pub async fn download(
                 transfer_error = Some(err.into());
             }
         }
+        if transfer_error.is_none() {
+            // A completed response is not ready for the atomic final rename
+            // until the filesystem acknowledges its data and file metadata.
+            // A sync error must never create a successful archive event.
+            if let Err(err) = file.sync_all().await {
+                transfer_error = Some(err.into());
+            }
+        }
         drop(file);
         if let Some(err) = transfer_error {
             if misleading_error_body || (received == 0 && !append) {
