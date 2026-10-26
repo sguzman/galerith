@@ -862,7 +862,14 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
     match prefix {
         None => Some(default),
         Some(prefix) => {
-            if philomena_id(item).is_some() && prefix != item.extractor {
+            // A custom prefix can combine multiple extractor classes.
+            // Neither numeric Philomena IDs nor URL-shaped directlink
+            // payloads prove their source when a different class is named.
+            if (philomena_id(item).is_some() && prefix != item.extractor)
+                || (item.extractor == "directlink"
+                    && !prefix.is_empty()
+                    && prefix != "directlink")
+            {
                 return None;
             }
             Some(format!("{prefix}{}", default.strip_prefix(item.extractor)?))
@@ -2196,6 +2203,12 @@ mod tests {
             Some("fapachi"),
         )
         .unwrap();
+        let unrelated =
+            extract_direct_media("https://example.org/photos/item.jpg?signature=rotated").unwrap();
+        assert!(
+            !archive.contains(&unrelated).unwrap(),
+            "live read-only lookup must not confuse a foreign prefix with directlink"
+        );
         assert_eq!(archive.import_reference().unwrap(), (1, 1));
         assert_eq!(archive.import_reference().unwrap(), (1, 0));
         drop(archive);
