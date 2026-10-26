@@ -1114,3 +1114,24 @@ fn pinned_imgadult_uses_strict_hex_image_page_token() {
         "imgadult|image|686b4f451af05|imgadult|image|abcdef012"
     );
 }
+
+#[test]
+fn pinned_imgclick_uses_individual_imagehost_token_archive_keys() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Imgclick archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://imgclick.net/4tbrre1oxew9'); b=extractor.find('http://www.imgclick.net/ABc_123/sample.png.html'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='4tbrre1oxew9'),b.category,b.subcategory,b.archive_fmt.format(token='ABc_123'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Imgclick image-host token and optional URL hint").trim(),
+        "imgclick|image|4tbrre1oxew9|imgclick|image|ABc_123"
+    );
+}

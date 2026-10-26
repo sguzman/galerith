@@ -105,12 +105,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imagepond",
             "imxto",
             "imgadult",
+            "imgclick",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imgclick" && canonical_imgclick_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imgadult" && canonical_imgadult_token(id) {
@@ -221,6 +225,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imagepond"
                         | "imxto"
                         | "imgadult"
+                        | "imgclick"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -311,9 +316,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imagepond",
         "imxto",
         "imgadult",
+        "imgclick",
     ] {
         if prefix == category
-            && ((category == "imgadult" && canonical_imgadult_token(bare))
+            && ((category == "imgclick" && canonical_imgclick_token(bare))
+                || (category == "imgadult" && canonical_imgadult_token(bare))
                 || (category == "imxto" && canonical_imxto_image_token(bare))
                 || (category == "imagepond" && canonical_imagepond_file_id(bare))
                 || (category == "imgpile" && canonical_imgpile_archive_suffix(bare))
@@ -371,6 +378,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imagepond"
                         | "imxto"
                         | "imgadult"
+                        | "imgclick"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -571,6 +579,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imagepond"
                 | "imxto"
                 | "imgadult"
+                | "imgclick"
         )
 }
 
@@ -990,6 +999,86 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned ImgclickImageExtractor inherits "{token}" from the shared
+/// image-host extractor. Only a directly verified image page may use it.
+fn canonical_imgclick_token(token: &str) -> bool {
+    (1..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+}
+
+fn canonical_imgclick_hint(hint: &str) -> bool {
+    (6..=240).contains(&hint.len())
+        && !hint.contains("..")
+        && hint
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+        && hint.to_ascii_lowercase().ends_with(".html")
+}
+
+fn imgclick_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imgclick" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("imgclick.net" | "www.imgclick.net")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let path: Vec<_> = source.path_segments()?.collect();
+    let token = match path.as_slice() {
+        [token] if canonical_imgclick_token(token) => *token,
+        [token, hint]
+            if canonical_imgclick_token(token)
+                && (hint.is_empty() || canonical_imgclick_hint(hint)) =>
+        {
+            *token
+        }
+        _ => return None,
+    };
+
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == "imgclick.net" || host.ends_with(".imgclick.net"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    if filename.is_empty() || filename.len() > 240 {
+        return None;
+    }
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
+        return None;
+    }
+    let upstream = format!("imgclick{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned ImgadultImageExtractor inherits the per-image "{token}" archive
 /// format. Its only source route uses a lowercase hexadecimal page token.
 fn canonical_imgadult_token(token: &str) -> bool {
@@ -3204,6 +3293,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imagepond_archive_scope(item, source_url))
         .or_else(|| imxto_archive_scope(item, source_url))
         .or_else(|| imgadult_archive_scope(item, source_url))
+        .or_else(|| imgclick_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3812,6 +3902,143 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn imgclick_source_token_survives_filename_hints_without_false_archive_hits() {
+        let root = std::env::temp_dir().join(format!("galerith-imgclick-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("native.sqlite");
+        let archive = Archive::open(&path).unwrap();
+        let first = MediaItem {
+            url: "https://imgclick.net/images/first.png".into(),
+            filename: "first.png".into(),
+            extractor: "imgclick",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://cdn.imgclick.net/another/new.webp".into(),
+            filename: "new.webp".into(),
+            ..first.clone()
+        };
+        let direct = "https://imgclick.net/4tbrre1oxew9";
+        assert_eq!(
+            imgclick_archive_scope(&first, direct).unwrap().1,
+            "imgclick4tbrre1oxew9"
+        );
+        archive.record_for_source(&first, direct).unwrap();
+        for alias in [
+            direct,
+            "https://www.imgclick.net/4tbrre1oxew9/",
+            "https://imgclick.net/4tbrre1oxew9/sample.png.html",
+        ] {
+            assert!(archive.contains_for_source(&changed, alias).unwrap());
+        }
+        for untrusted in [
+            "https://imgclick.net/different",
+            "https://imgclick.net/4tbrre1oxew9/bad.txt",
+            "https://imgclick.net/4tbrre1oxew9/name..html",
+            "https://imgclick.net/4tbrre1oxew9?token=secret",
+            "https://imgclick.net/4tbrre1oxew9#fragment",
+            "https://imgclick.net:8443/4tbrre1oxew9",
+            "https://imgclick.net.evil.invalid/4tbrre1oxew9",
+            "https://imgclick.net/%34tbrre1oxew9",
+        ] {
+            assert!(
+                !archive.contains_for_source(&changed, untrusted).unwrap(),
+                "{untrusted}"
+            );
+        }
+        for unsafe_media in [
+            "https://imgclick.net.evil.invalid/file.jpg",
+            "http://imgclick.net/file.jpg",
+            "https://cdn.imgclick.net:8443/file.jpg",
+            "https://cdn.imgclick.net/file.jpg?token=x",
+            "https://cdn.imgclick.net/file.jpg#frag",
+            "https://cdn.imgclick.net/file.exe",
+        ] {
+            let item = MediaItem {
+                url: unsafe_media.into(),
+                ..changed.clone()
+            };
+            assert!(
+                imgclick_archive_scope(&item, direct).is_none(),
+                "{unsafe_media}"
+            );
+        }
+        drop(archive);
+        let bytes = fs::read(&path).unwrap();
+        assert!(!bytes
+            .windows(b"4tbrre1oxew9".len())
+            .any(|part| part == b"4tbrre1oxew9"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgclick_readonly_sqlite_import_preserves_ids_and_rejects_ambiguous_tables() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgclick-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imgclick4tbrre1oxew9');
+            INSERT INTO archive VALUES ('imgclickABc_123');
+            INSERT INTO archive VALUES ('imgclick');
+            INSERT INTO archive VALUES ('imgclickbad token');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('4tbrre1oxew9');
+            INSERT INTO named VALUES ('imgclick4tbrre1oxew9');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("imgclick"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(&foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.imgclick.net/changed.jpg".into(),
+            filename: "changed.jpg".into(),
+            extractor: "imgclick",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&media, "https://imgclick.net/4tbrre1oxew9")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&media, "https://imgclick.net/unrelated")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"4tbrre1oxew9".len())
+            .any(|part| part == b"4tbrre1oxew9"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn imgadult_hex_page_token_is_stable_and_source_verified() {
