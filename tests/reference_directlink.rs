@@ -640,3 +640,24 @@ fn pinned_fapachi_post_archive_keys_include_username() {
         "fapachimodel_12345|fapachianother_12345"
     );
 }
+
+#[test]
+fn pinned_fapello_post_archive_separates_type_model_and_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Fapello archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://fapello.com/model/12345/','https://fapello.su/other/12345/'); a,b=(extractor.find(url) for url in urls); print('|'.join((a.category+a.archive_fmt.format(type=kind,model=a.model,id=12345)) for kind in ('photo','video'))+'|'+b.category+b.archive_fmt.format(type='photo',model=b.model,id=12345))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Fapello post archive format").trim(),
+        "fapellophoto_model_12345|fapellovideo_model_12345|fapellophoto_other_12345"
+    );
+}
