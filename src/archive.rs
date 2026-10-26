@@ -2410,6 +2410,8 @@ mod tests {
             "500px123",
             "photovogue123",
             "fapachimodel_123",
+            "fapellophoto_model_123",
+            "fapellovideo_model_123",
         ];
         let rejected = [
             "danbooru00123",
@@ -2419,6 +2421,7 @@ mod tests {
             "500px0123",
             "photovogue0123",
             "fapachimodel_0123",
+            "fapellophoto_model_0123",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
