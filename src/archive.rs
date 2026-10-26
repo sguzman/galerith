@@ -9084,7 +9084,10 @@ mod tests {
             "https://imgbox.com/a1B2c3D4/extra",
             "https://images2.imgbox.com/zz/bb/a1B2c3D4",
         ] {
-            assert!(imgbox_archive_scope(&original, invalid).is_none(), "{invalid}");
+            assert!(
+                imgbox_archive_scope(&original, invalid).is_none(),
+                "{invalid}"
+            );
         }
         let forged = MediaItem {
             url: "https://images2.imgbox.com.evil.test/aa/bb/original.jpg".into(),
