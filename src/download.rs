@@ -265,6 +265,12 @@ pub async fn download(
         }
         let append = offset > 0 && status == StatusCode::PARTIAL_CONTENT;
         if status == StatusCode::PARTIAL_CONTENT && !append {
+            // A server must not choose a partial representation for a full
+            // GET. Never write it as a complete media file or archive hit.
+            invalidate(&part, &metadata).await?;
+            if attempt < options.retries {
+                continue;
+            }
             return Err(error("unexpected partial response without a range request"));
         }
 
