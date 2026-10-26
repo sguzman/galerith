@@ -7759,7 +7759,10 @@ mod tests {
                 url: bad_url.into(),
                 ..video.clone()
             };
-            assert!(webmshare_archive_scope(&changed, source).is_none(), "{bad_url}");
+            assert!(
+                webmshare_archive_scope(&changed, source).is_none(),
+                "{bad_url}"
+            );
         }
         for bad_filename in ["ABc_1234.webm", "ABc_123.mp4", "ABC_123.webm"] {
             let changed = MediaItem {
