@@ -98,12 +98,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "slideshare",
             "issuu",
             "speakerdeck",
+            "imgbox",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imgbox" && canonical_imgbox_image_key(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "speakerdeck" && canonical_speakerdeck_archive_suffix(id) {
@@ -186,6 +190,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "slideshare"
                         | "issuu"
                         | "speakerdeck"
+                        | "imgbox"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -269,9 +274,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "slideshare",
         "issuu",
         "speakerdeck",
+        "imgbox",
     ] {
         if prefix == category
-            && ((category == "speakerdeck" && canonical_speakerdeck_archive_suffix(bare))
+            && ((category == "imgbox" && canonical_imgbox_image_key(bare))
+                || (category == "speakerdeck" && canonical_speakerdeck_archive_suffix(bare))
                 || (category == "issuu" && canonical_issuu_archive_suffix(bare))
                 || (category == "slideshare" && canonical_slideshare_archive_suffix(bare))
                 || (category == "catbox" && canonical_catbox_archive_suffix(bare))
@@ -315,6 +322,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "slideshare"
                         | "issuu"
                         | "speakerdeck"
+                        | "imgbox"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -508,6 +516,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "slideshare"
                 | "issuu"
                 | "speakerdeck"
+                | "imgbox"
         )
 }
 
@@ -921,6 +930,82 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned Speaker Deck archive_fmt = "{presentation}_{num}". Its native
 /// preview retains the one-based slide position as a padded filename prefix
 /// and the exact original basename returned by the verified player HTML.
+/// The pinned single-image Imgbox archive format is "{image_key}".
+/// Gallery keys use "{gallery_key}_{image_key}", which the current gallery
+/// MediaItem does not preserve; never infer them from arbitrary image URLs.
+fn canonical_imgbox_image_key(key: &str) -> bool {
+    key.len() == 8 && key.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn imgbox_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imgbox" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let host = source.host_str()?;
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let key = if matches!(host, "imgbox.com" | "www.imgbox.com" | "i.imgbox.com") {
+        match source_parts.as_slice() {
+            [key] | [key, ""] if canonical_imgbox_image_key(key) => *key,
+            _ => return None,
+        }
+    } else {
+        let numbered = host
+            .strip_prefix("images")
+            .and_then(|value| value.strip_suffix(".imgbox.com"))?;
+        if numbered.is_empty() || !numbered.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        match source_parts.as_slice() {
+            [a, b, key]
+                if a.len() == 2
+                    && b.len() == 2
+                    && a.bytes().all(|byte| byte.is_ascii_hexdigit())
+                    && b.bytes().all(|byte| byte.is_ascii_hexdigit())
+                    && canonical_imgbox_image_key(key) =>
+            {
+                *key
+            }
+            _ => return None,
+        }
+    };
+
+    let media = url::Url::parse(&item.url).ok()?;
+    let media_host = media.host_str()?;
+    let number = media_host
+        .strip_prefix("images")
+        .and_then(|value| value.strip_suffix(".imgbox.com"))?;
+    if media.scheme() != "https"
+        || number.is_empty()
+        || !number.bytes().all(|byte| byte.is_ascii_digit())
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let ext = media.path_segments()?.next_back()?.rsplit_once('.')?.1;
+    if !matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+        return None;
+    }
+    let normalized = format!("imgbox{key}");
+    Some((
+        format!("image-sha256:{}", archive_key_digest(&normalized)),
+        normalized,
+    ))
+}
+
 fn canonical_speakerdeck_slug(slug: &str) -> bool {
     (1..=128).contains(&slug.len())
         && slug
@@ -2647,6 +2732,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| slideshare_archive_scope(item, source_url))
         .or_else(|| issuu_archive_scope(item, source_url))
         .or_else(|| speakerdeck_archive_scope(item, source_url))
+        .or_else(|| imgbox_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
