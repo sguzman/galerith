@@ -787,3 +787,24 @@ fn pinned_lexica_search_archive_uses_api_image_id() {
         "lexica|search|abc-A|abc-A"
     );
 }
+
+#[test]
+fn pinned_pixeldrain_file_and_album_archive_share_file_ids() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned gallery-dl source required for Pixeldrain archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://pixeldrain.com/u/File12'); b=extractor.find('https://pixeldrain.com/l/album_99'); c=extractor.find('https://pixeldrain.com/d/folder'); print(a.category+'|'+a.archive_fmt.format(id='File12')+'|'+b.archive_fmt.format(id='File12')+'|'+c.archive_fmt.format(path='/folder/item',num=1))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Pixeldrain file/album/folder archive formats").trim(),
+        "pixeldrain|File12|File12|/folder/item_1"
+    );
+}
