@@ -1068,3 +1068,28 @@ fn pinned_imagepond_file_ids_and_album_queue_are_distinct() {
         "imagepond|file|file.A7|file|clip.B8|album"
     );
 }
+
+#[test]
+fn pinned_imxto_image_token_and_gallery_dispatch_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Imxto archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://imx.to/i/1qdeva'); b=extractor.find('https://img.yt/img-57a2050547b97.html'); q=extractor.find('https://imx.to/g/ozdy'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='1qdeva'),b.category,b.subcategory,b.archive_fmt.format(token='57a2050547b97'),q.subcategory)))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(
+            cmd,
+            "pinned Imxto individual image token and gallery queue archive"
+        )
+        .trim(),
+        "imxto|image|1qdeva|imxto|image|57a2050547b97|gallery"
+    );
+}

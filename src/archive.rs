@@ -103,12 +103,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "postimg",
             "imgpile",
             "imagepond",
+            "imxto",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imxto" && canonical_imxto_image_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imagepond" && canonical_imagepond_file_id(id) {
@@ -211,6 +215,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "postimg"
                         | "imgpile"
                         | "imagepond"
+                        | "imxto"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -299,9 +304,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "postimg",
         "imgpile",
         "imagepond",
+        "imxto",
     ] {
         if prefix == category
-            && ((category == "imagepond" && canonical_imagepond_file_id(bare))
+            && ((category == "imxto" && canonical_imxto_image_token(bare))
+                || (category == "imagepond" && canonical_imagepond_file_id(bare))
                 || (category == "imgpile" && canonical_imgpile_archive_suffix(bare))
                 || (category == "postimg" && canonical_postimg_token(bare))
                 || (category == "imagebam" && canonical_imagebam_image_key(bare))
@@ -355,6 +362,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "postimg"
                         | "imgpile"
                         | "imagepond"
+                        | "imxto"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -553,6 +561,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "postimg"
                 | "imgpile"
                 | "imagepond"
+                | "imxto"
         )
 }
 
@@ -972,6 +981,76 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// The pinned ImxtoImageExtractor inherits ImagehostImageExtractor's
+/// "{token}" archive identity. Gallery pages only queue individual images.
+fn canonical_imxto_image_token(token: &str) -> bool {
+    (1..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn imxto_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imxto" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("imx.to" | "www.imx.to" | "img.yt" | "www.img.yt")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let token = match segments.as_slice() {
+        ["i", id] if canonical_imxto_image_token(id) => *id,
+        [filename] => {
+            let id = filename.strip_prefix("img-")?.strip_suffix(".html")?;
+            if !canonical_imxto_image_token(id) {
+                return None;
+            }
+            id
+        }
+        _ => return None,
+    };
+    let original = url::Url::parse(&item.url).ok()?;
+    if original.scheme() != "https"
+        || original.host_str() != Some("image.imx.to")
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    if filename.is_empty() || filename.len() > 240 {
+        return None;
+    }
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+    ) {
+        return None;
+    }
+    let upstream = format!("imxto{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// The pinned ImagepondFileExtractor archives "{id}" for a single file,
 /// including image and video pages. Album/user sources only queue file URLs.
 fn canonical_imagepond_file_id(id: &str) -> bool {
@@ -3047,6 +3126,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| postimg_archive_scope(item, source_url))
         .or_else(|| imgpile_archive_scope(item, source_url))
         .or_else(|| imagepond_archive_scope(item, source_url))
+        .or_else(|| imxto_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3655,6 +3735,143 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn imxto_single_image_token_is_stable_but_gallery_source_is_not() {
+        let root = std::env::temp_dir().join(format!("galerith-imxto-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://image.imx.to/u/i/2018/04/09/1qdeva.png".into(),
+            filename: "original.png".into(),
+            extractor: "imxto",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://image.imx.to/u/i/2026/10/other.webp".into(),
+            filename: "renamed.webp".into(),
+            ..first.clone()
+        };
+        let direct = "https://imx.to/i/1qdeva";
+        assert_eq!(
+            imxto_archive_scope(&first, direct).unwrap().1,
+            "imxto1qdeva"
+        );
+        archive.record_for_source(&first, direct).unwrap();
+        for alias in [
+            direct,
+            "https://www.imx.to/img-1qdeva.html",
+            "https://img.yt/i/1qdeva",
+            "https://www.img.yt/img-1qdeva.html",
+        ] {
+            assert!(archive.contains_for_source(&changed, alias).unwrap());
+        }
+        for unrelated in [
+            "https://imx.to/i/different",
+            "https://imx.to/g/1qdeva",
+            "https://imx.to/img-1qdeva.txt",
+            "https://imx.to/i/1qdeva?secret=1",
+            "https://imx.to/i/1qdeva#fragment",
+            "https://imx.to/i/%31qdeva",
+            "https://imx.to:8443/i/1qdeva",
+            "https://evil.imx.to.attacker.invalid/i/1qdeva",
+        ] {
+            assert!(!archive.contains_for_source(&changed, unrelated).unwrap(), "{unrelated}");
+        }
+        for unsafe_media in [
+            "https://other.invalid/file.png",
+            "https://image.imx.to.evil.invalid/file.png",
+            "http://image.imx.to/file.png",
+            "https://image.imx.to:8443/file.png",
+            "https://image.imx.to/file.png?token=x",
+            "https://image.imx.to/file.png#fragment",
+            "https://image.imx.to/file.exe",
+        ] {
+            let item = MediaItem {
+                url: unsafe_media.into(),
+                ..changed.clone()
+            };
+            assert!(imxto_archive_scope(&item, direct).is_none(), "{unsafe_media}");
+        }
+        let unrelated_media = MediaItem {
+            extractor: "postimg",
+            ..changed
+        };
+        assert!(imxto_archive_scope(&unrelated_media, direct).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"1qdeva".len()).any(|part| part == b"1qdeva"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imxto_pinned_token_import_and_named_prefix_are_private_and_idempotent() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imxto-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imxto1qdeva');
+            INSERT INTO archive VALUES ('imxtoXYZ_88');
+            INSERT INTO archive VALUES ('imxtobad-token');
+            INSERT INTO archive VALUES ('imxto');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('1qdeva');
+            INSERT INTO named VALUES ('imxto1qdeva');",
+        )
+        .unwrap();
+        drop(db);
+        let bytes = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("imxto"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), bytes);
+        fs::remove_file(&foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://image.imx.to/u/i/changed.webp".into(),
+            filename: "changed.webp".into(),
+            extractor: "imxto",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://img.yt/img-1qdeva.html")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imx.to/g/1qdeva")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imx.to/i/another")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"1qdeva".len()).any(|part| part == b"1qdeva"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn imagepond_file_id_survives_media_rotation_without_cross_source_matches() {
