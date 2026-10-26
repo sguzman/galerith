@@ -132,6 +132,45 @@ async fn preexisting_output_and_resume_aliases_cannot_overwrite_other_files() {
     clean(&dest);
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn stale_temporary_metadata_symlink_is_not_followed() {
+    use std::os::unix::fs::symlink;
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut stream = next(&listener).await;
+        let request_text = request(&mut stream).await;
+        assert!(request_text.contains("/media.jpg"), "{request_text}");
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nETag: \"known\"\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+            )
+            .await
+            .unwrap();
+    });
+    let dest = dir("atomic-sidecar-symlink");
+    clean(&dest);
+    fs::create_dir_all(&dest).unwrap();
+    let victim = dest.join("unrelated.json");
+    fs::write(&victim, b"IMPORTANT DATA").unwrap();
+    let pending = dest.join("media.jpg.part.json.tmp");
+    symlink(&victim, &pending).unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/media.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(dest.clone(), 0))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dest.join("media.jpg"))
+    );
+    server.await.unwrap();
+    assert_eq!(fs::read(&victim).unwrap(), b"IMPORTANT DATA");
+    assert_eq!(fs::read(dest.join("media.jpg")).unwrap(), b"GOOD");
+    assert!(!pending.exists());
+    assert!(!dest.join("media.jpg.part.json").exists());
+    clean(&dest);
+}
+
 #[tokio::test]
 async fn resumes_interrupted_http_body_with_matching_etag() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -393,6 +432,7 @@ async fn persists_verified_partial_across_invocations() {
         .is_err());
     assert_eq!(fs::read(path.join("b.png.part")).unwrap(), b"12");
     assert!(path.join("b.png.part.json").exists());
+    assert!(!path.join("b.png.part.json.tmp").exists());
     assert_eq!(
         download(&client(), &item, &settings(path.clone(), 0))
             .await
