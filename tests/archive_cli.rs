@@ -115,12 +115,18 @@ fn existing_symlink_does_not_count_as_archive_skip_or_overwrite_target() {
         .unwrap();
     assert!(!failed.status.success());
     assert_eq!(fs::read(&unrelated).unwrap(), b"KEEP-ME");
-    assert!(fs::symlink_metadata(&alias).unwrap().file_type().is_symlink());
+    assert!(fs::symlink_metadata(&alias)
+        .unwrap()
+        .file_type()
+        .is_symlink());
     let count: i64 = rusqlite::Connection::open(&db)
         .unwrap()
         .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(count, 0, "symlinked output must never create archive history");
+    assert_eq!(
+        count, 0,
+        "symlinked output must never create archive history"
+    );
     fs::remove_dir_all(dir).unwrap();
 }
 
