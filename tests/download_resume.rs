@@ -87,6 +87,49 @@ async fn resumes_interrupted_http_body_with_matching_etag() {
 }
 
 #[tokio::test]
+async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let request_text = request(&mut first).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        first
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 1-3/4\r\nContent-Length: 3\r\nConnection: close\r\n\r\nOOD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+        let mut second = next(&listener).await;
+        let request_text = request(&mut second).await;
+        assert!(!request_text.contains("\r\nrange:"), "{request_text}");
+        second
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("unsolicited-206");
+    clean(&path);
+    fs::create_dir_all(&path).unwrap();
+    fs::write(path.join("unsafe.jpg.part"), b"stale data").unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/unsafe.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 1))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("unsafe.jpg"))
+    );
+    assert_eq!(fs::read(path.join("unsafe.jpg")).unwrap(), b"GOOD");
+    assert!(!path.join("unsafe.jpg.part").exists());
+    assert!(!path.join("unsafe.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn missing_content_range_recovers_within_retry_budget() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
