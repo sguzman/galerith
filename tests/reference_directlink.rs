@@ -1093,3 +1093,24 @@ fn pinned_imxto_image_token_and_gallery_dispatch_are_distinct() {
         "imxto|image|1qdeva|imxto|image|57a2050547b97|gallery"
     );
 }
+
+#[test]
+fn pinned_imgadult_uses_strict_hex_image_page_token() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for ImgAdult archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://imgadult.com/img-686b4f451af05.html'); b=extractor.find('https://www.imgadult.com/img-abcdef012.html'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='686b4f451af05'),b.category,b.subcategory,b.archive_fmt.format(token='abcdef012'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned ImgAdult source-page archive tokens").trim(),
+        "imgadult|image|686b4f451af05|imgadult|image|abcdef012"
+    );
+}
