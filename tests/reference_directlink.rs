@@ -766,3 +766,24 @@ fn pinned_unsplash_archive_uses_one_global_photo_id_across_extractor_families() 
         "unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A"
     );
 }
+    
+#[test]
+fn pinned_lexica_search_archive_uses_api_image_id() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned gallery-dl reference required for Lexica archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://lexica.art/?q=red+fox'); b=extractor.find('https://lexica.art/?q=blue+fox'); print(a.category+'|'+a.subcategory+'|'+a.archive_fmt.format(id='abc-A')+'|'+b.archive_fmt.format(id='abc-A'))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Lexica image archive format").trim(),
+        "lexica|search|abc-A|abc-A"
+    );
+}
