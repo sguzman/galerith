@@ -703,3 +703,24 @@ fn pinned_foriio_multi_original_archive_ids() {
         "foriio|work|12345/file-A/1|12345/file-B/2|12345/file-A/2"
     );
 }
+
+#[test]
+fn pinned_piczel_image_and_folder_archive_templates() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Piczel archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; u=extractor.find('https://piczel.tv/gallery/artist'); i=extractor.find('https://piczel.tv/gallery/image/1001'); f=extractor.find('https://piczel.tv/gallery/artist/5'); print('|'.join((u.subcategory,i.subcategory,f.subcategory,u.archive_fmt.format(id=1001,num=0),i.archive_fmt.format(id=1001,num=1),f.archive_fmt.format(folder={'id':5},id=1001,num=0))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Piczel image versus folder archive templates").trim(),
+        "user|image|folder|1001_0|1001_1|f5_1001_0"
+    );
+}
