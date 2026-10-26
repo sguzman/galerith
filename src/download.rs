@@ -117,7 +117,9 @@ fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
         "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
         "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg",
     ];
-    let expects_media = extension.as_deref().is_some_and(|ext| media_exts.contains(&ext));
+    let expects_media = extension
+        .as_deref()
+        .is_some_and(|ext| media_exts.contains(&ext));
     if !expects_media {
         return false;
     }
