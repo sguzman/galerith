@@ -3078,7 +3078,8 @@ mod tests {
             ),
             (
                 MediaItem {
-                    url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A".into(),
+                    url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A"
+                        .into(),
                     filename: "abc-A.jpg".into(),
                     extractor: "lexica",
                     post_id: None,
