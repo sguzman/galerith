@@ -866,9 +866,7 @@ fn upstream_archive_key_configured(item: &MediaItem, prefix: Option<&str>) -> Op
             // Neither numeric Philomena IDs nor URL-shaped directlink
             // payloads prove their source when a different class is named.
             if (philomena_id(item).is_some() && prefix != item.extractor)
-                || (item.extractor == "directlink"
-                    && !prefix.is_empty()
-                    && prefix != "directlink")
+                || (item.extractor == "directlink" && !prefix.is_empty() && prefix != "directlink")
             {
                 return None;
             }
