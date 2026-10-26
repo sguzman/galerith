@@ -5290,6 +5290,79 @@ mod tests {
     }
 
     #[test]
+    fn fapello_post_type_model_and_media_identity_are_isolated() {
+        let root = std::env::temp_dir().join(format!("galerith-fapello-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let image = MediaItem {
+            url: "https://cdn.fapello.com/media/image.jpg".into(),
+            filename: "model_12345.jpg".into(),
+            extractor: "fapello",
+            post_id: Some(12345),
+        };
+        let rotated = MediaItem {
+            url: "https://cdn.fapello.su/media/new.webp".into(),
+            filename: "model_12345.webp".into(),
+            ..image.clone()
+        };
+        let video = MediaItem {
+            url: "https://cdn.fapello.com/media/video.mp4".into(),
+            filename: "model_12345.mp4".into(),
+            ..image.clone()
+        };
+        let source = "https://fapello.com/model/12345/";
+        assert_eq!(
+            fapello_archive_scope(&image, source).unwrap().1,
+            "fapellophoto_model_12345"
+        );
+        assert_eq!(
+            fapello_archive_scope(&video, source).unwrap().1,
+            "fapellovideo_model_12345"
+        );
+        archive.record_for_source(&image, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://fapello.su/model/12345")
+            .unwrap());
+        assert!(!archive.contains_for_source(&video, source).unwrap());
+        assert!(!archive
+            .contains_for_source(&image, "https://fapello.com/other/12345")
+            .unwrap());
+        for bad in [
+            "https://fapello.com/model/012345",
+            "https://fapello.com/top-likes/12345",
+            "https://fapello.com/model/12346",
+            "https://evil-fapello.com/model/12345",
+            "https://fapello.com:8443/model/12345",
+            "https://fapello.com/model/12345?secret=1",
+        ] {
+            assert!(fapello_archive_scope(&image, bad).is_none(), "{bad}");
+        }
+        let forged = MediaItem {
+            url: "https://cdn.fapello.com.evil.test/media.jpg".into(),
+            ..image
+        };
+        assert!(fapello_archive_scope(&forged, source).is_none());
+        for bad in [
+            "movie_model_12345",
+            "photo_model_012345",
+            "photo_model_0",
+            "photo_search_12345",
+        ] {
+            assert!(!canonical_fapello_archive_suffix(bad), "{bad}");
+        }
+        assert!(canonical_fapello_archive_suffix("photo_model_name_12345"));
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"model_12345".len())
+            .any(|part| part == b"model_12345"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imgur_album_and_single_image_identities_keep_originals_separate() {
         let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
