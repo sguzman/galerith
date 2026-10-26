@@ -745,3 +745,24 @@ fn pinned_thirtyfivephoto_series_archive_uses_one_based_position() {
         "35photo12345_1|35photo12345_2|35phototflower_12345_1|35photog10_12345_1"
     );
 }
+
+#[test]
+fn pinned_unsplash_archive_uses_one_global_photo_id_across_extractor_families() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned gallery-dl source required for Unsplash archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://unsplash.com/photos/abc-A','https://unsplash.com/@alice','https://unsplash.com/@alice/likes','https://unsplash.com/collections/12345/flowers','https://unsplash.com/s/photos/sky'); items=[extractor.find(u) for u in urls]; print('|'.join(x.category+x.archive_fmt.format(id='abc-A') for x in items))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Unsplash cross-source archive identity").trim(),
+        "unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A|unsplashabc-A"
+    );
+}
