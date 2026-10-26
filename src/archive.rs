@@ -4377,18 +4377,21 @@ mod tests {
 
     #[test]
     fn fivehundredpx_import_is_idempotent_private_and_works_without_reference() {
-        let root = std::env::temp_dir().join(format!("galerith-500px-import-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-500px-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let source = root.join("foreign.sqlite");
         let reference = Connection::open(&source).unwrap();
-        reference.execute_batch(
-            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+        reference
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
              INSERT INTO archive VALUES ('500px12345');
              INSERT INTO archive VALUES ('500px012345');
              INSERT INTO archive VALUES ('500px0');
              INSERT INTO archive VALUES ('500px12346');",
-        ).unwrap();
+            )
+            .unwrap();
         drop(reference);
         let before = fs::read(&source).unwrap();
         let native = root.join("native.sqlite");
@@ -4421,7 +4424,8 @@ mod tests {
 
     #[test]
     fn fivehundredpx_named_archive_table_needs_exact_category_prefix() {
-        let root = std::env::temp_dir().join(format!("galerith-500px-custom-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-500px-custom-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let source = root.join("foreign.sqlite");
@@ -4443,9 +4447,12 @@ mod tests {
             post_id: Some(12345),
         };
         let page = "https://500px.com/photo/12345";
-        let ambiguous =
-            Archive::open_with_reference_table(&root.join("unknown.sqlite"), Some(&source), "custom")
-                .unwrap();
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("unknown.sqlite"),
+            Some(&source),
+            "custom",
+        )
+        .unwrap();
         assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
         assert!(!ambiguous.contains_for_source(&media, page).unwrap());
         drop(ambiguous);
