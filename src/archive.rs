@@ -2699,6 +2699,7 @@ mod tests {
             "fapellovideo_model_123",
             "lightroomasset-A",
             "foriio12345/10/1",
+            "piczel1001_0",
         ];
         let rejected = [
             "danbooru00123",
@@ -2711,6 +2712,7 @@ mod tests {
             "fapellophoto_model_0123",
             "lightroombad%2fid",
             "foriio12345/10/01",
+            "piczel1001_00",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -2792,6 +2794,15 @@ mod tests {
                     post_id: Some(12345),
                 },
                 "https://foriio.com/works/12345",
+            ),
+            (
+                MediaItem {
+                    url: "https://cdn.piczel.tv/changed.jpg".into(),
+                    filename: "piczel_1001_Aurora_00.jpg".into(),
+                    extractor: "piczel",
+                    post_id: Some(1001),
+                },
+                "https://piczel.tv/gallery/artist",
             ),
             (
                 MediaItem {
@@ -6057,6 +6068,160 @@ mod tests {
         assert!(!bytes
             .windows(b"foriio12345/file-A/1".len())
             .any(|part| part == b"foriio12345/file-A/1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn piczel_user_and_image_keys_keep_separate_original_positions() {
+        let root = std::env::temp_dir().join(format!("galerith-piczel-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://cdn.piczel.tv/first.jpg".into(),
+            filename: "piczel_1001_Aurora_00.jpg".into(),
+            extractor: "piczel",
+            post_id: Some(1001),
+        };
+        let moved = MediaItem {
+            url: "https://media.piczel.tv/rotated.jpg".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            filename: "piczel_1001_Aurora_01.jpg".into(),
+            ..first.clone()
+        };
+        let other_post = MediaItem {
+            filename: "piczel_1002_Aurora_00.jpg".into(),
+            post_id: Some(1002),
+            ..first.clone()
+        };
+        let user = "https://piczel.tv/gallery/artist";
+        assert_eq!(piczel_archive_scope(&first, user).unwrap().1, "piczel1001_0");
+        archive.record_for_source(&first, user).unwrap();
+        assert!(archive.contains_for_source(&moved, user).unwrap());
+        assert!(archive
+            .contains_for_source(&moved, "https://piczel.tv/gallery/image/1001")
+            .unwrap());
+        assert!(!archive.contains_for_source(&second, user).unwrap());
+        assert!(!archive.contains_for_source(&other_post, user).unwrap());
+        assert!(piczel_archive_scope(&first, "https://piczel.tv/gallery/artist/5").is_none());
+        for bad in [
+            "https://piczel.tv/gallery/image/1002",
+            "https://piczel.tv/gallery/artist/5",
+            "https://piczel.tv:8443/gallery/artist",
+            "https://piczel.tv/gallery/artist?secret=1",
+            "https://evil.piczel.tv.evil.test/gallery/artist",
+        ] {
+            assert!(piczel_archive_scope(&first, bad).is_none(), "{bad}");
+        }
+        let forged = MediaItem {
+            url: "https://cdn.piczel.tv.evil.test/first.jpg".into(),
+            ..first.clone()
+        };
+        assert!(piczel_archive_scope(&forged, user).is_none());
+        for bad_name in [
+            "piczel_1001_Aurora_0.jpg",
+            "piczel_1001_Aurora_16.jpg",
+            "piczel_1002_Aurora_00.jpg",
+            "piczel_1001_Aurora_00.png",
+        ] {
+            let item = MediaItem {
+                filename: bad_name.into(),
+                ..first.clone()
+            };
+            assert!(piczel_archive_scope(&item, user).is_none(), "{bad_name}");
+        }
+        for malformed in ["1001_00", "1001_16", "01001_0", "f5_1001_0"] {
+            assert!(!canonical_piczel_archive_suffix(malformed), "{malformed}");
+        }
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        for private in ["1001_0", "Aurora", "rotated.jpg"] {
+            assert!(
+                !bytes
+                    .windows(private.len())
+                    .any(|part| part == private.as_bytes()),
+                "{private}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn piczel_default_and_named_import_never_claim_unverified_folder_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-piczel-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('piczel1001_0');
+             INSERT INTO archive VALUES ('piczel1001_1');
+             INSERT INTO archive VALUES ('piczel1001_00');
+             INSERT INTO archive VALUES ('piczelf5_1001_0');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('1001_0');
+             INSERT INTO named VALUES ('piczel1001_0');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let prefixed = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("piczel"),
+        )
+        .unwrap();
+        assert_eq!(prefixed.import_reference().unwrap(), (1, 1));
+        drop(prefixed);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://cdn.piczel.tv/changed.jpg".into(),
+            filename: "piczel_1001_Aurora_00.jpg".into(),
+            extractor: "piczel",
+            post_id: Some(1001),
+        };
+        assert!(archive
+            .contains_for_source(&item, "https://piczel.tv/gallery/artist")
+            .unwrap());
+        assert!(archive
+            .contains_for_source(&item, "https://piczel.tv/gallery/image/1001")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&item, "https://piczel.tv/gallery/artist/5")
+            .unwrap());
+        let missing = MediaItem {
+            filename: "piczel_1001_Aurora_02.jpg".into(),
+            ..item
+        };
+        assert!(!archive
+            .contains_for_source(&missing, "https://piczel.tv/gallery/artist")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"piczel1001_0".len())
+            .any(|part| part == b"piczel1001_0"));
         fs::remove_dir_all(root).unwrap();
     }
 
