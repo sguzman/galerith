@@ -682,3 +682,24 @@ fn pinned_lightroom_gallery_archive_uses_global_asset_ids() {
         "lightroom|gallery|asset-A|asset-B"
     );
 }
+
+#[test]
+fn pinned_foriio_multi_original_archive_ids() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Foriio archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; x=extractor.find('https://foriio.com/works/12345'); print(x.category+'|'+x.subcategory+'|'+x.archive_fmt.format(work_id=12345,file_id='file-A',num=1)+'|'+x.archive_fmt.format(work_id=12345,file_id='file-B',num=2)+'|'+x.archive_fmt.format(work_id=12345,file_id='file-A',num=2))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Foriio multi-original archive format").trim(),
+        "foriio|work|12345/file-A/1|12345/file-B/2|12345/file-A/2"
+    );
+}
