@@ -850,3 +850,24 @@ fn pinned_lensdump_image_and_album_archive_formats_are_distinct() {
         "lensdump|image|AbCd12|lensdump|album|Album88_1"
     );
 }
+
+#[test]
+fn pinned_webmshare_source_video_archive_is_id_not_title() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Webmshare archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://webmshare.com/play/ABc_123'); b=extractor.find('https://s4.webmshare.com/download-webm/video99'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(id='ABc_123'),b.archive_fmt.format(id='video99'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Webmshare video identity").trim(),
+        "webmshare|video|ABc_123|video99"
+    );
+}
