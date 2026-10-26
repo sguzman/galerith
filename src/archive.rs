@@ -4420,6 +4420,55 @@ mod tests {
     }
 
     #[test]
+    fn fivehundredpx_named_archive_table_needs_exact_category_prefix() {
+        let root = std::env::temp_dir().join(format!("galerith-500px-custom-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("foreign.sqlite");
+        let connection = Connection::open(&source).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE custom(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO custom VALUES ('12345');
+                 INSERT INTO custom VALUES ('500px12345');
+                 INSERT INTO custom VALUES ('500px012345');",
+            )
+            .unwrap();
+        drop(connection);
+        let before = fs::read(&source).unwrap();
+        let media = MediaItem {
+            url: "https://drscdn.500px.org/photo.jpg?sig=rotated".into(),
+            filename: "12345.jpg".into(),
+            extractor: "500px",
+            post_id: Some(12345),
+        };
+        let page = "https://500px.com/photo/12345";
+        let ambiguous =
+            Archive::open_with_reference_table(&root.join("unknown.sqlite"), Some(&source), "custom")
+                .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        assert!(!ambiguous.contains_for_source(&media, page).unwrap());
+        drop(ambiguous);
+        let native = root.join("native.sqlite");
+        let scoped = Archive::open_with_reference_options(
+            &native,
+            Some(&source),
+            Some("custom"),
+            Some("500px"),
+        )
+        .unwrap();
+        assert_eq!(scoped.import_reference().unwrap(), (1, 1));
+        assert!(scoped.contains_for_source(&media, page).unwrap());
+        drop(scoped);
+        assert_eq!(fs::read(&source).unwrap(), before);
+        fs::remove_file(source).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        assert!(offline.contains_for_source(&media, page).unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imgur_album_and_single_image_identities_keep_originals_separate() {
         let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
