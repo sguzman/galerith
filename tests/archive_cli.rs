@@ -650,10 +650,7 @@ fn unsolicited_http_206_does_not_create_a_durable_archive_hit() {
     fs::create_dir_all(&dir).unwrap();
     let db = dir.join("archive.sqlite");
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!(
-        "http://{}/unsolicited.jpg",
-        listener.local_addr().unwrap()
-    );
+    let url = format!("http://{}/unsolicited.jpg", listener.local_addr().unwrap());
     fs::write(dir.join("unsolicited.jpg.part"), b"stale").unwrap();
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
@@ -682,7 +679,9 @@ fn unsolicited_http_206_does_not_create_a_durable_archive_hit() {
                 ).unwrap();
             } else {
                 stream
-                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD")
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+                    )
                     .unwrap();
             }
         }
