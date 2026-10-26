@@ -2950,6 +2950,7 @@ mod tests {
             "piczel1001_0",
             "35photo12345_1",
             "unsplashabc-A",
+            "lexicaabc-A",
         ];
         let rejected = [
             "danbooru00123",
@@ -2965,6 +2966,7 @@ mod tests {
             "piczel1001_00",
             "35photo12345_01",
             "unsplashbad%2fid",
+            "lexicabad%2fid",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3073,6 +3075,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://unsplash.com/@alice",
+            ),
+            (
+                MediaItem {
+                    url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A".into(),
+                    filename: "abc-A.jpg".into(),
+                    extractor: "lexica",
+                    post_id: None,
+                },
+                "https://lexica.art/?q=night",
             ),
             (
                 MediaItem {
@@ -6785,6 +6796,130 @@ mod tests {
         assert!(!bytes
             .windows(b"unsplashabc-A".len())
             .any(|part| part == b"unsplashabc-A"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lexica_images_are_scoped_by_verified_asset_id_not_search_query() {
+        let root = std::env::temp_dir().join(format!("galerith-lexica-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let archive = Archive::open(&db).unwrap();
+        let first = MediaItem {
+            url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A".into(),
+            filename: "abc-A.jpg".into(),
+            extractor: "lexica",
+            post_id: None,
+        };
+        archive
+            .record_for_source(&first, "https://lexica.art/?q=red+fox")
+            .unwrap();
+        assert!(archive
+            .contains_for_source(&first, "https://lexica.art/?q=blue+fox")
+            .unwrap());
+        let second = MediaItem {
+            url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-B".into(),
+            filename: "abc-B.jpg".into(),
+            ..first.clone()
+        };
+        assert!(!archive
+            .contains_for_source(&second, "https://lexica.art/?q=red+fox")
+            .unwrap());
+        for bad_source in [
+            "http://lexica.art/?q=red",
+            "https://lexica.art.evil.test/?q=red",
+            "https://lexica.art/?q=",
+            "https://lexica.art/?q=one&q=two",
+            "https://lexica.art/?q=red&secret=private",
+            "https://lexica.art:8443/?q=red",
+        ] {
+            assert!(lexica_archive_scope(&first, bad_source).is_none());
+        }
+        for bad_url in [
+            "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-B",
+            "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A?token=1",
+            "https://evil.sharif.workers.dev/full_jpg/abc-A",
+        ] {
+            let item = MediaItem {
+                url: bad_url.into(),
+                ..first.clone()
+            };
+            assert!(lexica_archive_scope(&item, "https://lexica.art/?q=red").is_none());
+        }
+        drop(archive);
+        let raw = fs::read(db).unwrap();
+        for plaintext in ["abc-A", "red+fox"] {
+            assert!(!raw
+                .windows(plaintext.len())
+                .any(|part| part == plaintext.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn lexica_import_requires_category_and_survives_source_removal() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-lexica-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('lexicaabc-A');
+             INSERT INTO archive VALUES ('lexicaabc-B');
+             INSERT INTO archive VALUES ('lexicabad%2fid');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('abc-A');
+             INSERT INTO named VALUES ('lexicaabc-A');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("lexica"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-A".into(),
+            filename: "abc-A.jpg".into(),
+            extractor: "lexica",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&first, "https://lexica.art/?q=other")
+            .unwrap());
+        let absent = MediaItem {
+            url: "https://lexica-serve-encoded-images2.sharif.workers.dev/full_jpg/abc-C".into(),
+            filename: "abc-C.jpg".into(),
+            ..first
+        };
+        assert!(!offline
+            .contains_for_source(&absent, "https://lexica.art/?q=other")
+            .unwrap());
+        drop(offline);
         fs::remove_dir_all(root).unwrap();
     }
 
