@@ -811,10 +811,7 @@ fn canonical_thirtyfivephoto_archive_suffix(suffix: &str) -> bool {
             .is_some_and(|num| (1..=32).contains(&num) && position == num.to_string())
 }
 
-fn thirtyfivephoto_archive_scope(
-    item: &MediaItem,
-    source_url: &str,
-) -> Option<(String, String)> {
+fn thirtyfivephoto_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if item.extractor != "35photo" {
         return None;
     }
@@ -823,8 +820,7 @@ fn thirtyfivephoto_archive_scope(
     let host = source.host_str()?;
     let host_ok = host == "35photo.pro"
         || host.strip_suffix(".35photo.pro").is_some_and(|part| {
-            (1..=24).contains(&part.len())
-                && part.bytes().all(|ch| ch.is_ascii_lowercase())
+            (1..=24).contains(&part.len()) && part.bytes().all(|ch| ch.is_ascii_lowercase())
         });
     if source.scheme() != "https"
         || !host_ok
