@@ -3660,7 +3660,10 @@ mod tests {
         let source_bytes = fs::read(&foreign).unwrap();
         assert!(Archive::open_with_reference(&native, Some(&foreign)).is_err());
         assert!(Archive::open_with_reference_table(&native, Some(&foreign), "named").is_err());
-        assert!(!native.exists(), "invalid source must not create native archive");
+        assert!(
+            !native.exists(),
+            "invalid source must not create native archive"
+        );
         assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
 
         // Also reject a composite archive table present in an older native
@@ -3688,10 +3691,8 @@ mod tests {
 
     #[test]
     fn case_insensitive_foreign_table_must_not_match_a_different_archive_key() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-foreign-collation-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-foreign-collation-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("source.sqlite");
@@ -3705,8 +3706,8 @@ mod tests {
         assert!(has_upstream_table(&source, "archive").unwrap());
         drop(source);
         let bytes = fs::read(&foreign).unwrap();
-        let archive = Archive::open_with_reference(&root.join("native.sqlite"), Some(&foreign))
-            .unwrap();
+        let archive =
+            Archive::open_with_reference(&root.join("native.sqlite"), Some(&foreign)).unwrap();
         let exact = extract_direct_media("https://example.org/Photo.jpg").unwrap();
         let different_case = extract_direct_media("https://example.org/photo.jpg").unwrap();
         assert!(archive.contains(&exact).unwrap());
