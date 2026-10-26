@@ -661,3 +661,24 @@ fn pinned_fapello_post_archive_separates_type_model_and_id() {
         "fapellophoto_model_12345|fapellovideo_model_12345|fapellophoto_other_12345"
     );
 }
+
+#[test]
+fn pinned_lightroom_gallery_archive_uses_global_asset_ids() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Lightroom archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; x=extractor.find('https://lightroom.adobe.com/shares/012345abcdef'); print(x.category+'|'+x.subcategory+'|'+x.archive_fmt.format(id='asset-A')+'|'+x.archive_fmt.format(id='asset-B'))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Lightroom asset archive format").trim(),
+        "lightroom|gallery|asset-A|asset-B"
+    );
+}
