@@ -2919,8 +2919,16 @@ fn archive_table_identifier(name: &str) -> String {
 }
 
 fn has_upstream_table(connection: &Connection, name: &str) -> Result<bool, rusqlite::Error> {
+    // A composite PRIMARY KEY (entry, scope) makes entry non-unique.
+    // Looking up entry alone would falsely suppress records from other
+    // scopes. Require the exact single-column entry TEXT primary key.
     let found: i64 = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name = 'entry' AND pk = 1 AND UPPER(type) = 'TEXT')",
+        "SELECT
+            (SELECT COUNT(*) FROM pragma_table_info(?1) WHERE pk > 0) = 1
+            AND EXISTS(
+                SELECT 1 FROM pragma_table_info(?1)
+                WHERE name = 'entry' AND pk = 1 AND UPPER(type) = 'TEXT'
+            )",
         params![name],
         |row| row.get(0),
     )?;
@@ -3213,7 +3221,7 @@ impl Archive {
                     "archive"
                 };
                 let query = format!(
-                    "SELECT EXISTS(SELECT 1 FROM {} WHERE entry = ?1)",
+                    "SELECT EXISTS(SELECT 1 FROM {} WHERE entry COLLATE BINARY = ?1)",
                     archive_table_identifier(table)
                 );
                 let lookup_key = if self.upstream_reference.is_some() {
@@ -3357,7 +3365,7 @@ impl Archive {
                     "archive"
                 };
                 let query = format!(
-                    "SELECT EXISTS(SELECT 1 FROM {} WHERE entry = ?1)",
+                    "SELECT EXISTS(SELECT 1 FROM {} WHERE entry COLLATE BINARY = ?1)",
                     archive_table_identifier(table)
                 );
                 let upstream: i64 =
@@ -3615,6 +3623,105 @@ mod tests {
             fs::remove_dir_all(lock_dir).unwrap();
         }
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn composite_upstream_archive_keys_are_rejected_before_native_database_creation() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-composite-foreign-archive-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let native = root.join("native.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(
+                    entry TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    PRIMARY KEY(entry, scope)
+                ) WITHOUT ROWID;
+                INSERT INTO archive(entry, scope) VALUES
+                    ('directlinkexample.org//photo.jpg', 'different-source');
+                CREATE TABLE named(
+                    entry TEXT NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    PRIMARY KEY(entry, user_id)
+                ) WITHOUT ROWID;
+                INSERT INTO named(entry, user_id) VALUES
+                    ('directlinkexample.org//photo.jpg', 123);",
+            )
+            .unwrap();
+        assert!(!has_upstream_table(&source, "archive").unwrap());
+        assert!(!has_upstream_table(&source, "named").unwrap());
+        drop(source);
+        let source_bytes = fs::read(&foreign).unwrap();
+        assert!(Archive::open_with_reference(&native, Some(&foreign)).is_err());
+        assert!(Archive::open_with_reference_table(&native, Some(&foreign), "named").is_err());
+        assert!(!native.exists(), "invalid source must not create native archive");
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+
+        // Also reject a composite archive table present in an older native
+        // database; it must never act as a gallery-dl directlink fallback.
+        let local = root.join("local.sqlite");
+        let db = Connection::open(&local).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(
+                entry TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                PRIMARY KEY(entry, scope)
+            ) WITHOUT ROWID;
+            INSERT INTO archive(entry, scope) VALUES
+                ('directlinkexample.org//photo.jpg', 'unrelated');",
+        )
+        .unwrap();
+        drop(db);
+        let native_archive = Archive::open(&local).unwrap();
+        assert!(!native_archive.upstream_directlink_archive);
+        let item = extract_direct_media("https://example.org/photo.jpg").unwrap();
+        assert!(!native_archive.contains(&item).unwrap());
+        drop(native_archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn case_insensitive_foreign_table_must_not_match_a_different_archive_key() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-foreign-collation-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("source.sqlite");
+        let source = Connection::open(&foreign).unwrap();
+        source
+            .execute_batch(
+                "CREATE TABLE archive(entry TEXT PRIMARY KEY COLLATE NOCASE) WITHOUT ROWID;
+                INSERT INTO archive VALUES ('directlinkexample.org//Photo.jpg');",
+            )
+            .unwrap();
+        assert!(has_upstream_table(&source, "archive").unwrap());
+        drop(source);
+        let bytes = fs::read(&foreign).unwrap();
+        let archive = Archive::open_with_reference(&root.join("native.sqlite"), Some(&foreign))
+            .unwrap();
+        let exact = extract_direct_media("https://example.org/Photo.jpg").unwrap();
+        let different_case = extract_direct_media("https://example.org/photo.jpg").unwrap();
+        assert!(archive.contains(&exact).unwrap());
+        assert!(!archive.contains(&different_case).unwrap());
+        assert_eq!(archive.import_reference().unwrap(), (1, 1));
+        assert!(archive.contains(&exact).unwrap());
+        assert!(!archive.contains(&different_case).unwrap());
+        drop(archive);
+        assert_eq!(fs::read(&foreign).unwrap(), bytes);
+        fs::remove_file(&foreign).unwrap();
+        let offline = Archive::open(&root.join("native.sqlite")).unwrap();
+        assert!(offline.contains(&exact).unwrap());
+        assert!(!offline.contains(&different_case).unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
