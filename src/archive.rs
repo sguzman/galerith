@@ -3032,6 +3032,7 @@ mod tests {
             "35photo12345_1",
             "unsplashabc-A",
             "lexicaabc-A",
+            "pixeldrainFile12",
         ];
         let rejected = [
             "danbooru00123",
@@ -3048,6 +3049,7 @@ mod tests {
             "35photo12345_01",
             "unsplashbad%2fid",
             "lexicabad%2fid",
+            "pixeldrainbad%2fid",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3166,6 +3168,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://lexica.art/?q=night",
+            ),
+            (
+                MediaItem {
+                    url: "https://pixeldrain.com/api/file/File12?download".into(),
+                    filename: "renamed.jpg".into(),
+                    extractor: "pixeldrain",
+                    post_id: None,
+                },
+                "https://pixeldrain.com/l/album_99",
             ),
             (
                 MediaItem {
@@ -7002,6 +7013,139 @@ mod tests {
             .contains_for_source(&absent, "https://lexica.art/?q=other")
             .unwrap());
         drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pixeldrain_file_id_survives_album_filename_and_media_changes() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pixeldrain-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let file = MediaItem {
+            url: "https://pixeldrain.com/api/file/File12?download".into(),
+            filename: "summer one.jpg".into(),
+            extractor: "pixeldrain",
+            post_id: None,
+        };
+        archive
+            .record_for_source(&file, "https://pixeldrain.com/u/File12")
+            .unwrap();
+        let renamed = MediaItem {
+            filename: "album 001.jpg".into(),
+            ..file.clone()
+        };
+        for source in [
+            "https://pixeldrain.com/api/file/File12",
+            "https://pixeldrain.com/l/album_99",
+            "https://pixeldrain.com/api/list/album_99#item=1",
+        ] {
+            assert!(archive.contains_for_source(&renamed, source).unwrap());
+        }
+        let other = MediaItem {
+            url: "https://pixeldrain.com/api/file/File13?download".into(),
+            ..file.clone()
+        };
+        assert!(!archive
+            .contains_for_source(&other, "https://pixeldrain.com/l/album_99")
+            .unwrap());
+        for invalid in [
+            "https://pixeldrain.com/u/File13",
+            "https://pixeldrain.com/api/list/album_99/zip",
+            "https://pixeldrain.com/d/folder",
+            "https://pixeldrain.com/l/album_99#item=2000",
+            "https://pixeldrain.com/l/album_99?secret=1",
+            "https://pixeldrain.com:8443/u/File12",
+            "https://evil.pixeldrain.com/u/File12",
+        ] {
+            assert!(pixeldrain_archive_scope(&file, invalid).is_none());
+        }
+        for invalid in [
+            "https://pixeldrain.com/api/file/File13?download",
+            "https://pixeldrain.com/api/file/File12?attach",
+            "https://pixeldrain.com/api/file/File12?download&secret=1",
+            "https://pixeldrain.com.evil.test/api/file/File12?download",
+        ] {
+            let item = MediaItem {
+                url: invalid.into(),
+                ..file.clone()
+            };
+            assert!(pixeldrain_archive_scope(&item, "https://pixeldrain.com/u/File12").is_none());
+        }
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        for plaintext in ["File12", "summer one"] {
+            assert!(!bytes
+                .windows(plaintext.len())
+                .any(|part| part == plaintext.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn pixeldrain_import_requires_proven_file_category_and_survives_reopen() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-pixeldrain-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('pixeldrainFile12');
+             INSERT INTO archive VALUES ('pixeldrainFile13');
+             INSERT INTO archive VALUES ('pixeldrainbad%2fid');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('File12');
+             INSERT INTO named VALUES ('pixeldrainFile12');",
+        )
+        .unwrap();
+        drop(db);
+        let source = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("pixeldrain"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), source);
+        fs::remove_file(foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let file = MediaItem {
+            url: "https://pixeldrain.com/api/file/File12?download".into(),
+            filename: "new title.jpg".into(),
+            extractor: "pixeldrain",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&file, "https://pixeldrain.com/l/album_99")
+            .unwrap());
+        let other = MediaItem {
+            url: "https://pixeldrain.com/api/file/File14?download".into(),
+            ..file
+        };
+        assert!(!archive
+            .contains_for_source(&other, "https://pixeldrain.com/l/album_99")
+            .unwrap());
+        drop(archive);
         fs::remove_dir_all(root).unwrap();
     }
 
