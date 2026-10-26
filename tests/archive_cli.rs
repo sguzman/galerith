@@ -223,7 +223,10 @@ fn misleading_binary_mime_or_missing_content_type_cannot_poison_archive() {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         for (mime, body) in [
-            (Some("application/octet-stream"), b"<html>Blocked</html>".as_slice()),
+            (
+                Some("application/octet-stream"),
+                b"<html>Blocked</html>".as_slice(),
+            ),
             (None, b"{\"error\":\"denied\"}".as_slice()),
             (Some("image/jpeg"), b"GOOD".as_slice()),
         ] {
@@ -243,9 +246,7 @@ fn misleading_binary_mime_or_missing_content_type_cannot_poison_archive() {
             };
             let mut buffer = [0_u8; 2048];
             let n = stream.read(&mut buffer).unwrap();
-            assert!(
-                String::from_utf8_lossy(&buffer[..n]).contains("/image.jpg")
-            );
+            assert!(String::from_utf8_lossy(&buffer[..n]).contains("/image.jpg"));
             let declared = mime
                 .map(|mime| format!("Content-Type: {mime}\r\n"))
                 .unwrap_or_default();
