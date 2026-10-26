@@ -613,7 +613,7 @@ fn zero_byte_existing_output_is_not_skipped_or_archived_as_success() {
             .arg(&db)
             .args([
                 "--archive-event",
-                "skip",
+                "file,skip",
                 "--retries",
                 "0",
                 "--http-timeout",
