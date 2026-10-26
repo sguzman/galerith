@@ -973,11 +973,9 @@ fn canonical_imgpile_post_slug(slug: &str) -> bool {
 }
 
 fn canonical_imgpile_archive_suffix(suffix: &str) -> bool {
-    suffix
-        .rsplit_once('_')
-        .is_some_and(|(slug, media_id)| {
-            canonical_imgpile_post_slug(slug) && canonical_numeric_archive_suffix(media_id)
-        })
+    suffix.rsplit_once('_').is_some_and(|(slug, media_id)| {
+        canonical_imgpile_post_slug(slug) && canonical_numeric_archive_suffix(media_id)
+    })
 }
 
 fn imgpile_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3581,8 +3579,7 @@ mod tests {
 
     #[test]
     fn imgpile_post_slug_and_media_id_remain_distinct_across_originals() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-imgpile-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-imgpile-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
@@ -3639,7 +3636,10 @@ mod tests {
                 url: media.into(),
                 ..rotated.clone()
             };
-            assert!(imgpile_archive_scope(&hostile, original).is_none(), "{media}");
+            assert!(
+                imgpile_archive_scope(&hostile, original).is_none(),
+                "{media}"
+            );
         }
         let missing_id = MediaItem {
             post_id: None,
@@ -3722,7 +3722,9 @@ mod tests {
             .unwrap());
         drop(archive);
         let bytes = fs::read(&native).unwrap();
-        assert!(!bytes.windows(b"AbCdEfG".len()).any(|part| part == b"AbCdEfG"));
+        assert!(!bytes
+            .windows(b"AbCdEfG".len())
+            .any(|part| part == b"AbCdEfG"));
         fs::remove_dir_all(root).unwrap();
     }
 
