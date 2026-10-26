@@ -934,3 +934,24 @@ fn pinned_issuu_publication_page_archive_keys() {
         "issuu|publication|pub34_1|pub34_2"
     );
 }
+
+#[test]
+fn pinned_speakerdeck_presentation_archive_uses_page_position() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Speaker Deck archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; x=extractor.find('https://speakerdeck.com/author/my-deck'); print('|'.join((x.category,x.subcategory,x.archive_fmt.format(presentation='my-deck',num=1),x.archive_fmt.format(presentation='my-deck',num=2))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Speaker Deck per-slide archive format").trim(),
+        "speakerdeck|presentation|my-deck_1|my-deck_2"
+    );
+}
