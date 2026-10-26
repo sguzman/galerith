@@ -2611,6 +2611,7 @@ mod tests {
             "fapellophoto_model_123",
             "fapellovideo_model_123",
             "lightroomasset-A",
+            "foriio12345/10/1",
         ];
         let rejected = [
             "danbooru00123",
@@ -2622,6 +2623,7 @@ mod tests {
             "fapachimodel_0123",
             "fapellophoto_model_0123",
             "lightroombad%2fid",
+            "foriio12345/10/01",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -2694,6 +2696,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://lightroom.adobe.com/shares/abc",
+            ),
+            (
+                MediaItem {
+                    url: "https://foriio.imgix.net/store/first.png".into(),
+                    filename: "01 10.png".into(),
+                    extractor: "foriio",
+                    post_id: Some(12345),
+                },
+                "https://foriio.com/works/12345",
             ),
             (
                 MediaItem {
@@ -5788,6 +5799,172 @@ mod tests {
         assert!(!bytes
             .windows(b"lightroomasset-A".len())
             .any(|chunk| chunk == b"lightroomasset-A"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn foriio_multi_originals_remain_independent_across_cdn_changes() {
+        let root = std::env::temp_dir().join(format!("galerith-foriio-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let original = MediaItem {
+            url: "https://foriio.imgix.net/store/first.png".into(),
+            filename: "01 file-A.png".into(),
+            extractor: "foriio",
+            post_id: Some(12345),
+        };
+        let rotated = MediaItem {
+            url: "https://foriio.imgix.net/store/new.png".into(),
+            ..original.clone()
+        };
+        let second = MediaItem {
+            url: "https://foriio.imgix.net/store/second.png".into(),
+            filename: "02 file-B.png".into(),
+            ..original.clone()
+        };
+        let repeated = MediaItem {
+            filename: "02 file-A.png".into(),
+            ..original.clone()
+        };
+        let share = "https://foriio.com/works/12345";
+        assert_eq!(
+            foriio_archive_scope(&original, share).unwrap().1,
+            "foriio12345/file-A/1"
+        );
+        archive.record_for_source(&original, share).unwrap();
+        assert!(archive.contains_for_source(&rotated, share).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://www.fori.io/works/12345")
+            .unwrap());
+        assert!(!archive.contains_for_source(&second, share).unwrap());
+        assert!(!archive.contains_for_source(&repeated, share).unwrap());
+        assert!(!archive
+            .contains_for_source(&original, "https://foriio.com/works/12346")
+            .unwrap());
+        for wrong_source in [
+            "https://foriio.com/works/012345",
+            "https://foriio.com/works/12345?secret=1",
+            "https://evilforiio.com/works/12345",
+            "https://foriio.com:8443/works/12345",
+            "https://foriio.com/artist",
+        ] {
+            assert!(
+                foriio_archive_scope(&original, wrong_source).is_none(),
+                "{wrong_source}"
+            );
+        }
+        let evil = MediaItem {
+            url: "https://foriio.imgix.net.evil.test/store/first.png".into(),
+            ..original.clone()
+        };
+        assert!(foriio_archive_scope(&evil, share).is_none());
+        for wrong_filename in [
+            "00 file-A.png",
+            "1 file-A.png",
+            "129 file-A.png",
+            "01 file-A.jpg",
+            "01 bad%2fid.png",
+        ] {
+            let item = MediaItem {
+                filename: wrong_filename.into(),
+                ..original.clone()
+            };
+            assert!(
+                foriio_archive_scope(&item, share).is_none(),
+                "{wrong_filename}"
+            );
+        }
+        for key in ["012345/file-A/1", "12345/file-A/01", "12345/file-A/0", "12345/file-A/129"] {
+            assert!(!canonical_foriio_archive_suffix(key), "{key}");
+        }
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for private in ["file-A", "first.png", "12345/file-A"] {
+            assert!(
+                !bytes
+                    .windows(private.len())
+                    .any(|part| part == private.as_bytes()),
+                "{private}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn foriio_reference_import_is_private_idempotent_and_offline_usable() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-foriio-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('foriio12345/file-A/1');
+             INSERT INTO archive VALUES ('foriio12345/file-B/2');
+             INSERT INTO archive VALUES ('foriio12345/file-A/01');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('12345/file-A/1');
+             INSERT INTO named VALUES ('foriio12345/file-A/1');",
+        )
+        .unwrap();
+        drop(db);
+        let original_bytes = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
+        drop(unscoped);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("foriio"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), original_bytes);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://foriio.imgix.net/store/changed.png".into(),
+            filename: "01 file-A.png".into(),
+            extractor: "foriio",
+            post_id: Some(12345),
+        };
+        assert!(reopened
+            .contains_for_source(&first, "https://foriio.com/works/12345")
+            .unwrap());
+        let different_position = MediaItem {
+            filename: "02 file-A.png".into(),
+            ..first.clone()
+        };
+        assert!(!reopened
+            .contains_for_source(&different_position, "https://foriio.com/works/12345")
+            .unwrap());
+        let second = MediaItem {
+            filename: "02 file-B.png".into(),
+            ..first
+        };
+        assert!(reopened
+            .contains_for_source(&second, "https://foriio.com/works/12345")
+            .unwrap());
+        drop(reopened);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"foriio12345/file-A/1".len())
+            .any(|part| part == b"foriio12345/file-A/1"));
         fs::remove_dir_all(root).unwrap();
     }
 
