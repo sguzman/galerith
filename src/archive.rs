@@ -5363,6 +5363,79 @@ mod tests {
     }
 
     #[test]
+    fn fapello_reference_import_is_private_and_source_free_after_reopen() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-fapello-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('fapellophoto_model_12345');
+             INSERT INTO archive VALUES ('fapellovideo_model_12345');
+             INSERT INTO archive VALUES ('fapellophoto_model_012345');
+             INSERT INTO archive VALUES ('fapellophoto_search_12345');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('photo_model_12345');
+             INSERT INTO named VALUES ('fapellophoto_model_12345');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("fapello"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let photo = MediaItem {
+            url: "https://cdn.fapello.su/rotated.webp".into(),
+            filename: "rotated.webp".into(),
+            extractor: "fapello",
+            post_id: Some(12345),
+        };
+        assert!(offline
+            .contains_for_source(&photo, "https://fapello.com/model/12345")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&photo, "https://fapello.com/other/12345")
+            .unwrap());
+        let video = MediaItem {
+            url: "https://cdn.fapello.com/rotated.mp4".into(),
+            ..photo
+        };
+        assert!(offline
+            .contains_for_source(&video, "https://fapello.com/model/12345")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"fapellophoto_model_12345".len())
+            .any(|part| part == b"fapellophoto_model_12345"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imgur_album_and_single_image_identities_keep_originals_separate() {
         let root = std::env::temp_dir().join(format!("galerith-imgur-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
