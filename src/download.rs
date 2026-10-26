@@ -5,8 +5,8 @@ use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
     header::{
-        ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE,
-        RETRY_AFTER,
+        ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, ETAG, IF_RANGE,
+        LAST_MODIFIED, RANGE, RETRY_AFTER,
     },
     Client, StatusCode,
 };
@@ -103,6 +103,37 @@ fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Op
         .to_str()
         .ok()
         .map(str::to_owned)
+}
+
+/// An HTML/JSON application error with HTTP 200 is not image or video
+/// content, even when its URL and output filename have a media extension.
+/// Keep generic direct-file downloads (e.g. an actual .html file) intact.
+fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
+    let extension = item
+        .filename
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let expects_media = extension.as_deref().is_some_and(|ext| {
+        matches!(
+            ext,
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "bmp" | "tif" | "tiff" | "jxl"
+                | "heic" | "heif" | "mp4" | "webm" | "mov" | "mkv" | "mp3" | "wav"
+                | "flac" | "ogg"
+        )
+    });
+    if !expects_media {
+        return false;
+    }
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    matches!(
+        mime.as_str(),
+        "text/html" | "application/xhtml+xml" | "application/json" | "application/problem+json"
+    )
 }
 
 fn error(message: &str) -> Box<dyn Error + Send + Sync> {
@@ -251,6 +282,19 @@ pub async fn download(
             ));
         }
         let mut response = response.error_for_status()?;
+        // A client configured without redirects may return a successful
+        // 3xx response body, and a 202/203 is not a complete media download.
+        // Only full 200 and explicitly validated 206 responses can be saved.
+        if !matches!(status, StatusCode::OK | StatusCode::PARTIAL_CONTENT) {
+            return Err(error("unexpected HTTP status for completed media"));
+        }
+        // Some image hosts return a branded HTML/JSON block page with 200.
+        // Never archive it as completed image or video content.
+        if header(&response, CONTENT_TYPE)
+            .is_some_and(|mime| media_error_document(item, &mime))
+        {
+            return Err(error("application error document instead of media"));
+        }
         // Even when identity was requested, an HTTP server can ignore it.
         // Saving encoded response bytes under the original filename or
         // appending them to an identity partial would corrupt the media.
@@ -456,6 +500,26 @@ mod tests {
         );
         assert_eq!(parse_retry_after("bogus", now), None);
         assert_eq!(parse_retry_after("-2", now), None);
+    }
+
+    #[test]
+    fn reject_error_documents_only_for_media_filenames() {
+        let item = MediaItem {
+            url: "https://example.test/media.jpg".into(),
+            filename: "photo.jpg".into(),
+            extractor: "directlink",
+            post_id: None,
+        };
+        assert!(media_error_document(&item, "text/html; charset=UTF-8"));
+        assert!(media_error_document(&item, "APPLICATION/JSON"));
+        assert!(media_error_document(&item, "application/problem+json"));
+        assert!(!media_error_document(&item, "image/jpeg"));
+        assert!(!media_error_document(&item, "application/octet-stream"));
+        let html = MediaItem {
+            filename: "document.html".into(),
+            ..item
+        };
+        assert!(!media_error_document(&html, "text/html"));
     }
 
     #[test]
