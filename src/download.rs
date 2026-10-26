@@ -113,14 +113,11 @@ fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
         .filename
         .rsplit_once('.')
         .map(|(_, ext)| ext.to_ascii_lowercase());
-    let expects_media = extension.as_deref().is_some_and(|ext| {
-        matches!(
-            ext,
-            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "bmp" | "tif" | "tiff" | "jxl"
-                | "heic" | "heif" | "mp4" | "webm" | "mov" | "mkv" | "mp3" | "wav"
-                | "flac" | "ogg"
-        )
-    });
+    let media_exts = [
+        "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
+        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg",
+    ];
+    let expects_media = extension.as_deref().is_some_and(|ext| media_exts.contains(&ext));
     if !expects_media {
         return false;
     }
@@ -290,9 +287,7 @@ pub async fn download(
         }
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
-        if header(&response, CONTENT_TYPE)
-            .is_some_and(|mime| media_error_document(item, &mime))
-        {
+        if header(&response, CONTENT_TYPE).is_some_and(|mime| media_error_document(item, &mime)) {
             return Err(error("application error document instead of media"));
         }
         // Even when identity was requested, an HTTP server can ignore it.
