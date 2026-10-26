@@ -89,12 +89,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "piczel",
             "35photo",
             "unsplash",
+            "lexica",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "lexica" && canonical_lexica_image_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "unsplash" && canonical_unsplash_photo_id(id) {
@@ -141,6 +145,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "piczel"
                         | "35photo"
                         | "unsplash"
+                        | "lexica"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -215,9 +220,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "piczel",
         "35photo",
         "unsplash",
+        "lexica",
     ] {
         if prefix == category
-            && ((category == "unsplash" && canonical_unsplash_photo_id(bare))
+            && ((category == "lexica" && canonical_lexica_image_id(bare))
+                || (category == "unsplash" && canonical_unsplash_photo_id(bare))
                 || (category == "35photo" && canonical_thirtyfivephoto_archive_suffix(bare))
                 || (category == "piczel" && canonical_piczel_archive_suffix(bare))
                 || (category == "foriio" && canonical_foriio_archive_suffix(bare))
@@ -243,6 +250,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "piczel"
                         | "35photo"
                         | "unsplash"
+                        | "lexica"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -427,6 +435,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "piczel"
                 | "35photo"
                 | "unsplash"
+                | "lexica"
         )
 }
 
@@ -812,6 +821,66 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// All pinned public Unsplash extractors archive by the API photo "{id}".
 /// The native photo resolver already emits this ID as "id.jpg" for every
 /// family, including favorites, collections and searches.
+/// Pinned Lexica search archive_fmt = "{id}". Unlike arbitrary
+/// search-result files, the native Lexica media URL itself embeds the API ID.
+fn canonical_lexica_image_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn lexica_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "lexica" {
+        return None;
+    }
+    let id = item.filename.strip_suffix(".jpg")?;
+    if !canonical_lexica_image_id(id) {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("lexica.art")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.fragment().is_some()
+        || source.path() != "/"
+    {
+        return None;
+    }
+    let mut query = source.query_pairs();
+    let (key, value) = query.next()?;
+    if key != "q"
+        || value.trim().is_empty()
+        || value.len() > 240
+        || value.chars().any(char::is_control)
+        || query.next().is_some()
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("lexica-serve-encoded-images2.sharif.workers.dev")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let parts: Vec<_> = media.path_segments()?.collect();
+    if !matches!(parts.as_slice(), ["full_jpg", media_id] if *media_id == id) {
+        return None;
+    }
+    let upstream = format!("lexica{id}");
+    Some((
+        format!("image-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_unsplash_photo_id(id: &str) -> bool {
     (1..=128).contains(&id.len())
         && id
@@ -1841,6 +1910,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| piczel_archive_scope(item, source_url))
         .or_else(|| thirtyfivephoto_archive_scope(item, source_url))
         .or_else(|| unsplash_archive_scope(item, source_url))
+        .or_else(|| lexica_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
