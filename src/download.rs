@@ -168,8 +168,9 @@ fn error(message: &str) -> Box<dyn Error + Send + Sync> {
     io::Error::new(io::ErrorKind::InvalidData, message).into()
 }
 
-/// Strictly parse "bytes start-end/total"; unknown totals are not accepted for
-/// finalizing a resumed file. A resumed response must describe the whole suffix.
+/// Strictly parse "bytes start-end/total"; unknown totals are not accepted.
+/// A server may return a shorter contiguous 206 chunk than requested, but
+/// only a response completing the advertised total can finalize the file.
 fn resumed_length(raw: &str, offset: u64) -> Option<(u64, u64)> {
     let value = raw.strip_prefix("bytes ")?;
     let (range, total) = value.split_once('/')?;
@@ -177,7 +178,7 @@ fn resumed_length(raw: &str, offset: u64) -> Option<(u64, u64)> {
     let start = start.parse::<u64>().ok()?;
     let end = end.parse::<u64>().ok()?;
     let total = total.parse::<u64>().ok()?;
-    if start != offset || end < start || end.checked_add(1)? != total {
+    if start != offset || end < start || end.checked_add(1)? > total {
         return None;
     }
     Some((end.checked_sub(start)?.checked_add(1)?, total))
@@ -587,7 +588,7 @@ pub async fn download(
                 }
             }
             if let Some((_, total)) = resume_range {
-                if offset.saturating_add(received) != total {
+                if offset.saturating_add(received) > total {
                     transfer_error = Some(error("resumed total length mismatch"));
                 }
             }
@@ -619,6 +620,18 @@ pub async fn download(
             // Keep a validated .part pair for the next invocation.
             return Err(err);
         }
+        if let Some((_, total)) = resume_range {
+            if offset + received < total {
+                // A syntactically valid 206 may cover only one subrange.
+                // Keep the synchronized partial and original If-Range
+                // validator; request the next offset rather than publishing
+                // an incomplete representation or an archive event.
+                if attempt < options.retries {
+                    continue;
+                }
+                return Err(error("resumed chunk saved; more bytes remain"));
+            }
+        }
         fs::rename(&part, &target).await?;
         if let Some(modified) = source_mtime {
             // Last-Modified is optional, and unsupported filesystem timestamp
@@ -649,7 +662,10 @@ mod tests {
     fn strict_resumed_content_range() {
         assert_eq!(resumed_length("bytes 4-9/10", 4), Some((6, 10)));
         assert_eq!(resumed_length("bytes 5-9/10", 4), None);
-        assert_eq!(resumed_length("bytes 4-8/10", 4), None);
+        assert_eq!(resumed_length("bytes 4-8/10", 4), Some((5, 10)));
+        assert_eq!(resumed_length("bytes 4-10/10", 4), None);
+        assert_eq!(resumed_length("bytes 4-9/9", 4), None);
+        assert_eq!(resumed_length("bytes 4-4/10", 4), Some((1, 10)));
         assert_eq!(resumed_length("bytes 4-9/*", 4), None);
         assert_eq!(resumed_length("bytes 4-3/10", 4), None);
     }

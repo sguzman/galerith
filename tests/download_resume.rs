@@ -473,6 +473,119 @@ async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
 }
 
 #[tokio::test]
+async fn bounded_206_subranges_continue_to_final_total_without_publishing_intermediate_file() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let text = request(&mut first).await;
+        assert!(!text.contains("\r\nrange:"), "{text}");
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"chunked\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+
+        let mut middle = next(&listener).await;
+        let text = request(&mut middle).await;
+        assert!(text.contains("\r\nrange: bytes=4-\r\n"), "{text}");
+        assert!(text.contains("\r\nif-range: \"chunked\"\r\n"), "{text}");
+        middle
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-6/10\r\nContent-Length: 3\r\nETag: \"chunked\"\r\nConnection: close\r\n\r\nEFG",
+            )
+            .await
+            .unwrap();
+        drop(middle);
+
+        let mut last = next(&listener).await;
+        let text = request(&mut last).await;
+        assert!(text.contains("\r\nrange: bytes=7-\r\n"), "{text}");
+        assert!(text.contains("\r\nif-range: \"chunked\"\r\n"), "{text}");
+        last
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-9/10\r\nContent-Length: 3\r\nETag: \"chunked\"\r\nConnection: close\r\n\r\nHIJ",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("bounded-206-chunks");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/image.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("image.jpg"))
+    );
+    assert_eq!(fs::read(path.join("image.jpg")).unwrap(), b"ABCDEFGHIJ");
+    assert!(!path.join("image.jpg.part").exists());
+    assert!(!path.join("image.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn bounded_206_subrange_exhaustion_persists_validator_and_resumes_next_invocation() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let text = request(&mut first).await;
+        assert!(!text.contains("\r\nrange:"), "{text}");
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"same\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+
+        let mut middle = next(&listener).await;
+        let text = request(&mut middle).await;
+        assert!(text.contains("\r\nrange: bytes=4-\r\n"), "{text}");
+        middle
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-6/10\r\nContent-Length: 3\r\nETag: \"same\"\r\nConnection: close\r\n\r\nEFG",
+            )
+            .await
+            .unwrap();
+        drop(middle);
+
+        let mut last = next(&listener).await;
+        let text = request(&mut last).await;
+        assert!(text.contains("\r\nrange: bytes=7-\r\n"), "{text}");
+        assert!(text.contains("\r\nif-range: \"same\"\r\n"), "{text}");
+        last
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-9/10\r\nContent-Length: 3\r\nETag: \"same\"\r\nConnection: close\r\n\r\nHIJ",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("bounded-206-process-resume");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/image.jpg")).unwrap();
+    let limited = download(&client(), &item, &settings(path.clone(), 1)).await;
+    assert!(limited.is_err(), "subrange must not be finalized or archived");
+    assert!(!path.join("image.jpg").exists());
+    assert_eq!(fs::read(path.join("image.jpg.part")).unwrap(), b"ABCDEFG");
+    let sidecar = fs::read_to_string(path.join("image.jpg.part.json")).unwrap();
+    assert!(sidecar.contains("same"));
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 0))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("image.jpg"))
+    );
+    assert_eq!(fs::read(path.join("image.jpg")).unwrap(), b"ABCDEFGHIJ");
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn overlong_206_suffix_is_discarded_and_restarted_without_range() {
     for (label, length_header) in [
         ("declared-length-overrun", "Content-Length: 8\r\n"),
