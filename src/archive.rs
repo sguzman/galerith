@@ -111,12 +111,20 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgdrive",
             "imgtaxi",
             "imgwallet",
+            "silverpic",
+            "picstate",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "silverpic" && canonical_silverpic_token(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "picstate" && canonical_picstate_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
@@ -247,6 +255,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgdrive"
                         | "imgtaxi"
                         | "imgwallet"
+                        | "silverpic"
+                        | "picstate"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -343,9 +353,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgdrive",
         "imgtaxi",
         "imgwallet",
+        "silverpic",
+        "picstate",
     ] {
         if prefix == category
-            && ((matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
+            && ((category == "silverpic" && canonical_silverpic_token(bare))
+                || (category == "picstate" && canonical_picstate_token(bare))
+                || (matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
                 && canonical_drive_image_token(bare))
                 || (category == "fappic" && canonical_fappic_token(bare))
                 || (category == "imgpv" && canonical_imgpv_token(bare))
@@ -414,6 +428,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgdrive"
                         | "imgtaxi"
                         | "imgwallet"
+                        | "silverpic"
+                        | "picstate"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -620,6 +636,8 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imgdrive"
                 | "imgtaxi"
                 | "imgwallet"
+                | "silverpic"
+                | "picstate"
         )
 }
 
@@ -1039,6 +1057,150 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned SilverpicImageExtractor: a lowercase alphanumeric image token,
+/// independent of the mutable per-page filename.
+fn canonical_silverpic_token(token: &str) -> bool {
+    (10..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn silverpic_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "silverpic" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("silverpic.net" | "www.silverpic.net" | "silverpic.com" | "www.silverpic.com")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let [token, page] = segments.as_slice() else {
+        return None;
+    };
+    if !canonical_silverpic_token(token)
+        || !(6..=200).contains(&page.len())
+        || !page.ends_with(".html")
+        || page.contains("..")
+        || !page
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return None;
+    }
+    let original = url::Url::parse(&item.url).ok()?;
+    if original.scheme() != "https"
+        || original.host_str() != Some("silverpic.net")
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let media_parts: Vec<_> = original.path_segments()?.collect();
+    let ["img", filename] = media_parts.as_slice() else {
+        return None;
+    };
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || filename.contains("..")
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("silverpic{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
+/// Pinned PicstateImageExtractor uses the public /view/full/ID page key.
+/// Galerith's existing media resolver independently checks /file(s)/ID/name.
+fn canonical_picstate_token(id: &str) -> bool {
+    (1..=80).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn picstate_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "picstate" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("picstate.com" | "www.picstate.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let segments: Vec<_> = source.path_segments()?.collect();
+    let ["view", "full", id] = segments.as_slice() else {
+        return None;
+    };
+    if !canonical_picstate_token(id) {
+        return None;
+    }
+    let original = url::Url::parse(&item.url).ok()?;
+    if original.scheme() != "https"
+        || !matches!(original.host_str(), Some("picstate.com" | "www.picstate.com"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let original_segments: Vec<_> = original.path_segments()?.collect();
+    let [kind, media_id, filename] = original_segments.as_slice() else {
+        return None;
+    };
+    if !matches!(*kind, "file" | "files") || media_id != id {
+        return None;
+    }
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("picstate{id}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned ImgdriveImageExtractor dynamically sets imgdrive/imgtaxi/imgwallet
 /// categories while retaining the common per-image "{token}" archive_fmt.
 fn canonical_drive_image_token(token: &str) -> bool {
@@ -3575,6 +3737,8 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| fappic_archive_scope(item, source_url))
         .or_else(|| imgpv_archive_scope(item, source_url))
         .or_else(|| drive_family_archive_scope(item, source_url))
+        .or_else(|| silverpic_archive_scope(item, source_url))
+        .or_else(|| picstate_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4183,6 +4347,164 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn silverpic_and_picstate_source_tokens_ignore_filename_rotation_but_not_other_origins() {
+        let root = std::env::temp_dir().join(format!("galerith-silverpic-picstate-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let silver = MediaItem {
+            url: "https://silverpic.net/img/first.jpg".into(),
+            filename: "first.jpg".into(),
+            extractor: "silverpic",
+            post_id: None,
+        };
+        let silver_changed = MediaItem {
+            url: "https://silverpic.net/img/second.webp".into(),
+            filename: "second.webp".into(),
+            ..silver.clone()
+        };
+        let silver_source = "https://silverpic.net/a1b2c3d4f5g6/first.jpg.html";
+        assert_eq!(
+            silverpic_archive_scope(&silver, silver_source).unwrap().1,
+            "silverpica1b2c3d4f5g6"
+        );
+        archive.record_for_source(&silver, silver_source).unwrap();
+        assert!(archive
+            .contains_for_source(&silver_changed, "https://www.silverpic.com/a1b2c3d4f5g6/new.webp.html")
+            .unwrap());
+        for bad in [
+            "https://silverpic.net/other123456/new.jpg.html",
+            "https://silverpic.net/A1B2C3D4F5G6/new.jpg.html",
+            "https://silverpic.net/a1b2c3d4f5g6/new.jpg.html?token=x",
+            "https://silverpic.net:8443/a1b2c3d4f5g6/new.jpg.html",
+            "https://silverpic.net.attacker.invalid/a1b2c3d4f5g6/new.jpg.html",
+        ] {
+            assert!(!archive.contains_for_source(&silver_changed, bad).unwrap());
+        }
+        let invalid_silver = MediaItem {
+            url: "https://cdn.silverpic.net/img/file.jpg".into(),
+            ..silver_changed
+        };
+        assert!(silverpic_archive_scope(&invalid_silver, silver_source).is_none());
+
+        let pic = MediaItem {
+            url: "https://picstate.com/file/123/first.jpg".into(),
+            filename: "first.jpg".into(),
+            extractor: "picstate",
+            post_id: None,
+        };
+        let pic_changed = MediaItem {
+            url: "https://www.picstate.com/files/123/new.webp".into(),
+            filename: "new.webp".into(),
+            ..pic.clone()
+        };
+        assert_eq!(
+            picstate_archive_scope(&pic, "https://picstate.com/view/full/123").unwrap().1,
+            "picstate123"
+        );
+        archive.record_for_source(&pic, "https://picstate.com/view/full/123").unwrap();
+        assert!(archive
+            .contains_for_source(&pic_changed, "https://www.picstate.com/view/full/123")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&pic_changed, "https://picstate.com/view/full/124")
+            .unwrap());
+        for bad in [
+            "https://picstate.com/view/full/123?auth=1",
+            "https://picstate.com/view/full/123#fragment",
+            "https://picstate.com:8443/view/full/123",
+            "https://picstate.com.attacker.invalid/view/full/123",
+        ] {
+            assert!(!archive.contains_for_source(&pic_changed, bad).unwrap());
+        }
+        let mismatched = MediaItem {
+            url: "https://picstate.com/file/124/new.webp".into(),
+            ..pic_changed
+        };
+        assert!(picstate_archive_scope(&mismatched, "https://picstate.com/view/full/123").is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for token in [b"a1b2c3d4f5g6".as_slice(), b"picstate123".as_slice()] {
+            assert!(!bytes.windows(token.len()).any(|part| part == token));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn silverpic_and_picstate_reference_imports_are_private_and_category_specific() {
+        let root = std::env::temp_dir().join(format!("galerith-silverpic-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('silverpica1b2c3d4f5g6');
+            INSERT INTO archive VALUES ('picstate123');
+            INSERT INTO archive VALUES ('silverpicBADTOKEN');
+            INSERT INTO archive VALUES ('picstatebad-token');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('a1b2c3d4f5g6');
+            INSERT INTO named VALUES ('123');
+            INSERT INTO named VALUES ('silverpica1b2c3d4f5g6');
+            INSERT INTO named VALUES ('picstate123');",
+        )
+        .unwrap();
+        drop(db);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        for category in ["silverpic", "picstate"] {
+            let named = Archive::open_with_reference_options(
+                &root.join(format!("{category}.sqlite")),
+                Some(&foreign),
+                Some("named"),
+                Some(category),
+            )
+            .unwrap();
+            assert_eq!(named.import_reference().unwrap(), (1, 1));
+        }
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(&foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let silver = MediaItem {
+            url: "https://silverpic.net/img/new.webp".into(),
+            filename: "new.webp".into(),
+            extractor: "silverpic",
+            post_id: None,
+        };
+        let pic = MediaItem {
+            url: "https://picstate.com/file/123/new.webp".into(),
+            filename: "new.webp".into(),
+            extractor: "picstate",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&silver, "https://silverpic.com/a1b2c3d4f5g6/name.jpg.html")
+            .unwrap());
+        assert!(archive
+            .contains_for_source(&pic, "https://picstate.com/view/full/123")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&pic, "https://picstate.com/view/full/124")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn drive_family_tokens_are_separate_per_host_category_and_original_origin() {

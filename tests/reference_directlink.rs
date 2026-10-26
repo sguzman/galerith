@@ -1189,3 +1189,28 @@ fn pinned_imgdrive_imgtaxi_and_imgwallet_retain_distinct_token_categories() {
         "imgdrive|image|AbC012|imgtaxi|image|AbC012|imgwallet|image|AbC012"
     );
 }
+
+#[test]
+fn pinned_silverpic_and_picstate_imagehost_archive_ids() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Silverpic/Picstate archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://silverpic.net/a1b2c3d4f5g6/NAME.EXT.html'); b=extractor.find('https://picstate.com/view/full/123'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='a1b2c3d4f5g6'),b.category,b.subcategory,b.archive_fmt.format(token='123'))))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(
+            cmd,
+            "pinned Silverpic and Picstate individual archive identities"
+        )
+        .trim(),
+        "silverpic|image|a1b2c3d4f5g6|picstate|image|123"
+    );
+}
