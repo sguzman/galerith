@@ -910,8 +910,7 @@ fn piczel_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
     }
     let parts: Vec<_> = source.path_segments()?.collect();
     match parts.as_slice() {
-        ["gallery", "image", post] | ["gallery", "image", post, ""]
-            if *post == id.to_string() => {}
+        ["gallery", "image", post] | ["gallery", "image", post, ""] if *post == id.to_string() => {}
         ["gallery", user] | ["gallery", user, ""]
             if (1..=96).contains(&user.len())
                 && user
@@ -955,7 +954,10 @@ fn piczel_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, S
         return None;
     }
     let upstream = format!("piczel{suffix}");
-    Some((format!("post-sha256:{}", archive_key_digest(&upstream)), upstream))
+    Some((
+        format!("post-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
