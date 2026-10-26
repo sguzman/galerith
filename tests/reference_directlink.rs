@@ -1022,3 +1022,24 @@ fn pinned_postimg_image_tokens_and_gallery_queue_are_distinct() {
         "postimg|image|PhJZt1Rw|image|PhJZt1Rw|gallery"
     );
 }
+
+#[test]
+fn pinned_imgpile_post_slug_and_media_ids_are_independent() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Imgpile archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; p=extractor.find('https://imgpile.com/p/AbCdEfG'); u=extractor.find('https://imgpile.com/u/creator'); print('|'.join((p.category,p.subcategory,p.archive_fmt.format(post={'id_slug':'AbCdEfG'},id=17),p.archive_fmt.format(post={'id_slug':'AbCdEfG'},id=18),u.subcategory)))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Imgpile post and individual media IDs").trim(),
+        "imgpile|post|AbCdEfG_17|AbCdEfG_18|user"
+    );
+}
