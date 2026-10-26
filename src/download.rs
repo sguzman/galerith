@@ -545,9 +545,9 @@ pub async fn download(
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
-                    if expected_body.is_some_and(|max| {
-                        received.saturating_add(chunk.len() as u64) > max
-                    }) {
+                    if expected_body
+                        .is_some_and(|max| received.saturating_add(chunk.len() as u64) > max)
+                    {
                         // Never append an overlong chunk or retain any
                         // previously appended bytes from this response.
                         oversized_response = true;

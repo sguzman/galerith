@@ -523,10 +523,7 @@ async fn overlong_206_suffix_is_discarded_and_restarted_without_range() {
                 .unwrap(),
             DownloadOutcome::Saved(path.join("image.jpg"))
         );
-        assert_eq!(
-            fs::read(path.join("image.jpg")).unwrap(),
-            b"GOODABCDEF"
-        );
+        assert_eq!(fs::read(path.join("image.jpg")).unwrap(), b"GOODABCDEF");
         assert!(!path.join("image.jpg.part").exists());
         assert!(!path.join("image.jpg.part.json").exists());
         server.await.unwrap();
