@@ -601,9 +601,9 @@ fn zero_byte_existing_output_is_not_skipped_or_archived_as_success() {
         let count = stream.read(&mut request).unwrap();
         let request = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
         assert!(request.contains("/recovery.jpg"), "{request}");
-        stream.write_all(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
-        ).unwrap();
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD")
+            .unwrap();
     });
     let invoke = || {
         Command::new(env!("CARGO_BIN_EXE_galerith"))
@@ -611,7 +611,14 @@ fn zero_byte_existing_output_is_not_skipped_or_archived_as_success() {
             .arg(&dir)
             .arg("--download-archive")
             .arg(&db)
-            .args(["--archive-event", "skip", "--retries", "0", "--http-timeout", "3"])
+            .args([
+                "--archive-event",
+                "skip",
+                "--retries",
+                "0",
+                "--http-timeout",
+                "3",
+            ])
             .arg(&url)
             .output()
             .unwrap()
