@@ -6608,7 +6608,10 @@ mod tests {
             "https://unsplash.com/collections/12345/nature",
             "https://unsplash.com/s/photos/sky?orientation=landscape",
         ] {
-            assert!(archive.contains_for_source(&rotated, source).unwrap(), "{source}");
+            assert!(
+                archive.contains_for_source(&rotated, source).unwrap(),
+                "{source}"
+            );
         }
         let other = MediaItem {
             filename: "abc-B.jpg".into(),
@@ -6626,7 +6629,10 @@ mod tests {
             "https://unsplash.com/@alice?token=private",
             "https://unsplash.com/photos/abc-A?secret=1",
         ] {
-            assert!(unsplash_archive_scope(&photo, invalid).is_none(), "{invalid}");
+            assert!(
+                unsplash_archive_scope(&photo, invalid).is_none(),
+                "{invalid}"
+            );
         }
         let forged = MediaItem {
             url: "https://images.unsplash.com.evil.test/pic".into(),
