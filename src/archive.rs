@@ -109,7 +109,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 }
                 if !matches!(
                     category,
-                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
+                    "wallhaven"
+                        | "4chan"
+                        | "imgur"
+                        | "500px"
+                        | "photovogue"
+                        | "fapachi"
+                        | "fapello"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -190,7 +196,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
                 || (!matches!(
                     category,
-                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
+                    "wallhaven"
+                        | "4chan"
+                        | "imgur"
+                        | "500px"
+                        | "photovogue"
+                        | "fapachi"
+                        | "fapello"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
