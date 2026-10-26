@@ -141,6 +141,61 @@ async fn missing_content_range_recovers_within_retry_budget() {
 }
 
 #[tokio::test]
+async fn retryable_rate_limit_preserves_resumable_partial_and_validator() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let req = request(&mut first).await;
+        assert!(!req.contains("\r\nrange:"));
+        first
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(first);
+
+        let mut limited = next(&listener).await;
+        let req = request(&mut limited).await;
+        assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: \"stable\"\r\n"), "{req}");
+        limited
+            .write_all(
+                b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .await
+            .unwrap();
+        drop(limited);
+
+        let mut resumed = next(&listener).await;
+        let req = request(&mut resumed).await;
+        assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: \"stable\"\r\n"), "{req}");
+        resumed
+            .write_all(
+                b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-7/8\r\nContent-Length: 4\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nEFGH",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("429-validated-partial");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/429.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("429.jpg"))
+    );
+    assert_eq!(fs::read(path.join("429.jpg")).unwrap(), b"ABCDEFGH");
+    assert!(!path.join("429.jpg.part").exists());
+    assert!(!path.join("429.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn persists_verified_partial_across_invocations() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
