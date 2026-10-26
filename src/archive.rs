@@ -40,6 +40,15 @@ fn archive_key_digest(key: &str) -> String {
         .collect()
 }
 
+/// Canonical pinned numeric formats use their parsed positive integer ID;
+/// leading-zero variants must not inflate imported history counts.
+fn canonical_numeric_archive_suffix(suffix: &str) -> bool {
+    suffix
+        .parse::<u64>()
+        .ok()
+        .is_some_and(|id| id > 0 && suffix == id.to_string())
+}
+
 /// Recognize only default pinned archive templates. A configured archive
 /// table defaults to an *empty* prefix in upstream gallery-dl, so bare
 /// numeric image IDs cannot safely be assigned to any Philomena site.
@@ -97,7 +106,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 if !matches!(
                     category,
                     "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
-                ) && id.parse::<u64>().ok().is_some_and(|n| n > 0)
+                ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
                 }
@@ -176,7 +185,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (!matches!(
                     category,
                     "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
-                ) && bare.parse::<u64>().ok().is_some_and(|n| n > 0))
+                ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
                 || (category == "danbooru" && canonical_favorite_group_archive_suffix(bare))
@@ -2140,6 +2149,32 @@ mod tests {
             Some(""),
         )
         .is_none());
+    }
+
+    #[test]
+    fn numeric_foreign_ids_must_match_pinned_canonical_integer_format() {
+        for (category, item) in [
+            ("danbooru", "danbooru123"),
+            ("derpibooru", "derpibooru123"),
+            ("e621", "e621123"),
+            ("konachan", "konachan123"),
+            ("gelbooru", "gelbooru123"),
+        ] {
+            assert_eq!(
+                import_category(item, None),
+                Some((category, item.to_owned()))
+            );
+            let padded = format!("{category}00123");
+            assert_eq!(import_category(&padded, None), None);
+            assert_eq!(import_category("00123", Some(category)), None);
+            assert_eq!(import_category("0", Some(category)), None);
+            assert_eq!(
+                import_category("123", Some(category)),
+                Some((category, item.to_owned()))
+            );
+        }
+        assert!(!canonical_numeric_archive_suffix("18446744073709551616"));
+        assert!(!canonical_numeric_archive_suffix("-123"));
     }
 
     #[test]
