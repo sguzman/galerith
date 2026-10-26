@@ -3482,6 +3482,7 @@ mod tests {
             "webmshareABc_123",
             "catboxabc123",
             "catboxAlbum123_abc123",
+            "slidesharemy-deck_1",
         ];
         let rejected = [
             "danbooru00123",
@@ -3503,6 +3504,7 @@ mod tests {
             "lensdumpAlbum88_1",
             "webmsharebad%2fid",
             "catboxAlbum123_abc_123",
+            "slidesharemy-deck_01",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3666,6 +3668,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://catbox.moe/c/Album123",
+            ),
+            (
+                MediaItem {
+                    url: "https://image.slidesharecdn.com/example/abc/95/deck-1-1024.jpg".into(),
+                    filename: "my-deck-01.jpg".into(),
+                    extractor: "slideshare",
+                    post_id: None,
+                },
+                "https://www.slideshare.net/speaker/my-deck",
             ),
             (
                 MediaItem {
@@ -8216,6 +8227,165 @@ mod tests {
         assert!(!bytes
             .windows(b"catboxAlbum123_abc123".len())
             .any(|part| part == b"catboxAlbum123_abc123"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn slideshare_originals_are_isolated_by_presentation_and_slide_number() {
+        let root = std::env::temp_dir().join(format!("galerith-slideshare-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://image.slidesharecdn.com/example/abc/95/deck-1-1024.jpg".into(),
+            filename: "my-deck-01.jpg".into(),
+            extractor: "slideshare",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://images.slidesharecdn.com/new/abc/95/newtitle-1-1024.jpg".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            url: "https://image.slidesharecdn.com/example/abc/95/deck-2-1024.jpg".into(),
+            filename: "my-deck-02.jpg".into(),
+            ..first.clone()
+        };
+        let source = "https://www.slideshare.net/speaker/my-deck";
+        assert_eq!(
+            slideshare_archive_scope(&first, source).unwrap().1,
+            "slidesharemy-deck_1"
+        );
+        archive.record_for_source(&first, source).unwrap();
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(archive
+            .contains_for_source(
+                &rotated,
+                "https://slideshare.net/mobile/another-user/my-deck",
+            )
+            .unwrap());
+        assert!(!archive.contains_for_source(&second, source).unwrap());
+        assert!(!archive
+            .contains_for_source(&first, "https://slideshare.net/speaker/different-deck")
+            .unwrap());
+        for bad in [
+            "https://evilslideshare.net/speaker/my-deck",
+            "https://slideshare.net/speaker/my-deck?auth=secret",
+            "https://slideshare.net:8443/speaker/my-deck",
+            "https://slideshare.net/speaker/my-deck/extra",
+            "https://slideshare.net/speaker/other-deck",
+        ] {
+            assert!(slideshare_archive_scope(&first, bad).is_none(), "{bad}");
+        }
+        for bad_media in [
+            "https://image.slidesharecdn.com/another/abc/95/title-2-1024.jpg",
+            "https://evilslidesharecdn.com/example/abc/95/title-1-1024.jpg",
+            "https://image.slidesharecdn.com/example/abc/90/title-1-1024.jpg",
+            "https://image.slidesharecdn.com/example/abc/95/title-1-1024.jpg?token=1",
+        ] {
+            let forged = MediaItem {
+                url: bad_media.into(),
+                ..first.clone()
+            };
+            assert!(slideshare_archive_scope(&forged, source).is_none());
+        }
+        for bad_filename in ["my-deck-00.jpg", "my-deck-1.jpg", "other-deck-01.jpg"] {
+            let forged = MediaItem {
+                filename: bad_filename.into(),
+                ..first.clone()
+            };
+            assert!(slideshare_archive_scope(&forged, source).is_none());
+        }
+        for bad in ["my-deck_01", "my-deck_0", "my-deck_257", "bad%2fid_1"] {
+            assert!(!canonical_slideshare_archive_suffix(bad));
+        }
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        for secret in ["my-deck", "deck-1-1024.jpg"] {
+            assert!(!bytes
+                .windows(secret.len())
+                .any(|part| part == secret.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn slideshare_foreign_pages_import_privately_and_remain_distinct_after_reopen() {
+        let root = std::env::temp_dir()
+            .join(format!("galerith-slideshare-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('slidesharemy-deck_1');
+             INSERT INTO archive VALUES ('slidesharemy-deck_2');
+             INSERT INTO archive VALUES ('slidesharemy-deck_01');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('my-deck_1');
+             INSERT INTO named VALUES ('slidesharemy-deck_1');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("slideshare"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+
+        let reopened = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://image.slidesharecdn.com/new/abc/95/deck-1-1024.jpg".into(),
+            filename: "my-deck-01.jpg".into(),
+            extractor: "slideshare",
+            post_id: None,
+        };
+        assert!(reopened
+            .contains_for_source(&first, "https://slideshare.net/speaker/my-deck")
+            .unwrap());
+        let second = MediaItem {
+            url: "https://image.slidesharecdn.com/new/abc/95/deck-2-1024.jpg".into(),
+            filename: "my-deck-02.jpg".into(),
+            ..first.clone()
+        };
+        assert!(reopened
+            .contains_for_source(&second, "https://slideshare.net/speaker/my-deck")
+            .unwrap());
+        let third = MediaItem {
+            url: "https://image.slidesharecdn.com/new/abc/95/deck-3-1024.jpg".into(),
+            filename: "my-deck-03.jpg".into(),
+            ..first
+        };
+        assert!(!reopened
+            .contains_for_source(&third, "https://slideshare.net/speaker/my-deck")
+            .unwrap());
+        drop(reopened);
+        let native_bytes = fs::read(native).unwrap();
+        assert!(!native_bytes
+            .windows(b"slidesharemy-deck_1".len())
+            .any(|part| part == b"slidesharemy-deck_1"));
         fs::remove_dir_all(root).unwrap();
     }
 
