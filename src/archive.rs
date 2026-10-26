@@ -360,7 +360,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             && ((category == "silverpic" && canonical_silverpic_token(bare))
                 || (category == "picstate" && canonical_picstate_token(bare))
                 || (matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
-                && canonical_drive_image_token(bare))
+                    && canonical_drive_image_token(bare))
                 || (category == "fappic" && canonical_fappic_token(bare))
                 || (category == "imgpv" && canonical_imgpv_token(bare))
                 || (category == "imgclick" && canonical_imgclick_token(bare))
@@ -1167,7 +1167,10 @@ fn picstate_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     }
     let original = url::Url::parse(&item.url).ok()?;
     if original.scheme() != "https"
-        || !matches!(original.host_str(), Some("picstate.com" | "www.picstate.com"))
+        || !matches!(
+            original.host_str(),
+            Some("picstate.com" | "www.picstate.com")
+        )
         || original.port().is_some()
         || !original.username().is_empty()
         || original.password().is_some()
@@ -4350,7 +4353,10 @@ mod tests {
 
     #[test]
     fn silverpic_and_picstate_source_tokens_ignore_filename_rotation_but_not_other_origins() {
-        let root = std::env::temp_dir().join(format!("galerith-silverpic-picstate-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "galerith-silverpic-picstate-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
@@ -4373,7 +4379,10 @@ mod tests {
         );
         archive.record_for_source(&silver, silver_source).unwrap();
         assert!(archive
-            .contains_for_source(&silver_changed, "https://www.silverpic.com/a1b2c3d4f5g6/new.webp.html")
+            .contains_for_source(
+                &silver_changed,
+                "https://www.silverpic.com/a1b2c3d4f5g6/new.webp.html"
+            )
             .unwrap());
         for bad in [
             "https://silverpic.net/other123456/new.jpg.html",
@@ -4402,10 +4411,14 @@ mod tests {
             ..pic.clone()
         };
         assert_eq!(
-            picstate_archive_scope(&pic, "https://picstate.com/view/full/123").unwrap().1,
+            picstate_archive_scope(&pic, "https://picstate.com/view/full/123")
+                .unwrap()
+                .1,
             "picstate123"
         );
-        archive.record_for_source(&pic, "https://picstate.com/view/full/123").unwrap();
+        archive
+            .record_for_source(&pic, "https://picstate.com/view/full/123")
+            .unwrap();
         assert!(archive
             .contains_for_source(&pic_changed, "https://www.picstate.com/view/full/123")
             .unwrap());
@@ -4424,7 +4437,9 @@ mod tests {
             url: "https://picstate.com/file/124/new.webp".into(),
             ..pic_changed
         };
-        assert!(picstate_archive_scope(&mismatched, "https://picstate.com/view/full/123").is_none());
+        assert!(
+            picstate_archive_scope(&mismatched, "https://picstate.com/view/full/123").is_none()
+        );
         drop(archive);
         let bytes = fs::read(&native).unwrap();
         for token in [b"a1b2c3d4f5g6".as_slice(), b"picstate123".as_slice()] {
@@ -4435,7 +4450,8 @@ mod tests {
 
     #[test]
     fn silverpic_and_picstate_reference_imports_are_private_and_category_specific() {
-        let root = std::env::temp_dir().join(format!("galerith-silverpic-import-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-silverpic-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("reference.sqlite");
