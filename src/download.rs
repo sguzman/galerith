@@ -339,6 +339,11 @@ pub async fn download(
             }
         }
         if transfer_error.is_none() {
+            if received == 0 {
+                // A successful HTTP status is not proof that any media bytes
+                // arrived. Never finalize or archive an empty transfer.
+                transfer_error = Some(error("empty media response"));
+            }
             if let Some(expected) = expected_body {
                 if received != expected {
                     transfer_error = Some(error("response body length mismatch"));
@@ -357,6 +362,11 @@ pub async fn download(
         }
         drop(file);
         if let Some(err) = transfer_error {
+            if received == 0 && !append {
+                // Drop an empty fresh response and its sidecar. A retained
+                // validated partial from a failed resume is still recoverable.
+                invalidate(&part, &metadata).await?;
+            }
             if attempt < options.retries {
                 delay(attempt, None).await;
                 continue;

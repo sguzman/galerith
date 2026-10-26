@@ -586,6 +586,71 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
 }
 
 #[test]
+fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() {
+    let dir = temp("empty-http-media");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/empty.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        for reply in [
+            b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nETag: \"valid\"\r\nConnection: close\r\n\r\nGOOD".as_slice(),
+        ] {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut buffer = [0_u8; 2048];
+            let count = conn.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+            assert!(!request.contains("range:"), "{request}");
+            conn.write_all(reply).unwrap();
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    for _ in 0..2 {
+        let rejected = invoke();
+        assert!(!rejected.status.success());
+        assert!(!dir.join("empty.jpg").exists());
+        assert!(!dir.join("empty.jpg.part").exists());
+        assert!(!dir.join("empty.jpg.part.json").exists());
+        let count: i64 = rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+    let success = invoke();
+    assert!(
+        success.status.success(),
+        "{}",
+        String::from_utf8_lossy(&success.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("empty.jpg")).unwrap(), b"GOOD");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(dir.join("empty.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived empty.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn missing_resumed_content_range_discards_partial_and_never_archives_failed_attempt() {
     let dir = temp("missing-content-range");
     let _ = fs::remove_dir_all(&dir);
