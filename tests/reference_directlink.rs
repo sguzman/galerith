@@ -829,3 +829,24 @@ fn pinned_listal_image_archive_includes_original_filename() {
         "listal|12345/full|12345/other"
     );
 }
+
+#[test]
+fn pinned_lensdump_image_and_album_archive_formats_are_distinct() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for Lensdump archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://lensdump.com/i/AbCd12'); b=extractor.find('https://lensdump.com/a/Album88'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(id='AbCd12'),b.category,b.subcategory,b.archive_fmt.format(gallery_id='Album88',num=1))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned Lensdump image and album archive formats").trim(),
+        "lensdump|image|AbCd12|lensdump|album|Album88_1"
+    );
+}
