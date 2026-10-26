@@ -206,6 +206,38 @@ async fn invalidate(part: &Path, metadata: &Path) -> io::Result<()> {
     Ok(())
 }
 
+/// Never trust a preexisting destination or resume-sidecar alias. In
+/// particular, File::create follows symlinks, and a symlinked "completed"
+/// output could otherwise be falsely archived through the skip event.
+/// This is a cooperative-process safety check, not protection against an
+/// adversary swapping paths concurrently after validation.
+async fn verify_output_entry(path: &Path, staging: bool) -> io::Result<()> {
+    let info = match fs::symlink_metadata(path).await {
+        Ok(info) => info,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
+    if !info.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "output or resume entry is not a regular file",
+        ));
+    }
+    #[cfg(unix)]
+    if staging {
+        use std::os::unix::fs::MetadataExt;
+        if info.nlink() > 1 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "resume entry has multiple hard links",
+            ));
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = staging;
+    Ok(())
+}
+
 pub async fn download(
     client: &Client,
     item: &MediaItem,
@@ -225,18 +257,21 @@ pub async fn download(
     // rename. Parallel Galerith workers cannot clobber the same .part file.
     let _lock = lock_output(&options.destination, &item.filename).await?;
     let target = options.destination.join(&item.filename);
-    if !options.no_skip && fs::try_exists(&target).await? {
-        let existing = fs::metadata(&target).await?;
-        // A zero-byte placeholder is not completed media and must not become
-        // an archive hit via --archive-event skip. A directory is not media.
-        if existing.is_file() && existing.len() > 0 {
-            return Ok(DownloadOutcome::Skipped(target));
-        }
-    }
     let part = options.destination.join(format!("{}.part", item.filename));
     let metadata = options
         .destination
         .join(format!("{}.part.json", item.filename));
+    verify_output_entry(&target, false).await?;
+    verify_output_entry(&part, true).await?;
+    verify_output_entry(&metadata, true).await?;
+    if !options.no_skip && fs::try_exists(&target).await? {
+        let existing = fs::metadata(&target).await?;
+        // A zero-byte placeholder is not completed media and must not become
+        // an archive hit via --archive-event skip.
+        if existing.is_file() && existing.len() > 0 {
+            return Ok(DownloadOutcome::Skipped(target));
+        }
+    }
 
     for attempt in 0..=options.retries {
         let (offset, prior) = partial_info(&part, &metadata, &item.url).await;
