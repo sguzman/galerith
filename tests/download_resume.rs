@@ -209,6 +209,65 @@ async fn legitimate_html_body_can_be_saved_by_downloader_library() {
 }
 
 #[tokio::test]
+async fn unexpected_304_or_412_during_resume_clears_partial_and_retries_full_body() {
+    for (label, status) in [
+        ("not-modified", "304 Not Modified"),
+        ("precondition", "412 Precondition Failed"),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let response_status = status.to_owned();
+        let server = tokio::spawn(async move {
+            let mut first = next(&listener).await;
+            let initial = request(&mut first).await;
+            assert!(!initial.contains("\r\nrange:"), "{initial}");
+            first
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nETag: \"stable\"\r\nContent-Length: 8\r\nConnection: close\r\n\r\nABCD",
+                )
+                .await
+                .unwrap();
+            drop(first);
+
+            let mut rejected = next(&listener).await;
+            let resumed = request(&mut rejected).await;
+            assert!(resumed.contains("\r\nrange: bytes=4-\r\n"), "{resumed}");
+            assert!(resumed.contains("\r\nif-range: \"stable\"\r\n"), "{resumed}");
+            let reply = format!(
+                "HTTP/1.1 {response_status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            rejected.write_all(reply.as_bytes()).await.unwrap();
+            drop(rejected);
+
+            let mut fresh = next(&listener).await;
+            let restarted = request(&mut fresh).await;
+            assert!(!restarted.contains("\r\nrange:"), "{restarted}");
+            assert!(!restarted.contains("\r\nif-range:"), "{restarted}");
+            fresh
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"new\"\r\nConnection: close\r\n\r\nWXYZQRST",
+                )
+                .await
+                .unwrap();
+        });
+        let path = dir(label);
+        clean(&path);
+        let item = extract_direct_media(&format!("http://{addr}/media.jpg")).unwrap();
+        assert_eq!(
+            download(&client(), &item, &settings(path.clone(), 2))
+                .await
+                .unwrap(),
+            DownloadOutcome::Saved(path.join("media.jpg"))
+        );
+        server.await.unwrap();
+        assert_eq!(fs::read(path.join("media.jpg")).unwrap(), b"WXYZQRST");
+        assert!(!path.join("media.jpg.part").exists());
+        assert!(!path.join("media.jpg.part.json").exists());
+        clean(&path);
+    }
+}
+
+#[tokio::test]
 async fn resumes_interrupted_http_body_with_matching_etag() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
