@@ -113,12 +113,20 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgwallet",
             "silverpic",
             "picstate",
+            "imagetwist",
+            "turboimagehost",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imagetwist" && canonical_imagetwist_token(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "turboimagehost" && canonical_turboimagehost_token(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "silverpic" && canonical_silverpic_token(id) {
@@ -257,6 +265,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgwallet"
                         | "silverpic"
                         | "picstate"
+                        | "imagetwist"
+                        | "turboimagehost"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -355,9 +365,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgwallet",
         "silverpic",
         "picstate",
+        "imagetwist",
+        "turboimagehost",
     ] {
         if prefix == category
-            && ((category == "silverpic" && canonical_silverpic_token(bare))
+            && ((category == "imagetwist" && canonical_imagetwist_token(bare))
+                || (category == "turboimagehost" && canonical_turboimagehost_token(bare))
+                || (category == "silverpic" && canonical_silverpic_token(bare))
                 || (category == "picstate" && canonical_picstate_token(bare))
                 || (matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
                     && canonical_drive_image_token(bare))
@@ -430,6 +444,8 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgwallet"
                         | "silverpic"
                         | "picstate"
+                        | "imagetwist"
+                        | "turboimagehost"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -638,6 +654,8 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imgwallet"
                 | "silverpic"
                 | "picstate"
+                | "imagetwist"
+                | "turboimagehost"
         )
 }
 
@@ -1057,6 +1075,156 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned ImagetwistImageExtractor inherits the individual "{token}"
+/// archive identity, distinct from the site's gallery listing extractor.
+fn canonical_imagetwist_token(token: &str) -> bool {
+    token.len() == 12
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+}
+
+fn imagetwist_family(host: &str) -> Option<&'static str> {
+    match host {
+        "imagetwist.com" | "www.imagetwist.com" | "phun.imagetwist.com" => Some("imagetwist.com"),
+        "imagehaha.com" | "www.imagehaha.com" | "phun.imagehaha.com" => Some("imagehaha.com"),
+        _ => None,
+    }
+}
+
+fn imagetwist_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imagetwist" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    let domain = imagetwist_family(source.host_str()?)?;
+    if source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let paths: Vec<_> = source.path_segments()?.collect();
+    let token = match paths.as_slice() {
+        [token] if canonical_imagetwist_token(token) => *token,
+        [token, hint]
+            if canonical_imagetwist_token(token)
+                && (5..=220).contains(&hint.len())
+                && !hint.contains("..")
+                && hint
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+                && hint.rsplit_once('.').is_some_and(|(_, ext)| {
+                    matches!(
+                        ext.to_ascii_lowercase().as_str(),
+                        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+                    )
+                }) =>
+        {
+            *token
+        }
+        _ => return None,
+    };
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == domain || host.ends_with(&format!(".{domain}")))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().starts_with("/imgs/")
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    {
+        return None;
+    }
+    let upstream = format!("imagetwist{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
+/// Pinned TurboimagehostImageExtractor archives each numeric public /p/ID
+/// image separately; /album/ID pages merely queue those image pages.
+fn canonical_turboimagehost_token(id: &str) -> bool {
+    (1..=24).contains(&id.len()) && id.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn turboimagehost_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "turboimagehost" || item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("turboimagehost.com" | "www.turboimagehost.com")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let paths: Vec<_> = source.path_segments()?.collect();
+    let ["p", token, page] = paths.as_slice() else {
+        return None;
+    };
+    let hint = page.strip_suffix(".html")?;
+    if !canonical_turboimagehost_token(token)
+        || hint.is_empty()
+        || hint.len() > 180
+        || !hint
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return None;
+    }
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == "turboimagehost.com" || host.ends_with(".turboimagehost.com"))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif")
+    {
+        return None;
+    }
+    let upstream = format!("turboimagehost{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned SilverpicImageExtractor: a lowercase alphanumeric image token,
 /// independent of the mutable per-page filename.
 fn canonical_silverpic_token(token: &str) -> bool {
@@ -3742,6 +3910,8 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| drive_family_archive_scope(item, source_url))
         .or_else(|| silverpic_archive_scope(item, source_url))
         .or_else(|| picstate_archive_scope(item, source_url))
+        .or_else(|| imagetwist_archive_scope(item, source_url))
+        .or_else(|| turboimagehost_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4350,6 +4520,165 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn imagetwist_direct_token_and_turboimagehost_image_id_never_confuse_galleries() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-twist-turbo-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let twist = MediaItem {
+            url: "https://cdn.imagetwist.com/media/old.jpg".into(),
+            filename: "old.jpg".into(),
+            extractor: "imagetwist",
+            post_id: None,
+        };
+        let changed = MediaItem {
+            url: "https://img.imagetwist.com/media/new.webp".into(),
+            filename: "new.webp".into(),
+            ..twist.clone()
+        };
+        let direct = "https://imagetwist.com/123456abcdef/old.jpg";
+        assert_eq!(
+            imagetwist_archive_scope(&twist, direct).unwrap().1,
+            "imagetwist123456abcdef"
+        );
+        archive.record_for_source(&twist, direct).unwrap();
+        assert!(archive
+            .contains_for_source(&changed, "https://www.imagetwist.com/123456abcdef/new.webp")
+            .unwrap());
+        for bad in [
+            "https://imagetwist.com/other123456/new.webp",
+            "https://imagetwist.com/p/creator/12345/album",
+            "https://imagetwist.com/123456abcdef/new.jpg?secret=1",
+            "https://imagetwist.com:8443/123456abcdef/new.jpg",
+            "https://imagetwist.com.evil.invalid/123456abcdef/new.jpg",
+        ] {
+            assert!(!archive.contains_for_source(&changed, bad).unwrap());
+        }
+        let changed_origin = MediaItem {
+            url: "https://imagehaha.com/file.jpg".into(),
+            ..changed
+        };
+        assert!(imagetwist_archive_scope(&changed_origin, direct).is_none());
+
+        let turbo = MediaItem {
+            url: "https://cdn.turboimagehost.com/files/old.jpg".into(),
+            filename: "old.jpg".into(),
+            extractor: "turboimagehost",
+            post_id: None,
+        };
+        let turbo_new = MediaItem {
+            url: "https://cdn.turboimagehost.com/files/new.webp".into(),
+            filename: "new.webp".into(),
+            ..turbo.clone()
+        };
+        let turbo_source = "https://turboimagehost.com/p/12345/old.jpg.html";
+        assert_eq!(
+            turboimagehost_archive_scope(&turbo, turbo_source).unwrap().1,
+            "turboimagehost12345"
+        );
+        archive.record_for_source(&turbo, turbo_source).unwrap();
+        assert!(archive
+            .contains_for_source(&turbo_new, "https://www.turboimagehost.com/p/12345/new.webp.html")
+            .unwrap());
+        for bad in [
+            "https://turboimagehost.com/p/12346/new.webp.html",
+            "https://turboimagehost.com/album/12345/owner",
+            "https://turboimagehost.com/p/12345/new.webp.html?secret=1",
+            "https://turboimagehost.com:8443/p/12345/new.webp.html",
+            "https://turboimagehost.com.evil.invalid/p/12345/new.webp.html",
+        ] {
+            assert!(!archive.contains_for_source(&turbo_new, bad).unwrap());
+        }
+        let malicious = MediaItem {
+            url: "https://cdn.turboimagehost.com.evil.invalid/new.webp".into(),
+            ..turbo_new
+        };
+        assert!(turboimagehost_archive_scope(&malicious, turbo_source).is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for token in [b"123456abcdef".as_slice(), b"turboimagehost12345".as_slice()] {
+            assert!(!bytes.windows(token.len()).any(|part| part == token));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imagetwist_and_turboimagehost_reference_migrations_are_read_only_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-twist-turbo-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imagetwist123456abcdef');
+            INSERT INTO archive VALUES ('turboimagehost12345');
+            INSERT INTO archive VALUES ('imagetwistBADTOKEN');
+            INSERT INTO archive VALUES ('turboimagehostbad-token');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('123456abcdef');
+            INSERT INTO named VALUES ('12345');
+            INSERT INTO named VALUES ('imagetwist123456abcdef');
+            INSERT INTO named VALUES ('turboimagehost12345');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        for category in ["imagetwist", "turboimagehost"] {
+            let named = Archive::open_with_reference_options(
+                &root.join(format!("{category}.sqlite")),
+                Some(&foreign),
+                Some("named"),
+                Some(category),
+            )
+            .unwrap();
+            assert_eq!(named.import_reference().unwrap(), (1, 1));
+        }
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        assert_eq!(fs::read(&foreign).unwrap(), original);
+        fs::remove_file(&foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let twist = MediaItem {
+            url: "https://cdn.imagetwist.com/media/new.webp".into(),
+            filename: "new.webp".into(),
+            extractor: "imagetwist",
+            post_id: None,
+        };
+        let turbo = MediaItem {
+            url: "https://cdn.turboimagehost.com/media/new.webp".into(),
+            filename: "new.webp".into(),
+            extractor: "turboimagehost",
+            post_id: None,
+        };
+        assert!(archive
+            .contains_for_source(&twist, "https://imagetwist.com/123456abcdef/new.webp")
+            .unwrap());
+        assert!(archive
+            .contains_for_source(&turbo, "https://turboimagehost.com/p/12345/new.webp.html")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&turbo, "https://turboimagehost.com/album/12345/name")
+            .unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn silverpic_and_picstate_source_tokens_ignore_filename_rotation_but_not_other_origins() {

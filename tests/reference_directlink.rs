@@ -1214,3 +1214,28 @@ fn pinned_silverpic_and_picstate_imagehost_archive_ids() {
         "silverpic|image|a1b2c3d4f5g6|picstate|image|123"
     );
 }
+
+#[test]
+fn pinned_imagetwist_and_turboimagehost_individual_tokens_are_separate_from_gallery() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for Imagetwist/Turboimagehost differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://imagetwist.com/123456abcdef/name.jpg'); b=extractor.find('https://www.turboimagehost.com/p/12345/name.jpg.html'); g=extractor.find('https://www.turboimagehost.com/album/12345/albumname'); print('|'.join((a.category,a.subcategory,a.archive_fmt.format(token='123456abcdef'),b.category,b.subcategory,b.archive_fmt.format(token='12345'),g.subcategory)))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(
+            cmd,
+            "pinned Imagetwist image and Turboimagehost image/album archive keys"
+        )
+        .trim(),
+        "imagetwist|image|123456abcdef|turboimagehost|image|12345|gallery"
+    );
+}
