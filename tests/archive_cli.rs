@@ -141,7 +141,11 @@ fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         for (path, mime, content) in [
-            ("/manual.pdf", "text/html", b"<html>Blocked</html>".as_slice()),
+            (
+                "/manual.pdf",
+                "text/html",
+                b"<html>Blocked</html>".as_slice(),
+            ),
             ("/manual.pdf", "application/pdf", b"%PDF-TEST".as_slice()),
             ("/index.html", "text/html", b"<html>Valid</html>".as_slice()),
         ] {
@@ -202,7 +206,10 @@ fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
     assert_eq!(count(&db), 1);
     let html = invoke("index.html");
     assert!(html.status.success());
-    assert_eq!(fs::read(dir.join("index.html")).unwrap(), b"<html>Valid</html>");
+    assert_eq!(
+        fs::read(dir.join("index.html")).unwrap(),
+        b"<html>Valid</html>"
+    );
     server.join().unwrap();
     assert_eq!(count(&db), 2);
     fs::remove_file(dir.join("manual.pdf")).unwrap();
