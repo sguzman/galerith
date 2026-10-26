@@ -4121,7 +4121,10 @@ mod tests {
             "https://evil.fappic.com.attacker.invalid/abcde12345/first.jpg",
             "https://fappic.com/%61bcde12345/first.jpg",
         ] {
-            assert!(!archive.contains_for_source(&changed, bad).unwrap(), "{bad}");
+            assert!(
+                !archive.contains_for_source(&changed, bad).unwrap(),
+                "{bad}"
+            );
         }
         let foreign = MediaItem {
             url: "https://evil.fappic.com.attacker.invalid/file.jpg".into(),
@@ -4175,7 +4178,10 @@ mod tests {
             "https://imgpv.com.evil.invalid/a1b2c3d4f5g6/name.jpg.html",
             "https://imgpv.com/%611b2c3d4f5g6/name.jpg.html",
         ] {
-            assert!(!archive.contains_for_source(&changed, bad).unwrap(), "{bad}");
+            assert!(
+                !archive.contains_for_source(&changed, bad).unwrap(),
+                "{bad}"
+            );
         }
         let foreign = MediaItem {
             url: "https://cdn.imgpv.com.evil.invalid/photo.jpg".into(),

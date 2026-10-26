@@ -1156,7 +1156,11 @@ fn pinned_fappic_and_imgpv_imagehost_tokens_match_their_source_pages() {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
-        spawn(cmd, "pinned Fappic thumbnail and Imgpv individual archive tokens").trim(),
+        spawn(
+            cmd,
+            "pinned Fappic thumbnail and Imgpv individual archive tokens"
+        )
+        .trim(),
         "fappic|image|abcde12345|fappic|abcde12345|abcde12345|imgpv|image|a1b2c3d4f5g6"
     );
 }
