@@ -8857,7 +8857,10 @@ mod tests {
                 filename: bad.into(),
                 ..first.clone()
             };
-            assert!(speakerdeck_archive_scope(&candidate, source).is_none(), "{bad}");
+            assert!(
+                speakerdeck_archive_scope(&candidate, source).is_none(),
+                "{bad}"
+            );
         }
         for invalid in ["my-deck_01", "my-deck_0", "my-deck_2001", "bad%2fslug_1"] {
             assert!(!canonical_speakerdeck_archive_suffix(invalid), "{invalid}");
@@ -8872,8 +8875,10 @@ mod tests {
 
     #[test]
     fn speakerdeck_sqlite_migration_is_idempotent_readonly_and_source_free() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-speakerdeck-import-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "galerith-speakerdeck-import-{}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let source = root.join("gallery-dl.sqlite");
@@ -8925,9 +8930,7 @@ mod tests {
         let deck = "https://speakerdeck.com/author/my-deck";
         assert!(archive.contains_for_source(&item, deck).unwrap());
         let different_deck = "https://speakerdeck.com/author/another-deck";
-        assert!(!archive
-            .contains_for_source(&item, different_deck)
-            .unwrap());
+        assert!(!archive.contains_for_source(&item, different_deck).unwrap());
         let other = MediaItem {
             url: "https://speakerd.s3.amazonaws.com/new/slide03.jpg".into(),
             filename: "03_slide03.jpg".into(),
