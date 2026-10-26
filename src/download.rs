@@ -408,9 +408,10 @@ pub async fn download(
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
         if header(&response, CONTENT_TYPE).is_some_and(|mime| media_error_document(item, &mime)) {
-            // A 206 block page cannot provide the promised media suffix.
-            // Discard the old partial before retrying a full un-ranged GET.
-            if offset > 0 && status == StatusCode::PARTIAL_CONTENT {
+            // Neither a 206 error suffix nor a 200 block page replacing a
+            // Range request can satisfy the media transfer. A stale partial
+            // must not make the next retry repeat the unusable range.
+            if offset > 0 {
                 invalidate(&part, &metadata).await?;
                 if attempt < options.retries {
                     continue;

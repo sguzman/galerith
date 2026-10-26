@@ -1188,6 +1188,92 @@ fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() 
 }
 
 #[test]
+fn html_200_replacing_range_discards_resume_state_without_archiving() {
+    let dir = temp("html-200-replaces-range");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/image.jpg", listener.local_addr().unwrap());
+    seed_resumable_partial(&dir, "image.jpg", &url, r#""stable""#);
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for stage in 0..2 {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timeout waiting for fresh request after error response"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("resume fixture listener error: {err}"),
+                }
+            };
+            let mut request = [0_u8; 2048];
+            let n = stream.read(&mut request).unwrap();
+            let received = String::from_utf8_lossy(&request[..n]).to_ascii_lowercase();
+            if stage == 0 {
+                assert!(received.contains("range: bytes=4-"), "{received}");
+                assert!(received.contains("if-range: \"stable\""), "{received}");
+                let _ = stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 8\r\nConnection: close\r\n\r\n<html>NO",
+                );
+            } else {
+                assert!(!received.contains("range:"), "{received}");
+                assert!(!received.contains("if-range:"), "{received}");
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 8\r\nConnection: close\r\n\r\nGOODDATA",
+                    )
+                    .unwrap();
+            }
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let blocked = invoke();
+    assert!(!blocked.status.success());
+    assert!(!dir.join("image.jpg").exists());
+    assert!(!dir.join("image.jpg.part").exists());
+    assert!(!dir.join("image.jpg.part.json").exists());
+    let count = || -> i64 {
+        rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(count(), 0);
+    let saved = invoke();
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOODDATA");
+    assert_eq!(count(), 1);
+    fs::remove_file(dir.join("image.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived image.jpg"));
+    assert_eq!(count(), 1);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn disguised_resume_suffix_cannot_create_a_durable_archive_hit() {
     for (label, mime, body) in [
         ("untyped-html-206", "", b"<html>NO".as_slice()),

@@ -209,6 +209,61 @@ async fn legitimate_html_body_can_be_saved_by_downloader_library() {
 }
 
 #[tokio::test]
+async fn ranged_get_receiving_a_full_200_html_error_restarts_without_stale_partial() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut initial = next(&listener).await;
+        let req = request(&mut initial).await;
+        assert!(!req.contains("\r\nrange:"), "{req}");
+        initial
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nETag: \"stable\"\r\nContent-Length: 8\r\nConnection: close\r\n\r\nABCD",
+            )
+            .await
+            .unwrap();
+        drop(initial);
+
+        let mut blocked = next(&listener).await;
+        let req = request(&mut blocked).await;
+        assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+        assert!(req.contains("\r\nif-range: \"stable\"\r\n"), "{req}");
+        blocked
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 8\r\nConnection: close\r\n\r\n<html>NO",
+            )
+            .await
+            .unwrap();
+        drop(blocked);
+
+        let mut recovered = next(&listener).await;
+        let req = request(&mut recovered).await;
+        assert!(!req.contains("\r\nrange:"), "{req}");
+        assert!(!req.contains("\r\nif-range:"), "{req}");
+        recovered
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 8\r\nConnection: close\r\n\r\nGOODDATA",
+            )
+            .await
+            .unwrap();
+    });
+    let path = dir("full-html-block-after-range");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/photo.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 2))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("photo.jpg"))
+    );
+    assert_eq!(fs::read(path.join("photo.jpg")).unwrap(), b"GOODDATA");
+    assert!(!path.join("photo.jpg.part").exists());
+    assert!(!path.join("photo.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
 async fn disguised_206_error_suffix_is_discarded_before_clean_retry() {
     // A truncated file followed by an HTML/JSON-style block-page suffix
     // must not become an apparently successful media download.
