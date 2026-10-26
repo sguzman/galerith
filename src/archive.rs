@@ -101,12 +101,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgbox",
             "imagebam",
             "postimg",
+            "imgpile",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imgpile" && canonical_imgpile_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "postimg" && canonical_postimg_token(id) {
@@ -201,6 +205,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgbox"
                         | "imagebam"
                         | "postimg"
+                        | "imgpile"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -287,9 +292,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgbox",
         "imagebam",
         "postimg",
+        "imgpile",
     ] {
         if prefix == category
-            && ((category == "postimg" && canonical_postimg_token(bare))
+            && ((category == "imgpile" && canonical_imgpile_archive_suffix(bare))
+                || (category == "postimg" && canonical_postimg_token(bare))
                 || (category == "imagebam" && canonical_imagebam_image_key(bare))
                 || (category == "imgbox" && canonical_imgbox_image_key(bare))
                 || (category == "speakerdeck" && canonical_speakerdeck_archive_suffix(bare))
@@ -339,6 +346,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgbox"
                         | "imagebam"
                         | "postimg"
+                        | "imgpile"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -535,6 +543,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imgbox"
                 | "imagebam"
                 | "postimg"
+                | "imgpile"
         )
 }
 
@@ -954,6 +963,77 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned ImgpilePostExtractor uses "{post[id_slug]}_{id}": source
+/// post slug followed by the individual media numeric ID, not the post ID.
+fn canonical_imgpile_post_slug(slug: &str) -> bool {
+    (1..=128).contains(&slug.len())
+        && slug
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn canonical_imgpile_archive_suffix(suffix: &str) -> bool {
+    suffix
+        .rsplit_once('_')
+        .is_some_and(|(slug, media_id)| {
+            canonical_imgpile_post_slug(slug) && canonical_numeric_archive_suffix(media_id)
+        })
+}
+
+fn imgpile_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imgpile" {
+        return None;
+    }
+    let media_id = item.post_id.filter(|id| *id > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("imgpile.com" | "www.imgpile.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let ["p", slug] = parts.as_slice() else {
+        return None;
+    };
+    if !canonical_imgpile_post_slug(slug) {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(host == "imgpile.com" || host.ends_with(".imgpile.com"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+    {
+        return None;
+    }
+    let original_name = media.path_segments()?.next_back()?;
+    if original_name.is_empty() || original_name.len() > 240 {
+        return None;
+    }
+    let extension = original_name.rsplit_once('.')?.1;
+    if extension.is_empty()
+        || extension.len() > 12
+        || !extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+    let upstream = format!("imgpile{slug}_{media_id}");
+    Some((
+        format!("post-media-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// The pinned imagehosts.PostimgImageExtractor archives the public page
 /// token, not its mutable display filename or image CDN basename.
 fn canonical_postimg_token(token: &str) -> bool {
@@ -2889,6 +2969,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imgbox_archive_scope(item, source_url))
         .or_else(|| imagebam_archive_scope(item, source_url))
         .or_else(|| postimg_archive_scope(item, source_url))
+        .or_else(|| imgpile_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3497,6 +3578,153 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn imgpile_post_slug_and_media_id_remain_distinct_across_originals() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgpile-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://cdn.imgpile.com/photo/old.jpg?signature=old".into(),
+            filename: "old.jpg".into(),
+            extractor: "imgpile",
+            post_id: Some(17),
+        };
+        let rotated = MediaItem {
+            url: "https://imgpile.com/media/renamed.webp?signature=new".into(),
+            filename: "renamed.webp".into(),
+            ..first.clone()
+        };
+        let original = "https://imgpile.com/p/AbCdEfG";
+        assert_eq!(
+            imgpile_archive_scope(&first, original).unwrap().1,
+            "imgpileAbCdEfG_17"
+        );
+        archive.record_for_source(&first, original).unwrap();
+        assert!(archive.contains_for_source(&rotated, original).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://www.imgpile.com/p/AbCdEfG")
+            .unwrap());
+        let other_original = MediaItem {
+            post_id: Some(18),
+            ..rotated.clone()
+        };
+        assert!(!archive
+            .contains_for_source(&other_original, original)
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://imgpile.com/p/Different")
+            .unwrap());
+        for input in [
+            "https://imgpile.com/u/creator-1",
+            "https://imgpile.com/p/AbCdEfG?secret=1",
+            "https://imgpile.com/p/AbCdEfG#file",
+            "https://imgpile.com:8443/p/AbCdEfG",
+            "https://imgpile.com.evil.test/p/AbCdEfG",
+            "https://imgpile.com/p/invalid-slug",
+        ] {
+            assert!(imgpile_archive_scope(&rotated, input).is_none(), "{input}");
+        }
+        for media in [
+            "https://evil.imgpile.com.evil.test/media/file.jpg",
+            "https://cdn.imgpile.com:8443/media/file.jpg",
+            "https://cdn.imgpile.com/media/file.jpg#frag",
+            "https://cdn.imgpile.com/media/file.exe%2fjpg",
+            "https://cdn.imgpile.com/media/file",
+        ] {
+            let hostile = MediaItem {
+                url: media.into(),
+                ..rotated.clone()
+            };
+            assert!(imgpile_archive_scope(&hostile, original).is_none(), "{media}");
+        }
+        let missing_id = MediaItem {
+            post_id: None,
+            ..rotated
+        };
+        assert!(imgpile_archive_scope(&missing_id, original).is_none());
+        drop(archive);
+        let native_bytes = fs::read(&native).unwrap();
+        assert!(!native_bytes
+            .windows(b"AbCdEfG".len())
+            .any(|part| part == b"AbCdEfG"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgpile_sqlite_import_is_source_scoped_hashed_and_offline_usable() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgpile-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imgpileAbCdEfG_17');
+            INSERT INTO archive VALUES ('imgpileAbCdEfG_18');
+            INSERT INTO archive VALUES ('imgpileAbCdEfG_017');
+            INSERT INTO archive VALUES ('imgpileAbCdEfG_0');
+            INSERT INTO archive VALUES ('imgpilebad-slug_17');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('AbCdEfG_17');
+            INSERT INTO named VALUES ('imgpileAbCdEfG_17');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let unknown = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unknown.import_reference().unwrap(), (0, 0));
+        drop(unknown);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("imgpile"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(&foreign).unwrap();
+        let archive = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://cdn.imgpile.com/rotated.jpg?token=secret".into(),
+            filename: "rotated.jpg".into(),
+            extractor: "imgpile",
+            post_id: Some(17),
+        };
+        assert!(archive
+            .contains_for_source(&media, "https://imgpile.com/p/AbCdEfG")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&media, "https://imgpile.com/p/Another")
+            .unwrap());
+        let other = MediaItem {
+            post_id: Some(19),
+            ..media
+        };
+        assert!(!archive
+            .contains_for_source(&other, "https://imgpile.com/p/AbCdEfG")
+            .unwrap());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"AbCdEfG".len()).any(|part| part == b"AbCdEfG"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn postimg_source_token_survives_original_rotation_without_gallery_false_hits() {
