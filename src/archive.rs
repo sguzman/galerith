@@ -3782,6 +3782,7 @@ mod tests {
             "slidesharemy-deck_1",
             "issuupub34_1",
             "speakerdeckmy-deck_1",
+            "imgboxa1B2c3D4",
         ];
         let rejected = [
             "danbooru00123",
@@ -3806,6 +3807,7 @@ mod tests {
             "slidesharemy-deck_01",
             "issuupub34_01",
             "speakerdeckmy-deck_01",
+            "imgboxshort",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3996,6 +3998,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://speakerdeck.com/author/my-deck",
+            ),
+            (
+                MediaItem {
+                    url: "https://images3.imgbox.com/aa/bb/changed.jpg".into(),
+                    filename: "changed.jpg".into(),
+                    extractor: "imgbox",
+                    post_id: None,
+                },
+                "https://imgbox.com/a1B2c3D4",
             ),
             (
                 MediaItem {
@@ -9028,6 +9039,138 @@ mod tests {
         assert!(!native_bytes
             .windows(b"speakerdeckmy-deck_1".len())
             .any(|part| part == b"speakerdeckmy-deck_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgbox_single_image_identity_survives_cdn_rotation_but_not_foreign_sources() {
+        let root = std::env::temp_dir().join(format!("galerith-imgbox-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let original = MediaItem {
+            url: "https://images2.imgbox.com/aa/bb/original.jpg".into(),
+            filename: "title.jpg".into(),
+            extractor: "imgbox",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://images17.imgbox.com/cc/dd/new.jpg?token=rotated".into(),
+            filename: "title-rotated.jpg".into(),
+            ..original.clone()
+        };
+        let image = "https://imgbox.com/a1B2c3D4";
+        assert_eq!(
+            imgbox_archive_scope(&original, image).unwrap().1,
+            "imgboxa1B2c3D4"
+        );
+        archive.record_for_source(&original, image).unwrap();
+        assert!(archive.contains_for_source(&rotated, image).unwrap());
+        assert!(archive
+            .contains_for_source(&rotated, "https://i.imgbox.com/a1B2c3D4")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://imgbox.com/Z9y8X7w6")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://imgbox.com/g/abcdefghij")
+            .unwrap());
+        for invalid in [
+            "https://imgbox.com/short",
+            "https://imgbox.com/a1B2c3D4?private=1",
+            "https://imgbox.com:8443/a1B2c3D4",
+            "https://evilimgbox.com/a1B2c3D4",
+            "https://imgbox.com/a1B2c3D4/extra",
+            "https://images2.imgbox.com/zz/bb/a1B2c3D4",
+        ] {
+            assert!(imgbox_archive_scope(&original, invalid).is_none(), "{invalid}");
+        }
+        let forged = MediaItem {
+            url: "https://images2.imgbox.com.evil.test/aa/bb/original.jpg".into(),
+            ..original
+        };
+        assert!(imgbox_archive_scope(&forged, image).is_none());
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        for private in ["a1B2c3D4", "rotated", "title.jpg"] {
+            assert!(
+                !bytes
+                    .windows(private.len())
+                    .any(|part| part == private.as_bytes()),
+                "{private}"
+            );
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imgbox_single_image_sqlite_import_is_bounded_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgbox-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&source).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('imgboxa1B2c3D4');
+             INSERT INTO archive VALUES ('imgboxZ9y8X7w6');
+             INSERT INTO archive VALUES ('imgboxshort');
+             INSERT INTO archive VALUES ('imgboxabcdefghij_a1B2c3D4');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('a1B2c3D4');
+             INSERT INTO named VALUES ('imgboxa1B2c3D4');",
+        )
+        .unwrap();
+        drop(db);
+        let original_bytes = fs::read(&source).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&source),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&source),
+            Some("named"),
+            Some("imgbox"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&source).unwrap(), original_bytes);
+        fs::remove_file(source).unwrap();
+
+        let offline = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://images13.imgbox.com/ef/12/changed.webp".into(),
+            filename: "renamed.webp".into(),
+            extractor: "imgbox",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&item, "https://imgbox.com/a1B2c3D4")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&item, "https://imgbox.com/other123")
+            .unwrap());
+        assert!(!offline
+            .contains_for_source(&item, "https://imgbox.com/g/abcdefghij")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"imgboxa1B2c3D4".len())
+            .any(|part| part == b"imgboxa1B2c3D4"));
         fs::remove_dir_all(root).unwrap();
     }
 
