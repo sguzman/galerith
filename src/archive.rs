@@ -2169,6 +2169,54 @@ mod tests {
     }
 
     #[test]
+    fn foreign_prefix_cannot_migrate_an_unrelated_directlink_archive_hit() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-import-isolation-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("foreign.sqlite");
+        let native = root.join("native.sqlite");
+        let db = Connection::open(&source).unwrap();
+        db.execute_batch(
+            "CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('fapachimodel_12345');
+             INSERT INTO named VALUES ('fapachiexample.org/photos/item.jpg');
+             INSERT INTO named VALUES ('12345');",
+        )
+        .unwrap();
+        drop(db);
+        let original = fs::read(&source).unwrap();
+        let archive = Archive::open_with_reference_options(
+            &native,
+            Some(&source),
+            Some("named"),
+            Some("fapachi"),
+        )
+        .unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (1, 1));
+        assert_eq!(archive.import_reference().unwrap(), (1, 0));
+        drop(archive);
+        assert_eq!(fs::read(&source).unwrap(), original);
+        fs::remove_file(source).unwrap();
+
+        let reopened = Archive::open(&native).unwrap();
+        let fapachi = MediaItem {
+            url: "https://fapachi.com/uploads/rotated.jpg".into(),
+            filename: "rotated.jpg".into(),
+            extractor: "fapachi",
+            post_id: Some(12345),
+        };
+        assert!(reopened
+            .contains_for_source(&fapachi, "https://fapachi.com/model/media/12345")
+            .unwrap());
+        let unrelated =
+            extract_direct_media("https://example.org/photos/item.jpg?signature=rotated").unwrap();
+        assert!(!reopened.contains(&unrelated).unwrap());
+        drop(reopened);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn failed_archive_import_rolls_back_all_native_rows() {
         let root =
             std::env::temp_dir().join(format!("galerith-import-rollback-{}", std::process::id()));
