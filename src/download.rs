@@ -4,7 +4,10 @@
 use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
-    header::{ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER},
+    header::{
+        ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE,
+        RETRY_AFTER,
+    },
     Client, StatusCode,
 };
 use serde::{Deserialize, Serialize};

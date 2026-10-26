@@ -686,9 +686,11 @@ fn encoded_http_media_and_encoded_resumes_never_poison_archives() {
                 ).unwrap();
             } else {
                 assert!(!request.contains("range:"), "{request}");
-                stream.write_all(
-                    b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
-                ).unwrap();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+                    )
+                    .unwrap();
             }
         }
     });
