@@ -72,7 +72,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "4chan",
             "imgur",
             "500px",
-        "photovogue",
+            "photovogue",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
@@ -154,7 +154,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "4chan",
         "imgur",
         "500px",
-    "photovogue",
+        "photovogue",
     ] {
         if prefix == category
             && ((category == "photovogue" && canonical_photovogue_archive_suffix(bare))
@@ -333,7 +333,10 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
     is_booru_pool_category(category)
         || is_moebooru_category(category)
         || is_gelbooru_category(category)
-        || matches!(category, "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue")
+        || matches!(
+            category,
+            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue"
+        )
 }
 
 fn is_booru_pool_category(category: &str) -> bool {
@@ -4551,7 +4554,10 @@ mod tests {
         };
         let first = "https://www.vogue.com/photovogue/photographers/12345";
         let second = "https://vogue.com/photovogue/photographers/67890";
-        assert_eq!(photovogue_archive_scope(&photo, first).unwrap().1, "photovogue145");
+        assert_eq!(
+            photovogue_archive_scope(&photo, first).unwrap().1,
+            "photovogue145"
+        );
         archive.record_for_source(&photo, first).unwrap();
         assert!(archive.contains_for_source(&rotated, second).unwrap());
         let unrelated = MediaItem {
@@ -4610,9 +4616,12 @@ mod tests {
         assert_eq!(default.import_reference().unwrap(), (1, 1));
         assert_eq!(default.import_reference().unwrap(), (1, 0));
         drop(default);
-        let unscoped =
-            Archive::open_with_reference_table(&root.join("unscoped.sqlite"), Some(&foreign), "custom")
-                .unwrap();
+        let unscoped = Archive::open_with_reference_table(
+            &root.join("unscoped.sqlite"),
+            Some(&foreign),
+            "custom",
+        )
+        .unwrap();
         assert_eq!(unscoped.import_reference().unwrap(), (0, 0));
         assert!(!unscoped.contains_for_source(&media, origin).unwrap());
         drop(unscoped);
