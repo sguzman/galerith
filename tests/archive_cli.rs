@@ -1188,6 +1188,100 @@ fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() 
 }
 
 #[test]
+fn resumed_total_drift_never_archives_and_clean_retry_creates_only_one_record() {
+    let dir = temp("resume-total-drift-archive");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/image.jpg", listener.local_addr().unwrap());
+    seed_resumable_partial(&dir, "image.jpg", &url, r#""stable""#);
+    let sidecar = dir.join("image.jpg.part.json");
+    let mut metadata: serde_json::Value =
+        serde_json::from_slice(&fs::read(&sidecar).unwrap()).unwrap();
+    metadata["total_length"] = 8.into();
+    fs::write(&sidecar, serde_json::to_vec(&metadata).unwrap()).unwrap();
+
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for stage in 0..2 {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out awaiting total-drift recovery"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("total-drift listener error: {err}"),
+                }
+            };
+            let mut request = [0_u8; 2048];
+            let count = stream.read(&mut request).unwrap();
+            let received = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
+            if stage == 0 {
+                assert!(received.contains("range: bytes=4-"), "{received}");
+                assert!(received.contains("if-range: \"stable\""), "{received}");
+                stream
+                    .write_all(
+                        b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-8/9\r\nContent-Length: 5\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nABCDE",
+                    )
+                    .unwrap();
+            } else {
+                assert!(!received.contains("range:"), "{received}");
+                assert!(!received.contains("if-range:"), "{received}");
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nGOODDATA",
+                    )
+                    .unwrap();
+            }
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let rejected = invoke();
+    assert!(!rejected.status.success());
+    assert!(!dir.join("image.jpg").exists());
+    assert!(!dir.join("image.jpg.part").exists());
+    assert!(!sidecar.exists());
+    let count = || -> i64 {
+        rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(count(), 0);
+    let recovered = invoke();
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOODDATA");
+    assert_eq!(count(), 1);
+    fs::remove_file(dir.join("image.jpg")).unwrap();
+    let offline = invoke();
+    assert!(offline.status.success());
+    assert!(String::from_utf8_lossy(&offline.stdout).contains("archived image.jpg"));
+    assert_eq!(count(), 1);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn bounded_206_subranges_commit_archive_only_after_last_chunk() {
     let dir = temp("bounded-206-archive");
     let _ = fs::remove_dir_all(&dir);
