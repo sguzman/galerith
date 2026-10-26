@@ -83,12 +83,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "500px",
             "photovogue",
             "fapachi",
+            "fapello",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "fapello" && canonical_fapello_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "fapachi" && canonical_fapachi_archive_suffix(id) {
@@ -105,7 +109,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 }
                 if !matches!(
                     category,
-                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
+                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -174,9 +178,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "500px",
         "photovogue",
         "fapachi",
+        "fapello",
     ] {
         if prefix == category
-            && ((category == "fapachi" && canonical_fapachi_archive_suffix(bare))
+            && ((category == "fapello" && canonical_fapello_archive_suffix(bare))
+                || (category == "fapachi" && canonical_fapachi_archive_suffix(bare))
                 || (category == "photovogue" && canonical_photovogue_archive_suffix(bare))
                 || (category == "500px" && canonical_500px_archive_suffix(bare))
                 || (category == "imgur" && canonical_imgur_archive_suffix(bare))
@@ -184,7 +190,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
                 || (!matches!(
                     category,
-                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
+                    "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -357,7 +363,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
         || is_gelbooru_category(category)
         || matches!(
             category,
-            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi"
+            "wallhaven" | "4chan" | "imgur" | "500px" | "photovogue" | "fapachi" | "fapello"
         )
 }
 
@@ -563,6 +569,99 @@ fn fapachi_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
         format!("post-sha256:{}", archive_key_digest(&normalized)),
         normalized,
     ))
+}
+
+fn canonical_fapello_archive_suffix(suffix: &str) -> bool {
+    let Some((kind, rest)) = suffix.split_once('_') else {
+        return false;
+    };
+    if !matches!(kind, "photo" | "video") {
+        return false;
+    }
+    let Some((model, raw_id)) = rest.rsplit_once('_') else {
+        return false;
+    };
+    if !(1..=80).contains(&model.len())
+        || matches!(
+            model,
+            "search" | "popular_videos" | "top-likes" | "top-followers" | "videos" | "trending"
+        )
+        || !model
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || raw_id.len() > 18
+    {
+        return false;
+    }
+    raw_id
+        .parse::<u64>()
+        .ok()
+        .is_some_and(|id| id > 0 && suffix == format!("{kind}_{model}_{id}"))
+}
+
+/// Pinned archive_fmt = "{type}_{model}_{id}". The single-media native
+/// preview only has enough provenance for known original media extensions.
+fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "fapello" {
+        return None;
+    }
+    let id = item.post_id.filter(|value| *value > 0)?;
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(
+            source.host_str(),
+            Some("fapello.com" | "www.fapello.com" | "fapello.su" | "www.fapello.su")
+        )
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let path: Vec<_> = source.path_segments()?.collect();
+    let (model, source_id) = match path.as_slice() {
+        [model, source_id] | [model, source_id, ""] => (*model, *source_id),
+        _ => return None,
+    };
+    if source_id != id.to_string() {
+        return None;
+    }
+
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(matches!(host, "fapello.com" | "fapello.su")
+            || host.ends_with(".fapello.com")
+            || host.ends_with(".fapello.su"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path().contains("..")
+    {
+        return None;
+    }
+    let extension = media
+        .path_segments()?
+        .next_back()?
+        .rsplit_once('.')?
+        .1
+        .to_ascii_lowercase();
+    let kind = match extension.as_str() {
+        "mp4" | "webm" => "video",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" => "photo",
+        _ => return None,
+    };
+    let suffix = format!("{kind}_{model}_{id}");
+    if !canonical_fapello_archive_suffix(&suffix) {
+        return None;
+    }
+    let key = format!("fapello{suffix}");
+    Some((format!("post-sha256:{}", archive_key_digest(&key)), key))
 }
 
 fn valid_imgur_id(id: &str) -> bool {
@@ -1266,6 +1365,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| fivehundredpx_archive_scope(item, source_url))
         .or_else(|| photovogue_archive_scope(item, source_url))
         .or_else(|| fapachi_archive_scope(item, source_url))
+        .or_else(|| fapello_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
