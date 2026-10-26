@@ -131,6 +131,88 @@ fn existing_symlink_does_not_count_as_archive_skip_or_overwrite_target() {
 }
 
 #[test]
+fn pdf_soft_error_is_not_archived_but_real_html_download_is_allowed() {
+    let dir = temp("pdf-soft-error");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for (path, mime, content) in [
+            ("/manual.pdf", "text/html", b"<html>Blocked</html>".as_slice()),
+            ("/manual.pdf", "application/pdf", b"%PDF-TEST".as_slice()),
+            ("/index.html", "text/html", b"<html>Valid</html>".as_slice()),
+        ] {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for document fixture"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("document fixture listener error: {err}"),
+                }
+            };
+            let mut buffer = [0_u8; 2048];
+            let count = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..count]);
+            assert!(request.contains(path), "{request}");
+            let headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                content.len()
+            );
+            stream.write_all(headers.as_bytes()).unwrap();
+            stream.write_all(content).unwrap();
+        }
+    });
+    let invoke = |path: &str| {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(format!("http://{addr}/{path}"))
+            .output()
+            .unwrap()
+    };
+    let failure = invoke("manual.pdf");
+    assert!(!failure.status.success());
+    assert!(!dir.join("manual.pdf").exists());
+    let count = |db: &Path| -> i64 {
+        rusqlite::Connection::open(db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(count(&db), 0);
+    let completed = invoke("manual.pdf");
+    assert!(
+        completed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&completed.stderr)
+    );
+    assert_eq!(fs::read(dir.join("manual.pdf")).unwrap(), b"%PDF-TEST");
+    assert_eq!(count(&db), 1);
+    let html = invoke("index.html");
+    assert!(html.status.success());
+    assert_eq!(fs::read(dir.join("index.html")).unwrap(), b"<html>Valid</html>");
+    server.join().unwrap();
+    assert_eq!(count(&db), 2);
+    fs::remove_file(dir.join("manual.pdf")).unwrap();
+    let archived = invoke("manual.pdf");
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived manual.pdf"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn soft_200_error_documents_cannot_become_archived_image_media() {
     let dir = temp("soft-200-error-document");
     let _ = fs::remove_dir_all(&dir);
