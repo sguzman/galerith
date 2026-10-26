@@ -96,12 +96,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "webmshare",
             "catbox",
             "slideshare",
+            "issuu",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "issuu" && canonical_issuu_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "slideshare" && canonical_slideshare_archive_suffix(id) {
@@ -176,6 +180,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "webmshare"
                         | "catbox"
                         | "slideshare"
+                        | "issuu"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -257,9 +262,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "webmshare",
         "catbox",
         "slideshare",
+        "issuu",
     ] {
         if prefix == category
-            && ((category == "slideshare" && canonical_slideshare_archive_suffix(bare))
+            && ((category == "issuu" && canonical_issuu_archive_suffix(bare))
+                || (category == "slideshare" && canonical_slideshare_archive_suffix(bare))
                 || (category == "catbox" && canonical_catbox_archive_suffix(bare))
                 || (category == "webmshare" && canonical_webmshare_video_id(bare))
                 || (category == "lensdump" && canonical_lensdump_image_id(bare))
@@ -299,6 +306,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "webmshare"
                         | "catbox"
                         | "slideshare"
+                        | "issuu"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -490,6 +498,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "webmshare"
                 | "catbox"
                 | "slideshare"
+                | "issuu"
         )
 }
 
@@ -897,6 +906,101 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned Slideshare presentation archive_fmt = "{presentation}_{num}".
 /// The native extractor emits "presentation-NN.jpg" with one-based slide
 /// positions and official numbered CDN originals.
+/// Pinned Issuu publication archive_fmt = "{document[publicationId]}_{num}".
+/// The native image path proves the page, revision, and publication ID.
+/// Reject IDs with separators that permit ambiguous revision/publication splits.
+fn canonical_issuu_publication_id(id: &str) -> bool {
+    (1..=96).contains(&id.len()) && id.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn canonical_issuu_archive_suffix(suffix: &str) -> bool {
+    let Some((publication, raw_num)) = suffix.rsplit_once('_') else {
+        return false;
+    };
+    canonical_issuu_publication_id(publication)
+        && raw_num
+            .parse::<u16>()
+            .ok()
+            .is_some_and(|num| (1..=240).contains(&num) && raw_num == num.to_string())
+}
+
+fn issuu_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "issuu" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("issuu.com" | "www.issuu.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let (user, slug) = match source_parts.as_slice() {
+        [user, "docs", slug] | [user, "docs", slug, ""] => (*user, *slug),
+        _ => return None,
+    };
+    if ![user, slug].iter().all(|value| {
+        (1..=96).contains(&value.len())
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    }) {
+        return None;
+    }
+    let basename = item.filename.strip_suffix(".jpg")?;
+    let (publication, pos) = basename.rsplit_once('_')?;
+    if !canonical_issuu_publication_id(publication) {
+        return None;
+    }
+    let page = pos.parse::<u16>().ok()?;
+    if !(1..=240).contains(&page) || pos != format!("{page:03}") {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some("image.isu.pub")
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path().contains("..")
+    {
+        return None;
+    }
+    let media_parts: Vec<_> = media.path_segments()?.collect();
+    let [revision_publication, "jpg", media_page] = media_parts.as_slice() else {
+        return None;
+    };
+    if *media_page != format!("page_{page}.jpg") {
+        return None;
+    }
+    let revision = revision_publication.strip_suffix(&format!("-{publication}"))?;
+    if !(1..=96).contains(&revision.len())
+        || !revision
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return None;
+    }
+    let suffix = format!("{publication}_{page}");
+    if !canonical_issuu_archive_suffix(&suffix) {
+        return None;
+    }
+    let upstream = format!("issuu{suffix}");
+    Some((
+        format!("page-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_slideshare_presentation(id: &str) -> bool {
     (1..=120).contains(&id.len())
         && !id.contains("..")
@@ -2436,6 +2540,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| webmshare_archive_scope(item, source_url))
         .or_else(|| catbox_archive_scope(item, source_url))
         .or_else(|| slideshare_archive_scope(item, source_url))
+        .or_else(|| issuu_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
