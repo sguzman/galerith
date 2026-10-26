@@ -3778,7 +3778,10 @@ mod tests {
             "https://imx.to:8443/i/1qdeva",
             "https://evil.imx.to.attacker.invalid/i/1qdeva",
         ] {
-            assert!(!archive.contains_for_source(&changed, unrelated).unwrap(), "{unrelated}");
+            assert!(
+                !archive.contains_for_source(&changed, unrelated).unwrap(),
+                "{unrelated}"
+            );
         }
         for unsafe_media in [
             "https://other.invalid/file.png",
@@ -3793,7 +3796,10 @@ mod tests {
                 url: unsafe_media.into(),
                 ..changed.clone()
             };
-            assert!(imxto_archive_scope(&item, direct).is_none(), "{unsafe_media}");
+            assert!(
+                imxto_archive_scope(&item, direct).is_none(),
+                "{unsafe_media}"
+            );
         }
         let unrelated_media = MediaItem {
             extractor: "postimg",
