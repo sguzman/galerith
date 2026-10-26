@@ -546,9 +546,10 @@ fn fapachi_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
     {
         return None;
     }
+    let normalized = format!("fapachi{suffix}");
     Some((
-        format!("user:{user}:post-id:{id}"),
-        format!("fapachi{suffix}"),
+        format!("post-sha256:{}", archive_key_digest(&normalized)),
+        normalized,
     ))
 }
 
