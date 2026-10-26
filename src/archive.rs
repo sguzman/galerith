@@ -2879,6 +2879,7 @@ mod tests {
             "foriio12345/10/1",
             "piczel1001_0",
             "35photo12345_1",
+            "unsplashabc-A",
         ];
         let rejected = [
             "danbooru00123",
@@ -2893,6 +2894,7 @@ mod tests {
             "foriio12345/10/01",
             "piczel1001_00",
             "35photo12345_01",
+            "unsplashbad%2fid",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -2992,6 +2994,15 @@ mod tests {
                     post_id: Some(12345),
                 },
                 "https://35photo.pro/photo_12345",
+            ),
+            (
+                MediaItem {
+                    url: "https://images.unsplash.com/new?ixid=changed".into(),
+                    filename: "abc-A.jpg".into(),
+                    extractor: "unsplash",
+                    post_id: None,
+                },
+                "https://unsplash.com/@alice",
             ),
             (
                 MediaItem {
@@ -6556,6 +6567,137 @@ mod tests {
         assert!(!bytes
             .windows(b"35photo12345_1".len())
             .any(|part| part == b"35photo12345_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unsplash_photo_identity_spans_public_feeds_and_rotated_cdn() {
+        let root = std::env::temp_dir().join(format!("galerith-unsplash-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let photo = MediaItem {
+            url: "https://images.unsplash.com/photo-a?ixid=secret".into(),
+            filename: "abc-A.jpg".into(),
+            extractor: "unsplash",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://plus.unsplash.com/photo-new?ixid=changed".into(),
+            ..photo.clone()
+        };
+        archive
+            .record_for_source(&photo, "https://unsplash.com/photos/abc-A")
+            .unwrap();
+        for source in [
+            "https://unsplash.com/photos/abc-A",
+            "https://unsplash.com/@alice",
+            "https://unsplash.com/@alice/likes",
+            "https://unsplash.com/collections/12345/nature",
+            "https://unsplash.com/s/photos/sky?orientation=landscape",
+        ] {
+            assert!(archive.contains_for_source(&rotated, source).unwrap(), "{source}");
+        }
+        let other = MediaItem {
+            filename: "abc-B.jpg".into(),
+            ..rotated.clone()
+        };
+        assert!(!archive
+            .contains_for_source(&other, "https://unsplash.com/@alice")
+            .unwrap());
+        for invalid in [
+            "https://unsplash.com/photos/abc-B",
+            "http://unsplash.com/photos/abc-A",
+            "https://evil.unsplash.com/@alice",
+            "https://unsplash.com:8443/@alice",
+            "https://unsplash.com/s/photos/sky?orientation=invalid",
+            "https://unsplash.com/@alice?token=private",
+            "https://unsplash.com/photos/abc-A?secret=1",
+        ] {
+            assert!(unsplash_archive_scope(&photo, invalid).is_none(), "{invalid}");
+        }
+        let forged = MediaItem {
+            url: "https://images.unsplash.com.evil.test/pic".into(),
+            ..photo
+        };
+        assert!(unsplash_archive_scope(&forged, "https://unsplash.com/@alice").is_none());
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        for secret in ["abc-A", "photo-a", "secret"] {
+            assert!(!bytes
+                .windows(secret.len())
+                .any(|part| part == secret.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unsplash_import_is_idempotent_scoped_and_available_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-unsplash-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("foreign.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('unsplashabc-A');
+             INSERT INTO archive VALUES ('unsplashabc-B');
+             INSERT INTO archive VALUES ('unsplashbad%2fid');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('abc-A');
+             INSERT INTO named VALUES ('unsplashabc-A');",
+        )
+        .unwrap();
+        drop(db);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("unsplash"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        let photo = MediaItem {
+            url: "https://plus.unsplash.com/changed?ixid=rotated".into(),
+            filename: "abc-A.jpg".into(),
+            extractor: "unsplash",
+            post_id: None,
+        };
+        assert!(offline
+            .contains_for_source(&photo, "https://unsplash.com/collections/123/flowers")
+            .unwrap());
+        let missing = MediaItem {
+            filename: "abc-C.jpg".into(),
+            ..photo
+        };
+        assert!(!offline
+            .contains_for_source(&missing, "https://unsplash.com/collections/123/flowers")
+            .unwrap());
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes
+            .windows(b"unsplashabc-A".len())
+            .any(|part| part == b"unsplashabc-A"));
         fs::remove_dir_all(root).unwrap();
     }
 
