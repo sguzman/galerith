@@ -586,6 +586,98 @@ fn invalid_resumed_content_range_never_archives_partial_and_recovers_cleanly() {
 }
 
 #[test]
+fn missing_resumed_content_range_discards_partial_and_never_archives_failed_attempt() {
+    let dir = temp("missing-content-range");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/missing-range.jpg", listener.local_addr().unwrap());
+    seed_resumable_partial(&dir, "missing-range.jpg", &url, r#""original""#);
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        let accept = || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => {
+                        socket.set_nonblocking(false).unwrap();
+                        return socket;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for missing-range recovery"
+                        );
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                    Err(error) => panic!("range recovery listener error: {error}"),
+                }
+            }
+        };
+        let mut first = accept();
+        let mut buffer = [0_u8; 2048];
+        let count = first.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(request.contains("range: bytes=4-"), "{request}");
+        assert!(request.contains("if-range: \"original\""), "{request}");
+        first.write_all(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nETag: \"original\"\r\nConnection: close\r\n\r\n5678",
+        ).unwrap();
+        drop(first);
+
+        let mut second = accept();
+        let count = second.read(&mut buffer).unwrap();
+        let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+        assert!(!request.contains("range:"), "stale Range was reused: {request}");
+        assert!(!request.contains("if-range:"), "stale If-Range was reused: {request}");
+        second.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nABCDEFGH",
+        ).unwrap();
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let rejected = invoke();
+    assert!(!rejected.status.success());
+    assert!(!dir.join("missing-range.jpg").exists());
+    assert!(!dir.join("missing-range.jpg.part").exists());
+    assert!(!dir.join("missing-range.jpg.part.json").exists());
+    let recorded: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(recorded, 0, "missing Content-Range cannot record an archive hit");
+
+    let recovered = invoke();
+    assert!(
+        recovered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recovered.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("missing-range.jpg")).unwrap(), b"ABCDEFGH");
+    let recorded: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(recorded, 1);
+    fs::remove_file(dir.join("missing-range.jpg")).unwrap();
+    let skipped = invoke();
+    assert!(skipped.status.success());
+    assert!(String::from_utf8_lossy(&skipped.stdout).contains("archived missing-range.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn changed_etag_resume_discards_partial_before_archival() {
     let dir = temp("etag-change-resume");
     let _ = fs::remove_dir_all(&dir);

@@ -247,8 +247,18 @@ pub async fn download(
         }
 
         let resume_range = if append {
-            let header = header(&response, CONTENT_RANGE)
-                .ok_or_else(|| error("missing Content-Range for resumed download"))?;
+            let header = match header(&response, CONTENT_RANGE) {
+                Some(value) => value,
+                None => {
+                    // An invalid 206 is not recoverable using the stale range:
+                    // drop both persisted partial components before retrying.
+                    invalidate(&part, &metadata).await?;
+                    if attempt < options.retries {
+                        continue;
+                    }
+                    return Err(error("missing Content-Range; partial reset"));
+                }
+            };
             match resumed_length(&header, offset) {
                 Some(range) => Some(range),
                 None => {
