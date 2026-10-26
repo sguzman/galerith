@@ -6465,14 +6465,25 @@ mod tests {
             "https://35photo.pro/photo_12345?token=private",
             "https://evil35photo.pro/photo_12345",
         ] {
-            assert!(thirtyfivephoto_archive_scope(&first, bad).is_none(), "{bad}");
+            assert!(
+                thirtyfivephoto_archive_scope(&first, bad).is_none(),
+                "{bad}"
+            );
         }
-        for bad in ["12345_00.jpg", "12345_33.jpg", "12345_1.jpg", "12345_01.png"] {
+        for bad in [
+            "12345_00.jpg",
+            "12345_33.jpg",
+            "12345_1.jpg",
+            "12345_01.png",
+        ] {
             let item = MediaItem {
                 filename: bad.into(),
                 ..first.clone()
             };
-            assert!(thirtyfivephoto_archive_scope(&item, source).is_none(), "{bad}");
+            assert!(
+                thirtyfivephoto_archive_scope(&item, source).is_none(),
+                "{bad}"
+            );
         }
         let evil = MediaItem {
             url: "https://img.35photo.pro.evil.test/a.jpg".into(),
