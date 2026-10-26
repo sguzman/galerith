@@ -8312,8 +8312,8 @@ mod tests {
 
     #[test]
     fn slideshare_foreign_pages_import_privately_and_remain_distinct_after_reopen() {
-        let root = std::env::temp_dir()
-            .join(format!("galerith-slideshare-import-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-slideshare-import-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("gallery-dl.sqlite");
