@@ -7018,8 +7018,7 @@ mod tests {
 
     #[test]
     fn pixeldrain_file_id_survives_album_filename_and_media_changes() {
-        let root =
-            std::env::temp_dir().join(format!("galerith-pixeldrain-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("galerith-pixeldrain-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
