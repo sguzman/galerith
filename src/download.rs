@@ -383,6 +383,21 @@ pub async fn download(
                 "range not satisfiable; partial reset, retries exhausted",
             ));
         }
+        // Neither 304 nor 412 provides the requested media suffix. A server
+        // may return them for an If-Range request despite the usual 200
+        // fallback. Clear the stale validator/partial before a full retry.
+        if offset > 0
+            && matches!(
+                status,
+                StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED
+            )
+        {
+            invalidate(&part, &metadata).await?;
+            if attempt < options.retries {
+                continue;
+            }
+            return Err(error("resume precondition rejected; partial reset"));
+        }
         let mut response = response.error_for_status()?;
         // A client configured without redirects may return a successful
         // 3xx response body, and a 202/203 is not a complete media download.
