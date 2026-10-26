@@ -3379,6 +3379,8 @@ mod tests {
             "listal12345/full",
             "lensdumpAbCd12",
             "webmshareABc_123",
+            "catboxabc123",
+            "catboxAlbum123_abc123",
         ];
         let rejected = [
             "danbooru00123",
@@ -3399,6 +3401,7 @@ mod tests {
             "listal012345/full",
             "lensdumpAlbum88_1",
             "webmsharebad%2fid",
+            "catboxAlbum123_abc_123",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3553,6 +3556,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://webmshare.com/play/ABc_123",
+            ),
+            (
+                MediaItem {
+                    url: "https://files.catbox.moe/abc123.jpg".into(),
+                    filename: "abc123.jpg".into(),
+                    extractor: "catbox",
+                    post_id: None,
+                },
+                "https://catbox.moe/c/Album123",
             ),
             (
                 MediaItem {
@@ -7952,6 +7964,157 @@ mod tests {
         assert!(!native_bytes
             .windows(b"webmshareABc_123".len())
             .any(|part| part == b"webmshareABc_123"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn catbox_file_and_album_archives_do_not_conflate_shared_media() {
+        let root = std::env::temp_dir().join(format!("galerith-catbox-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let file = MediaItem {
+            url: "https://files.catbox.moe/abc123.jpg".into(),
+            filename: "abc123.jpg".into(),
+            extractor: "catbox",
+            post_id: None,
+        };
+        let other = MediaItem {
+            url: "https://files.catbox.moe/def456.png".into(),
+            filename: "def456.png".into(),
+            ..file.clone()
+        };
+        let direct = "https://files.catbox.moe/abc123.jpg";
+        let album = "https://catbox.moe/c/Album123";
+        assert_eq!(
+            catbox_archive_scope(&file, direct).unwrap().1,
+            "catboxabc123"
+        );
+        assert_eq!(
+            catbox_archive_scope(&file, album).unwrap().1,
+            "catboxAlbum123_abc123"
+        );
+        archive.record_for_source(&file, album).unwrap();
+        assert!(archive.contains_for_source(&file, album).unwrap());
+        assert!(!archive
+            .contains_for_source(&file, "https://catbox.moe/c/OtherAlbum")
+            .unwrap());
+        assert!(!archive.contains_for_source(&file, direct).unwrap());
+        assert!(!archive.contains_for_source(&other, album).unwrap());
+        archive.record_for_source(&file, direct).unwrap();
+        assert!(archive.contains_for_source(&file, direct).unwrap());
+        for bad in [
+            "https://catbox.moe/c/Album_123",
+            "https://catbox.moe/c/Album123?token=private",
+            "https://evil.catbox.moe/c/Album123",
+            "https://catbox.moe:8443/c/Album123",
+            "https://catbox.moe/c/Album123/extra",
+        ] {
+            assert!(catbox_archive_scope(&file, bad).is_none(), "{bad}");
+        }
+        for media_url in [
+            "https://files.catbox.moe/renamed.jpg",
+            "https://evil.catbox.moe/abc123.jpg",
+            "https://files.catbox.moe/abc123.jpg?secret=1",
+            "https://litter.catbox.moe/abc123.jpg",
+        ] {
+            let forged = MediaItem {
+                url: media_url.into(),
+                ..file.clone()
+            };
+            assert!(catbox_archive_scope(&forged, album).is_none());
+        }
+        assert!(!canonical_catbox_archive_suffix("Album123_abc_123"));
+        assert!(!canonical_catbox_archive_suffix("Album123_"));
+        assert!(!canonical_catbox_archive_suffix("bad%2fid"));
+        drop(archive);
+        let db_bytes = fs::read(native).unwrap();
+        for private in ["Album123_abc123", "files.catbox.moe"] {
+            assert!(!db_bytes
+                .windows(private.len())
+                .any(|part| part == private.as_bytes()));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn catbox_file_and_album_foreign_keys_import_privately_and_survive_reopen() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-catbox-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('catboxabc123');
+             INSERT INTO archive VALUES ('catboxAlbum123_abc123');
+             INSERT INTO archive VALUES ('catboxAlbum123_def456');
+             INSERT INTO archive VALUES ('catboxAlbum123_abc_123');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('abc123');
+             INSERT INTO named VALUES ('catboxabc123');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let named = Archive::open_with_reference_options(
+            &root.join("named.sqlite"),
+            Some(&foreign),
+            Some("named"),
+            Some("catbox"),
+        )
+        .unwrap();
+        assert_eq!(named.import_reference().unwrap(), (1, 1));
+        drop(named);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(foreign).unwrap();
+        let reopened = Archive::open(&native).unwrap();
+        let media = MediaItem {
+            url: "https://files.catbox.moe/abc123.jpg".into(),
+            filename: "abc123.jpg".into(),
+            extractor: "catbox",
+            post_id: None,
+        };
+        assert!(reopened
+            .contains_for_source(&media, "https://catbox.moe/c/Album123")
+            .unwrap());
+        assert!(reopened
+            .contains_for_source(&media, "https://files.catbox.moe/abc123.jpg")
+            .unwrap());
+        assert!(!reopened
+            .contains_for_source(&media, "https://catbox.moe/c/OtherAlbum")
+            .unwrap());
+        let second = MediaItem {
+            url: "https://files.catbox.moe/def456.png".into(),
+            filename: "def456.png".into(),
+            ..media
+        };
+        assert!(reopened
+            .contains_for_source(&second, "https://catbox.moe/c/Album123")
+            .unwrap());
+        assert!(!reopened
+            .contains_for_source(&second, "https://files.catbox.moe/def456.png")
+            .unwrap());
+        drop(reopened);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"catboxAlbum123_abc123".len())
+            .any(|part| part == b"catboxAlbum123_abc123"));
         fs::remove_dir_all(root).unwrap();
     }
 
