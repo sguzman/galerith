@@ -1188,6 +1188,95 @@ fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() 
 }
 
 #[test]
+fn bounded_206_subranges_commit_archive_only_after_last_chunk() {
+    let dir = temp("bounded-206-archive");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/image.jpg", listener.local_addr().unwrap());
+    seed_resumable_partial(&dir, "image.jpg", &url, r#""stable""#);
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for stage in 0..2 {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "bounded chunk archive fixture timed out"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("chunked HTTP listener error: {err}"),
+                }
+            };
+            let mut request = [0_u8; 2048];
+            let count = stream.read(&mut request).unwrap();
+            let received = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
+            if stage == 0 {
+                assert!(received.contains("range: bytes=4-"), "{received}");
+                assert!(received.contains("if-range: \"stable\""), "{received}");
+                stream
+                    .write_all(
+                        b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-6/10\r\nContent-Length: 3\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nEFG",
+                    )
+                    .unwrap();
+            } else {
+                assert!(received.contains("range: bytes=7-"), "{received}");
+                assert!(received.contains("if-range: \"stable\""), "{received}");
+                stream
+                    .write_all(
+                        b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 7-9/10\r\nContent-Length: 3\r\nETag: \"stable\"\r\nConnection: close\r\n\r\nHIJ",
+                    )
+                    .unwrap();
+            }
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let first = invoke();
+    assert!(!first.status.success());
+    assert!(!dir.join("image.jpg").exists());
+    assert_eq!(fs::read(dir.join("image.jpg.part")).unwrap(), b"ABCDEFG");
+    let count = || -> i64 {
+        rusqlite::Connection::open(&db)
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(count(), 0);
+    let second = invoke();
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"ABCDEFGHIJ");
+    assert!(!dir.join("image.jpg.part").exists());
+    assert!(!dir.join("image.jpg.part.json").exists());
+    assert_eq!(count(), 1);
+    fs::remove_file(dir.join("image.jpg")).unwrap();
+    let offline = invoke();
+    assert!(offline.status.success());
+    assert!(String::from_utf8_lossy(&offline.stdout).contains("archived image.jpg"));
+    assert_eq!(count(), 1);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn overlong_resumed_response_clears_partial_without_false_archive_hit() {
     let dir = temp("oversized-206-archive-recovery");
     let _ = fs::remove_dir_all(&dir);

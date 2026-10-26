@@ -569,7 +569,10 @@ async fn bounded_206_subrange_exhaustion_persists_validator_and_resumes_next_inv
     clean(&path);
     let item = extract_direct_media(&format!("http://{addr}/image.jpg")).unwrap();
     let limited = download(&client(), &item, &settings(path.clone(), 1)).await;
-    assert!(limited.is_err(), "subrange must not be finalized or archived");
+    assert!(
+        limited.is_err(),
+        "subrange must not be finalized or archived"
+    );
     assert!(!path.join("image.jpg").exists());
     assert_eq!(fs::read(path.join("image.jpg.part")).unwrap(), b"ABCDEFG");
     let sidecar = fs::read_to_string(path.join("image.jpg.part.json")).unwrap();
