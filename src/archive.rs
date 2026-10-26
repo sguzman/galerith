@@ -108,12 +108,20 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "imgclick",
             "fappic",
             "imgpv",
+            "imgdrive",
+            "imgtaxi",
+            "imgwallet",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
+                    && canonical_drive_image_token(id)
+                {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "fappic" && canonical_fappic_token(id) {
@@ -236,6 +244,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgclick"
                         | "fappic"
                         | "imgpv"
+                        | "imgdrive"
+                        | "imgtaxi"
+                        | "imgwallet"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -329,9 +340,14 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "imgclick",
         "fappic",
         "imgpv",
+        "imgdrive",
+        "imgtaxi",
+        "imgwallet",
     ] {
         if prefix == category
-            && ((category == "fappic" && canonical_fappic_token(bare))
+            && ((matches!(category, "imgdrive" | "imgtaxi" | "imgwallet")
+                && canonical_drive_image_token(bare))
+                || (category == "fappic" && canonical_fappic_token(bare))
                 || (category == "imgpv" && canonical_imgpv_token(bare))
                 || (category == "imgclick" && canonical_imgclick_token(bare))
                 || (category == "imgadult" && canonical_imgadult_token(bare))
@@ -395,6 +411,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "imgclick"
                         | "fappic"
                         | "imgpv"
+                        | "imgdrive"
+                        | "imgtaxi"
+                        | "imgwallet"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -598,6 +617,9 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "imgclick"
                 | "fappic"
                 | "imgpv"
+                | "imgdrive"
+                | "imgtaxi"
+                | "imgwallet"
         )
 }
 
@@ -1017,6 +1039,90 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned ImageBam single-image archive_fmt = "{image_key}".
 /// Gallery keys additionally require "{gallery_key}_{image_key}", which the
 /// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+/// Pinned ImgdriveImageExtractor dynamically sets imgdrive/imgtaxi/imgwallet
+/// categories while retaining the common per-image "{token}" archive_fmt.
+fn canonical_drive_image_token(token: &str) -> bool {
+    (1..=80).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn drive_family_host(host: &str) -> Option<(&'static str, &str)> {
+    let root = host.strip_prefix("www.").unwrap_or(host);
+    let (name, tld) = root.split_once('.')?;
+    if !matches!(tld, "com" | "net") {
+        return None;
+    }
+    let category = match name {
+        "imgdrive" => "imgdrive",
+        "imgtaxi" => "imgtaxi",
+        "imgwallet" => "imgwallet",
+        _ => return None,
+    };
+    Some((category, root))
+}
+
+fn drive_family_archive_scope(
+    item: &MediaItem,
+    source_url: &str,
+) -> Option<(String, String)> {
+    if item.post_id.is_some() {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    let (category, root) = drive_family_host(source.host_str()?)?;
+    if item.extractor != category
+        || source.scheme() != "https"
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let paths: Vec<_> = source.path_segments()?.collect();
+    let [page] = paths.as_slice() else {
+        return None;
+    };
+    let token = page.strip_prefix("img-")?.strip_suffix(".html")?;
+    if !canonical_drive_image_token(token) {
+        return None;
+    }
+
+    let original = url::Url::parse(&item.url).ok()?;
+    let host = original.host_str()?;
+    if original.scheme() != "https"
+        || !(host == root || host.ends_with(&format!(".{root}")))
+        || original.port().is_some()
+        || !original.username().is_empty()
+        || original.password().is_some()
+        || original.query().is_some()
+        || original.fragment().is_some()
+        || original.path().contains('%')
+    {
+        return None;
+    }
+    let filename = original.path_segments()?.next_back()?;
+    let extension = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    if filename.is_empty()
+        || filename.len() > 240
+        || !matches!(
+            extension.as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("{category}{token}");
+    Some((
+        format!("image-token-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 /// Pinned FappicImageExtractor strips "_t" from its thumbnail source
 /// token and inherits the common image-host "{token}" archive format.
 fn canonical_fappic_token(token: &str) -> bool {
@@ -3471,6 +3577,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| imgclick_archive_scope(item, source_url))
         .or_else(|| fappic_archive_scope(item, source_url))
         .or_else(|| imgpv_archive_scope(item, source_url))
+        .or_else(|| drive_family_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -4079,6 +4186,143 @@ impl Archive {
 mod tests {
     use super::*;
     use crate::extract_direct_media;
+
+    #[test]
+    fn drive_family_tokens_are_separate_per_host_category_and_original_origin() {
+        let root = std::env::temp_dir().join(format!("galerith-drive-family-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        for (category, domain) in [
+            ("imgdrive", "imgdrive.net"),
+            ("imgtaxi", "imgtaxi.com"),
+            ("imgwallet", "imgwallet.net"),
+        ] {
+            let first = MediaItem {
+                url: format!("https://cdn.{domain}/small/first.jpg"),
+                filename: "first.jpg".into(),
+                extractor: category,
+                post_id: None,
+            };
+            let changed = MediaItem {
+                url: format!("https://cdn.{domain}/big/rotated.webp"),
+                filename: "rotated.webp".into(),
+                ..first.clone()
+            };
+            let source = format!("https://{domain}/img-AbC012.html");
+            assert_eq!(
+                drive_family_archive_scope(&first, &source).unwrap().1,
+                format!("{category}AbC012")
+            );
+            archive.record_for_source(&first, &source).unwrap();
+            assert!(archive.contains_for_source(&changed, &source).unwrap());
+            let alias = format!("https://www.{domain}/img-AbC012.html");
+            assert!(archive.contains_for_source(&changed, &alias).unwrap());
+            for bad in [
+                format!("https://{domain}/img-Another.html"),
+                format!("https://{domain}/img-AbC012.html?secret=1"),
+                format!("https://{domain}:8443/img-AbC012.html"),
+                format!("https://{domain}.attacker.invalid/img-AbC012.html"),
+                format!("https://{domain}/img-%41bC012.html"),
+            ] {
+                assert!(!archive.contains_for_source(&changed, &bad).unwrap());
+            }
+            let other_host = MediaItem {
+                url: "https://cdn.imgwallet.com/different.jpg".into(),
+                ..changed.clone()
+            };
+            if domain != "imgwallet.com" {
+                assert!(drive_family_archive_scope(&other_host, &source).is_none());
+            }
+            let other_category = match category {
+                "imgdrive" => "imgtaxi",
+                "imgtaxi" => "imgwallet",
+                _ => "imgdrive",
+            };
+            let unrelated = MediaItem {
+                extractor: other_category,
+                ..changed
+            };
+            assert!(drive_family_archive_scope(&unrelated, &source).is_none());
+        }
+        drop(archive);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"AbC012".len()).any(|part| part == b"AbC012"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn drive_family_migration_is_category_scoped_read_only_and_offline() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-drive-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let db = Connection::open(&foreign).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO archive VALUES ('imgdriveAbC012');
+            INSERT INTO archive VALUES ('imgtaxiAbC012');
+            INSERT INTO archive VALUES ('imgwalletAbC012');
+            INSERT INTO archive VALUES ('imgdrivebad token');
+            INSERT INTO archive VALUES ('imgwalletbad-token');
+            CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+            INSERT INTO named VALUES ('AbC012');
+            INSERT INTO named VALUES ('imgdriveAbC012');
+            INSERT INTO named VALUES ('imgtaxiAbC012');
+            INSERT INTO named VALUES ('imgwalletAbC012');",
+        )
+        .unwrap();
+        drop(db);
+        let before = fs::read(&foreign).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&foreign)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (3, 3));
+        assert_eq!(archive.import_reference().unwrap(), (3, 0));
+        drop(archive);
+        for category in ["imgdrive", "imgtaxi", "imgwallet"] {
+            let named = Archive::open_with_reference_options(
+                &root.join(format!("{category}.sqlite")),
+                Some(&foreign),
+                Some("named"),
+                Some(category),
+            )
+            .unwrap();
+            assert_eq!(named.import_reference().unwrap(), (1, 1));
+        }
+        let unknown = Archive::open_with_reference_table(
+            &root.join("unknown.sqlite"),
+            Some(&foreign),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(unknown.import_reference().unwrap(), (0, 0));
+        drop(unknown);
+        assert_eq!(fs::read(&foreign).unwrap(), before);
+        fs::remove_file(&foreign).unwrap();
+        let offline = Archive::open(&native).unwrap();
+        for (category, domain) in [
+            ("imgdrive", "imgdrive.net"),
+            ("imgtaxi", "imgtaxi.com"),
+            ("imgwallet", "imgwallet.net"),
+        ] {
+            let item = MediaItem {
+                url: format!("https://cdn.{domain}/big/rotated.webp"),
+                filename: "rotated.webp".into(),
+                extractor: category,
+                post_id: None,
+            };
+            let source = format!("https://{domain}/img-AbC012.html");
+            assert!(offline.contains_for_source(&item, &source).unwrap());
+            let wrong = format!("https://{domain}/img-Different.html");
+            assert!(!offline.contains_for_source(&item, &wrong).unwrap());
+        }
+        drop(offline);
+        let bytes = fs::read(&native).unwrap();
+        assert!(!bytes.windows(b"AbC012".len()).any(|part| part == b"AbC012"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn fappic_normal_and_thumbnail_urls_share_only_proven_image_tokens() {

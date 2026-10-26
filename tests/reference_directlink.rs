@@ -1164,3 +1164,24 @@ fn pinned_fappic_and_imgpv_imagehost_tokens_match_their_source_pages() {
         "fappic|image|abcde12345|fappic|abcde12345|abcde12345|imgpv|image|a1b2c3d4f5g6"
     );
 }
+
+#[test]
+fn pinned_imgdrive_imgtaxi_and_imgwallet_retain_distinct_token_categories() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned reference required for shared image-host family");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://imgdrive.net/img-AbC012.html','https://imgtaxi.com/img-AbC012.html','https://imgwallet.net/img-AbC012.html'); out=[]; [(out.extend((e.category,e.subcategory,e.archive_fmt.format(token=e.token)))) for e in (extractor.find(url) for url in urls)]; print('|'.join(out))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned image-host family distinct archive token categories").trim(),
+        "imgdrive|image|AbC012|imgtaxi|image|AbC012|imgwallet|image|AbC012"
+    );
+}
