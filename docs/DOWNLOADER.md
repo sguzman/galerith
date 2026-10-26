@@ -36,4 +36,5 @@ Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bound
 - Parallel same-output attempts (one download plus one skip); safe overwrite and error preservation.
 - No real media, private account content, tokens, or site traffic are used in these regression fixtures.
 
-Verification: [CI 40218907724](https://github.com/sguzman/galerith/actions/runs/40218907724) verifies Last-Modified file mtimes and the full Rust suite. Earlier [CI 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) verifies bounded transfer recovery. 
+Verification: [CI 40218907724](https://github.com/sguzman/galerith/actions/runs/40218907724) verifies Last-Modified file mtimes and the full Rust suite. Earlier [CI 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) verifies bounded transfer recovery.
+- A resumed `206` must report a `Content-Length` (when provided) equal to the suffix size in `Content-Range`. A declared disagreement is rejected before appending. A streamed response that exceeds the permitted suffix length is also discarded with its `.part` and validator, rather than becoming an invalid resumable offset. Under the remaining retry budget the downloader restarts with an un-ranged full GET; shorter interrupted responses can still retain validated bytes for ordinary resume.

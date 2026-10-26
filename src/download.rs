@@ -468,6 +468,21 @@ pub async fn download(
         } else {
             None
         };
+        if let Some((expected, _)) = resume_range {
+            if response
+                .content_length()
+                .is_some_and(|declared| declared != expected)
+            {
+                // The claimed suffix and the declared transport body length
+                // disagree before any bytes are appended. The stale partial
+                // is not a trustworthy basis for the next Range request.
+                invalidate(&part, &metadata).await?;
+                if attempt < options.retries {
+                    continue;
+                }
+                return Err(error("resumed Content-Length disagrees with Content-Range"));
+            }
+        }
         if append {
             if let Some(old) = prior.as_ref() {
                 // An If-Range server response without confirming validator is
@@ -526,9 +541,19 @@ pub async fn download(
         let mut received = 0_u64;
         let mut first_bytes = Vec::with_capacity(160);
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;
+        let mut oversized_response = false;
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
+                    if expected_body.is_some_and(|max| {
+                        received.saturating_add(chunk.len() as u64) > max
+                    }) {
+                        // Never append an overlong chunk or retain any
+                        // previously appended bytes from this response.
+                        oversized_response = true;
+                        transfer_error = Some(error("response exceeds declared body length"));
+                        break;
+                    }
                     if first_bytes.len() < 160 {
                         let count = (160 - first_bytes.len()).min(chunk.len());
                         first_bytes.extend_from_slice(&chunk[..count]);
@@ -582,9 +607,9 @@ pub async fn download(
         }
         drop(file);
         if let Some(err) = transfer_error {
-            if misleading_error_body || (received == 0 && !append) {
-                // Drop a deceptive response (fresh or resumed) and its sidecar.
-                // Never retain a partial contaminated by a block-page suffix.
+            if misleading_error_body || oversized_response || (received == 0 && !append) {
+                // Discard deceptive or oversized responses and their sidecars.
+                // Never retain an untrustworthy suffix for future resume.
                 invalidate(&part, &metadata).await?;
             }
             if attempt < options.retries {

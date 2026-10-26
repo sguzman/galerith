@@ -473,6 +473,68 @@ async fn unsolicited_206_does_not_finalize_partial_and_retries_full_media() {
 }
 
 #[tokio::test]
+async fn overlong_206_suffix_is_discarded_and_restarted_without_range() {
+    for (label, length_header) in [
+        ("declared-length-overrun", "Content-Length: 8\r\n"),
+        ("streamed-length-overrun", ""),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut initial = next(&listener).await;
+            let req = request(&mut initial).await;
+            assert!(!req.contains("\r\nrange:"), "{req}");
+            initial
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nETag: \"same\"\r\nContent-Length: 10\r\nConnection: close\r\n\r\nABCD",
+                )
+                .await
+                .unwrap();
+            drop(initial);
+
+            let mut invalid = next(&listener).await;
+            let req = request(&mut invalid).await;
+            assert!(req.contains("\r\nrange: bytes=4-\r\n"), "{req}");
+            assert!(req.contains("\r\nif-range: \"same\"\r\n"), "{req}");
+            let header = format!(
+                "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 4-9/10\r\n{length_header}ETag: \"same\"\r\nConnection: close\r\n\r\n"
+            );
+            invalid.write_all(header.as_bytes()).await.unwrap();
+            let _ = invalid.write_all(b"EFGHIJKL").await;
+            drop(invalid);
+
+            let mut fresh = next(&listener).await;
+            let req = request(&mut fresh).await;
+            assert!(!req.contains("\r\nrange:"), "{req}");
+            assert!(!req.contains("\r\nif-range:"), "{req}");
+            fresh
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nETag: \"fresh\"\r\nConnection: close\r\n\r\nGOODABCDEF",
+                )
+                .await
+                .unwrap();
+        });
+        let path = dir(label);
+        clean(&path);
+        let item = extract_direct_media(&format!("http://{addr}/image.jpg")).unwrap();
+        assert_eq!(
+            download(&client(), &item, &settings(path.clone(), 2))
+                .await
+                .unwrap(),
+            DownloadOutcome::Saved(path.join("image.jpg"))
+        );
+        assert_eq!(
+            fs::read(path.join("image.jpg")).unwrap(),
+            b"GOODABCDEF"
+        );
+        assert!(!path.join("image.jpg.part").exists());
+        assert!(!path.join("image.jpg.part.json").exists());
+        server.await.unwrap();
+        clean(&path);
+    }
+}
+
+#[tokio::test]
 async fn missing_content_range_recovers_within_retry_budget() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
