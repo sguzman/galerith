@@ -4379,6 +4379,117 @@ mod tests {
     }
 
     #[test]
+    fn imgur_named_table_only_imports_explicit_category_prefixed_keys() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgur-prefix-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let foreign = root.join("reference.sqlite");
+        let reference = Connection::open(&foreign).unwrap();
+        reference
+            .execute_batch(
+                "CREATE TABLE selected(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+                 INSERT INTO selected VALUES ('abcdefg');
+                 INSERT INTO selected VALUES ('imgurabcdefg');
+                 INSERT INTO selected VALUES ('abcde_abcdefg');
+                 INSERT INTO selected VALUES ('imgurabcde_abcdefg');",
+            )
+            .unwrap();
+        drop(reference);
+        let source_bytes = fs::read(&foreign).unwrap();
+        let media = MediaItem {
+            url: "https://i.imgur.com/abcdefg.jpg".into(),
+            filename: "any-destination.jpg".into(),
+            extractor: "imgur",
+            post_id: None,
+        };
+        let source = "https://imgur.com/a/abcde";
+        let unknown = Archive::open_with_reference_table(
+            &root.join("unknown.sqlite"),
+            Some(&foreign),
+            "selected",
+        )
+        .unwrap();
+        assert_eq!(unknown.import_reference().unwrap(), (0, 0));
+        assert!(!unknown.contains_for_source(&media, source).unwrap());
+        drop(unknown);
+        let path = root.join("native.sqlite");
+        let supported = Archive::open_with_reference_options(
+            &path,
+            Some(&foreign),
+            Some("selected"),
+            Some("imgur"),
+        )
+        .unwrap();
+        assert_eq!(supported.import_reference().unwrap(), (2, 2));
+        assert!(supported.contains_for_source(&media, source).unwrap());
+        drop(supported);
+        assert_eq!(fs::read(&foreign).unwrap(), source_bytes);
+        fs::remove_file(foreign).unwrap();
+        let offline = Archive::open(&path).unwrap();
+        assert!(offline.contains_for_source(&media, source).unwrap());
+        drop(offline);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn imgur_album_archive_lock_survives_file_extension_change() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-imgur-lock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let db = root.join("native.sqlite");
+        let album = "https://imgur.com/a/abcde";
+        let original = MediaItem {
+            url: "https://i.imgur.com/abcdefg.jpg".into(),
+            filename: "imgur_abcde_001_abcdefg.jpg".into(),
+            extractor: "imgur",
+            post_id: None,
+        };
+        let rotated = MediaItem {
+            url: "https://i.imgur.com/abcdefg.png".into(),
+            filename: "imgur_abcde_001_abcdefg.png".into(),
+            ..original.clone()
+        };
+        assert_ne!(key(&original), key(&rotated));
+        let first = Archive::open(&db).unwrap();
+        let guard = first
+            .lock_item_for_source(&original, album)
+            .await
+            .unwrap()
+            .unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let other_db = db.clone();
+        let worker = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async {
+                let other = Archive::open(&other_db).unwrap();
+                ready_tx.send(()).unwrap();
+                let _guard = other
+                    .lock_item_for_source(&rotated, album)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                done_tx
+                    .send(other.contains_for_source(&rotated, album).unwrap())
+                    .unwrap();
+            });
+        });
+        ready_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_millis(150)).is_err());
+        first.record_for_source(&original, album).unwrap();
+        drop(guard);
+        assert!(done_rx.recv_timeout(Duration::from_secs(5)).unwrap());
+        worker.join().unwrap();
+        drop(first);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn imported_booru_post_ids_need_verified_post_scope() {
         let root = std::env::temp_dir().join(format!(
             "galerith-direct-post-import-{}",
