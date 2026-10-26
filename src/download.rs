@@ -445,11 +445,8 @@ pub async fn download(
             // A fresh representation never inherits a previous partial or
             // sidecar; clear both before publishing its validated metadata.
             invalidate(&part, &metadata).await?;
-            write_metadata_atomically(
-                &metadata,
-                &PartMetadata::for_response(&item.url, &response),
-            )
-            .await?;
+            write_metadata_atomically(&metadata, &PartMetadata::for_response(&item.url, &response))
+                .await?;
         }
         let mut file = if append {
             fs::OpenOptions::new().append(true).open(&part).await?
