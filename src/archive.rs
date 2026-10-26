@@ -2153,7 +2153,10 @@ mod tests {
         );
         // A named archive for an unrelated extractor must not silently
         // import a URL-shaped row under the directlink category.
-        assert_eq!(import_category("booru.example/photo.jpg", Some("booru")), None);
+        assert_eq!(
+            import_category("booru.example/photo.jpg", Some("booru")),
+            None
+        );
         assert_eq!(
             import_category("fapachiexample.org/photo.jpg", Some("fapachi")),
             None
