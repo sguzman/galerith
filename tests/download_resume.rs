@@ -232,7 +232,10 @@ async fn unexpected_304_or_412_during_resume_clears_partial_and_retries_full_bod
             let mut rejected = next(&listener).await;
             let resumed = request(&mut rejected).await;
             assert!(resumed.contains("\r\nrange: bytes=4-\r\n"), "{resumed}");
-            assert!(resumed.contains("\r\nif-range: \"stable\"\r\n"), "{resumed}");
+            assert!(
+                resumed.contains("\r\nif-range: \"stable\"\r\n"),
+                "{resumed}"
+            );
             let reply = format!(
                 "HTTP/1.1 {response_status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             );
