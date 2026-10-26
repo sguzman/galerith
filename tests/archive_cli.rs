@@ -90,6 +90,40 @@ fn completed_download_is_not_fetched_again_even_if_file_is_removed() {
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn existing_symlink_does_not_count_as_archive_skip_or_overwrite_target() {
+    use std::os::unix::fs::symlink;
+    let dir = temp("symlinked-completed-media");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let unrelated = dir.join("unrelated.txt");
+    fs::write(&unrelated, b"KEEP-ME").unwrap();
+    let alias = dir.join("linked.jpg");
+    symlink(&unrelated, &alias).unwrap();
+    let db = dir.join("archive.sqlite");
+    // With no server, a valid existing file would get skipped and archived
+    // when --archive-event includes skip. A symlink must fail before HTTP.
+    let failed = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("-d")
+        .arg(&dir)
+        .arg("--download-archive")
+        .arg(&db)
+        .args(["--archive-event", "file,skip", "--retries", "0"])
+        .arg("http://127.0.0.1:1/linked.jpg")
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    assert_eq!(fs::read(&unrelated).unwrap(), b"KEEP-ME");
+    assert!(fs::symlink_metadata(&alias).unwrap().file_type().is_symlink());
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0, "symlinked output must never create archive history");
+    fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn soft_200_error_documents_cannot_become_archived_image_media() {
     let dir = temp("soft-200-error-document");
