@@ -99,12 +99,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "issuu",
             "speakerdeck",
             "imgbox",
+            "imagebam",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "imagebam" && canonical_imagebam_image_key(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imgbox" && canonical_imgbox_image_key(id) {
@@ -191,6 +195,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "issuu"
                         | "speakerdeck"
                         | "imgbox"
+                        | "imagebam"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -275,9 +280,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "issuu",
         "speakerdeck",
         "imgbox",
+        "imagebam",
     ] {
         if prefix == category
-            && ((category == "imgbox" && canonical_imgbox_image_key(bare))
+            && ((category == "imagebam" && canonical_imagebam_image_key(bare))
+                || (category == "imgbox" && canonical_imgbox_image_key(bare))
                 || (category == "speakerdeck" && canonical_speakerdeck_archive_suffix(bare))
                 || (category == "issuu" && canonical_issuu_archive_suffix(bare))
                 || (category == "slideshare" && canonical_slideshare_archive_suffix(bare))
@@ -323,6 +330,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "issuu"
                         | "speakerdeck"
                         | "imgbox"
+                        | "imagebam"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -517,6 +525,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "issuu"
                 | "speakerdeck"
                 | "imgbox"
+                | "imagebam"
         )
 }
 
@@ -933,6 +942,65 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// The pinned single-image Imgbox archive format is "{image_key}".
 /// Gallery keys use "{gallery_key}_{image_key}", which the current gallery
 /// MediaItem does not preserve; never infer them from arbitrary image URLs.
+/// Pinned ImageBam single-image archive_fmt = "{image_key}".
+/// Gallery keys additionally require "{gallery_key}_{image_key}", which the
+/// existing native gallery MediaItem cannot prove. Ignore gallery sources.
+fn canonical_imagebam_image_key(key: &str) -> bool {
+    (1..=128).contains(&key.len()) && key.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
+fn imagebam_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "imagebam" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || !matches!(source.host_str(), Some("imagebam.com" | "www.imagebam.com"))
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+        || source.path().contains('%')
+    {
+        return None;
+    }
+    let parts: Vec<_> = source.path_segments()?.collect();
+    let image_key = match parts.as_slice() {
+        ["image", key] | ["image", key, ""] if canonical_imagebam_image_key(key) => *key,
+        ["view", key] | ["view", key, ""]
+            if key.starts_with('M') && canonical_imagebam_image_key(key) =>
+        {
+            *key
+        }
+        _ => return None,
+    };
+    let media = url::Url::parse(&item.url).ok()?;
+    let hostname = media.host_str()?;
+    let number = hostname
+        .strip_prefix("images")
+        .and_then(|value| value.strip_suffix(".imagebam.com"))?;
+    if media.scheme() != "https"
+        || number.is_empty()
+        || !number.bytes().all(|byte| byte.is_ascii_digit())
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let ext = media.path_segments()?.next_back()?.rsplit_once('.')?.1;
+    if !matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+        return None;
+    }
+    let normalized = format!("imagebam{image_key}");
+    Some((
+        format!("image-sha256:{}", archive_key_digest(&normalized)),
+        normalized,
+    ))
+}
+
 fn canonical_imgbox_image_key(key: &str) -> bool {
     key.len() == 8 && key.bytes().all(|byte| byte.is_ascii_alphanumeric())
 }
@@ -2733,6 +2801,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| issuu_archive_scope(item, source_url))
         .or_else(|| speakerdeck_archive_scope(item, source_url))
         .or_else(|| imgbox_archive_scope(item, source_url))
+        .or_else(|| imagebam_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
