@@ -577,3 +577,24 @@ fn pinned_imgur_image_and_album_archive_ids_are_distinct() {
         "imgurabcdefg|imgurabcde_abcdefg"
     );
 }
+
+#[test]
+fn pinned_500px_archive_uses_photo_id_for_single_images() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for 500px archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://500px.com/photo/12345/Golden-Landscape','https://web.500px.com/photo/12346'); print('|'.join(ex.category+ex.archive_fmt.format(id=photo) for ex,photo in zip((extractor.find(url) for url in urls),(12345,12346))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned 500px image archive format").trim(),
+        "500px12345|500px12346"
+    );
+}
