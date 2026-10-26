@@ -1063,10 +1063,7 @@ fn drive_family_host(host: &str) -> Option<(&'static str, &str)> {
     Some((category, root))
 }
 
-fn drive_family_archive_scope(
-    item: &MediaItem,
-    source_url: &str,
-) -> Option<(String, String)> {
+fn drive_family_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
     if item.post_id.is_some() {
         return None;
     }
@@ -4189,7 +4186,8 @@ mod tests {
 
     #[test]
     fn drive_family_tokens_are_separate_per_host_category_and_original_origin() {
-        let root = std::env::temp_dir().join(format!("galerith-drive-family-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("galerith-drive-family-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");

@@ -1181,7 +1181,11 @@ fn pinned_imgdrive_imgtaxi_and_imgwallet_retain_distinct_token_categories() {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
-        spawn(cmd, "pinned image-host family distinct archive token categories").trim(),
+        spawn(
+            cmd,
+            "pinned image-host family distinct archive token categories"
+        )
+        .trim(),
         "imgdrive|image|AbC012|imgtaxi|image|AbC012|imgwallet|image|AbC012"
     );
 }
