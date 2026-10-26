@@ -3695,6 +3695,7 @@ mod tests {
             "catboxAlbum123_abc123",
             "slidesharemy-deck_1",
             "issuupub34_1",
+            "speakerdeckmy-deck_1",
         ];
         let rejected = [
             "danbooru00123",
@@ -3718,6 +3719,7 @@ mod tests {
             "catboxAlbum123_abc_123",
             "slidesharemy-deck_01",
             "issuupub34_01",
+            "speakerdeckmy-deck_01",
             "totally-unsupported-entry",
         ];
         let db = Connection::open(&foreign).unwrap();
@@ -3899,6 +3901,15 @@ mod tests {
                     post_id: None,
                 },
                 "https://issuu.com/press/docs/fall-2026",
+            ),
+            (
+                MediaItem {
+                    url: "https://speakerd.s3.amazonaws.com/album/slide01.jpg".into(),
+                    filename: "01_slide01.jpg".into(),
+                    extractor: "speakerdeck",
+                    post_id: None,
+                },
+                "https://speakerdeck.com/author/my-deck",
             ),
             (
                 MediaItem {
@@ -8773,6 +8784,161 @@ mod tests {
         assert!(!bytes
             .windows(b"issuupub34_1".len())
             .any(|part| part == b"issuupub34_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn speakerdeck_slide_identity_survives_media_host_change_without_merging_pages() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-speakerdeck-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open(&native).unwrap();
+        let first = MediaItem {
+            url: "https://files.speakerdeck.com/presentation/slide01.jpg".into(),
+            filename: "01_slide01.jpg".into(),
+            extractor: "speakerdeck",
+            post_id: None,
+        };
+        let alternate = MediaItem {
+            url: "https://speakerd.s3.amazonaws.com/other/slide01.jpg".into(),
+            ..first.clone()
+        };
+        let second = MediaItem {
+            url: "https://files.speakerdeck.com/presentation/slide02.jpg".into(),
+            filename: "02_slide02.jpg".into(),
+            ..first.clone()
+        };
+        let different_position = MediaItem {
+            filename: "02_slide01.jpg".into(),
+            ..first.clone()
+        };
+        let source = "https://speakerdeck.com/author/my-deck";
+        assert_eq!(
+            speakerdeck_archive_scope(&first, source).unwrap().1,
+            "speakerdeckmy-deck_1"
+        );
+        assert_eq!(
+            speakerdeck_archive_scope(&second, source).unwrap().1,
+            "speakerdeckmy-deck_2"
+        );
+        archive.record_for_source(&first, source).unwrap();
+        assert!(archive.contains_for_source(&alternate, source).unwrap());
+        assert!(!archive.contains_for_source(&second, source).unwrap());
+        assert!(!archive
+            .contains_for_source(&different_position, source)
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&first, "https://speakerdeck.com/author/other-deck")
+            .unwrap());
+        for bad in [
+            "https://speakerdeck.com:8443/author/my-deck",
+            "https://evil.speakerdeck.com/author/my-deck",
+            "https://speakerdeck.com/author/my-deck?secret=1",
+            "https://speakerdeck.com/author/my-deck/extra",
+            "https://speakerdeck.com/author/my%2ddeck",
+        ] {
+            assert!(speakerdeck_archive_scope(&first, bad).is_none(), "{bad}");
+        }
+        let forged = MediaItem {
+            url: "https://files.speakerdeck.com.evil.test/slide01.jpg".into(),
+            ..first.clone()
+        };
+        assert!(speakerdeck_archive_scope(&forged, source).is_none());
+        for bad in [
+            "00_slide01.jpg",
+            "1_slide01.jpg",
+            "00001_slide01.jpg",
+            "01_slide01.png",
+            "01_../slide01.jpg",
+        ] {
+            let candidate = MediaItem {
+                filename: bad.into(),
+                ..first.clone()
+            };
+            assert!(speakerdeck_archive_scope(&candidate, source).is_none(), "{bad}");
+        }
+        for invalid in ["my-deck_01", "my-deck_0", "my-deck_2001", "bad%2fslug_1"] {
+            assert!(!canonical_speakerdeck_archive_suffix(invalid), "{invalid}");
+        }
+        drop(archive);
+        let bytes = fs::read(native).unwrap();
+        assert!(!bytes
+            .windows(b"speakerdeckmy-deck_1".len())
+            .any(|part| part == b"speakerdeckmy-deck_1"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn speakerdeck_sqlite_migration_is_idempotent_readonly_and_source_free() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-speakerdeck-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("gallery-dl.sqlite");
+        let db = Connection::open(&source).unwrap();
+        db.execute_batch(
+            "CREATE TABLE archive(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO archive VALUES ('speakerdeckmy-deck_1');
+             INSERT INTO archive VALUES ('speakerdeckmy-deck_2');
+             INSERT INTO archive VALUES ('speakerdeckmy-deck_01');
+             CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
+             INSERT INTO named VALUES ('my-deck_1');
+             INSERT INTO named VALUES ('speakerdeckmy-deck_1');",
+        )
+        .unwrap();
+        drop(db);
+        let bytes = fs::read(&source).unwrap();
+        let native = root.join("native.sqlite");
+        let archive = Archive::open_with_reference(&native, Some(&source)).unwrap();
+        assert_eq!(archive.import_reference().unwrap(), (2, 2));
+        assert_eq!(archive.import_reference().unwrap(), (2, 0));
+        drop(archive);
+        let ambiguous = Archive::open_with_reference_table(
+            &root.join("ambiguous.sqlite"),
+            Some(&source),
+            "named",
+        )
+        .unwrap();
+        assert_eq!(ambiguous.import_reference().unwrap(), (0, 0));
+        drop(ambiguous);
+        let prefixed = Archive::open_with_reference_options(
+            &root.join("prefixed.sqlite"),
+            Some(&source),
+            Some("named"),
+            Some("speakerdeck"),
+        )
+        .unwrap();
+        assert_eq!(prefixed.import_reference().unwrap(), (1, 1));
+        drop(prefixed);
+        assert_eq!(fs::read(&source).unwrap(), bytes);
+        fs::remove_file(source).unwrap();
+
+        let archive = Archive::open(&native).unwrap();
+        let item = MediaItem {
+            url: "https://speakerd.s3.amazonaws.com/new/slide01.jpg".into(),
+            filename: "01_slide01.jpg".into(),
+            extractor: "speakerdeck",
+            post_id: None,
+        };
+        let deck = "https://speakerdeck.com/author/my-deck";
+        assert!(archive.contains_for_source(&item, deck).unwrap());
+        let different_deck = "https://speakerdeck.com/author/another-deck";
+        assert!(!archive
+            .contains_for_source(&item, different_deck)
+            .unwrap());
+        let other = MediaItem {
+            url: "https://speakerd.s3.amazonaws.com/new/slide03.jpg".into(),
+            filename: "03_slide03.jpg".into(),
+            ..item
+        };
+        assert!(!archive.contains_for_source(&other, deck).unwrap());
+        drop(archive);
+        let native_bytes = fs::read(native).unwrap();
+        assert!(!native_bytes
+            .windows(b"speakerdeckmy-deck_1".len())
+            .any(|part| part == b"speakerdeckmy-deck_1"));
         fs::remove_dir_all(root).unwrap();
     }
 
