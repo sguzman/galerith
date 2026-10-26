@@ -1005,10 +1005,7 @@ fn imgadult_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
     }
     let source = url::Url::parse(source_url).ok()?;
     if source.scheme() != "https"
-        || !matches!(
-            source.host_str(),
-            Some("imgadult.com" | "www.imgadult.com")
-        )
+        || !matches!(source.host_str(), Some("imgadult.com" | "www.imgadult.com"))
         || source.port().is_some()
         || !source.username().is_empty()
         || source.password().is_some()
@@ -3871,10 +3868,7 @@ mod tests {
                 url: hostile.into(),
                 ..changed.clone()
             };
-            assert!(
-                imgadult_archive_scope(&item, direct).is_none(),
-                "{hostile}"
-            );
+            assert!(imgadult_archive_scope(&item, direct).is_none(), "{hostile}");
         }
         drop(archive);
         let bytes = fs::read(&native).unwrap();
