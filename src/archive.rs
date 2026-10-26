@@ -3500,10 +3500,8 @@ mod tests {
 
     #[test]
     fn postimg_source_token_survives_original_rotation_without_gallery_false_hits() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-postimg-archive-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-postimg-archive-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let native = root.join("native.sqlite");
@@ -3570,10 +3568,8 @@ mod tests {
 
     #[test]
     fn postimg_reference_migration_is_private_read_only_and_offline_idempotent() {
-        let root = std::env::temp_dir().join(format!(
-            "galerith-postimg-migration-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("galerith-postimg-migration-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         let foreign = root.join("gallery-dl.sqlite");
