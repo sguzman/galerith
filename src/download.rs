@@ -128,6 +128,42 @@ fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
     }
 }
 
+/// Some servers label an HTML or JSON block page as application/octet-stream
+/// or omit Content-Type entirely. Inspect only a bounded initial body prefix
+/// for established binary/document outputs, never the full download.
+fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
+    let extension = item
+        .filename
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let binary_extensions = [
+        "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
+        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg", "pdf", "zip", "rar", "7z",
+        "tar", "gz", "xz",
+    ];
+    if !extension
+        .as_deref()
+        .is_some_and(|ext| binary_extensions.contains(&ext))
+    {
+        return false;
+    }
+    let prefix = first.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(first);
+    let trimmed = prefix
+        .iter()
+        .copied()
+        .skip_while(u8::is_ascii_whitespace)
+        .take(160)
+        .map(|byte| byte.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    trimmed.starts_with(b"<!doctype html")
+        || trimmed.starts_with(b"<html")
+        || trimmed.starts_with(b"<head")
+        || trimmed.starts_with(b"<body")
+        || (trimmed.starts_with(b"{")
+            && (trimmed.windows(7).any(|part| part == b"\"error\"")
+                || trimmed.windows(8).any(|part| part == b"\"errors\"")))
+}
+
 fn error(message: &str) -> Box<dyn Error + Send + Sync> {
     io::Error::new(io::ErrorKind::InvalidData, message).into()
 }
@@ -464,10 +500,15 @@ pub async fn download(
             .map(|(body, _)| body)
             .or_else(|| response.content_length());
         let mut received = 0_u64;
+        let mut first_bytes = Vec::with_capacity(160);
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
+                    if !append && first_bytes.len() < 160 {
+                        let count = (160 - first_bytes.len()).min(chunk.len());
+                        first_bytes.extend_from_slice(&chunk[..count]);
+                    }
                     if let Err(err) = file.write_all(&chunk).await {
                         transfer_error = Some(err.into());
                         break;
@@ -480,6 +521,10 @@ pub async fn download(
                     break;
                 }
             }
+        }
+        let misleading_error_body = !append && looks_like_soft_error_body(item, &first_bytes);
+        if misleading_error_body {
+            transfer_error = Some(error("block page disguised as binary media"));
         }
         if transfer_error.is_none() {
             if received == 0 {
@@ -505,8 +550,8 @@ pub async fn download(
         }
         drop(file);
         if let Some(err) = transfer_error {
-            if received == 0 && !append {
-                // Drop an empty fresh response and its sidecar. A retained
+            if misleading_error_body || (received == 0 && !append) {
+                // Drop a deceptive or empty fresh response and its sidecar. A retained
                 // validated partial from a failed resume is still recoverable.
                 invalidate(&part, &metadata).await?;
             }
@@ -550,6 +595,39 @@ mod tests {
         assert_eq!(resumed_length("bytes 4-8/10", 4), None);
         assert_eq!(resumed_length("bytes 4-9/*", 4), None);
         assert_eq!(resumed_length("bytes 4-3/10", 4), None);
+    }
+
+    #[test]
+    fn blocked_html_and_json_bodies_cannot_masquerade_as_binary_media() {
+        let item = MediaItem {
+            url: "https://example.test/media.jpg".into(),
+            filename: "photo.jpg".into(),
+            extractor: "directlink",
+            post_id: None,
+        };
+        assert!(looks_like_soft_error_body(
+            &item,
+            b"\xef\xbb\xbf  <!DOCTYPE HTML><html>blocked</html>"
+        ));
+        assert!(looks_like_soft_error_body(&item, b"<HTML>Forbidden</HTML>"));
+        assert!(looks_like_soft_error_body(&item, b"{ \"error\": \"forbidden\" }"));
+        assert!(looks_like_soft_error_body(&item, b"{\"errors\":[\"denied\"]}"));
+        assert!(!looks_like_soft_error_body(&item, b"\xff\xd8\xff\xe0JPEG"));
+        let pdf = MediaItem {
+            filename: "manual.pdf".into(),
+            ..item.clone()
+        };
+        assert!(looks_like_soft_error_body(&pdf, b"<html>PDF not found"));
+        let html = MediaItem {
+            filename: "index.html".into(),
+            ..item.clone()
+        };
+        assert!(!looks_like_soft_error_body(&html, b"<html>Valid</html>"));
+        let json = MediaItem {
+            filename: "data.json".into(),
+            ..item
+        };
+        assert!(!looks_like_soft_error_body(&json, b"{\"error\":\"actual JSON\"}"));
     }
 
     #[test]
