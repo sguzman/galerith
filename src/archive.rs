@@ -2169,7 +2169,7 @@ mod tests {
             assert_eq!(import_category("00123", Some(category)), None);
             assert_eq!(import_category("0", Some(category)), None);
             assert_eq!(
-                import_category("123", Some(category)),
+                import_category(item, Some(category)),
                 Some((category, item.to_owned()))
             );
         }
@@ -2188,7 +2188,7 @@ mod tests {
             Some(("4chan", "4chana_123_456".to_owned()))
         );
         assert_eq!(
-            import_category("a_123_456", Some("4chan")),
+            import_category("4chana_123_456", Some("4chan")),
             Some(("4chan", "4chana_123_456".to_owned()))
         );
         // A named archive for an unrelated extractor must not silently
@@ -4490,7 +4490,8 @@ mod tests {
              INSERT INTO archive VALUES ('4chana_123_456');
              CREATE TABLE named(entry TEXT PRIMARY KEY) WITHOUT ROWID;
              INSERT INTO named VALUES ('123');
-             INSERT INTO named VALUES ('a_123_456');",
+             INSERT INTO named VALUES ('a_123_456');
+             INSERT INTO named VALUES ('4chana_123_456');",
         )
         .unwrap();
         drop(db);
