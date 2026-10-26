@@ -238,6 +238,45 @@ async fn verify_output_entry(path: &Path, staging: bool) -> io::Result<()> {
     Ok(())
 }
 
+/// Publish the small resume validator file atomically. A killed worker may
+/// leave a .tmp file, but must never leave a half-written canonical sidecar.
+/// Use create_new so a stale or symlinked temp path cannot be followed.
+async fn write_metadata_atomically(path: &Path, info: &PartMetadata) -> io::Result<()> {
+    let pending = path.with_extension("json.tmp");
+    match fs::symlink_metadata(&pending).await {
+        Ok(info) if !info.is_dir() => fs::remove_file(&pending).await?,
+        Ok(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "resume metadata temporary path is a directory",
+            ));
+        }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err),
+    }
+    let encoded = serde_json::to_vec(info).map_err(io::Error::other)?;
+    let mut output = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&pending)
+        .await?;
+    let written: io::Result<()> = async {
+        output.write_all(&encoded).await?;
+        output.sync_all().await
+    }
+    .await;
+    drop(output);
+    if let Err(err) = written {
+        let _ = fs::remove_file(&pending).await;
+        return Err(err);
+    }
+    if let Err(err) = fs::rename(&pending, path).await {
+        let _ = fs::remove_file(&pending).await;
+        return Err(err);
+    }
+    Ok(())
+}
+
 pub async fn download(
     client: &Client,
     item: &MediaItem,
@@ -402,15 +441,25 @@ pub async fn download(
             }
         }
 
+        if !append {
+            // A fresh representation never inherits a previous partial or
+            // sidecar; clear both before publishing its validated metadata.
+            invalidate(&part, &metadata).await?;
+            write_metadata_atomically(
+                &metadata,
+                &PartMetadata::for_response(&item.url, &response),
+            )
+            .await?;
+        }
         let mut file = if append {
             fs::OpenOptions::new().append(true).open(&part).await?
         } else {
-            fs::File::create(&part).await?
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&part)
+                .await?
         };
-        if !append {
-            let info = PartMetadata::for_response(&item.url, &response);
-            fs::write(&metadata, serde_json::to_vec(&info)?).await?;
-        }
 
         // Prefer the current response. Only a validated 206 append can inherit
         // the saved Last-Modified timestamp from the initial response.
