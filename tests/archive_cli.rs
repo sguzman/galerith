@@ -644,6 +644,91 @@ fn zero_byte_existing_output_is_not_skipped_or_archived_as_success() {
 }
 
 #[test]
+fn unsolicited_http_206_does_not_create_a_durable_archive_hit() {
+    let dir = temp("unsolicited-206-archive");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("archive.sqlite");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!(
+        "http://{}/unsolicited.jpg",
+        listener.local_addr().unwrap()
+    );
+    fs::write(dir.join("unsolicited.jpg.part"), b"stale").unwrap();
+    let server = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+        for step in 0..2 {
+            let deadline = std::time::Instant::now() + Duration::from_secs(8);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "timed out waiting for unsolicited 206 fixture"
+                        );
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(err) => panic!("unexpected listener failure: {err}"),
+                }
+            };
+            let mut buffer = [0_u8; 2048];
+            let count = stream.read(&mut buffer).unwrap();
+            let request = String::from_utf8_lossy(&buffer[..count]).to_ascii_lowercase();
+            assert!(!request.contains("range:"), "{request}");
+            if step == 0 {
+                stream.write_all(
+                    b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 1-3/4\r\nContent-Length: 3\r\nConnection: close\r\n\r\nOOD",
+                ).unwrap();
+            } else {
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD")
+                    .unwrap();
+            }
+        }
+    });
+    let invoke = || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg("-d")
+            .arg(&dir)
+            .arg("--download-archive")
+            .arg(&db)
+            .args(["--retries", "0", "--http-timeout", "3"])
+            .arg(&url)
+            .output()
+            .unwrap()
+    };
+    let rejected = invoke();
+    assert!(!rejected.status.success());
+    assert!(!dir.join("unsolicited.jpg").exists());
+    assert!(!dir.join("unsolicited.jpg.part").exists());
+    assert!(!dir.join("unsolicited.jpg.part.json").exists());
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+    let complete = invoke();
+    assert!(
+        complete.status.success(),
+        "{}",
+        String::from_utf8_lossy(&complete.stderr)
+    );
+    server.join().unwrap();
+    assert_eq!(fs::read(dir.join("unsolicited.jpg")).unwrap(), b"GOOD");
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    fs::remove_file(dir.join("unsolicited.jpg")).unwrap();
+    let archived = invoke();
+    assert!(archived.status.success());
+    assert!(String::from_utf8_lossy(&archived.stdout).contains("archived unsolicited.jpg"));
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn encoded_http_media_and_encoded_resumes_never_poison_archives() {
     let dir = temp("encoded-media");
     let _ = fs::remove_dir_all(&dir);
