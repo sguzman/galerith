@@ -808,3 +808,24 @@ fn pinned_pixeldrain_file_and_album_archive_share_file_ids() {
         "pixeldrain|File12|File12|/folder/item_1"
     );
 }
+
+#[test]
+fn pinned_listal_image_archive_includes_original_filename() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned gallery-dl reference required for Listal archive differential");
+    let mut cmd = Command::new("python3");
+    cmd.args([
+        "-c",
+        "from gallery_dl import extractor; a=extractor.find('https://www.listal.com/viewimage/12345'); b=extractor.find('https://listal.com/alice/pictures'); print(a.category+'|'+a.archive_fmt.format(id=12345,filename='full')+'|'+b.archive_fmt.format(id=12345,filename='other'))",
+    ]);
+    cmd.env("PYTHONPATH", root);
+    cmd.env("PYTHONNOUSERSITE", "1");
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(cmd, "pinned Listal original filename archive format").trim(),
+        "listal|12345/full|12345/other"
+    );
+}
