@@ -92,12 +92,16 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "lexica",
             "pixeldrain",
             "listal",
+            "lensdump",
         ] {
             if let Some(id) = entry.strip_prefix(category) {
                 if category == "wallhaven" && canonical_wallhaven_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "lensdump" && canonical_lensdump_image_id(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "listal" && canonical_listal_archive_suffix(id) {
@@ -156,6 +160,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lexica"
                         | "pixeldrain"
                         | "listal"
+                        | "lensdump"
                 ) && canonical_numeric_archive_suffix(id)
                 {
                     return Some((category, entry.to_owned()));
@@ -233,9 +238,11 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "lexica",
         "pixeldrain",
         "listal",
+        "lensdump",
     ] {
         if prefix == category
-            && ((category == "listal" && canonical_listal_archive_suffix(bare))
+            && ((category == "lensdump" && canonical_lensdump_image_id(bare))
+                || (category == "listal" && canonical_listal_archive_suffix(bare))
                 || (category == "pixeldrain" && canonical_pixeldrain_file_id(bare))
                 || (category == "lexica" && canonical_lexica_image_id(bare))
                 || (category == "unsplash" && canonical_unsplash_photo_id(bare))
@@ -267,6 +274,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                         | "lexica"
                         | "pixeldrain"
                         | "listal"
+                        | "lensdump"
                 ) && canonical_numeric_archive_suffix(bare))
                 || ((is_booru_pool_category(category) || is_moebooru_category(category))
                     && canonical_pool_archive_suffix(bare))
@@ -454,6 +462,7 @@ fn category_uses_source_scoped_ids(category: &str) -> bool {
                 | "lexica"
                 | "pixeldrain"
                 | "listal"
+                | "lensdump"
         )
 }
 
@@ -847,6 +856,73 @@ fn fapello_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, 
 /// Pinned Listal archive_fmt is "{id}/{filename}", where filename is
 /// the original media basename without its extension. Same image IDs can
 /// therefore have distinct originals; raw post ID alone is insufficient.
+/// The pinned Lensdump image extractor uses "{id}", but gallery mode
+/// inherits "{gallery_id}_{num}" from GalleryExtractor. Reject underscores
+/// in imported image IDs so an album-position key cannot masquerade as a
+/// completed individual image.
+fn canonical_lensdump_image_id(id: &str) -> bool {
+    (1..=80).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())
+}
+
+fn lensdump_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "lensdump" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("lensdump.com")
+        || source.port().is_some()
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let id = match source_parts.as_slice() {
+        ["i", id] | ["i", id, ""] => *id,
+        _ => return None,
+    };
+    if !canonical_lensdump_image_id(id) {
+        return None;
+    }
+    let original_name = item.filename.strip_prefix(&format!("lensdump_{id}_"))?;
+    if !(1..=180).contains(&original_name.len())
+        || original_name.contains("..")
+        || !original_name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    let host = media.host_str()?;
+    if media.scheme() != "https"
+        || !(matches!(host, "lensdump.com" | "l3n.co")
+            || host.ends_with(".lensdump.com")
+            || host.ends_with(".l3n.co"))
+        || media.port().is_some()
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+        || media.path().contains('%')
+        || media.path_segments()?.next_back()? != original_name
+    {
+        return None;
+    }
+    let ext = original_name.rsplit_once('.')?.1;
+    if !matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif") {
+        return None;
+    }
+    let upstream = format!("lensdump{id}");
+    Some((
+        format!("image-sha256:{}", archive_key_digest(&upstream)),
+        upstream,
+    ))
+}
+
 fn canonical_listal_archive_suffix(suffix: &str) -> bool {
     let Some((id, name)) = suffix.split_once('/') else {
         return false;
@@ -2077,6 +2153,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| lexica_archive_scope(item, source_url))
         .or_else(|| pixeldrain_archive_scope(item, source_url))
         .or_else(|| listal_archive_scope(item, source_url))
+        .or_else(|| lensdump_archive_scope(item, source_url))
 }
 
 fn booru_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
