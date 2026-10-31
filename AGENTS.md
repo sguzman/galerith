@@ -14,7 +14,7 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 
 When the user says **continue**, choose the next feasible, bounded, incomplete acceptance check from the ledger (or continue an already selected check). Do not ask the user to select a task when the documented queue suffices.
 
-1. At the start of a session capture `BASE=$(git rev-parse HEAD)` (or otherwise retain the exact initial commit and its `docs/progress.json`), and note any uncommitted changes. Do not attribute prior changes to this session.
+1. At the start of a session record the output of `git rev-parse HEAD` as the baseline SHA and retain that commit's `docs/progress.json`, and note any uncommitted changes. Do not attribute prior changes to this session.
 2. Inspect only the relevant files, tests, upstream references and matrix rows. Avoid full repo dumps and huge logs. Favor work you can verify locally without live credentials, special hardware, or undocumented external dependencies.
 3. Implement a meaningful vertical slice: behavior, regression tests, and documentation/fixture updates as applicable. A registered CLI option, placeholder adapter, or synthetic smoke test does **not** establish live-site/upstream parity.
 4. Validate locally, fix problems where possible, and commit/push independently once verified and authorized by the existing user instructions. Preserve task IDs, check semantics, scopes and prior evidence; don't relabel or split checks just to increase the score.
