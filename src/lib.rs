@@ -64,6 +64,7 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "jpeg"
             | "jpe"
             | "heic"
+            | "heif"
             | "psd"
             | "png"
             | "gif"
@@ -156,7 +157,7 @@ mod tests {
     #[test]
     fn recognizes_additional_pinned_directlink_media_extensions() {
         for extension in [
-            "jpe", "heic", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf",
+            "jpe", "heic", "heif", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf",
         ] {
             let url = format!("https://assets.example.org/downloads/file.{extension}");
             let item = extract_direct_media(&url).unwrap();
