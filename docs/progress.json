@@ -329,7 +329,8 @@
                 },
                 {
                   "title": "Proxy, TLS, IPv4/IPv6 and user-agent",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/http_options_cli.rs covers proxy authentication and HTTPS CONNECT, custom User-Agent routing, TLS certificate validation/opt-out, IPv4/IPv6 selection and source-address binding; GitHub Actions 41334265645 passed Rust and pinned-reference jobs"
                 },
                 {
                   "title": "Request headers/response diagnostics",
@@ -340,7 +341,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             },
             {
               "id": "T205",

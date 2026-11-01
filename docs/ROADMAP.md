@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 68%`
+## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 70%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `███████░░░ 71%`
+### 📡 P2 — HTTP transfer engine — `████████░░ 75%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -69,9 +69,9 @@
   - [x] Implement Range-based resumes — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [x] Preserve metadata/mtime, validate lengths — src/download.rs preserves validated HTTP Last-Modified as output mtime after successful atomic rename, including resumed 206 responses; tests/download_http.rs keeps_valid_http_last_modified_as_output_mtime and tests/download_resume.rs persists_verified_partial_across_invocations; body/total lengths already validated; full Linux CI 40218907724
   - [x] Pass interruption and collision tests — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-- 🔌 **T204** HTTP configuration and proxy parity — `███░░░░░░░ 25%`
+- 🔌 **T204** HTTP configuration and proxy parity — `█████░░░░░ 50%`
   - [x] Set request timeout — src/main.rs
-  - [ ] Proxy, TLS, IPv4/IPv6 and user-agent
+  - [x] Proxy, TLS, IPv4/IPv6 and user-agent — tests/http_options_cli.rs covers proxy authentication and HTTPS CONNECT, custom User-Agent routing, TLS certificate validation/opt-out, IPv4/IPv6 selection and source-address binding; GitHub Actions 41334265645 passed Rust and pinned-reference jobs
   - [ ] Request headers/response diagnostics
   - [ ] Differential network tests
 - 🌐 **T205** User-agent and proxy transport preview — `█████░░░░░ 50%`
