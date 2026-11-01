@@ -1,7 +1,7 @@
 //! Conservative resumable HTTP downloader.
 //! A partial file is never appended without a matching source fingerprint and
 //! an HTTP validator. This is a safe subset of gallery-dl's HTTP semantics.
-use crate::pacing::DelayRange;
+use crate::pacing::{DelayRange, RateRange};
 use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
@@ -30,7 +30,7 @@ pub struct DownloadOptions {
     /// Write directly to the destination; failed transfers may leave partial output.
     pub no_part: bool,
     /// Optional maximum number of response bytes per second.
-    pub limit_rate: Option<u64>,
+    pub limit_rate: Option<RateRange>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -408,9 +408,6 @@ pub async fn download(
     item: &MediaItem,
     options: &DownloadOptions,
 ) -> Result<DownloadOutcome, Box<dyn Error + Send + Sync>> {
-    if options.limit_rate == Some(0) {
-        return Err(error("download rate must be at least one byte per second"));
-    }
     // MediaItem is public, so validate even if a caller bypasses an extractor.
     if item.filename.is_empty()
         || item.filename == "."
@@ -433,6 +430,7 @@ pub async fn download(
     let metadata = options
         .destination
         .join(format!("{}.part.json", item.filename));
+    let limit_rate = options.limit_rate.map(RateRange::sample);
     verify_output_entry(&target, false).await?;
     verify_output_entry(&part, true).await?;
     verify_output_entry(&metadata, true).await?;
@@ -716,7 +714,7 @@ pub async fn download(
                         break;
                     }
                     received = received.saturating_add(chunk.len() as u64);
-                    if let Some(bytes_per_second) = options.limit_rate {
+                    if let Some(bytes_per_second) = limit_rate {
                         let target_nanos =
                             (u128::from(received) * 1_000_000_000) / u128::from(bytes_per_second);
                         let elapsed_nanos = transfer_started.elapsed().as_nanos();

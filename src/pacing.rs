@@ -17,6 +17,80 @@ tokio::task_local! {
     static REQUEST_HOST: String;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RateRange {
+    minimum: u64,
+    maximum: u64,
+}
+
+impl RateRange {
+    pub fn parse(input: &str) -> Result<Self, &'static str> {
+        let (minimum, maximum) = match input.split_once('-') {
+            Some((minimum, maximum)) => (
+                parse_bytes_per_second(minimum)?,
+                parse_bytes_per_second(maximum)?,
+            ),
+            None => {
+                let value = parse_bytes_per_second(input)?;
+                (value, value)
+            }
+        };
+        if minimum > maximum {
+            return Err("minimum download rate must not exceed maximum download rate");
+        }
+        Ok(Self { minimum, maximum })
+    }
+
+    pub fn sample(self) -> u64 {
+        if self.minimum == self.maximum {
+            return self.minimum;
+        }
+        let tick = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_nanos() as u64);
+        let sequence = SAMPLE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let mut random = tick ^ sequence.rotate_left(23) ^ u64::from(std::process::id());
+        random ^= random >> 30;
+        random = random.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        random ^= random >> 27;
+        random = random.wrapping_mul(0x94d0_49bb_1331_11eb);
+        random ^= random >> 31;
+
+        let minimum = u128::from(self.minimum);
+        let span = u128::from(self.maximum) - minimum + 1;
+        (minimum + u128::from(random) % span) as u64
+    }
+}
+
+fn parse_bytes_per_second(input: &str) -> Result<u64, &'static str> {
+    let input = input.trim();
+    let number_end = input
+        .find(|character: char| !character.is_ascii_digit() && character != '.')
+        .unwrap_or(input.len());
+    let number = input[..number_end]
+        .parse::<f64>()
+        .map_err(|_| "invalid download rate")?;
+    let multiplier = match input[number_end..].to_ascii_lowercase().as_str() {
+        "" | "b" => 1.0,
+        "k" | "kb" => 1024.0,
+        "m" | "mb" => 1024.0 * 1024.0,
+        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
+        _ => return Err("invalid download rate suffix"),
+    };
+    let bytes_per_second = number * multiplier;
+    if !bytes_per_second.is_finite()
+        || bytes_per_second <= 0.0
+        || bytes_per_second >= u64::MAX as f64
+    {
+        return Err("download rate must be a positive finite number of bytes per second");
+    }
+    let bytes_per_second = bytes_per_second.round() as u64;
+    if bytes_per_second == 0 {
+        return Err("download rate must be at least one byte per second");
+    }
+    Ok(bytes_per_second)
+}
+
 #[derive(Default)]
 struct RequestSchedule {
     global_last: Option<tokio::time::Instant>,
@@ -246,6 +320,26 @@ fn parse_seconds_value(seconds: f64) -> Result<Duration, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_and_samples_bounded_download_rate_ranges() {
+        assert_eq!(
+            RateRange::parse("8k").unwrap(),
+            RateRange {
+                minimum: 8 * 1024,
+                maximum: 8 * 1024
+            }
+        );
+        let range = RateRange::parse("800k-2M").unwrap();
+        assert_eq!(range.minimum, 800 * 1024);
+        assert_eq!(range.maximum, 2 * 1024 * 1024);
+        for _ in 0..100 {
+            assert!((range.minimum..=range.maximum).contains(&range.sample()));
+        }
+        assert!(RateRange::parse("0").is_err());
+        assert!(RateRange::parse("2M-800k").is_err());
+        assert!(RateRange::parse("1k-2M-3M").is_err());
+    }
 
     #[test]
     fn parses_fixed_values_and_inclusive_ranges() {
