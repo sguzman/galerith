@@ -7,7 +7,7 @@ use std::{
     fs,
     path::PathBuf,
     process::Command,
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -25,6 +25,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         no_skip: false,
         no_mtime: false,
         no_part: false,
+        limit_rate: None,
         request_delay: None,
     }
 }
@@ -408,6 +409,57 @@ async fn failed_no_part_transfer_leaves_a_partial_at_the_requested_output_path()
     assert!(!output.status.success());
     assert_eq!(fs::read(dir.join("photo.jpg")).unwrap(), b"BAD");
     assert!(!dir.join("photo.jpg.part").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn limit_rate_paces_body_bytes_at_the_configured_average() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        let body = vec![b'X'; 8192];
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        stream.write_all(&body).await.unwrap();
+    });
+    let dir = test_dir("limited-rate");
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{addr}/photo.jpg");
+    let output_dir = dir.clone();
+    let started = Instant::now();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--limit-rate", "8k", "-d"])
+            .arg(output_dir)
+            .arg(url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    let elapsed = started.elapsed();
+    server.await.unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed >= Duration::from_millis(900),
+        "rate limit elapsed {elapsed:?}"
+    );
+    assert_eq!(fs::metadata(dir.join("photo.jpg")).unwrap().len(), 8192);
     fs::remove_dir_all(dir).unwrap();
 }
 

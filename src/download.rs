@@ -29,6 +29,8 @@ pub struct DownloadOptions {
     pub no_mtime: bool,
     /// Write directly to the destination; failed transfers may leave partial output.
     pub no_part: bool,
+    /// Optional maximum number of response bytes per second.
+    pub limit_rate: Option<u64>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -406,6 +408,9 @@ pub async fn download(
     item: &MediaItem,
     options: &DownloadOptions,
 ) -> Result<DownloadOutcome, Box<dyn Error + Send + Sync>> {
+    if options.limit_rate == Some(0) {
+        return Err(error("download rate must be at least one byte per second"));
+    }
     // MediaItem is public, so validate even if a caller bypasses an extractor.
     if item.filename.is_empty()
         || item.filename == "."
@@ -686,6 +691,7 @@ pub async fn download(
             .map(|(body, _)| body)
             .or_else(|| response.content_length());
         let mut received = 0_u64;
+        let transfer_started = tokio::time::Instant::now();
         let mut first_bytes = Vec::with_capacity(160);
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;
         let mut oversized_response = false;
@@ -709,7 +715,17 @@ pub async fn download(
                         transfer_error = Some(err.into());
                         break;
                     }
-                    received += chunk.len() as u64;
+                    received = received.saturating_add(chunk.len() as u64);
+                    if let Some(bytes_per_second) = options.limit_rate {
+                        let target_nanos =
+                            (u128::from(received) * 1_000_000_000) / u128::from(bytes_per_second);
+                        let elapsed_nanos = transfer_started.elapsed().as_nanos();
+                        if target_nanos > elapsed_nanos {
+                            let wait_nanos =
+                                (target_nanos - elapsed_nanos).min(u128::from(u64::MAX));
+                            tokio::time::sleep(Duration::from_nanos(wait_nanos as u64)).await;
+                        }
+                    }
                 }
                 Ok(None) => break,
                 Err(err) => {

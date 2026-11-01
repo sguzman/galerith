@@ -299,6 +299,10 @@ struct Cli {
     #[arg(long)]
     no_part: bool,
 
+    /// Limit download speed (RATE, optionally with k/M/G suffix)
+    #[arg(short = 'r', long = "limit-rate", value_name = "RATE")]
+    limit_rate: Option<String>,
+
     /// Maximum extractor feed/search pages to fetch (preview default: 1)
     #[arg(long, default_value_t = 1)]
     max_pages: u16,
@@ -519,6 +523,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         no_skip: cli.no_skip,
         no_mtime: cli.no_mtime,
         no_part: cli.no_part,
+        limit_rate: cli
+            .limit_rate
+            .as_deref()
+            .map(parse_rate)
+            .transpose()
+            .map_err(std::io::Error::other)?,
         request_delay: None,
     };
     let archive =
@@ -830,4 +840,33 @@ fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usiz
         );
         *failed += 1;
     }
+}
+
+fn parse_rate(input: &str) -> Result<u64, &'static str> {
+    let input = input.trim();
+    let number_end = input
+        .find(|character: char| !character.is_ascii_digit() && character != '.')
+        .unwrap_or(input.len());
+    let number = input[..number_end]
+        .parse::<f64>()
+        .map_err(|_| "invalid download rate")?;
+    let multiplier = match input[number_end..].to_ascii_lowercase().as_str() {
+        "" | "b" => 1.0,
+        "k" | "kb" => 1024.0,
+        "m" | "mb" => 1024.0 * 1024.0,
+        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
+        _ => return Err("invalid download rate suffix"),
+    };
+    let bytes_per_second = number * multiplier;
+    if !bytes_per_second.is_finite()
+        || bytes_per_second <= 0.0
+        || bytes_per_second > u64::MAX as f64
+    {
+        return Err("download rate must be a positive finite number of bytes per second");
+    }
+    let bytes_per_second = bytes_per_second.round() as u64;
+    if bytes_per_second == 0 {
+        return Err("download rate must be at least one byte per second");
+    }
+    Ok(bytes_per_second)
 }

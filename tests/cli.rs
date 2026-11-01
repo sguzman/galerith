@@ -57,6 +57,18 @@ fn input_file_stdin_ignores_blank_and_comment_lines() {
 }
 
 #[test]
+fn invalid_download_rate_is_rejected_before_processing_inputs() {
+    let output = run(&[
+        "--limit-rate",
+        "0",
+        "--simulate",
+        "https://example.org/photo.jpg",
+    ]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("download rate"));
+}
+
+#[test]
 fn json_extraction_is_offline() {
     let output = run(&["--dump-json", "https://example.org/image.webp"]);
     assert!(output.status.success());

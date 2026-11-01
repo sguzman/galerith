@@ -25,6 +25,7 @@ fn options(destination: PathBuf, no_skip: bool) -> DownloadOptions {
         no_skip,
         no_mtime: false,
         no_part: false,
+        limit_rate: None,
         request_delay: None,
     }
 }
