@@ -190,6 +190,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "video/3gpp2" => Some(&["3g2"][..]),
         "video/mp2t" => Some(&["m2ts", "mts"][..]),
         "video/x-msvideo" => Some(&["avi"][..]),
+        "video/x-ms-wmv" => Some(&["wmv"][..]),
         "video/webm" => Some(&["webm"][..]),
         "video/quicktime" => Some(&["mov"][..]),
         "video/x-matroska" => Some(&["mkv"][..]),
@@ -223,7 +224,7 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         "ico", "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg",
         "m4v", "vob", "m1v", "m2v", "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav",
         "flac", "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz",
-        "bz2", "xz", "zst", "swf",
+        "bz2", "xz", "zst", "swf", "wmv",
     ];
     if !extension
         .as_deref()
@@ -993,6 +994,7 @@ mod tests {
             ("clip.3g2", "video/3gpp2"),
             ("clip.asf", "application/vnd.ms-asf"),
             ("clip.asf", "video/x-ms-asf"),
+            ("clip.wmv", "video/x-ms-wmv"),
             ("clip.m2ts", "video/mp2t"),
             ("clip.mts", "video/mp2t"),
             ("clip.avi", "video/x-msvideo"),
@@ -1027,8 +1029,8 @@ mod tests {
     #[test]
     fn bounded_soft_error_sniff_covers_all_directlink_media_suffix_families() {
         for extension in [
-            "jpe", "heic", "heif", "psd", "jxl", "svg", "m4v", "ogm", "ogv", "opus", "cbz", "tar",
-            "tgz", "gz", "bz2", "xz", "zst", "swf",
+            "jpe", "heic", "heif", "psd", "jxl", "svg", "m4v", "wmv", "ogm", "ogv", "opus", "cbz",
+            "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
         ] {
             let item = MediaItem {
                 url: format!("https://example.test/file.{extension}"),
