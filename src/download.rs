@@ -184,8 +184,11 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "application/zip" | "application/x-zip-compressed" => Some(&["zip", "cbz"][..]),
         "application/vnd.rar" | "application/x-rar-compressed" => Some(&["rar"][..]),
         "application/x-7z-compressed" => Some(&["7z"][..]),
-        "application/gzip" | "application/x-gzip" => Some(&["gz"][..]),
+        "application/gzip" | "application/x-gzip" => Some(&["gz", "tgz"][..]),
         "application/x-xz" => Some(&["xz"][..]),
+        "application/x-tar" => Some(&["tar"][..]),
+        "application/x-bzip2" => Some(&["bz2"][..]),
+        "application/zstd" | "application/x-zstd" => Some(&["zst"][..]),
         _ => None,
     };
     expected.is_some_and(|extensions| !extensions.contains(&extension))
@@ -202,7 +205,8 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
         "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "m4v", "mp3", "wav", "flac",
-        "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "gz", "xz", "swf",
+        "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2",
+        "xz", "zst", "swf",
     ];
     if !extension
         .as_deref()
@@ -920,6 +924,12 @@ mod tests {
             ("track.opus", "audio/opus"),
             ("archive.cbz", "application/zip"),
             ("archive.7z", "application/x-7z-compressed"),
+            ("backup.tar", "application/x-tar"),
+            ("backup.tgz", "application/gzip"),
+            ("backup.gz", "application/gzip"),
+            ("backup.bz2", "application/x-bzip2"),
+            ("backup.xz", "application/x-xz"),
+            ("backup.zst", "application/zstd"),
         ] {
             let item = MediaItem {
                 filename: filename.into(),
@@ -935,7 +945,8 @@ mod tests {
     #[test]
     fn bounded_soft_error_sniff_covers_all_directlink_media_suffix_families() {
         for extension in [
-            "jpe", "heic", "heif", "psd", "jxl", "svg", "m4v", "ogm", "ogv", "opus", "cbz", "swf",
+            "jpe", "heic", "heif", "psd", "jxl", "svg", "m4v", "ogm", "ogv", "opus", "cbz", "tar",
+            "tgz", "gz", "bz2", "xz", "zst", "swf",
         ] {
             let item = MediaItem {
                 url: format!("https://example.test/file.{extension}"),
