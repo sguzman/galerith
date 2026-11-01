@@ -232,6 +232,7 @@ async fn bounded_get(
     client: &Client,
     endpoint: Url,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

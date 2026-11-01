@@ -72,6 +72,7 @@ async fn manga_json(
     slug: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("api/series/{slug}/"))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

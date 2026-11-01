@@ -97,14 +97,13 @@ async fn request_page(
         "cursor": cursor,
         "model": "lexica-aperture-v2"
     });
-    let mut response = client
+    let request = client
         .post(endpoint.clone())
         .header("Accept", "application/json, text/plain, */*")
         .header("Referer", referer)
-        .json(&payload)
-        .send()
-        .await?
-        .error_for_status()?;
+        .json(&payload);
+    crate::pacing::wait_for_request().await;
+    let mut response = request.send().await?.error_for_status()?;
     if response
         .content_length()
         .is_some_and(|length| length > MAX_RESPONSE as u64)

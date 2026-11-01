@@ -316,6 +316,7 @@ fn next_page(html: &str, person: &str, current: u16) -> bool {
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

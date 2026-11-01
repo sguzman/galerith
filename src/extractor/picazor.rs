@@ -209,6 +209,7 @@ async fn read_json(
     endpoint: Url,
     referer: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .header(reqwest::header::REFERER, referer)

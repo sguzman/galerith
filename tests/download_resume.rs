@@ -487,6 +487,8 @@ async fn impossible_saved_total_prevents_range_reuse_and_recovers_full_file() {
             )
             .await
             .unwrap();
+        first.flush().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
         drop(first);
         let mut second = next(&listener).await;
         let request_text = request(&mut second).await;
