@@ -141,7 +141,8 @@ fn run_user_agent_fixture(
 
     let output = output_root.join(format!("{label}-output"));
     std::fs::create_dir_all(&output).unwrap();
-    let url = format!("http://{address}/asset.jpg");
+    let url = "http://example.invalid/asset.jpg";
+    let proxy = format!("http://user:secret@{address}");
     let user_agent = "galerith-reference-probe/7";
     let mut command = if reference {
         let mut command = Command::new("python3");
@@ -153,11 +154,13 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "--proxy",
+            &proxy,
             "-R",
             "0",
             "-d",
             output.to_str().unwrap(),
-            &url,
+            url,
         ]);
         command.env(
             "PYTHONPATH",
@@ -172,11 +175,13 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "--proxy",
+            &proxy,
             "--retries",
             "0",
             "-d",
             output.to_str().unwrap(),
-            &url,
+            url,
         ]);
         command
     };
@@ -575,7 +580,7 @@ fn pinned_cli_and_native_match_input_mutation_after_retry_success_and_exhaustion
 }
 
 #[test]
-fn pinned_and_native_clients_send_the_configured_user_agent() {
+fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
@@ -592,11 +597,22 @@ fn pinned_and_native_clients_send_the_configured_user_agent() {
     let native = run_user_agent_fixture(&root, None, "native", false);
     for (label, request) in [("pinned", pinned), ("native", native)] {
         assert!(
+            request.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1\r\n"),
+            "{label}: proxy did not receive absolute-form request: {request}"
+        );
+        assert!(
             request
                 .to_ascii_lowercase()
                 .lines()
                 .any(|header| header == "user-agent: galerith-reference-probe/7"),
             "{label}: configured User-Agent missing from request: {request}"
+        );
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .lines()
+                .any(|header| header == "proxy-authorization: basic dxnlcjpzzwnyzxq="),
+            "{label}: proxy credentials missing from proxy request: {request}"
         );
     }
     std::fs::remove_dir_all(root).unwrap();
