@@ -338,6 +338,16 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
         return Ok(result.to_string());
     }
+    if let Some(operation) = spec.strip_prefix('R') {
+        let (old, new) = operation
+            .split_once('/')
+            .and_then(|(old, new)| new.strip_suffix('/').map(|new| (old, new)))
+            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        return Ok(value.replace(old, new));
+    }
+    if spec.starts_with('R') {
+        return Err(FormatError("invalid filename replacement formatter".into()));
+    }
     // Small compatible subset: numeric padding, including Python's :>03 form.
     if !matches!(base_name, "id" | "post_id") {
         return Err(FormatError(format!(
@@ -543,6 +553,22 @@ mod tests {
         let mut large = item;
         large.filename = i128::MAX.to_string();
         assert!(render("{filename:A*4/}", &large).is_err());
+    }
+
+    #[test]
+    fn replacement_formatter_replaces_all_literal_occurrences() {
+        let mut item = sample();
+        item.filename = "red blue red.webp".into();
+        assert_eq!(
+            render("{stem:Rred/green/}", &item).unwrap(),
+            "green blue green"
+        );
+        assert_eq!(
+            render("{stem:Rorange/cyan/}", &item).unwrap(),
+            "red blue red"
+        );
+        assert_eq!(render("{stem:Rred/-/}", &item).unwrap(), "- blue -");
+        assert!(render("{stem:Rred/green}", &item).is_err());
     }
 
     #[test]
