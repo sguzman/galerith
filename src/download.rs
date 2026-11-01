@@ -168,6 +168,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "image/tiff" => Some(&["tif", "tiff"][..]),
         "image/svg+xml" => Some(&["svg"][..]),
         "image/jxl" => Some(&["jxl"][..]),
+        "image/vnd.microsoft.icon" => Some(&["ico"][..]),
         "audio/mpeg" => Some(&["mp3"][..]),
         "audio/mp4" => Some(&["m4a"][..]),
         "audio/aac" => Some(&["aac"][..]),
@@ -212,10 +213,10 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .map(|(_, ext)| ext.to_ascii_lowercase());
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
-        "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg", "m4v",
-        "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav", "flac", "ogg", "ogm",
-        "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz", "zst",
-        "swf",
+        "ico", "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg",
+        "m4v", "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav", "flac", "ogg",
+        "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz",
+        "zst", "swf",
     ];
     if !extension
         .as_deref()
@@ -922,6 +923,7 @@ mod tests {
         for (filename, mime) in [
             ("cover.jpeg", "image/jpeg"),
             ("animation.apng", "image/apng"),
+            ("favicon.ico", "image/vnd.microsoft.icon"),
             ("poster.tiff", "image/tiff"),
             ("raw.heic", "image/heic"),
             ("raw.heif", "image/heif"),
