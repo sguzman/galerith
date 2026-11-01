@@ -151,14 +151,21 @@ fn configured_extractor_sleep_waits_before_handling_input_url() {
 
 #[test]
 fn invalid_sleep_values_are_rejected_before_network() {
-    for value in ["--sleep=-1", "--sleep=4000", "--sleep=NaN"] {
+    for (value, expected_error) in [
+        ("--sleep=-1", "invalid --sleep"),
+        ("--sleep=4000", "invalid --sleep"),
+        ("--sleep=NaN", "invalid --sleep"),
+        ("--sleep-retries=-1", "invalid --sleep-retries"),
+        ("--sleep-retries=4000", "invalid --sleep-retries"),
+        ("--sleep-retries=NaN", "invalid --sleep-retries"),
+    ] {
         let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args([value, "--simulate", "https://example.org/file.jpg"])
             .output()
             .unwrap();
         assert!(!output.status.success(), "unexpected success for {value}");
         assert!(
-            String::from_utf8_lossy(&output.stderr).contains("invalid --sleep"),
+            String::from_utf8_lossy(&output.stderr).contains(expected_error),
             "unexpected error for {value}"
         );
     }
