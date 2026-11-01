@@ -94,6 +94,47 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             Ok(format!("{prefix}{value}{suffix}"))
         };
     }
+    // Bounded character-count formatters used to keep output names portable.
+    // `Xn/suffix/` truncates and appends a suffix; `Ln/replacement/` replaces
+    // values whose length is greater than n. Byte-oriented variants are not
+    // implemented because their behavior depends on the host filesystem
+    // encoding.
+    if let Some((max_len, replacement)) = spec
+        .strip_prefix('X')
+        .or_else(|| spec.strip_prefix('L'))
+        .and_then(|spec| {
+            let (max_len, replacement) = spec.split_once('/')?;
+            Some((max_len, replacement.strip_suffix('/')?))
+        })
+    {
+        let truncate = spec.starts_with('X');
+        let max_len = max_len
+            .parse::<usize>()
+            .ok()
+            .filter(|length| (1..=240).contains(length))
+            .ok_or_else(|| FormatError("invalid filename length limit".into()))?;
+        let length = value.chars().count();
+        if length <= max_len {
+            return Ok(value);
+        }
+        if !truncate {
+            return Ok(replacement.to_owned());
+        }
+        let replacement_len = replacement.chars().count();
+        if replacement_len > max_len {
+            return Err(FormatError(
+                "filename length suffix exceeds its configured limit".into(),
+            ));
+        }
+        return Ok(value
+            .chars()
+            .take(max_len - replacement_len)
+            .chain(replacement.chars())
+            .collect());
+    }
+    if spec.starts_with('X') || spec.starts_with('L') {
+        return Err(FormatError("invalid filename length formatter".into()));
+    }
     // Small compatible subset: numeric padding, including Python's :>03 form.
     if !matches!(name, "id" | "post_id") {
         return Err(FormatError(format!(
@@ -214,6 +255,17 @@ mod tests {
         let mut empty = item;
         empty.filename = "extensionless".into();
         assert_eq!(render("x{extension:?[/]/}", &empty).unwrap(), "x");
+    }
+
+    #[test]
+    fn bounded_length_formatters_truncate_or_replace_overlong_fields() {
+        let mut item = sample();
+        item.filename = "猫猫猫猫猫.png".into();
+        assert_eq!(render("{stem:X4/---/}", &item).unwrap(), "猫---");
+        assert_eq!(render("{stem:L4/long/}", &item).unwrap(), "long");
+        assert_eq!(render("{stem:L20/long/}", &item).unwrap(), "猫猫猫猫猫");
+        assert!(render("{stem:X3/long/}", &item).is_err());
+        assert!(render("{stem:X0/../}", &item).is_err());
     }
 
     #[test]
