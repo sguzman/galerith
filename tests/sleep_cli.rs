@@ -424,6 +424,136 @@ fn sleep_429_does_not_shorten_general_retry_delay() {
 }
 
 #[test]
+fn downloader_retry_count_config_disables_retries_when_cli_value_is_absent() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut first = loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "first request never arrived");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("retry-config listener error: {error}"),
+            }
+        };
+        first
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 2048];
+        assert!(first.read(&mut request).unwrap() > 0);
+        first
+            .write_all(
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .unwrap();
+        drop(first);
+
+        let deadline = Instant::now() + Duration::from_millis(1400);
+        loop {
+            match listener.accept() {
+                Ok((mut socket, _)) => {
+                    socket
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    assert!(socket.read(&mut request).unwrap() > 0);
+                    socket
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD",
+                        )
+                        .unwrap();
+                    return true;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return false;
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("retry-config listener error: {error}"),
+            }
+        }
+    });
+    let dir = destination("downloader-retries-config");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            "downloader.http.retry-codes=[429]",
+            "-o",
+            "downloader.http.retries=0",
+            "--sleep-429",
+            "0",
+            "-d",
+        ])
+        .arg(&dir)
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "zero configured retries unexpectedly succeeded: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !server.join().unwrap(),
+        "configured zero retry made another request"
+    );
+    assert!(!dir.join("image.jpg").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn explicit_cli_retry_count_overrides_downloader_http_config() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        for response in [
+            b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD".as_slice(),
+        ] {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = [0_u8; 2048];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            socket.write_all(response).unwrap();
+        }
+    });
+    let dir = destination("cli-retries-override-config");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            "downloader.http.retry-codes=[429]",
+            "-o",
+            "downloader.http.retries=0",
+            "--retries",
+            "1",
+            "--sleep-429",
+            "0",
+            "-d",
+        ])
+        .arg(&dir)
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "explicit CLI retry count was ignored: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn ranged_retry_sleep_is_sampled_between_transient_media_attempts() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

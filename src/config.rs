@@ -44,6 +44,22 @@ fn overlay_field(destination: &mut Map<String, Value>, name: &str, value: Value)
 }
 
 impl Config {
+    /// Optional bounded retry count for the media downloader.
+    pub fn downloader_http_retries(&self) -> Result<Option<u32>, &'static str> {
+        let Some(value) = self
+            .root
+            .get("retries")
+            .or_else(|| self.root.pointer("/downloader/http/retries"))
+        else {
+            return Ok(None);
+        };
+        value
+            .as_u64()
+            .and_then(|retries| u32::try_from(retries).ok())
+            .map(Some)
+            .ok_or("downloader.http.retries must be a nonnegative 32-bit integer")
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -202,6 +218,21 @@ mod tests {
         );
         config.option("downloader.http.retry-codes=[700]").unwrap();
         assert!(config.downloader_http_retry_codes().is_err());
+    }
+
+    #[test]
+    fn downloader_retry_count_is_optional_bounded_and_typed() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_retries().unwrap(), None);
+        config.option("downloader.http.retries=2").unwrap();
+        assert_eq!(config.downloader_http_retries().unwrap(), Some(2));
+        config.option("downloader.http.retries=-1").unwrap();
+        assert!(config.downloader_http_retries().is_err());
+        config.option("downloader.http.retries=1.5").unwrap();
+        assert!(config.downloader_http_retries().is_err());
+        config.option("downloader.http.retries=2").unwrap();
+        config.option("retries=0").unwrap();
+        assert_eq!(config.downloader_http_retries().unwrap(), Some(0));
     }
 
     #[test]

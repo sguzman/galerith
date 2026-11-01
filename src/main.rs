@@ -225,9 +225,9 @@ struct Cli {
     #[arg(long = "sleep", value_name = "SECONDS|MIN-MAX")]
     sleep: Option<String>,
 
-    /// Maximum HTTP retries
-    #[arg(short = 'R', long, default_value_t = 4)]
-    retries: u32,
+    /// Maximum HTTP retries (default 4)
+    #[arg(short = 'R', long, value_name = "N")]
+    retries: Option<u32>,
 
     /// Delay between retries (SECONDS, MIN-MAX, lin[:START[:MAX]]=SECONDS, exp[:BASE[:START[:MAX]]]=SECONDS)
     #[arg(long = "sleep-retries", value_name = "SCHEDULE")]
@@ -615,7 +615,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("."))
         }),
-        retries: cli.retries,
+        retries: cli.retries.unwrap_or(
+            config
+                .downloader_http_retries()
+                .map_err(std::io::Error::other)?
+                .unwrap_or(4),
+        ),
         no_skip: cli.no_skip,
         no_mtime: cli.no_mtime,
         no_part: cli.no_part,
