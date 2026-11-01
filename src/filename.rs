@@ -343,6 +343,21 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             .split_once('/')
             .and_then(|(old, new)| new.strip_suffix('/').map(|new| (old, new)))
             .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        let occurrences = if old.is_empty() {
+            value.chars().count().saturating_add(1)
+        } else {
+            value.matches(old).count()
+        };
+        let output_len = value
+            .len()
+            .checked_sub(old.len().saturating_mul(occurrences))
+            .and_then(|length| length.checked_add(new.len().checked_mul(occurrences)?))
+            .ok_or_else(|| FormatError("filename replacement output is too long".into()))?;
+        if output_len > 240 {
+            return Err(FormatError(
+                "filename replacement output exceeds 240 bytes".into(),
+            ));
+        }
         return Ok(value.replace(old, new));
     }
     if spec.starts_with('R') {
@@ -569,6 +584,8 @@ mod tests {
         );
         assert_eq!(render("{stem:Rred/-/}", &item).unwrap(), "- blue -");
         assert!(render("{stem:Rred/green}", &item).is_err());
+        item.filename = "x".repeat(241);
+        assert!(render("{stem:R/x/}", &item).is_err());
     }
 
     #[test]
