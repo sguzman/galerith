@@ -149,6 +149,11 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         .unwrap_or("")
         .trim()
         .to_ascii_lowercase();
+    let Some(extension) = extension.as_deref() else {
+        // Custom filename templates may omit the source suffix entirely, so
+        // there is no extension claim to compare with the response type.
+        return false;
+    };
     let expected = match mime.as_str() {
         "image/jpeg" => Some(&["jpg", "jpeg", "jpe"][..]),
         "image/png" => Some(&["png"][..]),
@@ -180,11 +185,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "application/x-xz" => Some(&["xz"][..]),
         _ => None,
     };
-    expected.is_some_and(|extensions| {
-        !extension
-            .as_deref()
-            .is_some_and(|extension| extensions.contains(&extension))
-    })
+    expected.is_some_and(|extensions| !extensions.contains(&extension))
 }
 
 /// Some servers label an HTML or JSON block page as application/octet-stream
@@ -878,6 +879,14 @@ mod tests {
         ));
         assert!(media_type_mismatches_extension(&item, "image/png"));
         assert!(media_type_mismatches_extension(&item, "application/pdf"));
+        let templated_name = MediaItem {
+            filename: "custom-output".into(),
+            ..item.clone()
+        };
+        assert!(!media_type_mismatches_extension(
+            &templated_name,
+            "image/jpeg"
+        ));
         assert!(!media_type_mismatches_extension(
             &item,
             "application/octet-stream"
