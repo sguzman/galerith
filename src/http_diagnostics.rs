@@ -80,6 +80,11 @@ pub async fn dump_response_page(
                     let _ = tokio::fs::remove_file(&path).await;
                     return Err(error);
                 }
+                if let Err(error) = file.flush().await {
+                    drop(file);
+                    let _ = tokio::fs::remove_file(&path).await;
+                    return Err(error);
+                }
                 return Ok(Some(path));
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
