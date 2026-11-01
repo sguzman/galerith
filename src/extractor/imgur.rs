@@ -220,6 +220,7 @@ async fn public_json(
             .query_pairs_mut()
             .append_pair("include", "media,tags,account");
     }
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint)
         .header("Authorization", format!("Client-ID {PUBLIC_CLIENT_ID}"))

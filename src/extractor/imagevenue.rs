@@ -213,6 +213,7 @@ async fn resolve_at_base(
     target: &Target,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(base.join(&target.request_path)?)
         .send()

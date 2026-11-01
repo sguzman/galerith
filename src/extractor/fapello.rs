@@ -322,6 +322,7 @@ fn api_url(root: &str, target: &Target, page: u16) -> Result<Url, Box<dyn Error 
 }
 
 async fn html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

@@ -186,6 +186,7 @@ async fn at_base(
     target: &Presentation,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/{}", target.user, target.slug))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

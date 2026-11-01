@@ -167,6 +167,7 @@ fn parse_items(
 }
 
 async fn fetch_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(url)
         .header("Accept", "application/json")
