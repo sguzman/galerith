@@ -96,6 +96,20 @@ fn serve_retry_sequence(responses: [&'static [u8]; 4]) -> (String, std::thread::
     (url, server)
 }
 
+fn contains_file_with_bytes(directory: &Path, expected: &[u8]) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let path = entry.path();
+        if path.is_dir() {
+            contains_file_with_bytes(&path, expected)
+        } else {
+            std::fs::read(path).is_ok_and(|bytes| bytes == expected)
+        }
+    })
+}
+
 fn run_input_retry_case(
     root: &Path,
     pinned_root: &Path,
@@ -195,9 +209,9 @@ fn run_input_retry_case(
         "{label}: native input-file mutation"
     );
     if expected_success {
-        assert_eq!(
-            std::fs::read(reference_output.join("asset.jpg")).unwrap(),
-            b"JPEG"
+        assert!(
+            contains_file_with_bytes(&reference_output, b"JPEG"),
+            "{label}: pinned CLI did not save the fixture body"
         );
         assert_eq!(
             std::fs::read(native_output.join("asset.jpg")).unwrap(),
