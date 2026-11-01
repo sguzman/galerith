@@ -155,6 +155,9 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "image/gif" => Some(&["gif"][..]),
         "image/webp" => Some(&["webp"][..]),
         "image/avif" => Some(&["avif"][..]),
+        "image/heic" => Some(&["heic"][..]),
+        "image/heif" => Some(&["heif"][..]),
+        "image/vnd.adobe.photoshop" => Some(&["psd"][..]),
         "image/bmp" => Some(&["bmp"][..]),
         "image/tiff" => Some(&["tif", "tiff"][..]),
         "image/svg+xml" => Some(&["svg"][..]),
@@ -166,10 +169,15 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "video/mp4" => Some(&["mp4", "m4v"][..]),
         "video/webm" => Some(&["webm"][..]),
         "video/quicktime" => Some(&["mov"][..]),
+        "video/x-matroska" => Some(&["mkv"][..]),
+        "video/ogg" => Some(&["ogv"][..]),
+        "application/x-shockwave-flash" => Some(&["swf"][..]),
         "application/pdf" => Some(&["pdf"][..]),
         "application/zip" | "application/x-zip-compressed" => Some(&["zip", "cbz"][..]),
         "application/vnd.rar" | "application/x-rar-compressed" => Some(&["rar"][..]),
         "application/x-7z-compressed" => Some(&["7z"][..]),
+        "application/gzip" | "application/x-gzip" => Some(&["gz"][..]),
+        "application/x-xz" => Some(&["xz"][..]),
         _ => None,
     };
     expected.is_some_and(|extensions| {
@@ -188,9 +196,9 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .rsplit_once('.')
         .map(|(_, ext)| ext.to_ascii_lowercase());
     let binary_extensions = [
-        "jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic", "heif",
-        "mp4", "webm", "mov", "mkv", "mp3", "wav", "flac", "ogg", "pdf", "zip", "rar", "7z", "tar",
-        "gz", "xz",
+        "jpg", "jpeg", "jpe", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic",
+        "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "m4v", "mp3", "wav", "flac", "ogg",
+        "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "gz", "xz", "swf",
     ];
     if !extension
         .as_deref()
@@ -882,9 +890,13 @@ mod tests {
         for (filename, mime) in [
             ("cover.jpeg", "image/jpeg"),
             ("poster.tiff", "image/tiff"),
+            ("raw.heic", "image/heic"),
+            ("design.psd", "image/vnd.adobe.photoshop"),
             ("sound.mp3", "audio/mpeg"),
             ("clip.m4v", "video/mp4"),
+            ("clip.mkv", "video/x-matroska"),
             ("archive.cbz", "application/zip"),
+            ("archive.7z", "application/x-7z-compressed"),
         ] {
             let item = MediaItem {
                 filename: filename.into(),
@@ -893,6 +905,24 @@ mod tests {
             assert!(
                 !media_type_mismatches_extension(&item, mime),
                 "{mime} should match {filename}"
+            );
+        }
+    }
+
+    #[test]
+    fn bounded_soft_error_sniff_covers_all_directlink_media_suffix_families() {
+        for extension in [
+            "jpe", "heic", "heif", "psd", "jxl", "svg", "m4v", "ogm", "ogv", "opus", "cbz", "swf",
+        ] {
+            let item = MediaItem {
+                url: format!("https://example.test/file.{extension}"),
+                filename: format!("file.{extension}"),
+                extractor: "directlink",
+                post_id: None,
+            };
+            assert!(
+                looks_like_soft_error_body(&item, b"<html>Blocked</html>"),
+                "HTML block page should not be accepted as {extension}"
             );
         }
     }
