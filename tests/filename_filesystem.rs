@@ -40,7 +40,7 @@ fn rendered_template_is_the_saved_path_and_existing_output_is_skipped() {
         "-d".to_owned(),
         directory.to_string_lossy().into_owned(),
         "-f".to_owned(),
-        "{{proof}}_{category}_{stem}.{extension}".to_owned(),
+        "{{proof}}_{category}_{stem:Rsource/renamed/}.{extension}".to_owned(),
         url,
     ];
     let first = Command::new(env!("CARGO_BIN_EXE_galerith"))
@@ -54,7 +54,7 @@ fn rendered_template_is_the_saved_path_and_existing_output_is_skipped() {
     );
     server.join().unwrap();
 
-    let output = directory.join("{proof}_directlink_source.webp");
+    let output = directory.join("{proof}_directlink_renamed.webp");
     assert_eq!(fs::read(&output).unwrap(), b"DATA");
     let second = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args(&args)
@@ -68,7 +68,7 @@ fn rendered_template_is_the_saved_path_and_existing_output_is_skipped() {
     assert!(String::from_utf8_lossy(&second.stdout).contains("skipped"));
     assert_eq!(fs::read(&output).unwrap(), b"DATA");
     assert!(!directory
-        .join("{proof}_directlink_source.webp.part")
+        .join("{proof}_directlink_renamed.webp.part")
         .exists());
     fs::remove_dir_all(directory).unwrap();
 }
