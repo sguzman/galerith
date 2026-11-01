@@ -179,6 +179,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "audio/mpeg" | "audio/mp3" | "audio/x-mp3" => Some(&["mp3"][..]),
         "audio/mp4" | "audio/x-m4a" => Some(&["m4a"][..]),
         "audio/aac" => Some(&["aac"][..]),
+        "audio/x-ms-wma" => Some(&["wma"][..]),
         "audio/ogg" => Some(&["ogg", "ogv", "opus"][..]),
         "audio/opus" => Some(&["opus"][..]),
         "audio/webm" => Some(&["webm"][..]),
@@ -223,8 +224,8 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
         "ico", "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg",
         "m4v", "vob", "m1v", "m2v", "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav",
-        "flac", "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz",
-        "bz2", "xz", "zst", "swf", "wmv",
+        "flac", "ogg", "ogm", "ogv", "opus", "wma", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz",
+        "gz", "bz2", "xz", "zst", "swf", "wmv",
     ];
     if !extension
         .as_deref()
@@ -988,6 +989,7 @@ mod tests {
             ("sound.m4a", "audio/mp4"),
             ("sound.m4a", "audio/x-m4a"),
             ("sound.aac", "audio/aac"),
+            ("sound.wma", "audio/x-ms-wma"),
             ("clip.m4v", "video/mp4"),
             ("clip.m4v", "video/x-m4v"),
             ("clip.3gp", "video/3gpp"),
