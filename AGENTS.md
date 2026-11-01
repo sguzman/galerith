@@ -12,7 +12,7 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 
 ## Autonomous iteration
 
-When the user says **continue**, choose the next feasible, bounded, incomplete acceptance check from the ledger (or continue an already selected check). Do not ask the user to select a task when the documented queue suffices.
+When the user says **continue**, begin a **sustained autonomous work session targeting approximately 60 minutes of active engineering**, or the longest useful uninterrupted work permitted by the current Codex/session execution limits. The time target is a planning preference, not a promise that the runtime will allow an hour. **A single finished task is not a stopping condition.** Complete one meaningful, bounded check, verify and commit it, then select and implement the next feasible check **within the same response/session**. Repeat until the available execution budget is genuinely exhausted, the complete MVP is verified, the user interrupts, or no safe independent work remains. Do not ask the user to pick tasks when the ledger suffices. Do not sleep, idle, run busywork, or pad progress simply to fill a clock.
 
 1. At the start of a session record the output of `git rev-parse HEAD` as the baseline SHA and retain that commit's `docs/progress.json`, and note any uncommitted changes. Do not attribute prior changes to this session.
 2. Inspect only the relevant files, tests, upstream references and matrix rows. Avoid full repo dumps and huge logs. Favor work you can verify locally without live credentials, special hardware, or undocumented external dependencies.
@@ -20,6 +20,8 @@ When the user says **continue**, choose the next feasible, bounded, incomplete a
 4. Validate locally, fix problems where possible, and commit/push independently once verified and authorized by the existing user instructions. Preserve task IDs, check semantics, scopes and prior evidence; don't relabel or split checks just to increase the score.
 5. Update accepted checks **only with evidence matching that check**. Local test results do not satisfy a check specifically requiring GitHub CI or live-site validation. Never invent CI runs, site test results, completion, or percentages. If blocked, explain the blocker and switch to a useful independent task when feasible.
 6. Rebuild generated roadmap/matrix from the machine ledgers using `cargo run --bin galerith-roadmap`; check with `cargo run --bin galerith-roadmap -- --check`. Do not hand-edit generated Markdown.
+7. **Keep going after a successful commit**: choose the next ledger check and implement another substantive slice. This is a loop, not a one-task-per-`continue` workflow. Prefer several independently verifiable changes over an oversized untested patch. Check remaining execution budget periodically, and reserve enough room to leave the worktree consistent and summarize accurately.
+8. Only end early for an actual obstacle that prevents **all** other suitable work, a user stop, verified completion, or a real runtime/tool limit. A green test suite, a completed task, a ready next-task recommendation, or a nice-looking progress delta are **not** sufficient reasons to stop.
 
 ## Quality gates
 
@@ -36,6 +38,8 @@ cargo build --release
 Report honestly if a gate cannot run or fails. Do not claim remote CI green until the actual corresponding commit's run is verified.
 
 ## Required end-of-session report
+
+Report once at the end of the **multi-task work session**, not after each small accepted task. Intermediate commits are encouraged; a finished task should ordinarily lead to another task, not a final response. If the runtime forces an early stop, explain that honestly rather than claiming the hour was fulfilled.
 
 Keep this short, with **only the milestone(s), phase(s), task(s), and extractor modules actually touched**. Retain the emoji labels already in the ledger. Do not repeat finished 100% items unless they changed during this session.
 
