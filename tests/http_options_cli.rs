@@ -241,6 +241,55 @@ fn source_address_must_be_a_valid_ip_and_cannot_mix_with_family_flags() {
 }
 
 #[test]
+fn fractional_http_timeout_expires_a_stalled_media_request() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0_u8; 1024];
+        let _ = socket.read(&mut request);
+        std::thread::sleep(std::time::Duration::from_millis(350));
+        let _ = socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nSLOW");
+    });
+    let dir = destination("fractional-timeout");
+    let _ = fs::remove_dir_all(&dir);
+    let started = std::time::Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--http-timeout", "0.1", "--retries", "0", "-d"])
+        .arg(dir.to_str().unwrap())
+        .arg(format!("http://{address}/asset.jpg"))
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    server.join().unwrap();
+    assert!(!output.status.success());
+    assert!(
+        elapsed < std::time::Duration::from_millis(300),
+        "{elapsed:?}"
+    );
+    assert!(!dir.join("asset.jpg").exists());
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn invalid_http_timeouts_are_rejected() {
+    for value in ["0", "-1", "NaN", "inf"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .arg(format!("--http-timeout={value}"))
+            .args(["--simulate", "https://example.org/item.jpg"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "unexpected success for {value}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("invalid --http-timeout"),
+            "unexpected error for {value}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
 fn invalid_configured_header_is_rejected_without_printing_its_value() {
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([

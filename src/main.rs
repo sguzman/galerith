@@ -220,8 +220,8 @@ struct Cli {
     retries: u32,
 
     /// HTTP request timeout in seconds
-    #[arg(long, default_value_t = 30)]
-    http_timeout: u64,
+    #[arg(long, default_value_t = 30.0)]
+    http_timeout: f64,
 
     /// User-Agent HTTP header (upstream -a/--user-agent)
     #[arg(short = 'a', long = "user-agent", value_name = "UA")]
@@ -515,6 +515,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .transpose()
         .map_err(|_| "invalid --sleep: expected 0 to 3600 seconds or MIN-MAX")?;
 
+    if !cli.http_timeout.is_finite() || cli.http_timeout <= 0.0 {
+        return Err("invalid --http-timeout: expected a positive number of seconds".into());
+    }
+    let http_timeout = Duration::try_from_secs_f64(cli.http_timeout)
+        .map_err(|_| "invalid --http-timeout: value is out of range")?;
+
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
     let mut client_builder = reqwest::Client::builder();
     if let Some(jar) = cookies {
@@ -541,7 +547,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         )
     });
     let client = client_builder
-        .timeout(Duration::from_secs(cli.http_timeout))
+        .timeout(http_timeout)
         .user_agent(user_agent)
         .build()
         .map_err(|_| "invalid HTTP client configuration")?;
