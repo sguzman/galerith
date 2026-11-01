@@ -18,6 +18,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         destination,
         retries: 2,
         no_skip: false,
+        request_delay: None,
     }
 }
 

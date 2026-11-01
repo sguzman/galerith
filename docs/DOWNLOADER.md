@@ -25,7 +25,7 @@ Filename input is revalidated at the downloader boundary; callers cannot bypass 
 
 ## HTTP retry behavior
 
-Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric seconds and RFC-style HTTP-date `Retry-After` values are accepted (each capped at 60 seconds). `--sleep` accepts fixed delays and inclusive `MIN-MAX` ranges up to 3600 seconds before each media download. `extractor.sleep-skip` applies the same duration forms after an existing-file or archive skip; `extractor.sleep-extractor` waits before each top-level input URL. Request-level pacing and complete upstream retry policies remain unimplemented.
+Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric seconds and RFC-style HTTP-date `Retry-After` values are accepted (each capped at 60 seconds). `--sleep` accepts fixed delays and inclusive `MIN-MAX` ranges up to 3600 seconds before each media download. `extractor.sleep-skip` applies those duration forms after an existing-file or archive skip; `extractor.sleep-extractor` waits before each top-level input URL; and `extractor.sleep-request` waits before each media transfer attempt, including retries. API requests made during extraction are not yet paced.
 
 ## Verified synthetic tests
 

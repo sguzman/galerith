@@ -476,6 +476,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }),
         retries: cli.retries,
         no_skip: cli.no_skip,
+        request_delay: None,
     };
     let archive =
         if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
@@ -685,7 +686,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 if let Some(delay) = download_sleep {
                     tokio::time::sleep(delay.sample()).await;
                 }
-                match download(&client, &item, &options).await {
+                let mut media_options = options.clone();
+                media_options.request_delay = config
+                    .duration(item.extractor, "sleep-request")
+                    .map_err(std::io::Error::other)?;
+                match download(&client, &item, &media_options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;

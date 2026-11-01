@@ -24,6 +24,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         destination,
         retries,
         no_skip: false,
+        request_delay: None,
     }
 }
 async fn request(stream: &mut TcpStream) -> String {

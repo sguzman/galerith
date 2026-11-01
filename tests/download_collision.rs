@@ -23,6 +23,7 @@ fn options(destination: PathBuf, no_skip: bool) -> DownloadOptions {
         destination,
         retries: 1,
         no_skip,
+        request_delay: None,
     }
 }
 #[tokio::test]

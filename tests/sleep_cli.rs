@@ -15,7 +15,7 @@ fn destination(label: &str) -> PathBuf {
     ))
 }
 
-fn run_download_after_sleep(setting: &str) -> Duration {
+fn run_download_with_setting(option: &str, setting: &str, label: &str) -> Duration {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -41,12 +41,12 @@ fn run_download_after_sleep(setting: &str) -> Duration {
             }
         }
     });
-    let dir = destination(&setting.replace('.', "_"));
+    let dir = destination(label);
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/image.jpg");
     let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--sleep", setting, "-d", dir.to_str().unwrap(), &url])
+        .args([option, setting, "-d", dir.to_str().unwrap(), &url])
         .output()
         .unwrap();
     server.join().unwrap();
@@ -63,14 +63,14 @@ fn run_download_after_sleep(setting: &str) -> Duration {
 #[test]
 fn constant_sleep_delays_media_request() {
     assert!(
-        run_download_after_sleep("0.15") >= Duration::from_millis(140),
+        run_download_with_setting("--sleep", "0.15", "fixed") >= Duration::from_millis(140),
         "media download occurred before the requested delay"
     );
 }
 
 #[test]
 fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
-    let elapsed = run_download_after_sleep("0.1-0.3");
+    let elapsed = run_download_with_setting("--sleep", "0.1-0.3", "ranged");
     assert!(
         elapsed >= Duration::from_millis(90),
         "media download occurred before the range minimum"
@@ -78,6 +78,15 @@ fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
     assert!(
         elapsed < Duration::from_secs(2),
         "media download exceeded the configured range by too much"
+    );
+}
+
+#[test]
+fn configured_request_sleep_delays_each_media_transfer_attempt() {
+    assert!(
+        run_download_with_setting("--option", "extractor.sleep-request=0.12", "request",)
+            >= Duration::from_millis(110),
+        "media request occurred before configured sleep-request delay"
     );
 }
 

@@ -1,6 +1,7 @@
 //! Conservative resumable HTTP downloader.
 //! A partial file is never appended without a matching source fingerprint and
 //! an HTTP validator. This is a safe subset of gallery-dl's HTTP semantics.
+use crate::pacing::DelayRange;
 use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
@@ -25,6 +26,8 @@ pub struct DownloadOptions {
     pub destination: PathBuf,
     pub retries: u32,
     pub no_skip: bool,
+    /// Optional delay before each media HTTP attempt, including retries.
+    pub request_delay: Option<DelayRange>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -354,6 +357,9 @@ pub async fn download(
         // Resume offsets refer to the raw representation: opt out of
         // HTTP content encoding to keep sidecar byte counts meaningful.
         let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
+        if let Some(delay) = options.request_delay {
+            tokio::time::sleep(delay.sample()).await;
+        }
         if offset > 0 {
             request = request.header(RANGE, format!("bytes={offset}-")).header(
                 IF_RANGE,
