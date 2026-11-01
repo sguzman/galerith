@@ -49,20 +49,20 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 64%`
+## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 66%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `███████░░░ 67%`
+### 📡 P2 — HTTP transfer engine — `███████░░░ 71%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
   - [x] Add local HTTP fixture tests — tests/download_http.rs; GitHub Actions 39898967165 passed
   - [x] Verify interrupted/large downloads — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Match upstream downloader behavior
-- 🔄 **T202** Retry, backoff and rate control — `████████░░ 75%`
+- 🔄 **T202** Retry, backoff and rate control — `██████████ 100%`
   - [x] Provide bounded transient retries — src/download.rs
   - [x] Honor Retry-After and timing policies — src/download.rs; Retry-After parser unit tests cover seconds, HTTP dates, past dates and invalid values; tests/download_quality.rs verifies a positive one-second 429 delay end to end; tests/sleep_cli.rs covers fixed/ranged download, skip, extractor and global/category request timing; offline full suite passed locally
-  - [ ] Implement per-host and global pacing
+  - [x] Implement per-host and global pacing — src/pacing.rs tracks global and per-origin request slots/cooldowns; src/main.rs scopes extractor hooks to the input origin and src/download.rs uses the media origin; tests/download_quality.rs verifies same-origin Retry-After cooldown; src/pacing.rs host_cooldowns_are_scoped_while_global_slots_cover_all_hosts verifies host isolation/global deadlines; src/extractor/http_json.rs concurrent fixture verifies global spacing
   - [x] Verify HTTP 429/5xx fixture matrix — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 - ⏯️ **T203** Resume, partial files and atomic completion — `██████████ 100%`
   - [x] Write to .part then rename — src/download.rs

@@ -134,6 +134,42 @@ async fn honors_retry_after_before_retrying_rate_limited_media() {
 }
 
 #[tokio::test]
+async fn retry_after_cooldown_delays_later_media_on_the_same_origin() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for response in [
+            b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD".as_slice(),
+        ] {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 2048];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream.write_all(response).await.unwrap();
+        }
+    });
+    let path = destination("same-origin-cooldown");
+    let _ = fs::remove_dir_all(&path);
+    let first = extract_direct_media(&format!("http://{addr}/limited.jpg")).unwrap();
+    assert!(download(&client(), &first, &opts(path.clone(), 0))
+        .await
+        .is_err());
+
+    let second = extract_direct_media(&format!("http://{addr}/unrelated.jpg")).unwrap();
+    let started = tokio::time::Instant::now();
+    download(&client(), &second, &opts(path.clone(), 0))
+        .await
+        .unwrap();
+    assert!(
+        started.elapsed() >= Duration::from_millis(950),
+        "another media request to the throttled origin was not delayed"
+    );
+    assert_eq!(fs::read(path.join("unrelated.jpg")).unwrap(), b"GOOD");
+    server.await.unwrap();
+    fs::remove_dir_all(&path).unwrap();
+}
+
+#[tokio::test]
 async fn rejects_unsolicited_partial_without_overwriting_anything() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

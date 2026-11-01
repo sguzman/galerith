@@ -412,9 +412,11 @@ pub async fn download(
         // Resume offsets refer to the raw representation: opt out of
         // HTTP content encoding to keep sidecar byte counts meaningful.
         let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
-        if let Some(delay) = options.request_delay {
-            crate::pacing::wait_for_request_delay(Some(delay.sample())).await;
-        }
+        crate::pacing::wait_for_request_url(
+            &item.url,
+            options.request_delay.map(DelayRange::sample),
+        )
+        .await;
         if offset > 0 {
             request = request.header(RANGE, format!("bytes={offset}-")).header(
                 IF_RANGE,
@@ -436,12 +438,17 @@ pub async fn download(
         };
 
         let status = response.status();
-        if (status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error())
-            && attempt < options.retries
-        {
+        if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
             let after = retry_after(&response);
-            delay(attempt, after).await;
-            continue;
+            if let Some(after) = after {
+                crate::pacing::defer_host_for_url(&item.url, after).await;
+            }
+            if attempt < options.retries {
+                if after.is_none_or(|delay| delay.is_zero()) {
+                    delay(attempt, None).await;
+                }
+                continue;
+            }
         }
         if offset > 0 && status == StatusCode::RANGE_NOT_SATISFIABLE {
             invalidate(&part, &metadata).await?;

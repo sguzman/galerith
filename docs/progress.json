@@ -277,7 +277,8 @@
                 },
                 {
                   "title": "Implement per-host and global pacing",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/pacing.rs tracks global and per-origin request slots/cooldowns; src/main.rs scopes extractor hooks to the input origin and src/download.rs uses the media origin; tests/download_quality.rs verifies same-origin Retry-After cooldown; src/pacing.rs host_cooldowns_are_scoped_while_global_slots_cover_all_hosts verifies host isolation/global deadlines; src/extractor/http_json.rs concurrent fixture verifies global spacing"
                 },
                 {
                   "title": "Verify HTTP 429/5xx fixture matrix",
@@ -285,7 +286,7 @@
                   "evidence": "GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed"
                 }
               ],
-              "progress": 75
+              "progress": 100
             },
             {
               "id": "T203",

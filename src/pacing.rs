@@ -1,6 +1,7 @@
 //! Bounded request delay values and shared pacing for the CLI preview.
 use serde_json::Value;
 use std::{
+    collections::HashMap,
     future::Future,
     sync::atomic::{AtomicU64, Ordering},
     sync::OnceLock,
@@ -9,11 +10,18 @@ use std::{
 
 const MAX_SLEEP_SECONDS: f64 = 3600.0;
 static SAMPLE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-static GLOBAL_REQUEST_SLOT: OnceLock<tokio::sync::Mutex<Option<tokio::time::Instant>>> =
-    OnceLock::new();
+static REQUEST_SCHEDULER: OnceLock<tokio::sync::Mutex<RequestSchedule>> = OnceLock::new();
 
 tokio::task_local! {
     static REQUEST_DELAY: DelayRange;
+    static REQUEST_HOST: String;
+}
+
+#[derive(Default)]
+struct RequestSchedule {
+    global_last: Option<tokio::time::Instant>,
+    host_last: HashMap<String, tokio::time::Instant>,
+    host_cooldown: HashMap<String, tokio::time::Instant>,
 }
 
 pub async fn with_request_delay<F: Future>(delay: Option<DelayRange>, future: F) -> F::Output {
@@ -23,25 +31,114 @@ pub async fn with_request_delay<F: Future>(delay: Option<DelayRange>, future: F)
     }
 }
 
-pub async fn wait_for_request() {
-    if let Ok(delay) = REQUEST_DELAY.try_with(|range| range.sample()) {
-        wait_for_request_delay(Some(delay)).await;
+pub async fn with_request_delay_for_url<F: Future>(
+    url: &str,
+    delay: Option<DelayRange>,
+    future: F,
+) -> F::Output {
+    let host = request_origin(url);
+    match (host, delay) {
+        (Some(host), Some(delay)) => {
+            REQUEST_HOST
+                .scope(host, REQUEST_DELAY.scope(delay, future))
+                .await
+        }
+        (Some(host), None) => REQUEST_HOST.scope(host, future).await,
+        (None, Some(delay)) => REQUEST_DELAY.scope(delay, future).await,
+        (None, None) => future.await,
     }
 }
 
+pub async fn wait_for_request() {
+    let delay = REQUEST_DELAY.try_with(|range| range.sample()).ok();
+    let host = REQUEST_HOST.try_with(String::clone).ok();
+    wait_for_request_in_scope(host, delay).await;
+}
+
 pub async fn wait_for_request_delay(delay: Option<Duration>) {
-    let Some(delay) = delay.filter(|delay| !delay.is_zero()) else {
+    wait_for_request_in_scope(None, delay).await;
+}
+
+pub async fn wait_for_request_url(url: &str, delay: Option<Duration>) {
+    wait_for_request_in_scope(request_origin(url), delay).await;
+}
+
+pub async fn defer_host_for_url(url: &str, duration: Duration) {
+    let Some(host) = request_origin(url) else {
         return;
     };
-    let slot = GLOBAL_REQUEST_SLOT.get_or_init(|| tokio::sync::Mutex::new(None));
-    let mut next_allowed = slot.lock().await;
+    if duration.is_zero() {
+        return;
+    }
+    let scheduler = REQUEST_SCHEDULER.get_or_init(Default::default);
+    let mut schedule = scheduler.lock().await;
     let now = tokio::time::Instant::now();
-    let earliest = next_allowed.map_or(now, |deadline| deadline.max(now));
-    let deadline = earliest + delay;
+    schedule.host_cooldown.retain(|_, deadline| *deadline > now);
+    let deadline = now + duration;
+    schedule
+        .host_cooldown
+        .entry(host)
+        .and_modify(|current| *current = (*current).max(deadline))
+        .or_insert(deadline);
+}
+
+async fn wait_for_request_in_scope(host: Option<String>, delay: Option<Duration>) {
+    let delay = delay.filter(|delay| !delay.is_zero());
+    if host.is_none() && delay.is_none() {
+        return;
+    }
+    let scheduler = REQUEST_SCHEDULER.get_or_init(Default::default);
+    let mut schedule = scheduler.lock().await;
+    let now = tokio::time::Instant::now();
+    schedule.host_cooldown.retain(|_, deadline| *deadline > now);
+    schedule
+        .host_last
+        .retain(|_, last| delay.is_some_and(|delay| *last + delay > now));
+
+    let deadline = request_deadline(&schedule, host.as_deref(), delay, now);
     tokio::time::sleep_until(deadline).await;
     // Store only after the wait completes. A cancelled future then cannot
     // reserve a stale future slot that delays later requests unnecessarily.
-    *next_allowed = Some(tokio::time::Instant::now());
+    let admitted = tokio::time::Instant::now();
+    if delay.is_some() {
+        schedule.global_last = Some(admitted);
+        if let Some(host) = host {
+            schedule.host_last.insert(host, admitted);
+        }
+    }
+}
+
+fn request_deadline(
+    schedule: &RequestSchedule,
+    host: Option<&str>,
+    delay: Option<Duration>,
+    now: tokio::time::Instant,
+) -> tokio::time::Instant {
+    let global_next = delay.map_or(now, |delay| {
+        schedule.global_last.map_or(now, |last| last.max(now)) + delay
+    });
+    let host_next = host
+        .and_then(|host| {
+            delay.map(|delay| {
+                schedule
+                    .host_last
+                    .get(host)
+                    .map_or(now, |last| (*last).max(now))
+                    + delay
+            })
+        })
+        .unwrap_or(now);
+    let cooldown = host
+        .and_then(|host| schedule.host_cooldown.get(host).copied())
+        .unwrap_or(now);
+    global_next.max(host_next).max(cooldown).max(now)
+}
+
+fn request_origin(url: &str) -> Option<String> {
+    url::Url::parse(url)
+        .ok()
+        .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .map(|url| url.origin().ascii_serialization())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +259,52 @@ mod tests {
         for value in ["", "NaN", "inf", "-1", "0.3-0.1", "0-3600.1", "0.1-0.2-0.3"] {
             assert!(DelayRange::parse(value).is_err(), "accepted {value:?}");
         }
+    }
+
+    #[test]
+    fn host_cooldowns_are_scoped_while_global_slots_cover_all_hosts() {
+        let now = tokio::time::Instant::now();
+        let mut schedule = RequestSchedule::default();
+        let throttled = "https://media.example";
+        let other = "https://other.example";
+        let cooldown = now + Duration::from_secs(2);
+        schedule
+            .host_cooldown
+            .insert(throttled.to_owned(), cooldown);
+        assert_eq!(
+            request_deadline(&schedule, Some(throttled), None, now),
+            cooldown
+        );
+        assert_eq!(request_deadline(&schedule, Some(other), None, now), now);
+
+        assert_eq!(
+            request_deadline(
+                &schedule,
+                Some(other),
+                Some(Duration::from_millis(500)),
+                now
+            ),
+            now + Duration::from_millis(500)
+        );
+
+        let host_next = now + Duration::from_millis(500);
+        schedule.host_cooldown.clear();
+        schedule.host_last.insert(throttled.to_owned(), now);
+        assert_eq!(
+            request_deadline(
+                &schedule,
+                Some(throttled),
+                Some(Duration::from_millis(500)),
+                now
+            ),
+            host_next
+        );
+        let global_next = now + Duration::from_secs(1);
+        schedule.global_last = Some(now);
+        assert_eq!(
+            request_deadline(&schedule, Some(other), Some(Duration::from_secs(1)), now),
+            global_next
+        );
     }
 
     #[test]
