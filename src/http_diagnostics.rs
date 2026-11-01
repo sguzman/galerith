@@ -25,6 +25,7 @@ pub struct ResponsePageInfo {
 
 tokio::task_local! {
     static RESPONSE_PAGE_OPTIONS: (PathBuf, ResponsePageMode);
+    static DEFAULT_REQUEST_HEADERS: HeaderMap;
 }
 
 static PAGE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -35,6 +36,16 @@ pub async fn scope_response_pages<F: Future>(
     future: F,
 ) -> F::Output {
     RESPONSE_PAGE_OPTIONS.scope((directory, mode), future).await
+}
+
+pub async fn scope_default_request_headers<F: Future>(headers: HeaderMap, future: F) -> F::Output {
+    DEFAULT_REQUEST_HEADERS.scope(headers, future).await
+}
+
+pub fn default_request_headers() -> HeaderMap {
+    DEFAULT_REQUEST_HEADERS
+        .try_with(Clone::clone)
+        .unwrap_or_default()
 }
 
 /// Save a bounded response body when the caller enabled `--write-pages`.
@@ -107,21 +118,23 @@ fn format_headers(headers: &HeaderMap) -> String {
         .iter()
         .map(|(name, value)| {
             let name = name.as_str();
+            let sensitive_value = value.is_sensitive();
             let value = value.to_str().unwrap_or("<non-text header value>");
             let lower = name.to_ascii_lowercase();
-            let sensitive = [
-                "authorization",
-                "auth",
-                "cookie",
-                "token",
-                "secret",
-                "api-key",
-                "credential",
-                "password",
-                "session",
-            ]
-            .iter()
-            .any(|marker| lower.contains(marker))
+            let sensitive = sensitive_value
+                || [
+                    "authorization",
+                    "auth",
+                    "cookie",
+                    "token",
+                    "secret",
+                    "api-key",
+                    "credential",
+                    "password",
+                    "session",
+                ]
+                .iter()
+                .any(|marker| lower.contains(marker))
                 || matches!(lower.as_str(), "set-cookie" | "location" | "referer");
             format!("{name}: {}", if sensitive { "***" } else { value })
         })

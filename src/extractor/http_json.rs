@@ -44,7 +44,8 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     let request = client.get(endpoint).build()?;
     let request_method = request.method().clone();
     let request_url = request.url().clone();
-    let request_headers = request.headers().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
     let mut response = client.execute(request).await?;
     let final_url = response.url().clone();
     let response_info = crate::http_diagnostics::ResponsePageInfo {
@@ -226,8 +227,15 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
-            let mut request = [0; 1024];
-            assert!(stream.read(&mut request).await.unwrap() > 0);
+            let mut request = Vec::new();
+            let mut buffer = [0; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let count = stream.read(&mut buffer).await.unwrap();
+                assert_ne!(count, 0);
+                request.extend_from_slice(&buffer[..count]);
+            }
+            let request = String::from_utf8_lossy(&request).to_ascii_lowercase();
+            assert!(request.contains("x-diagnostic-token: client-secret"));
             stream
                 .write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-Diagnostic: fixture\r\nSet-Cookie: sid=private-secret; HttpOnly\r\nContent-Length: 17\r\nConnection: close\r\n\r\n{\"post_ids\":[88]}",
@@ -243,11 +251,20 @@ mod tests {
         tokio::fs::create_dir_all(&directory).await.unwrap();
         let endpoint =
             Url::parse(&format!("http://{address}/page.json?token=request-secret")).unwrap();
-        let client = Client::new();
+        let mut default_headers = reqwest::header::HeaderMap::new();
+        let mut diagnostic_token = reqwest::header::HeaderValue::from_static("client-secret");
+        diagnostic_token.set_sensitive(true);
+        default_headers.insert("x-diagnostic-token", diagnostic_token);
+        let client = Client::builder()
+            .default_headers(default_headers.clone())
+            .build()
+            .unwrap();
         let value = crate::http_diagnostics::scope_response_pages(
             directory.clone(),
             crate::http_diagnostics::ResponsePageMode::All,
-            async { fetch_json_uncached(&client, endpoint, 1024).await.unwrap() },
+            crate::http_diagnostics::scope_default_request_headers(default_headers, async {
+                fetch_json_uncached(&client, endpoint, 1024).await.unwrap()
+            }),
         )
         .await;
         assert_eq!(value["post_ids"][0], 88);
@@ -261,6 +278,8 @@ mod tests {
         assert!(contents.contains("x-diagnostic: fixture"));
         assert!(contents.contains("set-cookie: ***"));
         assert!(contents.contains("content-type: application/json"));
+        assert!(contents.contains("x-diagnostic-token: ***"));
+        assert!(!contents.contains("client-secret"));
         assert!(!contents.contains("request-secret"));
         assert!(!contents.contains("private-secret"));
         assert!(contents.ends_with("{\"post_ids\":[88]}"));

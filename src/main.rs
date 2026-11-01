@@ -824,6 +824,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         {
             extractor_client_options.user_agent = None;
         }
+        let mut diagnostic_request_headers = reqwest::header::HeaderMap::new();
+        if let Some(user_agent) = extractor_client_options.user_agent {
+            let value = reqwest::header::HeaderValue::from_str(user_agent)
+                .map_err(|_| "invalid User-Agent header value")?;
+            diagnostic_request_headers.insert(reqwest::header::USER_AGENT, value);
+        }
+        if let Some(headers) = extractor_header_map {
+            diagnostic_request_headers.extend(headers.clone());
+        }
         let extractor_client = if extractor_proxy_settings == shared_proxy_settings
             && extractor_header_map.is_none()
         {
@@ -912,6 +921,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             };
             let message_future =
                 with_request_delay_for_url(&url, api_request_delay, message_future);
+            let message_future = galerith::http_diagnostics::scope_default_request_headers(
+                diagnostic_request_headers.clone(),
+                message_future,
+            );
             let events = if let Some(cache) = &public_cache {
                 cache.clone().scope(message_future).await
             } else {
@@ -945,6 +958,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         };
         let extraction_future =
             with_request_delay_for_url(&url, api_request_delay, extraction_future);
+        let extraction_future = galerith::http_diagnostics::scope_default_request_headers(
+            diagnostic_request_headers,
+            extraction_future,
+        );
         let extraction = if let Some(cache) = &public_cache {
             cache.clone().scope(extraction_future).await
         } else {
