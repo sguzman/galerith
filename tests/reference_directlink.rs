@@ -332,6 +332,109 @@ fn run_429_retry_delay_fixture(
     elapsed
 }
 
+fn run_http_timeout_fixture(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+) -> std::time::Duration {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().expect("accept timed media request");
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        let mut request = [0_u8; 2048];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        let started = std::time::Instant::now();
+        let mut probe = [0_u8; 1];
+        let disconnected = match socket.read(&mut probe) {
+            Ok(0) => true,
+            Ok(_) => false,
+            Err(error) => matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::NotConnected
+            ),
+        };
+        let elapsed = started.elapsed();
+        if !disconnected {
+            let _ = socket.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            );
+        }
+        (elapsed, disconnected)
+    });
+
+    let output = working_root.join(format!("{label}-timeout-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/timeout.jpg");
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "-o",
+            "downloader.http.timeout=0.1",
+            "-R",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "-o",
+            "downloader.http.timeout=0.1",
+            "--retries",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command.output().expect("launch timeout fixture client");
+    let (elapsed, disconnected) = server.join().unwrap();
+    assert!(
+        !result.status.success(),
+        "{label}: media timeout was not enforced: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        disconnected,
+        "{label}: client kept the timed-out media connection open"
+    );
+    assert!(
+        !output.join("timeout.jpg").exists(),
+        "{label}: timed out media was published"
+    );
+    std::fs::remove_dir_all(output).unwrap();
+    elapsed
+}
+
 fn run_429_default_fixture(working_root: &Path, pinned_root: &Path, label: &str, reference: bool) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -894,6 +997,36 @@ fn pinned_and_native_clients_match_429_retry_interval() {
     assert!(
         pinned.abs_diff(native) < std::time::Duration::from_millis(500),
         "pinned/native 429 intervals differ: pinned={pinned:?}, native={native:?}"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_downloader_http_timeout() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let root = env::temp_dir().join(format!("galerith-timeout-oracle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_http_timeout_fixture(&root, pinned_root, "pinned", true);
+    let native = run_http_timeout_fixture(&root, pinned_root, "native", false);
+    for (label, elapsed) in [("pinned", pinned), ("native", native)] {
+        assert!(
+            (std::time::Duration::from_millis(60)..std::time::Duration::from_millis(300))
+                .contains(&elapsed),
+            "{label}: configured 100ms media timeout elapsed after {elapsed:?}"
+        );
+    }
+    assert!(
+        pinned.abs_diff(native) < std::time::Duration::from_millis(150),
+        "pinned/native timeout results differ: pinned={pinned:?}, native={native:?}"
     );
     std::fs::remove_dir_all(root).unwrap();
 }

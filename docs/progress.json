@@ -325,7 +325,7 @@
                 {
                   "title": "Set request timeout",
                   "passed": true,
-                  "evidence": "src/main.rs"
+                  "evidence": "src/main.rs resolves explicit --http-timeout, global timeout and downloader.http.timeout precedence; src/download.rs applies the downloader value to media requests; tests/http_options_cli.rs checks scoped and global precedence; tests/reference_directlink.rs::pinned_and_native_clients_match_downloader_http_timeout compares server-observed timeout behavior with pinned gallery-dl commit 7f226f74108501c8ac3120548370f68f19e6f9b3 on a localhost fixture (no live origin)"
                 },
                 {
                   "title": "Proxy, TLS, IPv4/IPv6 and user-agent",
