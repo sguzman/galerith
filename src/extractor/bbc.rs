@@ -272,6 +272,7 @@ async fn html(
     endpoint: Url,
     base: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response.url().origin() != base.origin() {
         return Err("BBC page redirected outside public origin".into());

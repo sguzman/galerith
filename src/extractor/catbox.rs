@@ -162,6 +162,7 @@ async fn resolve_album_details_at_base(
     id: &str,
 ) -> Result<AlbumDetails, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("c/{id}"))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()

@@ -252,6 +252,7 @@ async fn at_base(
     if target.host == Host::Acidimg {
         request = request.form(&[("imgContinue", "Continue+to+image+...+")]);
     }
+    crate::pacing::wait_for_request().await;
     let mut response = request.send().await?.error_for_status()?;
     if response
         .content_length()

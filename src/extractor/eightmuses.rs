@@ -213,6 +213,7 @@ fn decode_album(
 }
 
 async fn html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url.clone()).send().await?.error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("8muses public source redirected outside origin".into());

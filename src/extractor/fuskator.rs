@@ -444,6 +444,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
+            let mut arrivals = Vec::new();
             for (route, body) in [
                 (
                     "GET /thumbs/Abc12/index.html",
@@ -456,6 +457,7 @@ mod tests {
                 ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
+                arrivals.push(tokio::time::Instant::now());
                 let mut bytes = [0u8; 4096];
                 let size = socket.read(&mut bytes).await.unwrap();
                 assert!(String::from_utf8_lossy(&bytes[..size]).starts_with(route));
@@ -465,13 +467,22 @@ mod tests {
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
             }
+            arrivals
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let files = gallery_at_base(&Client::new(), &base, "Abc12")
-            .await
-            .unwrap();
+        let delay = crate::pacing::DelayRange::parse("0.12").unwrap();
+        let files = crate::pacing::with_request_delay(
+            Some(delay),
+            gallery_at_base(&Client::new(), &base, "Abc12"),
+        )
+        .await
+        .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].0.filename, "Abc12_001_a.jpg");
-        server.await.unwrap();
+        let arrivals = server.await.unwrap();
+        assert_eq!(arrivals.len(), 3);
+        for pair in arrivals.windows(2) {
+            assert!(pair[1].duration_since(pair[0]) >= Duration::from_millis(100));
+        }
     }
 }
