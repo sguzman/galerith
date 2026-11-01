@@ -529,6 +529,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(RateRange::parse)
             .transpose()
             .map_err(std::io::Error::other)?,
+        headers: config
+            .downloader_http_headers()
+            .map_err(std::io::Error::other)?,
         request_delay: None,
     };
     let archive =

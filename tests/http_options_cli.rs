@@ -131,3 +131,65 @@ fn proxy_parse_error_does_not_print_password() {
     assert!(stderr.contains("invalid proxy configuration"));
     assert!(!stderr.contains("bad-private-passwd"));
 }
+
+#[test]
+fn configured_downloader_headers_reach_media_requests() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 4096];
+        let count = socket.read(&mut request).unwrap();
+        let request = String::from_utf8_lossy(&request[..count]);
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .contains("x-fixture-token: private-fixture-value"),
+            "custom header was not sent: {request}"
+        );
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nHEAD")
+            .unwrap();
+    });
+    let dir = destination("configured-header");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            r#"downloader.http.headers={"X-Fixture-Token":"private-fixture-value"}"#,
+            "-d",
+            dir.to_str().unwrap(),
+        ])
+        .arg(format!("http://{address}/asset.jpg"))
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"HEAD");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn invalid_configured_header_is_rejected_without_printing_its_value() {
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            r#"downloader.http.headers={"X-Fixture":"private\r\nInjected: secret"}"#,
+            "--simulate",
+            "https://example.org/item.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("invalid downloader HTTP header value"));
+    assert!(!stderr.contains("private"));
+    assert!(!stderr.contains("secret"));
+}

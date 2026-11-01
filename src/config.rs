@@ -1,6 +1,7 @@
 //! A deliberately bounded, independently implemented subset of gallery-dl's
 //! configuration overlay semantics. Only explicit files are loaded in preview.
 use crate::pacing::DelayRange;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::{Map, Value};
 use std::{error::Error, fs, path::Path};
 
@@ -42,6 +43,28 @@ fn overlay_field(destination: &mut Map<String, Value>, name: &str, value: Value)
 }
 
 impl Config {
+    /// Build validated extra headers for the media downloader only.
+    pub fn downloader_http_headers(&self) -> Result<HeaderMap, &'static str> {
+        let Some(value) = self.root.pointer("/downloader/http/headers") else {
+            return Ok(HeaderMap::new());
+        };
+        let object = value
+            .as_object()
+            .ok_or("downloader.http.headers must be an object")?;
+        let mut headers = HeaderMap::new();
+        for (name, value) in object {
+            let name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|_| "invalid downloader HTTP header name")?;
+            let value = value
+                .as_str()
+                .ok_or("downloader HTTP header values must be strings")?;
+            let value =
+                HeaderValue::from_str(value).map_err(|_| "invalid downloader HTTP header value")?;
+            headers.insert(name, value);
+        }
+        Ok(headers)
+    }
+
     pub fn load(
         &mut self,
         path: &Path,
