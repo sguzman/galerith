@@ -91,6 +91,41 @@ async fn known_content_type_does_not_reject_extensionless_custom_output() {
 }
 
 #[tokio::test]
+async fn common_mime_alias_still_rejects_a_conflicting_filename_extension() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: 4\r\nConnection: close\r\n\r\nICON",
+            )
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("mime-alias-mismatch");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/misnamed.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let opts = DownloadOptions {
+        retries: 0,
+        ..options(dir.clone())
+    };
+
+    let error = download(&client, &item, &opts).await.unwrap_err();
+    assert!(error.to_string().contains("incompatible Content-Type"));
+    assert!(!dir.join("misnamed.jpg").exists());
+    assert!(!dir.join("misnamed.jpg.part").exists());
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn direct_heif_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
