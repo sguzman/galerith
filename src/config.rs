@@ -72,6 +72,34 @@ impl Config {
             .ok_or("downloader.http.verify must be a boolean or CA certificate path")
     }
 
+    /// Optional shared proxy map for extractor and media HTTP clients.
+    pub fn http_proxy_settings(&self) -> Result<Option<HttpProxySettings>, &'static str> {
+        let Some(value) = self.root.get("proxy") else {
+            return Ok(None);
+        };
+        if let Some(proxy) = value.as_str() {
+            let proxy = normalize_proxy_url(proxy);
+            return Ok((!proxy.is_empty()).then(|| HttpProxySettings {
+                http: Some(proxy.clone()),
+                https: Some(proxy),
+            }));
+        }
+        let object = value
+            .as_object()
+            .ok_or("proxy must be a URL string or an object with http/https URLs")?;
+        let http = object
+            .get("http")
+            .map(|value| value.as_str().ok_or("proxy.http must be a URL string"))
+            .transpose()?
+            .map(normalize_proxy_url);
+        let https = object
+            .get("https")
+            .map(|value| value.as_str().ok_or("proxy.https must be a URL string"))
+            .transpose()?
+            .map(normalize_proxy_url);
+        Ok((http.is_some() || https.is_some()).then_some(HttpProxySettings { http, https }))
+    }
+
     /// Optional bounded retry count for the media downloader.
     pub fn downloader_http_retries(&self) -> Result<Option<u32>, &'static str> {
         let Some(value) = self
@@ -240,6 +268,30 @@ pub enum DownloaderHttpVerify {
     CaFile(std::path::PathBuf),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HttpProxySettings {
+    pub http: Option<String>,
+    pub https: Option<String>,
+}
+
+impl HttpProxySettings {
+    pub fn all(proxy: &str) -> Option<Self> {
+        let proxy = normalize_proxy_url(proxy);
+        (!proxy.is_empty()).then(|| Self {
+            http: Some(proxy.clone()),
+            https: Some(proxy),
+        })
+    }
+}
+
+fn normalize_proxy_url(proxy: &str) -> String {
+    if proxy.contains("://") {
+        proxy.to_owned()
+    } else {
+        format!("http://{}", proxy.trim_start_matches('/'))
+    }
+}
+
 fn parse_timeout(value: Option<&Value>) -> Result<Option<Duration>, &'static str> {
     let Some(value) = value else {
         return Ok(None);
@@ -352,6 +404,32 @@ mod tests {
         );
         config.option("downloader.http.verify=42").unwrap();
         assert!(config.downloader_http_verify().is_err());
+    }
+
+    #[test]
+    fn shared_proxy_config_accepts_single_urls_and_scheme_maps() {
+        let mut config = Config::default();
+        assert_eq!(config.http_proxy_settings().unwrap(), None);
+        config.option("proxy=proxy.example:8080").unwrap();
+        assert_eq!(
+            config.http_proxy_settings().unwrap(),
+            Some(HttpProxySettings {
+                http: Some("http://proxy.example:8080".into()),
+                https: Some("http://proxy.example:8080".into()),
+            })
+        );
+        config
+            .option(r#"proxy={"http":"http://proxy.example:8080","https":"proxy.example:8443"}"#)
+            .unwrap();
+        assert_eq!(
+            config.http_proxy_settings().unwrap(),
+            Some(HttpProxySettings {
+                http: Some("http://proxy.example:8080".into()),
+                https: Some("http://proxy.example:8443".into()),
+            })
+        );
+        config.option("proxy=42").unwrap();
+        assert!(config.http_proxy_settings().is_err());
     }
 
     #[test]

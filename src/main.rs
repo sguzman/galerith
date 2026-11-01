@@ -439,7 +439,7 @@ struct HttpClientOptions<'a> {
     root_certificates: Option<&'a [reqwest::Certificate]>,
     user_agent: &'a str,
     cookies: Option<&'a Arc<reqwest::cookie::Jar>>,
-    proxy_url: Option<&'a str>,
+    proxy_settings: Option<&'a galerith::config::HttpProxySettings>,
     source_address: Option<std::net::IpAddr>,
     force_ipv4: bool,
     force_ipv6: bool,
@@ -459,10 +459,18 @@ fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, 
     if let Some(jar) = options.cookies {
         builder = builder.cookie_provider(Arc::clone(jar));
     }
-    if let Some(proxy_url) = options.proxy_url {
+    if let Some(proxy_settings) = options.proxy_settings {
         // Never include proxy credentials in diagnostic output.
-        let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
-        builder = builder.proxy(proxy);
+        if let Some(proxy_url) = proxy_settings.http.as_deref() {
+            let proxy =
+                reqwest::Proxy::http(proxy_url).map_err(|_| "invalid proxy configuration")?;
+            builder = builder.proxy(proxy);
+        }
+        if let Some(proxy_url) = proxy_settings.https.as_deref() {
+            let proxy =
+                reqwest::Proxy::https(proxy_url).map_err(|_| "invalid proxy configuration")?;
+            builder = builder.proxy(proxy);
+        }
     }
     if let Some(address) = options.source_address {
         builder = builder.local_address(address);
@@ -646,6 +654,18 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             env!("CARGO_PKG_VERSION")
         )
     });
+    let config_proxy = config
+        .http_proxy_settings()
+        .map_err(std::io::Error::other)?;
+    let cli_proxy = cli
+        .proxy
+        .as_deref()
+        .and_then(galerith::config::HttpProxySettings::all);
+    let proxy_settings = if cli.proxy.is_some() {
+        cli_proxy.as_ref()
+    } else {
+        config_proxy.as_ref()
+    };
     let downloader_http_verify = config
         .downloader_http_verify()
         .map_err(std::io::Error::other)?;
@@ -668,7 +688,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         root_certificates: None,
         user_agent: &user_agent,
         cookies: cookies.as_ref(),
-        proxy_url: cli.proxy.as_deref(),
+        proxy_settings,
         source_address: cli.source_address,
         force_ipv4: cli.force_ipv4,
         force_ipv6: cli.force_ipv6,
