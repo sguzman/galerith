@@ -416,7 +416,8 @@
                 },
                 {
                   "title": "Platform filename rules and normalization",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/lib.rs safe_filename normalizes separators/invalid characters, strips Windows-invalid trailing dots/spaces and prefixes reserved DOS device basenames; unit tests cover CON/PRN/AUX/NUL, COM1-9, LPT1-9, CONIN$/CONOUT$, trailing characters and ordinary-name preservation"
                 },
                 {
                   "title": "Reference-compatible filesystem tests",
@@ -428,7 +429,7 @@
                   "evidence": "src/filename.rs; tests/cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 40
+              "progress": 60
             },
             {
               "id": "T302",

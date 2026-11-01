@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 69%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 70%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 74%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 63%`
+## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 64%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `███████░░░ 67%`
@@ -85,12 +85,12 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
 
-### 🗃️ P3 — Paths, archive and persistence — `██████░░░░ 59%`
+### 🗃️ P3 — Paths, archive and persistence — `██████░░░░ 62%`
 
-- 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
+- 🗂️ **T301** Safe names and format templates — `██████░░░░ 60%`
   - [x] Sanitize a direct file basename — src/lib.rs
   - [ ] Format field interpolation and conditionals
-  - [ ] Platform filename rules and normalization
+  - [x] Platform filename rules and normalization — src/lib.rs safe_filename normalizes separators/invalid characters, strips Windows-invalid trailing dots/spaces and prefixes reserved DOS device basenames; unit tests cover CON/PRN/AUX/NUL, COM1-9, LPT1-9, CONIN$/CONOUT$, trailing characters and ordinary-name preservation
   - [ ] Reference-compatible filesystem tests
   - [x] Verify safe named-field, escaped brace and ID-width format subset — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418
 - 🧾 **T302** SQLite archive, cache and duplicate rules — `██████░░░░ 60%`

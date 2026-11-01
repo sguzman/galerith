@@ -107,9 +107,9 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
     })
 }
 
-/// Restrict the path to one filename component on Linux and other host filesystems.
+/// Normalize a source name to one filename component portable across common filesystems.
 pub fn safe_filename(value: &str) -> String {
-    value
+    let mut safe = value
         .chars()
         .map(|ch| {
             if ch.is_control() || "<>:\"/\\|?*".contains(ch) {
@@ -118,7 +118,28 @@ pub fn safe_filename(value: &str) -> String {
                 ch
             }
         })
-        .collect()
+        .collect::<String>();
+    // Windows strips trailing spaces and dots, which can make two distinct
+    // source names collide or turn a name into a reserved device alias.
+    let trimmed_len = safe.trim_end_matches([' ', '.']).len();
+    safe.truncate(trimmed_len);
+
+    // Keep names usable when downloaded on Windows, even when Galerith runs
+    // on a filesystem that permits these DOS device names.
+    let stem = safe.split('.').next().unwrap_or_default();
+    let uppercase = stem.to_ascii_uppercase();
+    let reserved = matches!(
+        uppercase.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ["COM", "LPT"].iter().any(|prefix| {
+        uppercase
+            .strip_prefix(prefix)
+            .is_some_and(|suffix| suffix.len() == 1 && matches!(suffix.as_bytes()[0], b'1'..=b'9'))
+    });
+    if reserved {
+        safe.insert(0, '_');
+    }
+    safe
 }
 
 #[cfg(test)]
@@ -160,6 +181,26 @@ mod tests {
         let item = extract_direct_media("https://example.org/%2E%2E%2Fevil.png").unwrap();
         assert_eq!(item.filename, ".._evil.png");
         assert_eq!(safe_filename("bad\\name?.jpg"), "bad_name_.jpg");
+    }
+
+    #[test]
+    fn filenames_are_portable_across_windows_and_posix_rules() {
+        for (source, expected) in [
+            ("CON", "_CON"),
+            ("con.txt", "_con.txt"),
+            ("PRN.jpg", "_PRN.jpg"),
+            ("AUX", "_AUX"),
+            ("NUL.png", "_NUL.png"),
+            ("COM9.log", "_COM9.log"),
+            ("LPT1", "_LPT1"),
+            ("CONIN$", "_CONIN$"),
+            ("CONOUT$.jpg", "_CONOUT$.jpg"),
+            ("trailing. ", "trailing"),
+            ("dot.", "dot"),
+        ] {
+            assert_eq!(safe_filename(source), expected, "source {source:?}");
+        }
+        assert_eq!(safe_filename("normal name.png"), "normal name.png");
     }
 
     #[test]
