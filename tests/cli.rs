@@ -88,6 +88,23 @@ fn filename_template_applies_slices_and_conversions_through_cli() {
 }
 
 #[test]
+fn filename_template_applies_conditional_wrappers_through_cli() {
+    let output = run(&[
+        "-f",
+        "{extension:?[/]/}_{stem}",
+        "--dump-json",
+        "https://example.org/image.webp",
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(item["filename"], "[webp]_image");
+}
+
+#[test]
 fn unsafe_filename_template_fails_without_file_access() {
     let output = run(&[
         "-f",
