@@ -74,6 +74,7 @@ async fn read_json(
             .header("Origin", "https://foriio.com")
             .header("Referer", "https://foriio.com/");
     }
+    crate::pacing::wait_for_request().await;
     let mut response = request.send().await?.error_for_status()?;
     if response.url().origin() != base.origin() {
         return Err("Foriio API redirected off its exact origin".into());

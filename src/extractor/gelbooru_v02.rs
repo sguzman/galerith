@@ -181,6 +181,7 @@ async fn resolve_at_base_limited(
                 }
             }
         }
+        crate::pacing::wait_for_request().await;
         let response = client.get(endpoint).send().await?.error_for_status()?;
         let body = response.text().await?;
         let (fresh, post_count) = read_xml(&body, host)?;
