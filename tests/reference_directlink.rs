@@ -154,6 +154,8 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "-o",
+            r#"downloader.http.headers={"X-Preview":"header"}"#,
             "--proxy",
             &proxy,
             "-R",
@@ -175,6 +177,8 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "-o",
+            r#"downloader.http.headers={"X-Preview":"header"}"#,
             "--proxy",
             &proxy,
             "--retries",
@@ -735,6 +739,13 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
                 .lines()
                 .any(|header| header == "accept: */*"),
             "{label}: default HTTP Accept header missing from request: {request}"
+        );
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .lines()
+                .any(|header| header == "x-preview: header"),
+            "{label}: configured media header missing from request: {request}"
         );
         assert!(
             request
