@@ -10,6 +10,8 @@ Current load order is all `-c` files, then all explicit JSON, YAML, TOML files i
 
 Currently recognized options include `filename`, `extractor.filename`, `extractor.<category>.filename`, and `base-directory`. A global filename wins over category-specific or generic extractor filename settings. The CLI `-f` setting wins over configuration and `-d` overrides the configured base directory.
 
-**Unimplemented:** automatic default config discovery, all site-level category/subcategory options, full config compatibility, conditionals and expressions, downloader-specific namespaces, config status/create/open commands, and a differential suite against pinned gallery-dl. Unknown options may be stored but are not necessarily acted on.
+Filename formatting is a restricted subset: named fields, escaped braces, bounded numeric ID width, and `?prefix/suffix/` wrappers that add affixes only for non-empty values. Other conversions, field traversal, expressions, and conditional configuration maps are not implemented.
+
+**Unimplemented:** automatic default config discovery, all site-level category/subcategory options, full config compatibility, conditional configuration maps and expressions, downloader-specific namespaces, config status/create/open commands, and a differential suite against pinned gallery-dl. Unknown options may be stored but are not necessarily acted on.
 
 **Verification:** [CI 39952418847](https://github.com/sguzman/galerith/actions/runs/39952418847) includes local JSON/YAML/TOML merge and precedence fixtures.

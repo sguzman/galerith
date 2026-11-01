@@ -39,6 +39,19 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     if spec.is_empty() {
         return Ok(value);
     }
+    // Compatible conditional wrapper: `?prefix/suffix/` surrounds a
+    // non-empty formatted value and emits nothing for an empty one.
+    if let Some(wrapper) = spec.strip_prefix('?') {
+        let (prefix, suffix) = wrapper
+            .split_once('/')
+            .and_then(|(prefix, suffix)| suffix.strip_suffix('/').map(|suffix| (prefix, suffix)))
+            .ok_or_else(|| FormatError("invalid conditional filename format".into()))?;
+        return if value.is_empty() {
+            Ok(String::new())
+        } else {
+            Ok(format!("{prefix}{value}{suffix}"))
+        };
+    }
     // Small compatible subset: numeric padding, including Python's :>03 form.
     if !matches!(name, "id" | "post_id") {
         return Err(FormatError(format!(
@@ -144,6 +157,28 @@ mod tests {
             render("第{id:03}集.{extension}", &item).unwrap(),
             "第042集.webp"
         );
+    }
+
+    #[test]
+    fn conditionally_wraps_nonempty_values() {
+        let item = sample();
+        assert_eq!(
+            render("{filename:?[/]/}", &item).unwrap(),
+            "[original.webp]"
+        );
+        assert_eq!(render("x{extension:?[/]/}", &item).unwrap(), "x[webp]");
+
+        let mut empty = item;
+        empty.filename = "extensionless".into();
+        assert_eq!(render("x{extension:?[/]/}", &empty).unwrap(), "x");
+    }
+
+    #[test]
+    fn rejects_malformed_conditional_formatters() {
+        let item = sample();
+        for template in ["{filename:?}", "{filename:?prefix/suffix}", "{filename:?/}"] {
+            assert!(render(template, &item).is_err(), "accepted {template:?}");
+        }
     }
 
     #[test]
