@@ -411,4 +411,97 @@ mod tests {
         assert_eq!(file.filename, "original.png");
         server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn deferred_gallery_child_resolves_through_same_origin_redirect() {
+        use crate::message::traverse_queue_job_with;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for expected in [
+                "GET /gallery/jSMFq HTTP/1.1",
+                "GET /show/190/130327671_test-.png HTTP/1.1",
+                "GET /resolved/image HTTP/1.1",
+            ] {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 4096];
+                let count = stream.read(&mut bytes).await.unwrap();
+                let request = String::from_utf8_lossy(&bytes[..count]);
+                assert!(request.starts_with(expected), "{request}");
+                assert!(
+                    request
+                        .to_ascii_lowercase()
+                        .contains("cookie: pixhostads=1; pixhosttest=1"),
+                    "{request}"
+                );
+                let response = match expected {
+                    "GET /gallery/jSMFq HTTP/1.1" => {
+                        let body = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">one</a></div>"#;
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                    }
+                    "GET /show/190/130327671_test-.png HTTP/1.1" => {
+                        "HTTP/1.1 302 Found\r\nLocation: /resolved/image\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned()
+                    }
+                    _ => {
+                        let body = r#"<img class="image-img" src="https://img01.pixhost.to/images/190/original.png">"#;
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                    }
+                };
+                stream.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+
+        let client = Client::new();
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let parent = gallery_at_base(&client, "jSMFq", &base).await.unwrap();
+        assert!(matches!(
+            parent.as_slice(),
+            [ExtractorMessage::Queue { .. }]
+        ));
+        let child_base = base.clone();
+        let expanded = traverse_queue_job_with(parent, 1, 4, |url| {
+            let client = &client;
+            let base = child_base.clone();
+            async move {
+                let Pixhost::File {
+                    path,
+                    token,
+                    directory,
+                } = match_url(&url).ok_or("unsupported deferred Pixhost child")?
+                else {
+                    return Err("gallery child must resolve to a Pixhost file".into());
+                };
+                let (item, metadata) =
+                    file_at_base(client, &path, &token, &directory, &base).await?;
+                Ok(vec![
+                    ExtractorMessage::Directory {
+                        metadata: metadata.clone(),
+                    },
+                    ExtractorMessage::Url {
+                        url: item.url,
+                        metadata,
+                    },
+                ])
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(expanded.len(), 3);
+        assert!(matches!(expanded[0], ExtractorMessage::Queue { .. }));
+        match &expanded[2] {
+            ExtractorMessage::Url { url, metadata } => {
+                assert_eq!(url, "https://img01.pixhost.to/images/190/original.png");
+                assert_eq!(metadata["gallery_id"], "jSMFq");
+            }
+            other => panic!("expected resolved URL message, got {other:?}"),
+        }
+        server.await.unwrap();
+    }
 }

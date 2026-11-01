@@ -632,7 +632,8 @@
                 },
                 {
                   "title": "Deferred URL resolution and redirects",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/imagehosts.rs deferred_gallery_child_resolves_through_same_origin_redirect: localhost gallery queue, child HTTP redirect, resolved URL and inherited gallery metadata; full local fmt, Clippy, all-target tests, roadmap check and release build passed"
                 },
                 {
                   "title": "Reference message fixtures",
@@ -640,7 +641,7 @@
                   "evidence": "src/message.rs pinned_upstream_message_identifiers_and_tuple_payloads_round_trip: active IDs 2=Directory,3=Url,6=Queue, obsolete identifiers rejected, full tuple payload round-trip; full Linux CI 40217657098"
                 }
               ],
-              "progress": 75
+              "progress": 100
             },
             {
               "id": "T403",
