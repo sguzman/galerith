@@ -42,6 +42,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "t" => value.trim().to_owned(),
+        "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
         _ => {
             return Err(FormatError(format!(
                 "unsupported conversion '{conversion}'"
@@ -202,6 +203,13 @@ mod tests {
         let mut item = sample();
         item.filename = "\u{2003}original.webp\t".into();
         assert_eq!(field("filename!t", &item).unwrap(), "original.webp");
+    }
+
+    #[test]
+    fn whitespace_conversion_collapses_runs_to_one_space() {
+        let mut item = sample();
+        item.filename = "  spring\t\n  rain.webp  ".into();
+        assert_eq!(field("filename!W", &item).unwrap(), "spring rain.webp");
     }
 
     #[test]
