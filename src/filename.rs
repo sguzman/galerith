@@ -38,7 +38,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         _ => return Err(FormatError(format!("unsupported filename field '{name}'"))),
     };
     let value = match conversion {
-        "" => value,
+        "" | "s" => value,
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => {
@@ -226,6 +226,13 @@ mod tests {
         assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL.WEBP");
         assert!(render("{category!x}", &item).is_err());
         assert!(render("{category!lower}", &item).is_err());
+    }
+
+    #[test]
+    fn string_conversion_preserves_string_fields() {
+        let item = sample();
+        assert_eq!(render("{filename!s}", &item).unwrap(), "original.webp");
+        assert_eq!(render("{id!s}", &item).unwrap(), "42");
     }
 
     #[test]
