@@ -175,6 +175,8 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "audio/wav" | "audio/x-wav" => Some(&["wav"][..]),
         "audio/flac" | "audio/x-flac" => Some(&["flac"][..]),
         "video/mp4" => Some(&["mp4", "m4v"][..]),
+        "video/mpeg" => Some(&["mpeg", "mpg"][..]),
+        "video/x-msvideo" => Some(&["avi"][..]),
         "video/webm" => Some(&["webm"][..]),
         "video/quicktime" => Some(&["mov"][..]),
         "video/x-matroska" => Some(&["mkv"][..]),
@@ -204,9 +206,9 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .map(|(_, ext)| ext.to_ascii_lowercase());
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
-        "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "m4v", "mp3", "wav", "flac",
-        "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2",
-        "xz", "zst", "swf",
+        "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg", "m4v",
+        "mp3", "wav", "flac", "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar",
+        "tgz", "gz", "bz2", "xz", "zst", "swf",
     ];
     if !extension
         .as_deref()
@@ -919,6 +921,9 @@ mod tests {
             ("design.psd", "image/vnd.adobe.photoshop"),
             ("sound.mp3", "audio/mpeg"),
             ("clip.m4v", "video/mp4"),
+            ("clip.avi", "video/x-msvideo"),
+            ("clip.mpeg", "video/mpeg"),
+            ("clip.mpg", "video/mpeg"),
             ("clip.mkv", "video/x-matroska"),
             ("clip.ogm", "video/ogg"),
             ("track.opus", "audio/opus"),
