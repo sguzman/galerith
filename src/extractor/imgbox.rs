@@ -389,4 +389,35 @@ mod tests {
         source_server.await.unwrap();
         destination_server.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn gallery_page_accepts_same_origin_redirects() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for (path, response) in [
+                (
+                    "/initial",
+                    "HTTP/1.1 302 Found\r\nLocation: /canonical\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_owned(),
+                ),
+                (
+                    "/canonical",
+                    "HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nImgbox".to_owned(),
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0_u8; 1024];
+                let count = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..count]).contains(path));
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let endpoint = Url::parse(&format!("http://{addr}/initial")).unwrap();
+        assert_eq!(page_html(&Client::new(), endpoint).await.unwrap(), "Imgbox");
+        server.await.unwrap();
+    }
 }
