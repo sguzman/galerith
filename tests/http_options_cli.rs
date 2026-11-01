@@ -43,6 +43,7 @@ fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
     let _ = fs::remove_dir_all(&dir);
     let proxy_address = format!("http://127.0.0.1:{port}");
     let args = [
+        "-4",
         "-a",
         "synthetic-galerith-agent/42",
         "--proxy",
@@ -190,6 +191,27 @@ fn force_ip_families_are_mutually_exclusive() {
         .output()
         .unwrap();
     assert!(!output.status.success());
+
+    for args in [
+        vec!["--force-ipv4", "--simulate", "https://example.org/item.jpg"],
+        vec!["--force-ipv6", "--simulate", "https://example.org/item.jpg"],
+        vec![
+            "--source-address",
+            "::1",
+            "--simulate",
+            "https://example.org/item.jpg",
+        ],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]
