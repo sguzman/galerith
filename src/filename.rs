@@ -41,6 +41,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "" => value,
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
+        "t" => value.trim().to_owned(),
         _ => {
             return Err(FormatError(format!(
                 "unsupported conversion '{conversion}'"
@@ -194,6 +195,13 @@ mod tests {
         assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL.WEBP");
         assert!(render("{category!x}", &item).is_err());
         assert!(render("{category!lower}", &item).is_err());
+    }
+
+    #[test]
+    fn trim_conversion_removes_outer_unicode_whitespace() {
+        let mut item = sample();
+        item.filename = "\u{2003}original.webp\t".into();
+        assert_eq!(field("filename!t", &item).unwrap(), "original.webp");
     }
 
     #[test]
