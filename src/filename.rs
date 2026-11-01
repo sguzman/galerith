@@ -51,6 +51,24 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
                 None => String::new(),
             }
         }
+        "C" => {
+            let mut result = String::new();
+            let mut word_start = true;
+            for character in value.chars() {
+                if character.is_alphanumeric() {
+                    if word_start {
+                        result.extend(character.to_uppercase());
+                    } else {
+                        result.extend(character.to_lowercase());
+                    }
+                    word_start = false;
+                } else {
+                    result.push(character);
+                    word_start = true;
+                }
+            }
+            result
+        }
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
         _ => {
@@ -215,6 +233,16 @@ mod tests {
         assert_eq!(field("filename!c", &item).unwrap(), "Éléphant.webp");
         item.filename.clear();
         assert_eq!(field("filename!c", &item).unwrap(), "");
+    }
+
+    #[test]
+    fn title_conversion_capitalizes_each_alphanumeric_word() {
+        let mut item = sample();
+        item.filename = "aUTUMN, ÉLAN vITAL.webp".into();
+        assert_eq!(
+            field("filename!C", &item).unwrap(),
+            "Autumn, Élan Vital.Webp"
+        );
     }
 
     #[test]
