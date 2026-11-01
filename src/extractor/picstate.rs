@@ -150,6 +150,7 @@ async fn at_base(
     id: &str,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(base.join(&format!("view/full/{id}"))?)
         .send()

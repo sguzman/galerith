@@ -144,6 +144,7 @@ async fn read_public_html(
     client: &Client,
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint)
         .header(reqwest::header::COOKIE, "pixhostads=1; pixhosttest=1")

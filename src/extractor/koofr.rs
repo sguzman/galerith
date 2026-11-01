@@ -79,6 +79,7 @@ async fn response_json(
     url: Url,
     referer: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let response = client
         .get(url.clone())
         .header("Referer", referer)

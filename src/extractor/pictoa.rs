@@ -273,6 +273,7 @@ async fn source_html(
     endpoint: Url,
     root: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response.url().origin() != root.origin() {
         return Err("Pictoa page redirected outside canonical first-party origin".into());

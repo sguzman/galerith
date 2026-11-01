@@ -139,6 +139,7 @@ async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>
         .timeout(Duration::from_secs(15))
         .resolve(&host, first)
         .build()?;
+    crate::pacing::wait_for_request().await;
     let response = client.get(url).send().await?;
     read_remote_response(response).await
 }

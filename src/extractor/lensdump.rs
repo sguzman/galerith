@@ -259,6 +259,7 @@ async fn source_html(
     client: &Client,
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

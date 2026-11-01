@@ -130,6 +130,7 @@ async fn source_json(
         .await;
     }
     // Pinned Behoimi adapter needs a fixed source referer and no compression.
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .header("Referer", "http://behoimi.org/post/show/")

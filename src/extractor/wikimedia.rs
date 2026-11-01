@@ -168,6 +168,7 @@ async fn request_api_page(
     client: &Client,
     url: Url,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(url)
         .header(USER_AGENT, USER_AGENT_VALUE)

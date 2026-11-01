@@ -178,6 +178,7 @@ async fn resolve_at_base(
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     // Pinned imagehosts.py uses the shared "complex" continue form for Imgclick.
     // Build its fields from the validated token, never from the input URL's query.
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .post(base.join(&target.token)?)
         .form(&[

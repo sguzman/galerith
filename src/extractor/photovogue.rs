@@ -74,6 +74,7 @@ fn photo_item(value: &Value) -> Option<(u64, MediaItem)> {
 }
 
 async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url).send().await?.error_for_status()?;
     if response
         .content_length()

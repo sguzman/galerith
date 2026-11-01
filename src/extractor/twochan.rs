@@ -224,6 +224,7 @@ async fn at_base(
     base: &Url,
 ) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let url = base.join(&format!("{}/res/{}.htm", target.board, target.id))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url.clone()).send().await?.error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("2chan thread redirect left first-party source origin".into());

@@ -185,6 +185,7 @@ fn trusted_external(raw: &str) -> Option<String> {
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint.clone()).send().await?;
     if response.url().origin() != endpoint.origin() || response.status().is_redirection() {
         return Err("Urlgalleries public source redirected outside origin".into());

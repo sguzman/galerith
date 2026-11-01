@@ -152,6 +152,7 @@ async fn at_base(
     target: &Target,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(base.join(&format!("img-{}.html", target.token))?)
         .header(reqwest::header::COOKIE, "img_i_d=1")
