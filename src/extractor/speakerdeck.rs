@@ -107,6 +107,7 @@ fn slide_media(html: &str) -> Vec<MediaItem> {
 }
 
 async fn read_bytes(client: &Client, url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url).send().await?.error_for_status()?;
     if response
         .content_length()

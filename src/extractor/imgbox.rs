@@ -140,6 +140,7 @@ fn gallery_keys(html: &str) -> Vec<String> {
 }
 
 async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()
@@ -258,6 +259,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
+            let mut arrivals = Vec::new();
             for (route, body) in [
                 (
                     "GET /g/abcdefghij HTTP/1.1",
@@ -273,6 +275,7 @@ mod tests {
                 ),
             ] {
                 let (mut socket, _) = listener.accept().await.unwrap();
+                arrivals.push(tokio::time::Instant::now());
                 let mut buf = [0_u8; 4096];
                 let n = socket.read(&mut buf).await.unwrap();
                 let request = String::from_utf8_lossy(&buf[..n]);
@@ -283,15 +286,24 @@ mod tests {
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
+            arrivals
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let images = resolve_gallery_at_base(&Client::new(), &base, "abcdefghij")
-            .await
-            .unwrap();
+        let delay = crate::pacing::DelayRange::parse("0.12").unwrap();
+        let images = crate::pacing::with_request_delay(
+            Some(delay),
+            resolve_gallery_at_base(&Client::new(), &base, "abcdefghij"),
+        )
+        .await
+        .unwrap();
         assert_eq!(images.len(), 2);
         assert_eq!(images[0].filename, "one.jpg");
         assert_eq!(images[1].filename, "two.png");
-        server.await.unwrap();
+        let arrivals = server.await.unwrap();
+        assert_eq!(arrivals.len(), 3);
+        for pair in arrivals.windows(2) {
+            assert!(pair[1].duration_since(pair[0]) >= std::time::Duration::from_millis(100));
+        }
     }
 
     #[tokio::test]

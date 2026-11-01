@@ -198,6 +198,7 @@ fn discover_user(page: &str, user: &str) -> Vec<ExtractorMessage> {
 }
 
 async fn bounded_html(client: &Client, page: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(page.clone()).send().await?.error_for_status()?;
     if response.url().origin() != page.origin() {
         return Err("Soundgasm public page redirected outside source origin".into());
