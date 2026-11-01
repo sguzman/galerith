@@ -124,48 +124,90 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
-    let (base_name, selector) = match name.split_once('[') {
-        Some((base, suffix)) => (
-            base,
-            Some(
-                suffix
-                    .strip_suffix(']')
-                    .ok_or_else(|| FormatError("invalid filename field selector".into()))?,
+    let candidates: Vec<_> = name.split('|').collect();
+    if candidates.iter().any(|candidate| candidate.is_empty()) {
+        return Err(FormatError("empty alternative filename field".into()));
+    }
+    let mut value = None;
+    let mut selected_base = None;
+    let mut empty_fallback = None;
+    let mut missing_field = None;
+    for candidate in &candidates {
+        let (base_name, selector) = match candidate.split_once('[') {
+            Some((base, suffix)) => (
+                base,
+                Some(
+                    suffix
+                        .strip_suffix(']')
+                        .ok_or_else(|| FormatError("invalid filename field selector".into()))?,
+                ),
             ),
+            None if candidate.contains(']') => {
+                return Err(FormatError("invalid filename field selector".into()))
+            }
+            None => (*candidate, None),
+        };
+        let field_value = match base_name {
+            "filename" => Some(item.filename.clone()),
+            "name" | "stem" => Some(
+                item.filename
+                    .rsplit_once('.')
+                    .map(|(stem, _)| stem)
+                    .unwrap_or(&item.filename)
+                    .to_owned(),
+            ),
+            "extension" => Some(
+                item.filename
+                    .rsplit_once('.')
+                    .map(|(_, ext)| ext)
+                    .unwrap_or("")
+                    .to_owned(),
+            ),
+            "category" | "extractor" => Some(item.extractor.to_owned()),
+            "id" | "post_id" => match item.post_id {
+                Some(id) => Some(id.to_string()),
+                None => {
+                    missing_field.get_or_insert(base_name);
+                    None
+                }
+            },
+            _ => {
+                return Err(FormatError(format!(
+                    "unsupported filename field '{base_name}'"
+                )))
+            }
+        };
+        let Some(field_value) = field_value else {
+            continue;
+        };
+        let field_value = match selector {
+            Some(selector) => slice_field(&field_value, selector)?,
+            None => field_value,
+        };
+        if !field_value.is_empty() && value.is_none() {
+            selected_base = Some(base_name);
+            value = Some(field_value);
+        } else if field_value.is_empty() && value.is_none() {
+            empty_fallback.get_or_insert((base_name, field_value));
+        }
+    }
+    let (base_name, value) = match (selected_base, value, empty_fallback) {
+        (Some(base), Some(value), _) => (base, value),
+        (None, None, Some((base, value))) => (base, value),
+        (None, None, None) if candidates.len() == 1 => {
+            if let Some(missing) = missing_field {
+                return Err(FormatError(format!("missing metadata field '{missing}'")));
+            }
+            (
+                candidates[0].split('[').next().unwrap_or(candidates[0]),
+                String::new(),
+            )
+        }
+        (None, None, None) => (
+            candidates[0].split('[').next().unwrap_or(candidates[0]),
+            String::new(),
         ),
-        None if name.contains(']') => {
-            return Err(FormatError("invalid filename field selector".into()))
-        }
-        None => (name, None),
-    };
-    let value = match base_name {
-        "filename" => item.filename.clone(),
-        "name" | "stem" => item
-            .filename
-            .rsplit_once('.')
-            .map(|(stem, _)| stem)
-            .unwrap_or(&item.filename)
-            .to_owned(),
-        "extension" => item
-            .filename
-            .rsplit_once('.')
-            .map(|(_, ext)| ext)
-            .unwrap_or("")
-            .to_owned(),
-        "category" | "extractor" => item.extractor.to_owned(),
-        "id" | "post_id" => item
-            .post_id
-            .ok_or_else(|| FormatError(format!("missing metadata field '{base_name}'")))?
-            .to_string(),
-        _ => {
-            return Err(FormatError(format!(
-                "unsupported filename field '{base_name}'"
-            )))
-        }
-    };
-    let value = match selector {
-        Some(selector) => slice_field(&value, selector)?,
-        None => value,
+        _ => unreachable!("selected filename field must have a value"),
     };
     let value = match conversion {
         "" | "s" => value,
@@ -449,6 +491,18 @@ mod tests {
         assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
         item.filename = "%FF.jpg".into();
         assert!(render("{stem!Q}", &item).is_err());
+    }
+
+    #[test]
+    fn alternative_fields_fall_back_from_empty_or_missing_values() {
+        let mut item = sample();
+        item.filename = "README".into();
+        item.post_id = None;
+        assert_eq!(render("{extension|filename}", &item).unwrap(), "README");
+        assert_eq!(render("{post_id|category}", &item).unwrap(), "danbooru");
+        assert!(render("{post_id}", &item).is_err());
+        assert!(render("{filename||category}", &item).is_err());
+        assert!(render("{filename|unsupported}", &item).is_err());
     }
 
     #[test]
