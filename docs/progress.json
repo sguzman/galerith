@@ -274,7 +274,7 @@
                 {
                   "title": "Honor Retry-After and timing policies",
                   "passed": true,
-                  "evidence": "src/download.rs; Retry-After parser unit tests cover seconds, HTTP dates, past dates and invalid values; tests/download_quality.rs verifies a positive one-second 429 delay end to end; tests/sleep_cli.rs covers fixed/ranged download, skip, extractor and global/category request timing; offline full suite passed locally"
+                  "evidence": "src/download.rs::configured_retry_delay matches the pinned 60-second default 429 interval and per-attempt minimum; explicit --sleep-429 and --sleep-retries use the longer delay, while Retry-After: 0 is immediate. Parser tests cover seconds, HTTP dates, past dates and invalid values; tests/download_quality.rs verifies positive Retry-After end to end; tests/sleep_cli.rs covers fixed/ranged and linear/exponential retry pacing. GitHub Actions 41338033559 passed Rust and pinned-reference jobs"
                 },
                 {
                   "title": "Implement per-host and global pacing",

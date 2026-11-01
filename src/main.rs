@@ -211,6 +211,10 @@ struct Cli {
     #[arg(long = "write-metadata")]
     write_metadata: bool,
 
+    /// Write bounded extractor API response bodies to numbered .txt files
+    #[arg(long = "write-pages")]
+    write_pages: bool,
+
     /// Seconds to wait before each media download (SECONDS or inclusive MIN-MAX)
     #[arg(long = "sleep", value_name = "SECONDS|MIN-MAX")]
     sleep: Option<String>,
@@ -393,7 +397,19 @@ fn same_cache_archive_file(
 
 #[tokio::main]
 async fn main() {
-    if let Err(error) = run(Cli::parse()).await {
+    let cli = Cli::parse();
+    let write_pages = cli.write_pages;
+    let result = if write_pages {
+        match std::env::current_dir() {
+            Ok(directory) => {
+                galerith::http_diagnostics::scope_response_pages(directory, run(cli)).await
+            }
+            Err(error) => Err(Box::new(error) as Box<dyn Error + Send + Sync>),
+        }
+    } else {
+        run(cli).await
+    };
+    if let Err(error) = result {
         eprintln!("galerith: {error}");
         std::process::exit(1);
     }

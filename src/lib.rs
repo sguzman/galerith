@@ -7,6 +7,7 @@ pub mod cookies;
 pub mod download;
 pub mod extractor;
 pub mod filename;
+pub mod http_diagnostics;
 pub mod message;
 pub mod pacing;
 pub mod postprocess;

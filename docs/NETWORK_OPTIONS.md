@@ -8,6 +8,7 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--force-ipv4` or `--force-ipv6`: bind outgoing connections to the selected address family. These options conflict with each other and with `--source-address`.
 - `--source-address 192.0.2.10`: bind outgoing connections to this client-side IP address. The value must be a valid IP literal.
 - `--option 'downloader.http.headers={"Accept":"image/webp,*/*"}'`: add validated HTTP headers to media download requests. Invalid names and values fail before processing inputs, and error messages do not echo values.
+- `--write-pages`: save response bodies from the shared bounded JSON API reader as numbered `.txt` files in the current directory. Names contain no URL data; files use owner-only permissions on Unix. Other extractor HTTP transports do not yet use this diagnostic.
 - `--limit-rate 500k` or `--limit-rate 500k-2M`: pace response-body writes at a fixed or per-download sampled rate. Values accept byte, k, m or g units; this does not yet establish full upstream rate-policy parity.
 - `--sleep-retries 0.5`, `0.2-0.8`, `exp=0.5`, or `lin:1:30=0.5`: configure a fixed/ranged retry pause or a capped exponential/linear schedule. For a 429 without `Retry-After`, this delay is a lower bound alongside `--sleep-429` and the reference per-attempt minimum.
 - `--sleep-429 2`, `1-3`, or `exp=1`: set a fixed/ranged or scheduled delay for 429 responses without `Retry-After`; the first retry waits at least one second, with the minimum increasing by one second per attempt. When unset, the reference default interval is 60 seconds. A supplied `Retry-After` value takes precedence, including `0` for an immediate retry.
@@ -17,6 +18,8 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--option extractor.sleep-request=0.12`: reserve globally spaced and per-origin slots before each configured media HTTP attempt (including retries) and before extractor API calls that use the shared bounded JSON reader or an explicit request-pacing hook. Media requests use their URL origin; the shared JSON reader and Bluesky XRPC calls use their API endpoint origin; other explicit extractor hooks use the input URL origin. A positive `Retry-After` on a media 429/5xx response also cools down that origin for later paced requests. The duration supports fixed values and inclusive ranges and follows the normal global/category option lookup. Extractor request-hook coverage is still incomplete.
 
 **Privacy:** Proxy URLs and custom header values may contain credentials. Avoid putting secrets in arguments or shell history: another local process may be able to inspect command-line arguments. Do not store credentials in public configuration files, scripts, issues or fixtures.
+
+`--write-pages` is opt-in and may save private response content. Review and remove the generated files when they are no longer needed.
 
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, response diagnostics and complete reference networking options remain open.
 
