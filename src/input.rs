@@ -76,6 +76,24 @@ pub fn mark_success(path: &Path, url: &str, action: InputFileAction) -> io::Resu
     replace_file_atomically(&path, &updated)
 }
 
+pub fn append_failed_url(path: &Path, url: &str) -> io::Result<()> {
+    if url.contains(['\r', '\n']) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "failed URL contains a line break",
+        ));
+    }
+    if let Ok(existing) = fs::read(path) {
+        if !existing.is_empty() && !existing.ends_with(b"\n") {
+            let mut separator = OpenOptions::new().append(true).open(path)?;
+            separator.write_all(b"\n")?;
+        }
+    }
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    writeln!(file, "{url}")?;
+    file.sync_data()
+}
+
 fn replace_file_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let filename = path
@@ -210,5 +228,17 @@ mod tests {
 
         fs::remove_file(link).unwrap();
         fs::remove_file(target).unwrap();
+    }
+
+    #[test]
+    fn failed_url_append_keeps_existing_entries_on_separate_lines() {
+        let path = temp_file("error-log");
+        fs::write(&path, b"https://example.org/previous").unwrap();
+        append_failed_url(&path, "https://example.org/current").unwrap();
+        assert_eq!(
+            fs::read(&path).unwrap(),
+            b"https://example.org/previous\nhttps://example.org/current\n"
+        );
+        fs::remove_file(path).unwrap();
     }
 }

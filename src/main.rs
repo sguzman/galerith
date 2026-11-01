@@ -74,6 +74,10 @@ struct Cli {
     #[arg(short = 'x', long = "input-file-delete", value_name = "FILE")]
     input_file_delete: Vec<PathBuf>,
 
+    /// Append input URLs that failed to process
+    #[arg(short = 'e', long = "error-file", value_name = "FILE")]
+    error_file: Option<PathBuf>,
+
     /// Print extracted URLs instead of downloading
     #[arg(short = 'g', long)]
     get_urls: bool,
@@ -392,6 +396,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             || !cli.input_files.is_empty()
             || !cli.input_file_comment.is_empty()
             || !cli.input_file_delete.is_empty()
+            || cli.error_file.is_some()
         {
             return Err("--archive-import is an offline command and does not accept URLs".into());
         }
@@ -635,6 +640,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         display_error(error.as_ref())
                     );
                     failed += 1;
+                    append_error_url(cli.error_file.as_deref(), &url, &mut failed);
                 }
             }
             continue;
@@ -662,6 +668,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     display_error(error.as_ref())
                 );
                 failed += 1;
+                append_error_url(cli.error_file.as_deref(), &url, &mut failed);
                 continue;
             }
         };
@@ -792,9 +799,25 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
             }
         }
+        if !input_succeeded {
+            append_error_url(cli.error_file.as_deref(), &url, &mut failed);
+        }
     }
     if failed > 0 {
         return Err(format!("{failed} URL(s) failed").into());
     }
     Ok(())
+}
+
+fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usize) {
+    let Some(path) = path else {
+        return;
+    };
+    if let Err(error) = input::append_failed_url(path, url) {
+        eprintln!(
+            "galerith: cannot append failed URL to {}: {error}",
+            path.display()
+        );
+        *failed += 1;
+    }
 }
