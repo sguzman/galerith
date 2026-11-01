@@ -58,8 +58,9 @@ impl Config {
             let value = value
                 .as_str()
                 .ok_or("downloader HTTP header values must be strings")?;
-            let value =
+            let mut value =
                 HeaderValue::from_str(value).map_err(|_| "invalid downloader HTTP header value")?;
+            value.set_sensitive(true);
             headers.insert(name, value);
         }
         Ok(headers)
@@ -150,6 +151,17 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_downloader_header_values_are_marked_sensitive() {
+        let mut config = Config::default();
+        config
+            .option(r#"downloader.http.headers={"X-Token":"synthetic-secret"}"#)
+            .unwrap();
+        let headers = config.downloader_http_headers().unwrap();
+        assert!(headers["x-token"].is_sensitive());
+        assert_eq!(headers["x-token"], "synthetic-secret");
+    }
 
     #[test]
     fn nested_and_global_filename_precedence() {
