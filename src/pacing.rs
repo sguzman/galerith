@@ -1,4 +1,5 @@
 //! Bounded download delay values used by the CLI pacing preview.
+use serde_json::Value;
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -54,12 +55,50 @@ impl DelayRange {
         let sampled = minimum + random % (span + 1);
         Duration::from_nanos(sampled)
     }
+
+    pub fn from_value(value: &Value) -> Result<Self, &'static str> {
+        match value {
+            Value::Number(number) => {
+                let seconds = number.as_f64().ok_or("invalid duration number")?;
+                let duration = parse_seconds_value(seconds)?;
+                Ok(Self {
+                    minimum: duration,
+                    maximum: duration,
+                })
+            }
+            Value::String(range) => Self::parse(range),
+            Value::Array(values) if values.len() == 2 => {
+                let minimum = values[0]
+                    .as_f64()
+                    .ok_or("duration range values must be numbers")?;
+                let maximum = values[1]
+                    .as_f64()
+                    .ok_or("duration range values must be numbers")?;
+                Self::from_seconds(minimum, maximum)
+            }
+            Value::Array(_) => Err("duration array must contain exactly two values"),
+            _ => Err("duration must be a number, range string, or two-number array"),
+        }
+    }
+
+    fn from_seconds(minimum: f64, maximum: f64) -> Result<Self, &'static str> {
+        let minimum = parse_seconds_value(minimum)?;
+        let maximum = parse_seconds_value(maximum)?;
+        if minimum > maximum {
+            return Err("minimum sleep must not exceed maximum sleep");
+        }
+        Ok(Self { minimum, maximum })
+    }
 }
 
 fn parse_seconds(input: &str) -> Result<Duration, &'static str> {
     let seconds = input
         .parse::<f64>()
         .map_err(|_| "invalid sleep value: expected seconds or MIN-MAX")?;
+    parse_seconds_value(seconds)
+}
+
+fn parse_seconds_value(seconds: f64) -> Result<Duration, &'static str> {
     if !seconds.is_finite() || !(0.0..=MAX_SLEEP_SECONDS).contains(&seconds) {
         return Err("invalid sleep value: expected 0 to 3600 seconds");
     }
@@ -86,6 +125,26 @@ mod tests {
     fn rejects_invalid_descending_and_unbounded_values() {
         for value in ["", "NaN", "inf", "-1", "0.3-0.1", "0-3600.1", "0.1-0.2-0.3"] {
             assert!(DelayRange::parse(value).is_err(), "accepted {value:?}");
+        }
+    }
+
+    #[test]
+    fn accepts_reference_json_duration_values() {
+        for (value, expected) in [
+            (serde_json::json!(0.25), DelayRange::parse("0.25").unwrap()),
+            (
+                serde_json::json!("0.1-0.3"),
+                DelayRange::from_seconds(0.1, 0.3).unwrap(),
+            ),
+            (
+                serde_json::json!([0.1, 0.3]),
+                DelayRange::from_seconds(0.1, 0.3).unwrap(),
+            ),
+        ] {
+            assert_eq!(DelayRange::from_value(&value).unwrap(), expected);
+        }
+        for value in [serde_json::json!([0.3, 0.1]), serde_json::json!([0, 1, 2])] {
+            assert!(DelayRange::from_value(&value).is_err());
         }
     }
 }

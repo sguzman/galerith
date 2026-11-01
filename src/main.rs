@@ -6,7 +6,7 @@ use galerith::{
     cookies::load_netscape_file,
     download::{download, DownloadOptions, DownloadOutcome},
     extractor::{
-        resolve, resolve_media_job_selected, resolve_messages,
+        extractor_name, resolve, resolve_media_job_selected, resolve_messages,
         resolve_messages_traversing_selected, PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
@@ -535,6 +535,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .transpose()?;
     let mut failed = 0usize;
     for url in urls {
+        let category = extractor_name(&url).unwrap_or("");
+        if let Some(delay) = config
+            .duration(category, "sleep-extractor")
+            .map_err(std::io::Error::other)?
+        {
+            tokio::time::sleep(delay.sample()).await;
+        }
         if cli.dump_messages {
             let message_future = async {
                 if cli.expand_queues {
@@ -655,6 +662,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     if !cli.quiet {
                         println!("archived {}", item.filename);
                     }
+                    if !cli.get_urls && !cli.dump_json && !cli.simulate && !cli.no_download {
+                        if let Some(delay) = config
+                            .duration(item.extractor, "sleep-skip")
+                            .map_err(std::io::Error::other)?
+                        {
+                            tokio::time::sleep(delay.sample()).await;
+                        }
+                    }
                     continue;
                 }
             }
@@ -695,6 +710,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         if !cli.quiet {
                             println!("skipped {}", path.display());
+                        }
+                        if let Some(delay) = config
+                            .duration(item.extractor, "sleep-skip")
+                            .map_err(std::io::Error::other)?
+                        {
+                            tokio::time::sleep(delay.sample()).await;
                         }
                     }
                     Err(error) => {

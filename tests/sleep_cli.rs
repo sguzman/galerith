@@ -82,6 +82,53 @@ fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
 }
 
 #[test]
+fn configured_skip_sleep_waits_after_existing_file_is_skipped() {
+    let dir = destination("existing-file-skip");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("image.jpg"), b"keep existing").unwrap();
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--option",
+            "extractor.sleep-skip=0.12",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(started.elapsed() >= Duration::from_millis(110));
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"keep existing");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn configured_extractor_sleep_waits_before_handling_input_url() {
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--option",
+            "extractor.sleep-extractor=0.12",
+            "--simulate",
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(started.elapsed() >= Duration::from_millis(110));
+}
+
+#[test]
 fn invalid_sleep_values_are_rejected_before_network() {
     for value in ["--sleep=-1", "--sleep=4000", "--sleep=NaN"] {
         let output = Command::new(env!("CARGO_BIN_EXE_galerith"))

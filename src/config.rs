@@ -1,5 +1,6 @@
 //! A deliberately bounded, independently implemented subset of gallery-dl's
 //! configuration overlay semantics. Only explicit files are loaded in preview.
+use crate::pacing::DelayRange;
 use serde_json::{Map, Value};
 use std::{error::Error, fs, path::Path};
 
@@ -107,6 +108,20 @@ impl Config {
                     .and_then(Value::as_str)
             })
     }
+
+    /// Resolve an extractor duration with global values overriding all
+    /// extractor scopes, then category values overriding extractor defaults.
+    pub fn duration(
+        &self,
+        extractor: &str,
+        name: &str,
+    ) -> Result<Option<DelayRange>, &'static str> {
+        let value = self
+            .path(&[name])
+            .or_else(|| self.path(&["extractor", extractor, name]))
+            .or_else(|| self.path(&["extractor", name]));
+        value.map(DelayRange::from_value).transpose()
+    }
 }
 
 #[cfg(test)]
@@ -159,6 +174,27 @@ mod tests {
         assert_eq!(
             config.path(&["extractor", "danbooru", "sleep"]),
             Some(&Value::from(2))
+        );
+    }
+
+    #[test]
+    fn duration_lookup_obeys_global_then_category_then_base_precedence() {
+        let mut config = Config::default();
+        config.option("extractor.sleep-skip=0.1").unwrap();
+        config
+            .option("extractor.directlink.sleep-skip=[0.2,0.3]")
+            .unwrap();
+        assert_eq!(
+            config.duration("directlink", "sleep-skip").unwrap(),
+            Some(DelayRange::from_value(&serde_json::json!([0.2, 0.3])).unwrap())
+        );
+        config.option("sleep-skip=0.4").unwrap();
+        assert_eq!(
+            config
+                .duration("directlink", "sleep-skip")
+                .unwrap()
+                .unwrap(),
+            DelayRange::parse("0.4").unwrap()
         );
     }
 }
