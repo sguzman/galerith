@@ -4,7 +4,7 @@
 
 **Overall:** `███████░░░ 70%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
-## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 74%`
+## 🧱 M0 — Identity, provenance, project controls — `████████░░ 77%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
 
 ### 🧭 P0 — Source reference and identity — `█████████░ 92%`
@@ -26,17 +26,17 @@
   - [x] Ship Rust renderer and generated roadmap — src/bin/galerith-roadmap.rs; docs/ROADMAP.md
   - [x] CI validates rendered files — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
 
-### 🦀 P1 — CLI foundation and quality gates — `██████░░░░ 56%`
+### 🦀 P1 — CLI foundation and quality gates — `██████░░░░ 63%`
 
 - ⌨️ **T101** Native Rust binary and command parsing — `████████░░ 75%`
   - [x] Commit native CLI — src/main.rs; Cargo.toml
   - [x] Write offline CLI tests — tests/cli.rs
   - [x] Verify clean Linux CI — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Reach complete upstream argument parity
-- 📥 **T102** URL inputs and input-file semantics — `█████░░░░░ 50%`
+- 📥 **T102** URL inputs and input-file semantics — `████████░░ 75%`
   - [x] Accept arguments and URL files — src/main.rs
   - [x] Support stdin — src/main.rs; tests/cli.rs input_file_stdin_ignores_blank_and_comment_lines; focused local CLI test passed
-  - [ ] Match input-file mutation/retry behavior
+  - [x] Match input-file mutation/retry behavior — src/input.rs; tests/input_file_cli.rs covers comment/delete success, duplicate entries, retry success/exhaustion, simulation, and preserving concurrent edits; tests/reference_directlink.rs compares pinned gallery-dl and native input mutation and downloaded bytes on retry success/exhaustion with local HTTP fixtures; GitHub Actions 41330458471 passed Rust and pinned-reference jobs
   - [ ] Differential CLI acceptance fixtures
 - 🖨️ **T103** Output, simulation and extraction flags — `█████░░░░░ 50%`
   - [x] Implement basic URL/JSON/simulate flags — src/main.rs

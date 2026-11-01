@@ -157,14 +157,15 @@
                 },
                 {
                   "title": "Match input-file mutation/retry behavior",
-                  "passed": false
+      "passed": true,
+      "evidence": "src/input.rs; tests/input_file_cli.rs covers comment/delete success, duplicate entries, retry success/exhaustion, simulation, and preserving concurrent edits; tests/reference_directlink.rs compares pinned gallery-dl and native input mutation and downloaded bytes on retry success/exhaustion with local HTTP fixtures; GitHub Actions 41330458471 passed Rust and pinned-reference jobs"
                 },
                 {
                   "title": "Differential CLI acceptance fixtures",
                   "passed": false
                 }
               ],
-              "progress": 50
+    "progress": 75
             },
             {
               "id": "T103",
