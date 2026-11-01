@@ -584,6 +584,8 @@ mod tests {
         );
         assert_eq!(render("{stem:Rred/-/}", &item).unwrap(), "- blue -");
         assert!(render("{stem:Rred/green}", &item).is_err());
+        item.filename = "café-café.webp".into();
+        assert_eq!(render("{stem:Rfé/猫/}", &item).unwrap(), "ca猫-ca猫");
         item.filename = "x".repeat(241);
         assert!(render("{stem:R/x/}", &item).is_err());
     }
