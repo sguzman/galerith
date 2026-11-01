@@ -140,8 +140,24 @@ fn gallery_keys(html: &str) -> Vec<String> {
 }
 
 async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let initial_origin = endpoint.origin();
+    let initial_host = endpoint.host_str().unwrap_or_default().to_owned();
     crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let final_url = response.url();
+    let local_fixture = initial_host
+        .parse::<std::net::IpAddr>()
+        .is_ok_and(|address| address.is_loopback());
+    let trusted_destination = if local_fixture {
+        final_url.origin() == initial_origin
+    } else {
+        matches!(initial_host.as_str(), "imgbox.com" | "www.imgbox.com")
+            && final_url.scheme() == "https"
+            && matches!(final_url.host_str(), Some("imgbox.com" | "www.imgbox.com"))
+    };
+    if !trusted_destination {
+        return Err("Imgbox page redirected outside its trusted origin".into());
+    }
     if response
         .content_length()
         .is_some_and(|len| len > MAX_HTML_BYTES as u64)
@@ -334,5 +350,43 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "test.png");
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn gallery_page_rejects_cross_origin_redirects() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let destination = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let destination_addr = destination.local_addr().unwrap();
+        let destination_server = tokio::spawn(async move {
+            let (mut socket, _) = destination.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let body = r#"<a href="/a1B2c3D4"><img alt="untrusted"></a>"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let source = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let source_addr = source.local_addr().unwrap();
+        let source_server = tokio::spawn(async move {
+            let (mut socket, _) = source.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{destination_addr}/gallery\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{source_addr}/")).unwrap();
+        assert!(resolve_gallery_at_base(&Client::new(), &base, "abcdefghij")
+            .await
+            .is_err());
+        source_server.await.unwrap();
+        destination_server.await.unwrap();
     }
 }
