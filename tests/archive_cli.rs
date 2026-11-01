@@ -312,6 +312,7 @@ fn soft_200_error_documents_cannot_become_archived_image_media() {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         for (content_type, body) in [
+            ("application/pdf", b"%PDF-1.7\nsynthetic".as_slice()),
             (
                 "text/html; charset=utf-8",
                 b"<html>Blocked</html>".as_slice(),
@@ -359,7 +360,7 @@ fn soft_200_error_documents_cannot_become_archived_image_media() {
             .output()
             .unwrap()
     };
-    for _ in 0..2 {
+    for _ in 0..3 {
         let failed = invoke();
         assert!(!failed.status.success(), "error document was accepted");
         assert!(!dir.join("media.jpg").exists());
@@ -369,7 +370,10 @@ fn soft_200_error_documents_cannot_become_archived_image_media() {
             .unwrap()
             .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 0, "HTML/JSON error must never become an archive hit");
+        assert_eq!(
+            count, 0,
+            "incompatible response must not become an archive hit"
+        );
     }
     let successful = invoke();
     assert!(

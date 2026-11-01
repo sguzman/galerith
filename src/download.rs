@@ -135,6 +135,50 @@ fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
     }
 }
 
+/// Reject a specific media type when the output suffix clearly identifies a
+/// different format. Unknown and generic types (especially octet-stream) stay
+/// permissive because many CDNs omit a useful type or serve vendor formats.
+fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool {
+    let extension = item
+        .filename
+        .rsplit_once('.')
+        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let mime = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let expected = match mime.as_str() {
+        "image/jpeg" => Some(&["jpg", "jpeg", "jpe"][..]),
+        "image/png" => Some(&["png"][..]),
+        "image/gif" => Some(&["gif"][..]),
+        "image/webp" => Some(&["webp"][..]),
+        "image/avif" => Some(&["avif"][..]),
+        "image/bmp" => Some(&["bmp"][..]),
+        "image/tiff" => Some(&["tif", "tiff"][..]),
+        "image/svg+xml" => Some(&["svg"][..]),
+        "image/jxl" => Some(&["jxl"][..]),
+        "audio/mpeg" => Some(&["mp3"][..]),
+        "audio/ogg" => Some(&["ogg", "ogv", "opus"][..]),
+        "audio/wav" | "audio/x-wav" => Some(&["wav"][..]),
+        "audio/flac" | "audio/x-flac" => Some(&["flac"][..]),
+        "video/mp4" => Some(&["mp4", "m4v"][..]),
+        "video/webm" => Some(&["webm"][..]),
+        "video/quicktime" => Some(&["mov"][..]),
+        "application/pdf" => Some(&["pdf"][..]),
+        "application/zip" | "application/x-zip-compressed" => Some(&["zip", "cbz"][..]),
+        "application/vnd.rar" | "application/x-rar-compressed" => Some(&["rar"][..]),
+        "application/x-7z-compressed" => Some(&["7z"][..]),
+        _ => None,
+    };
+    expected.is_some_and(|extensions| {
+        !extension
+            .as_deref()
+            .is_some_and(|extension| extensions.contains(&extension))
+    })
+}
+
 /// Some servers label an HTML or JSON block page as application/octet-stream
 /// or omit Content-Type entirely. Inspect only a bounded initial body prefix
 /// for established binary/document outputs, never the full download.
@@ -421,7 +465,9 @@ pub async fn download(
         }
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
-        if header(&response, CONTENT_TYPE).is_some_and(|mime| media_error_document(item, &mime)) {
+        if header(&response, CONTENT_TYPE).is_some_and(|mime| {
+            media_error_document(item, &mime) || media_type_mismatches_extension(item, &mime)
+        }) {
             // Neither a 206 error suffix nor a 200 block page replacing a
             // Range request can satisfy the media transfer. A stale partial
             // must not make the next retry repeat the unusable range.
@@ -431,7 +477,9 @@ pub async fn download(
                     continue;
                 }
             }
-            return Err(error("application error document instead of media"));
+            return Err(error(
+                "incompatible Content-Type instead of requested media",
+            ));
         }
         // Even when identity was requested, an HTTP server can ignore it.
         // Saving encoded response bytes under the original filename or
@@ -806,6 +854,47 @@ mod tests {
         assert!(!media_error_document(&json, "application/json"));
         assert!(media_error_document(&json, "text/html"));
         assert!(media_error_document(&json, "application/problem+json"));
+    }
+
+    #[test]
+    fn known_media_mime_types_match_expected_extensions() {
+        let item = MediaItem {
+            url: "https://example.test/media.jpg".into(),
+            filename: "photo.jpg".into(),
+            extractor: "directlink",
+            post_id: None,
+        };
+        assert!(!media_type_mismatches_extension(
+            &item,
+            "image/jpeg; charset=binary"
+        ));
+        assert!(media_type_mismatches_extension(&item, "image/png"));
+        assert!(media_type_mismatches_extension(&item, "application/pdf"));
+        assert!(!media_type_mismatches_extension(
+            &item,
+            "application/octet-stream"
+        ));
+        assert!(!media_type_mismatches_extension(
+            &item,
+            "application/vnd.site-media"
+        ));
+
+        for (filename, mime) in [
+            ("cover.jpeg", "image/jpeg"),
+            ("poster.tiff", "image/tiff"),
+            ("sound.mp3", "audio/mpeg"),
+            ("clip.m4v", "video/mp4"),
+            ("archive.cbz", "application/zip"),
+        ] {
+            let item = MediaItem {
+                filename: filename.into(),
+                ..item.clone()
+            };
+            assert!(
+                !media_type_mismatches_extension(&item, mime),
+                "{mime} should match {filename}"
+            );
+        }
     }
 
     #[test]
