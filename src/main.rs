@@ -16,6 +16,7 @@ use galerith::{
     privacy::{display_error, display_url},
     range::IndexRange,
 };
+mod input;
 use std::{
     error::Error,
     io::{self, Read},
@@ -64,6 +65,14 @@ struct Cli {
     /// URL input file(s); '-' reads standard input
     #[arg(short = 'i', long = "input-file", value_name = "FILE")]
     input_files: Vec<String>,
+
+    /// Comment out successful URLs in FILE
+    #[arg(short = 'I', long = "input-file-comment", value_name = "FILE")]
+    input_file_comment: Vec<PathBuf>,
+
+    /// Delete successful URLs from FILE
+    #[arg(short = 'x', long = "input-file-delete", value_name = "FILE")]
+    input_file_delete: Vec<PathBuf>,
 
     /// Print extracted URLs instead of downloading
     #[arg(short = 'g', long)]
@@ -379,7 +388,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }
     }
     if cli.archive_import {
-        if !cli.urls.is_empty() || !cli.input_files.is_empty() {
+        if !cli.urls.is_empty()
+            || !cli.input_files.is_empty()
+            || !cli.input_file_comment.is_empty()
+            || !cli.input_file_delete.is_empty()
+        {
             return Err("--archive-import is an offline command and does not accept URLs".into());
         }
         let native = cli
@@ -401,7 +414,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Ok(());
     }
 
-    let mut urls = cli.urls;
+    let mut urls = cli
+        .urls
+        .into_iter()
+        .map(|url| input::InputUrl {
+            url,
+            mutation: None,
+        })
+        .collect::<Vec<_>>();
     for input in &cli.input_files {
         let content = if input == "-" {
             let mut data = String::new();
@@ -410,13 +430,21 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         } else {
             std::fs::read_to_string(input)?
         };
-        urls.extend(
-            content
-                .lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty() && !line.starts_with('#'))
-                .map(str::to_owned),
-        );
+        let path = (input != "-").then(|| PathBuf::from(input));
+        urls.extend(input::parse_urls(
+            &content,
+            path.as_deref(),
+            input::InputFileAction::ReadOnly,
+        ));
+    }
+    for (files, action) in [
+        (&cli.input_file_comment, input::InputFileAction::Comment),
+        (&cli.input_file_delete, input::InputFileAction::Delete),
+    ] {
+        for path in files {
+            let content = std::fs::read_to_string(path)?;
+            urls.extend(input::parse_urls(&content, Some(path), action));
+        }
     }
     if urls.is_empty() {
         return Err("provide at least one URL or --input-file".into());
@@ -535,7 +563,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .map(|path| Cache::open(path, cli.cache_ttl.unwrap_or(300)))
         .transpose()?;
     let mut failed = 0usize;
-    for url in urls {
+    for source in urls {
+        let url = source.url;
+        let mut input_succeeded = true;
+        let mut selected_items = 0usize;
         let category = extractor_name(&url).unwrap_or("");
         let api_request_delay = config
             .duration(category, "sleep-request")
@@ -641,6 +672,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             {
                 continue;
             }
+            selected_items += 1;
             if !cli.get_urls {
                 if let Some(template) = cli
                     .filename_template
@@ -652,6 +684,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         Err(error) => {
                             eprintln!("galerith: invalid filename template: {error}");
                             failed += 1;
+                            input_succeeded = false;
                             continue;
                         }
                     }
@@ -737,7 +770,25 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                             display_error(error.as_ref())
                         );
                         failed += 1;
+                        input_succeeded = false;
                     }
+                }
+            }
+        }
+        if input_succeeded
+            && selected_items > 0
+            && !cli.get_urls
+            && !cli.dump_json
+            && !cli.simulate
+            && !cli.no_download
+        {
+            if let Some((path, action)) = source.mutation {
+                if let Err(error) = input::mark_success(&path, &url, action) {
+                    eprintln!(
+                        "galerith: cannot update input file {}: {error}",
+                        path.display()
+                    );
+                    failed += 1;
                 }
             }
         }
