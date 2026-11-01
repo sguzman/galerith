@@ -451,6 +451,7 @@ fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, 
         .danger_accept_invalid_certs(options.no_check_certificate)
         .user_agent(options.user_agent);
     if let Some(certificates) = options.root_certificates {
+        builder = builder.tls_built_in_root_certs(false);
         for certificate in certificates {
             builder = builder.add_root_certificate(certificate.clone());
         }
