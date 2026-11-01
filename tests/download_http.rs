@@ -451,10 +451,16 @@ async fn failed_no_part_transfer_leaves_a_partial_at_the_requested_output_path()
         assert!(stream.read(&mut request).await.unwrap() > 0);
         stream
             .write_all(
-                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 8\r\nConnection: close\r\n\r\nBAD",
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 8\r\nConnection: close\r\n\r\n",
             )
             .await
             .unwrap();
+        stream.flush().await.unwrap();
+        stream.write_all(b"BAD").await.unwrap();
+        stream.flush().await.unwrap();
+        // Keep the connection open long enough for the client to consume the
+        // deliberately short body before the server closes it.
+        tokio::time::sleep(Duration::from_millis(100)).await;
     });
     let dir = test_dir("no-part-incomplete");
     let _ = fs::remove_dir_all(&dir);
