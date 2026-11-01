@@ -253,6 +253,7 @@ async fn queue_at_base(
     let mut messages = Vec::new();
     let mut inherited_album_title = None;
     for page in 0..max_pages.clamp(1, MAX_QUEUE_PAGES) {
+        crate::pacing::wait_for_request().await;
         let mut response = client
             .get(endpoint.clone())
             .send()

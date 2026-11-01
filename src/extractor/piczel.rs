@@ -291,6 +291,7 @@ fn append_page(
 }
 
 async fn read_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

@@ -268,6 +268,7 @@ async fn resolve_search(
                 params.append_pair("cursor", cursor);
             }
         }
+        crate::pacing::wait_for_request().await;
         let body: Value = client
             .get(endpoint)
             .send()
@@ -335,6 +336,7 @@ async fn resolve_collection_feed(
                 params.append_pair("cursor", cursor);
             }
         }
+        crate::pacing::wait_for_request().await;
         let body: Value = client
             .get(endpoint)
             .send()
@@ -376,6 +378,7 @@ async fn resolve_actor(
     }
     let mut endpoint = base.join("xrpc/com.atproto.identity.resolveHandle")?;
     endpoint.query_pairs_mut().append_pair("handle", actor);
+    crate::pacing::wait_for_request().await;
     let response: Value = client
         .get(endpoint)
         .send()
@@ -453,6 +456,7 @@ async fn resolve_at_base(
             };
             let mut endpoint = base.join("xrpc/app.bsky.actor.getProfile")?;
             endpoint.query_pairs_mut().append_pair("actor", &did);
+            crate::pacing::wait_for_request().await;
             let profile: Value = client
                 .get(endpoint)
                 .send()
@@ -469,6 +473,7 @@ async fn resolve_at_base(
                 .append_pair("uri", &format!("at://{did}/app.bsky.feed.post/{rkey}"))
                 .append_pair("depth", "0")
                 .append_pair("parentHeight", "0");
+            crate::pacing::wait_for_request().await;
             let body: Value = client
                 .get(endpoint)
                 .send()
@@ -515,6 +520,7 @@ async fn resolve_at_base(
                         query.append_pair("cursor", cursor);
                     }
                 }
+                crate::pacing::wait_for_request().await;
                 let body: Value = client
                     .get(endpoint)
                     .send()

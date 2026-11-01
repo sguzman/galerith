@@ -177,6 +177,7 @@ async fn image_at_base(
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(path)?;
+    crate::pacing::wait_for_request().await;
     let response = client
         .post(endpoint)
         .form(&[("imgContinue", "Continue+to+image+...+")])

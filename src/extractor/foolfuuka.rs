@@ -173,6 +173,7 @@ async fn resolve_board_at_base(
             .query_pairs_mut()
             .append_pair("board", &board.board)
             .append_pair("page", &page.to_string());
+        crate::pacing::wait_for_request().await;
         let response: Value = client
             .get(endpoint)
             .send()
@@ -293,6 +294,7 @@ async fn resolve_gallery_at_base(
             .query_pairs_mut()
             .append_pair("board", &gallery.board)
             .append_pair("page", &page.to_string());
+        crate::pacing::wait_for_request().await;
         let data: Value = client
             .get(endpoint)
             .send()
@@ -458,6 +460,7 @@ async fn resolve_search_at_base(
             }
             query.append_pair("page", &page.to_string());
         }
+        crate::pacing::wait_for_request().await;
         let data: Value = client
             .get(endpoint)
             .send()
@@ -566,6 +569,7 @@ async fn resolve_at_base(
     api.query_pairs_mut()
         .append_pair("board", &target.board)
         .append_pair("num", &target.thread.to_string());
+    crate::pacing::wait_for_request().await;
     let response: Value = client
         .get(api)
         .send()

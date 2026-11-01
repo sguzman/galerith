@@ -202,6 +202,7 @@ fn media_record(
 }
 
 async fn api_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .header("Content-Type", "application/json")

@@ -403,6 +403,7 @@ async fn ajax_listing(
             }
             pairs.append_pair("lastId", &cursor);
         }
+        crate::pacing::wait_for_request().await;
         let response = client
             .get(url.clone())
             .header("Referer", "https://35photo.pro")

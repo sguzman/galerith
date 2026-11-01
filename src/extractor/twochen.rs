@@ -268,6 +268,7 @@ fn parse_catalog(
 }
 
 async fn html_at(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

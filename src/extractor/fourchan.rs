@@ -189,6 +189,7 @@ async fn resolve_board_at_base(
     api: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{board}/threads.json"))?;
+    crate::pacing::wait_for_request().await;
     let pages: Value = client
         .get(endpoint)
         .send()

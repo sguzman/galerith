@@ -96,6 +96,7 @@ pub fn match_url(raw: &str) -> Option<Target> {
 }
 
 async fn xml(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint.clone())
         .send()

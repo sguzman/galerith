@@ -194,6 +194,7 @@ async fn resolve_at_base(
     image: &Image,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client
         .get(base.join(&image.token)?)
         .send()
@@ -494,6 +495,7 @@ async fn gallery_at_base(
     let mut inherited_title = gallery.title.clone();
     let mut last_page = gallery.start_page;
     for page in 0..max_pages.clamp(1, MAX_GALLERY_PAGES) {
+        crate::pacing::wait_for_request().await;
         let mut response = client
             .get(current.clone())
             .send()
