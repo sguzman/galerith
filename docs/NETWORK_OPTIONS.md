@@ -8,6 +8,7 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--force-ipv4` or `--force-ipv6`: bind outgoing connections to the selected address family. These options conflict with each other and with `--source-address`.
 - `--source-address 192.0.2.10`: bind outgoing connections to this client-side IP address. The value must be a valid IP literal.
 - `--option 'downloader.http.headers={"Accept":"image/webp,*/*"}'`: add validated HTTP headers to media download requests. Invalid names and values fail before processing inputs, and error messages do not echo values.
+- `--limit-rate 500k` or `--limit-rate 500k-2M`: pace response-body writes at a fixed or per-download sampled rate. Values accept byte, k, m or g units; this does not yet establish full upstream rate-policy parity.
 - `--sleep 0.15`: wait this many seconds before each media download. `--sleep 0.1-0.3` samples an inclusive range before each media download. Values must be finite and between 0 and 3600 seconds.
 - `--option extractor.sleep-skip=0.12`: wait after a media file is skipped. The preview supports fixed or ranged duration values and global/category configuration precedence for this option.
 - `--option extractor.sleep-extractor=0.12`: wait before handling each input URL, also accepting the fixed or ranged duration forms.
