@@ -332,6 +332,116 @@ fn run_429_retry_delay_fixture(
     elapsed
 }
 
+fn run_429_default_fixture(working_root: &Path, pinned_root: &Path, label: &str, reference: bool) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let accept = |timeout: std::time::Duration| {
+            let deadline = std::time::Instant::now() + timeout;
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => return Some(socket),
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        if std::time::Instant::now() >= deadline {
+                            return None;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("accept default 429 fixture request: {error}"),
+                }
+            }
+        };
+        let mut first =
+            accept(std::time::Duration::from_secs(5)).expect("first default 429 request");
+        first
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 2048];
+        assert!(first.read(&mut request).unwrap() > 0);
+        first
+            .write_all(
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .unwrap();
+        drop(first);
+
+        if let Some(mut second) = accept(std::time::Duration::from_millis(1800)) {
+            second
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            assert!(second.read(&mut request).unwrap() > 0);
+            second
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+                )
+                .unwrap();
+            true
+        } else {
+            false
+        }
+    });
+
+    let output = working_root.join(format!("{label}-429-default-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/retry.jpg");
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "--sleep-429",
+            "0",
+            "-R",
+            "1",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "--sleep-429",
+            "0",
+            "--retries",
+            "1",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command.output().expect("launch default 429 fixture client");
+    assert!(
+        !result.status.success(),
+        "{label}: client unexpectedly retried an unconfigured 429: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        !server.join().unwrap(),
+        "{label}: client sent another request after an unconfigured 429"
+    );
+    std::fs::remove_dir_all(output).unwrap();
+}
+
 fn run_input_retry_case(
     root: &Path,
     pinned_root: &Path,
@@ -785,6 +895,28 @@ fn pinned_and_native_clients_match_429_retry_interval() {
         pinned.abs_diff(native) < std::time::Duration::from_millis(500),
         "pinned/native 429 intervals differ: pinned={pinned:?}, native={native:?}"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_do_not_retry_429_by_default() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let root = env::temp_dir().join(format!(
+        "galerith-429-default-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    run_429_default_fixture(&root, pinned_root, "pinned", true);
+    run_429_default_fixture(&root, pinned_root, "native", false);
     std::fs::remove_dir_all(root).unwrap();
 }
 
