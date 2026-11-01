@@ -13,10 +13,81 @@ impl fmt::Display for FormatError {
 }
 impl Error for FormatError {}
 
+fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
+    let mut depth = 0usize;
+    for (index, character) in field.char_indices() {
+        match character {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            ':' if depth == 0 => return Ok((&field[..index], &field[index + 1..])),
+            _ => {}
+        }
+    }
+    Ok((field, ""))
+}
+
+fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
+    let chars: Vec<char> = value.chars().collect();
+    if let Some((start, stop)) = selector.split_once(':') {
+        if stop.contains(':') {
+            return Err(FormatError("unsupported filename slice".into()));
+        }
+        let index = |raw: &str| -> Result<Option<isize>, FormatError> {
+            if raw.is_empty() {
+                Ok(None)
+            } else {
+                raw.parse::<isize>()
+                    .map(Some)
+                    .map_err(|_| FormatError("invalid filename slice index".into()))
+            }
+        };
+        let bound = |raw: Option<isize>, default: usize| {
+            raw.map(|index| {
+                let length = chars.len() as isize;
+                let index = if index < 0 { length + index } else { index };
+                index.clamp(0, length) as usize
+            })
+            .unwrap_or(default)
+        };
+        let start = bound(index(start)?, 0);
+        let stop = bound(index(stop)?, chars.len());
+        return Ok(chars
+            .into_iter()
+            .skip(start)
+            .take(stop.saturating_sub(start))
+            .collect());
+    }
+    let index = selector
+        .parse::<isize>()
+        .map_err(|_| FormatError("invalid filename field index".into()))?;
+    let length = chars.len() as isize;
+    let index = if index < 0 { length + index } else { index };
+    usize::try_from(index)
+        .ok()
+        .and_then(|index| chars.get(index))
+        .copied()
+        .map(String::from)
+        .ok_or_else(|| FormatError("filename field index out of range".into()))
+}
+
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
-    let (field_name, spec) = field.split_once(':').unwrap_or((field, ""));
+    let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
-    let value = match name {
+    let (base_name, selector) = match name.split_once('[') {
+        Some((base, suffix)) => (
+            base,
+            Some(
+                suffix
+                    .strip_suffix(']')
+                    .ok_or_else(|| FormatError("invalid filename field selector".into()))?,
+            ),
+        ),
+        None if name.contains(']') => {
+            return Err(FormatError("invalid filename field selector".into()))
+        }
+        None => (name, None),
+    };
+    let value = match base_name {
         "filename" => item.filename.clone(),
         "name" | "stem" => item
             .filename
@@ -33,9 +104,17 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "category" | "extractor" => item.extractor.to_owned(),
         "id" | "post_id" => item
             .post_id
-            .ok_or_else(|| FormatError(format!("missing metadata field '{name}'")))?
+            .ok_or_else(|| FormatError(format!("missing metadata field '{base_name}'")))?
             .to_string(),
-        _ => return Err(FormatError(format!("unsupported filename field '{name}'"))),
+        _ => {
+            return Err(FormatError(format!(
+                "unsupported filename field '{base_name}'"
+            )))
+        }
+    };
+    let value = match selector {
+        Some(selector) => slice_field(&value, selector)?,
+        None => value,
     };
     let value = match conversion {
         "" | "s" => value,
@@ -136,9 +215,9 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         return Err(FormatError("invalid filename length formatter".into()));
     }
     // Small compatible subset: numeric padding, including Python's :>03 form.
-    if !matches!(name, "id" | "post_id") {
+    if !matches!(base_name, "id" | "post_id") {
         return Err(FormatError(format!(
-            "unsupported formatting for field '{name}'"
+            "unsupported formatting for field '{base_name}'"
         )));
     }
     let width = spec.strip_prefix('>').unwrap_or(spec);
@@ -285,6 +364,18 @@ mod tests {
         let item = sample();
         assert_eq!(render("{filename!s}", &item).unwrap(), "original.webp");
         assert_eq!(render("{id!s}", &item).unwrap(), "42");
+    }
+
+    #[test]
+    fn named_fields_support_unicode_indices_and_slices() {
+        let mut item = sample();
+        item.filename = "猫original.webp".into();
+        assert_eq!(render("{filename[0]}", &item).unwrap(), "猫");
+        assert_eq!(render("{filename[-4:]}", &item).unwrap(), "webp");
+        assert_eq!(render("{filename[1:4]!u}", &item).unwrap(), "ORI");
+        assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
+        assert!(render("{filename[99]}", &item).is_err());
+        assert!(render("{filename[::2]}", &item).is_err());
     }
 
     #[test]
