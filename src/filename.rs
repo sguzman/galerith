@@ -41,6 +41,16 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "" => value,
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
+        "c" => {
+            let mut chars = value.chars();
+            match chars.next() {
+                Some(first) => first
+                    .to_uppercase()
+                    .chain(chars.flat_map(char::to_lowercase))
+                    .collect(),
+                None => String::new(),
+            }
+        }
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
         _ => {
@@ -196,6 +206,15 @@ mod tests {
         assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL.WEBP");
         assert!(render("{category!x}", &item).is_err());
         assert!(render("{category!lower}", &item).is_err());
+    }
+
+    #[test]
+    fn capitalization_uppercases_first_character_and_lowers_the_rest() {
+        let mut item = sample();
+        item.filename = "élÉPHant.webp".into();
+        assert_eq!(field("filename!c", &item).unwrap(), "Éléphant.webp");
+        item.filename.clear();
+        assert_eq!(field("filename!c", &item).unwrap(), "");
     }
 
     #[test]
