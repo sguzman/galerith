@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{
     env,
     io::{Read, Write},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     path::Path,
     process::Command,
 };
@@ -1028,6 +1028,139 @@ fn pinned_and_native_clients_match_downloader_http_timeout() {
         pinned.abs_diff(native) < std::time::Duration::from_millis(150),
         "pinned/native timeout results differ: pinned={pinned:?}, native={native:?}"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_downloader_http_verify_false() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!("galerith-verify-oracle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let server_root = root.join("server");
+    std::fs::create_dir_all(&server_root).unwrap();
+    std::fs::write(server_root.join("asset.jpg"), b"TLS!").unwrap();
+    let address_probe = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = address_probe.local_addr().unwrap();
+    drop(address_probe);
+
+    let certificate =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls/server-cert.pem");
+    let key = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls/server-key.pem");
+    let mut server = Command::new("openssl")
+        .args([
+            "s_server",
+            "-quiet",
+            "-WWW",
+            "-naccept",
+            "3",
+            "-accept",
+            &address.to_string(),
+            "-cert",
+            certificate.to_str().unwrap(),
+            "-key",
+            key.to_str().unwrap(),
+        ])
+        .current_dir(&server_root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("start local TLS fixture");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if TcpStream::connect(address).is_ok() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "TLS fixture did not start"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    let url = format!("https://{address}/asset.jpg");
+    let run = |label: &str, reference: bool| {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if reference {
+            let mut command = Command::new("python3");
+            command.args([
+                "-m",
+                "gallery_dl",
+                "--config-ignore",
+                "--no-input",
+                "--quiet",
+                "-o",
+                "downloader.http.verify=false",
+                "-R",
+                "0",
+                "-d",
+                output.to_str().unwrap(),
+                &url,
+            ]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+            command.args([
+                "--quiet",
+                "-o",
+                "downloader.http.verify=false",
+                "--retries",
+                "0",
+                "-d",
+                output.to_str().unwrap(),
+                &url,
+            ]);
+            command
+        };
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        command.output().expect("launch TLS fixture client")
+    };
+    let pinned = run("pinned", true);
+    let native = run("native", false);
+    let _ = server.kill();
+    let _ = server.wait();
+
+    for (label, output) in [("pinned", pinned), ("native", native)] {
+        assert!(
+            output.status.success(),
+            "{label}: client failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if label == "pinned" {
+            assert!(
+                contains_file_with_bytes(&root.join(label), b"TLS!"),
+                "{label}: client did not save the TLS fixture body"
+            );
+        } else {
+            assert_eq!(
+                std::fs::read(root.join(label).join("asset.jpg")).unwrap(),
+                b"TLS!",
+                "{label}: client did not save the TLS fixture body"
+            );
+        }
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 
