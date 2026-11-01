@@ -17,6 +17,60 @@ fn destination(suffix: &str) -> PathBuf {
     ))
 }
 
+fn source_address_for_request(
+    listener: TcpListener,
+    options: &[&str],
+    host: &str,
+    suffix: &str,
+) -> std::net::SocketAddr {
+    let port = listener.local_addr().unwrap().port();
+    listener.set_nonblocking(true).unwrap();
+    let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let (mut socket, peer) = loop {
+            match listener.accept() {
+                Ok(connection) => break connection,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "HTTP fixture timed out"
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("accept HTTP fixture connection: {error}"),
+            }
+        };
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+        peer
+    });
+    let dir = destination(suffix);
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{host}:{port}/asset.jpg");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(options)
+        .args(["--retries", "0", "-d", dir.to_str().unwrap(), &url])
+        .output()
+        .unwrap();
+    let peer = server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"JPEG");
+    fs::remove_dir_all(dir).unwrap();
+    peer
+}
+
 #[test]
 fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
     let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -494,6 +548,43 @@ fn source_address_must_be_a_valid_ip_and_cannot_mix_with_family_flags() {
         .output()
         .unwrap();
     assert!(!conflict.status.success());
+}
+
+#[test]
+fn force_ip_family_flags_bind_real_client_sockets() {
+    let ipv4_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let ipv4_peer = source_address_for_request(
+        ipv4_listener,
+        &["--force-ipv4"],
+        "localhost",
+        "force-ipv4-family",
+    );
+    assert!(ipv4_peer.is_ipv4(), "IPv4 request used peer {ipv4_peer}");
+
+    let ipv6_listener = match TcpListener::bind("[::1]:0") {
+        Ok(listener) => listener,
+        Err(error) if error.kind() == std::io::ErrorKind::AddrNotAvailable => return,
+        Err(error) => panic!("bind IPv6 localhost fixture: {error}"),
+    };
+    let ipv6_peer = source_address_for_request(
+        ipv6_listener,
+        &["--force-ipv6"],
+        "[::1]",
+        "force-ipv6-family",
+    );
+    assert!(ipv6_peer.is_ipv6(), "IPv6 request used peer {ipv6_peer}");
+}
+
+#[test]
+fn source_address_binds_the_actual_client_socket() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let peer = source_address_for_request(
+        listener,
+        &["--source-address", "127.0.0.2"],
+        "127.0.0.1",
+        "source-address-binding",
+    );
+    assert_eq!(peer.ip(), "127.0.0.2".parse::<std::net::IpAddr>().unwrap());
 }
 
 #[test]
