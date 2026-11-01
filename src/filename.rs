@@ -71,6 +71,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         }
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
+        "n" => value.chars().count().to_string(),
         _ => {
             return Err(FormatError(format!(
                 "unsupported conversion '{conversion}'"
@@ -243,6 +244,13 @@ mod tests {
             field("filename!C", &item).unwrap(),
             "Autumn, Élan Vital.Webp"
         );
+    }
+
+    #[test]
+    fn length_conversion_counts_unicode_characters() {
+        let mut item = sample();
+        item.filename = "é猫.webp".into();
+        assert_eq!(field("filename!n", &item).unwrap(), "7");
     }
 
     #[test]
