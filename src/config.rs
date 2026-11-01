@@ -76,6 +76,25 @@ impl Config {
         parse_http_tls_verification(value)
     }
 
+    /// Optional extractor-wide or category-specific client source IP address.
+    pub fn extractor_http_source_address(
+        &self,
+        extractor: &str,
+    ) -> Result<Option<std::net::IpAddr>, &'static str> {
+        let Some(value) = self
+            .path(&["extractor", extractor, "source-address"])
+            .or_else(|| self.path(&["extractor", "source-address"]))
+        else {
+            return Ok(None);
+        };
+        let address = value
+            .as_str()
+            .ok_or("extractor source-address must be an IP literal string")?
+            .parse()
+            .map_err(|_| "extractor source-address must be an IP literal string")?;
+        Ok(Some(address))
+    }
+
     /// Optional shared proxy map for extractor and media HTTP clients.
     pub fn http_proxy_settings(&self) -> Result<Option<HttpProxySettings>, &'static str> {
         self.root
@@ -511,6 +530,25 @@ mod tests {
         );
         config.option("extractor.verify=42").unwrap();
         assert!(config.extractor_http_verify("pixiv").is_err());
+    }
+
+    #[test]
+    fn extractor_source_address_follows_category_precedence() {
+        let mut config = Config::default();
+        config.option("extractor.source-address=127.0.0.2").unwrap();
+        config
+            .option("extractor.e621.source-address=127.0.0.3")
+            .unwrap();
+        assert_eq!(
+            config.extractor_http_source_address("e621").unwrap(),
+            Some("127.0.0.3".parse().unwrap())
+        );
+        assert_eq!(
+            config.extractor_http_source_address("pixiv").unwrap(),
+            Some("127.0.0.2".parse().unwrap())
+        );
+        config.option("extractor.source-address=not-an-ip").unwrap();
+        assert!(config.extractor_http_source_address("pixiv").is_err());
     }
 
     #[test]

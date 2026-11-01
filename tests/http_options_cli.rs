@@ -671,6 +671,38 @@ fn source_address_binds_the_actual_client_socket() {
 }
 
 #[test]
+fn extractor_source_address_config_binds_actual_socket_and_cli_overrides_it() {
+    let configured_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let configured_peer = source_address_for_request(
+        configured_listener,
+        &["-o", "extractor.directlink.source-address=127.0.0.2"],
+        "127.0.0.1",
+        "extractor-source-address",
+    );
+    assert_eq!(
+        configured_peer.ip(),
+        "127.0.0.2".parse::<std::net::IpAddr>().unwrap()
+    );
+
+    let cli_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let cli_peer = source_address_for_request(
+        cli_listener,
+        &[
+            "-o",
+            "extractor.directlink.source-address=127.0.0.2",
+            "--source-address",
+            "127.0.0.3",
+        ],
+        "127.0.0.1",
+        "extractor-source-address-cli-override",
+    );
+    assert_eq!(
+        cli_peer.ip(),
+        "127.0.0.3".parse::<std::net::IpAddr>().unwrap()
+    );
+}
+
+#[test]
 fn fractional_http_timeout_expires_a_stalled_media_request() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

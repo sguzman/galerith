@@ -220,6 +220,94 @@ fn run_user_agent_fixture(
     request
 }
 
+fn run_extractor_source_address_fixture(
+    output_root: &Path,
+    pinned_root: Option<&Path>,
+    label: &str,
+    reference: bool,
+) -> std::net::SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, peer) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0; 2048];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+        peer
+    });
+    let output = output_root.join(format!("{label}-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/asset.jpg");
+    let source_address = "extractor.directlink.source-address=127.0.0.2";
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "-o",
+            source_address,
+            "-R",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command.env(
+            "PYTHONPATH",
+            pinned_root.expect("pinned source root required"),
+        );
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "-o",
+            source_address,
+            "--retries",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command.output().unwrap();
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        contains_file_with_bytes(&output, b"JPEG"),
+        "{label}: client did not save the fixture body"
+    );
+    let peer = server.join().unwrap();
+    std::fs::remove_dir_all(output).unwrap();
+    peer
+}
+
 fn run_429_retry_delay_fixture(
     working_root: &Path,
     pinned_root: &Path,
@@ -1005,6 +1093,32 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
             );
         }
     }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_extractor_source_address_binding() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let root = env::temp_dir().join(format!(
+        "galerith-source-address-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_extractor_source_address_fixture(&root, Some(pinned_root), "pinned", true);
+    let native = run_extractor_source_address_fixture(&root, None, "native", false);
+    let expected = "127.0.0.2".parse::<std::net::IpAddr>().unwrap();
+    assert_eq!(pinned.ip(), expected, "pinned client bound {pinned}");
+    assert_eq!(native.ip(), expected, "native client bound {native}");
+    assert_eq!(pinned.ip(), native.ip());
     std::fs::remove_dir_all(root).unwrap();
 }
 

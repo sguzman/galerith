@@ -808,6 +808,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let extractor_http_verify = config
             .extractor_http_verify(category)
             .map_err(std::io::Error::other)?;
+        let extractor_source_address = config
+            .extractor_http_source_address(category)
+            .map_err(std::io::Error::other)?;
         let extractor_no_check_certificate = cli.no_check_certificate
             || extractor_http_verify.as_ref().is_some_and(|verify| {
                 matches!(verify, galerith::config::HttpTlsVerification::Disabled)
@@ -827,6 +830,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut extractor_client_options = client_options;
         extractor_client_options.no_check_certificate = extractor_no_check_certificate;
         extractor_client_options.root_certificates = extractor_root_certificates.as_deref();
+        if cli.source_address.is_none() && !cli.force_ipv4 && !cli.force_ipv6 {
+            extractor_client_options.source_address = extractor_source_address;
+        }
         if extractor_headers
             .as_ref()
             .is_some_and(|headers| headers.disable_user_agent)
@@ -846,6 +852,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             && extractor_header_map.is_none()
             && extractor_no_check_certificate == cli.no_check_certificate
             && extractor_root_certificates.is_none()
+            && extractor_client_options.source_address == cli.source_address
         {
             client.clone()
         } else {
@@ -885,6 +892,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 && media_root_certificates.is_none()
                 && media_proxy_settings == shared_proxy_settings
                 && extractor_header_map.is_none()
+                && extractor_client_options.source_address == cli.source_address
             {
                 client.clone()
             } else {
