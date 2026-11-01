@@ -1,6 +1,6 @@
 # 🌐 HTTP client option preview
 
-Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-timeout`**, **`--force-ipv4` / `--force-ipv6`**, **`--source-address`**, and **`--sleep`** as a fixed delay or inclusive range. User-Agent, proxy, timeout, and address-family selection apply to the shared native Rust HTTP client. `downloader.http.headers` applies extra headers to media transfers only.
+Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-timeout`**, **`--force-ipv4` / `--force-ipv6`**, **`--source-address`**, and **`--sleep`** as a fixed delay or inclusive range. User-Agent, proxy, timeout, and address-family selection apply to the shared native Rust HTTP client. Media requests send `Accept: */*` and `Accept-Encoding: identity` to keep resumed byte offsets stable. `downloader.http.headers` applies extra headers to media transfers only.
 
 - `-a 'MyAgent/1.0'`: send this explicit User-Agent on requests. Without it, the client identifies itself as Galerith with the package version.
 - `--proxy http://127.0.0.1:8080`: route HTTP(S) traffic through the supplied proxy URL. The CLI handles malformed proxy URLs with a generic error rather than printing the supplied credentials.

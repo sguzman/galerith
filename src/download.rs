@@ -6,8 +6,8 @@ use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
     header::{
-        HeaderMap, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, ETAG, IF_RANGE,
-        LAST_MODIFIED, RANGE, RETRY_AFTER,
+        HeaderMap, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, ETAG,
+        IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER,
     },
     Client, StatusCode,
 };
@@ -481,7 +481,10 @@ pub async fn download(
         };
         // Resume offsets refer to the raw representation: opt out of
         // HTTP content encoding to keep sidecar byte counts meaningful.
-        let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
+        let mut request = client
+            .get(&item.url)
+            .header(ACCEPT, "*/*")
+            .header(ACCEPT_ENCODING, "identity");
         request = request.headers(options.headers.clone());
         crate::pacing::wait_for_request_url(
             &item.url,

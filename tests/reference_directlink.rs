@@ -733,6 +733,13 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
             request
                 .to_ascii_lowercase()
                 .lines()
+                .any(|header| header == "accept: */*"),
+            "{label}: default HTTP Accept header missing from request: {request}"
+        );
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .lines()
                 .any(|header| header == "proxy-authorization: basic dxnlcjpzzwnyzxq="),
             "{label}: proxy credentials missing from proxy request: {request}"
         );
