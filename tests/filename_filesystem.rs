@@ -72,3 +72,31 @@ fn rendered_template_is_the_saved_path_and_existing_output_is_skipped() {
         .exists());
     fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn template_cannot_escape_the_destination_directory() {
+    let directory = std::env::temp_dir().join(format!(
+        "galerith-filename-traversal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&directory);
+    fs::create_dir_all(&directory).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-d",
+            directory.to_str().unwrap(),
+            "-f",
+            "../escape-{filename}",
+            "https://example.org/source.webp",
+        ])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(fs::read_dir(&directory).unwrap().next().is_none());
+    assert!(!directory
+        .parent()
+        .unwrap()
+        .join("escape-source.webp")
+        .exists());
+    fs::remove_dir_all(directory).unwrap();
+}
