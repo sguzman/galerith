@@ -622,7 +622,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 .unwrap_or(4),
         ),
         no_skip: cli.no_skip,
-        no_mtime: cli.no_mtime,
+        no_mtime: cli.no_mtime
+            || config
+                .downloader_http_mtime()
+                .map_err(std::io::Error::other)?
+                == Some(false),
         no_part: cli.no_part,
         limit_rate: cli
             .limit_rate

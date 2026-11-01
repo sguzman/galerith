@@ -60,6 +60,21 @@ impl Config {
             .ok_or("downloader.http.retries must be a nonnegative 32-bit integer")
     }
 
+    /// Optional source modification-time behavior for completed media files.
+    pub fn downloader_http_mtime(&self) -> Result<Option<bool>, &'static str> {
+        let Some(value) = self
+            .root
+            .get("mtime")
+            .or_else(|| self.root.pointer("/downloader/http/mtime"))
+        else {
+            return Ok(None);
+        };
+        value
+            .as_bool()
+            .map(Some)
+            .ok_or("downloader.http.mtime must be a boolean")
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -233,6 +248,18 @@ mod tests {
         config.option("downloader.http.retries=2").unwrap();
         config.option("retries=0").unwrap();
         assert_eq!(config.downloader_http_retries().unwrap(), Some(0));
+    }
+
+    #[test]
+    fn downloader_mtime_is_optional_boolean_with_global_precedence() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_mtime().unwrap(), None);
+        config.option("downloader.http.mtime=false").unwrap();
+        assert_eq!(config.downloader_http_mtime().unwrap(), Some(false));
+        config.option("mtime=true").unwrap();
+        assert_eq!(config.downloader_http_mtime().unwrap(), Some(true));
+        config.option("mtime=1").unwrap();
+        assert!(config.downloader_http_mtime().is_err());
     }
 
     #[test]
