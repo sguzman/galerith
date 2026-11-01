@@ -209,6 +209,7 @@ mod tests {
             "[original.webp]"
         );
         assert_eq!(render("x{extension:?[/]/}", &item).unwrap(), "x[webp]");
+        assert_eq!(render("x{extension!u:?[/]/}", &item).unwrap(), "x[WEBP]");
 
         let mut empty = item;
         empty.filename = "extensionless".into();
