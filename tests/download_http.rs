@@ -3,7 +3,12 @@ use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
     extract_direct_media,
 };
-use std::{fs, path::PathBuf, time::Duration};
+use std::{
+    fs,
+    path::PathBuf,
+    process::Command,
+    time::{Duration, UNIX_EPOCH},
+};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -18,6 +23,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         destination,
         retries: 2,
         no_skip: false,
+        no_mtime: false,
         request_delay: None,
     }
 }
@@ -278,6 +284,53 @@ async fn direct_asf_media_matches_its_response_mime() {
     assert_eq!(fs::read(dir.join("recording.asf")).unwrap(), b"ASF0");
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn no_mtime_ignores_http_last_modified_header() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG")
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("no-mtime");
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{addr}/photo.jpg");
+    let output_dir = dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--no-mtime", "-d"])
+            .arg(output_dir)
+            .arg(url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    server.await.unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let modified = fs::metadata(dir.join("photo.jpg"))
+        .unwrap()
+        .modified()
+        .unwrap()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert!(
+        modified > 1_450_000_000,
+        "old Last-Modified was applied: {modified}"
+    );
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[tokio::test]

@@ -23,6 +23,7 @@ fn options(destination: PathBuf, no_skip: bool) -> DownloadOptions {
         destination,
         retries: 1,
         no_skip,
+        no_mtime: false,
         request_delay: None,
     }
 }

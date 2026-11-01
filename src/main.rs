@@ -291,6 +291,10 @@ struct Cli {
     #[arg(long)]
     no_skip: bool,
 
+    /// Do not set output modification times from HTTP Last-Modified
+    #[arg(long)]
+    no_mtime: bool,
+
     /// Maximum extractor feed/search pages to fetch (preview default: 1)
     #[arg(long, default_value_t = 1)]
     max_pages: u16,
@@ -509,6 +513,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }),
         retries: cli.retries,
         no_skip: cli.no_skip,
+        no_mtime: cli.no_mtime,
         request_delay: None,
     };
     let archive =

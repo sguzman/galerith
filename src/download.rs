@@ -26,6 +26,7 @@ pub struct DownloadOptions {
     pub destination: PathBuf,
     pub retries: u32,
     pub no_skip: bool,
+    pub no_mtime: bool,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -749,17 +750,19 @@ pub async fn download(
             }
         }
         fs::rename(&part, &target).await?;
-        if let Some(modified) = source_mtime {
-            // Last-Modified is optional, and unsupported filesystem timestamp
-            // operations must never turn an already-committed media file into
-            // an apparent download failure.
-            match fs::OpenOptions::new().write(true).open(&target).await {
-                Ok(file) => {
-                    if let Err(err) = file.into_std().await.set_modified(modified) {
-                        eprintln!("galerith: cannot preserve source modification time: {err}");
+        if !options.no_mtime {
+            if let Some(modified) = source_mtime {
+                // Last-Modified is optional, and unsupported filesystem timestamp
+                // operations must never turn an already-committed media file into
+                // an apparent download failure.
+                match fs::OpenOptions::new().write(true).open(&target).await {
+                    Ok(file) => {
+                        if let Err(err) = file.into_std().await.set_modified(modified) {
+                            eprintln!("galerith: cannot preserve source modification time: {err}");
+                        }
                     }
+                    Err(err) => eprintln!("galerith: cannot set source modification time: {err}"),
                 }
-                Err(err) => eprintln!("galerith: cannot set source modification time: {err}"),
             }
         }
         // Metadata is auxiliary; a successful media file must stay saved even
