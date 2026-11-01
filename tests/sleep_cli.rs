@@ -91,6 +91,18 @@ fn configured_request_sleep_delays_each_media_transfer_attempt() {
 }
 
 #[test]
+fn extractor_specific_request_sleep_delays_media_transfer() {
+    assert!(
+        run_download_with_setting(
+            "--option",
+            "extractor.directlink.sleep-request=0.12",
+            "request-directlink",
+        ) >= Duration::from_millis(110),
+        "media request occurred before extractor-specific sleep-request delay"
+    );
+}
+
+#[test]
 fn configured_skip_sleep_waits_after_existing_file_is_skipped() {
     let dir = destination("existing-file-skip");
     let _ = fs::remove_dir_all(&dir);
