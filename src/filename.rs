@@ -28,8 +28,9 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
 
 fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
     let chars: Vec<char> = value.chars().collect();
-    if let Some((start, stop)) = selector.split_once(':') {
-        if stop.contains(':') {
+    if selector.contains(':') {
+        let parts: Vec<_> = selector.split(':').collect();
+        if !(2..=3).contains(&parts.len()) {
             return Err(FormatError("unsupported filename slice".into()));
         }
         let index = |raw: &str| -> Result<Option<isize>, FormatError> {
@@ -41,21 +42,59 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
                     .map_err(|_| FormatError("invalid filename slice index".into()))
             }
         };
-        let bound = |raw: Option<isize>, default: usize| {
-            raw.map(|index| {
-                let length = chars.len() as isize;
-                let index = if index < 0 { length + index } else { index };
-                index.clamp(0, length) as usize
-            })
-            .unwrap_or(default)
+        let length = isize::try_from(chars.len())
+            .map_err(|_| FormatError("filename field is too long to slice".into()))?;
+        let start = index(parts[0])?;
+        let stop = index(parts[1])?;
+        let step = if parts.len() == 3 {
+            index(parts[2])?.unwrap_or(1)
+        } else {
+            1
         };
-        let start = bound(index(start)?, 0);
-        let stop = bound(index(stop)?, chars.len());
-        return Ok(chars
-            .into_iter()
-            .skip(start)
-            .take(stop.saturating_sub(start))
-            .collect());
+        if step == 0 {
+            return Err(FormatError("filename slice step cannot be zero".into()));
+        }
+        let normalize = |value: isize, negative_step: bool| {
+            let value = if value < 0 {
+                value.saturating_add(length)
+            } else {
+                value
+            };
+            if negative_step {
+                value.clamp(-1, length.saturating_sub(1))
+            } else {
+                value.clamp(0, length)
+            }
+        };
+        let negative_step = step < 0;
+        let mut cursor = match start {
+            Some(value) => normalize(value, negative_step),
+            None if negative_step => length.saturating_sub(1),
+            None => 0,
+        };
+        let end = match stop {
+            Some(value) => normalize(value, negative_step),
+            None if negative_step => -1,
+            None => length,
+        };
+        let mut result = String::new();
+        while if negative_step {
+            cursor > end
+        } else {
+            cursor < end
+        } {
+            if let Some(character) = usize::try_from(cursor)
+                .ok()
+                .and_then(|index| chars.get(index))
+            {
+                result.push(*character);
+            }
+            let Some(next) = cursor.checked_add(step) else {
+                break;
+            };
+            cursor = next;
+        }
+        return Ok(result);
     }
     let index = selector
         .parse::<isize>()
@@ -373,9 +412,15 @@ mod tests {
         assert_eq!(render("{filename[0]}", &item).unwrap(), "猫");
         assert_eq!(render("{filename[-4:]}", &item).unwrap(), "webp");
         assert_eq!(render("{filename[1:4]!u}", &item).unwrap(), "ORI");
+        assert_eq!(render("{filename[1:4:2]}", &item).unwrap(), "oi");
+        assert_eq!(
+            render("{filename[::-1]}", &item).unwrap(),
+            "pbew.lanigiro猫"
+        );
+        assert_eq!(render("{filename[4:1:-1]}", &item).unwrap(), "gir");
         assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
         assert!(render("{filename[99]}", &item).is_err());
-        assert!(render("{filename[::2]}", &item).is_err());
+        assert!(render("{filename[::0]}", &item).is_err());
     }
 
     #[test]
