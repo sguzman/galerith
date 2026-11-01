@@ -11,7 +11,7 @@ use galerith::{
     },
     filename::render as render_filename,
     message::JobSelection,
-    pacing::{with_request_delay_for_url, DelayRange, RateRange},
+    pacing::{with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
     postprocess::write_metadata,
     privacy::{display_error, display_url},
     range::IndexRange,
@@ -219,12 +219,12 @@ struct Cli {
     #[arg(short = 'R', long, default_value_t = 4)]
     retries: u32,
 
-    /// Delay between retries (SECONDS or inclusive MIN-MAX)
-    #[arg(long = "sleep-retries", value_name = "SECONDS|MIN-MAX")]
+    /// Delay between retries (SECONDS, MIN-MAX, lin[:START[:MAX]]=SECONDS, exp[:BASE[:START[:MAX]]]=SECONDS)
+    #[arg(long = "sleep-retries", value_name = "SCHEDULE")]
     sleep_retries: Option<String>,
 
     /// Delay before retrying a 429 response when Retry-After is absent
-    #[arg(long = "sleep-429", value_name = "SECONDS|MIN-MAX")]
+    #[arg(long = "sleep-429", value_name = "SCHEDULE")]
     sleep_429: Option<String>,
 
     /// HTTP request timeout in seconds
@@ -529,15 +529,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let retry_delay = cli
         .sleep_retries
         .as_deref()
-        .map(DelayRange::parse)
+        .map(RetryDelay::parse)
         .transpose()
-        .map_err(|_| "invalid --sleep-retries: expected 0 to 3600 seconds or MIN-MAX")?;
+        .map_err(|_| "invalid --sleep-retries: expected a duration or capped lin/exp schedule")?;
     let rate_limit_delay = cli
         .sleep_429
         .as_deref()
-        .map(DelayRange::parse)
+        .map(RetryDelay::parse)
         .transpose()
-        .map_err(|_| "invalid --sleep-429: expected 0 to 3600 seconds or MIN-MAX")?;
+        .map_err(|_| "invalid --sleep-429: expected a duration or capped lin/exp schedule")?;
 
     if !cli.http_timeout.is_finite() || cli.http_timeout <= 0.0 {
         return Err("invalid --http-timeout: expected a positive number of seconds".into());

@@ -226,9 +226,12 @@ fn invalid_sleep_values_are_rejected_before_network() {
         ("--sleep-retries=-1", "invalid --sleep-retries"),
         ("--sleep-retries=4000", "invalid --sleep-retries"),
         ("--sleep-retries=NaN", "invalid --sleep-retries"),
+        ("--sleep-retries=exp:0=1", "invalid --sleep-retries"),
+        ("--sleep-retries=lin:0:3601=1", "invalid --sleep-retries"),
         ("--sleep-429=-1", "invalid --sleep-429"),
         ("--sleep-429=4000", "invalid --sleep-429"),
         ("--sleep-429=NaN", "invalid --sleep-429"),
+        ("--sleep-429=exp:NaN=1", "invalid --sleep-429"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args([value, "--simulate", "https://example.org/file.jpg"])
@@ -276,6 +279,50 @@ fn configured_retry_sleep_delays_a_transient_media_retry() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(elapsed >= Duration::from_millis(140), "{elapsed:?}");
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn exponential_retry_sleep_grows_for_each_attempt() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        for attempt in 0..3 {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            let response: &[u8] = if attempt < 2 {
+                b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            } else {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD"
+            };
+            socket.write_all(response).unwrap();
+        }
+    });
+    let dir = destination("retry-delay-exponential");
+    let _ = fs::remove_dir_all(&dir);
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-retries",
+            "exp=0.08",
+            "--retries",
+            "2",
+            "-d",
+            dir.to_str().unwrap(),
+        ])
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(220), "{elapsed:?}");
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
     fs::remove_dir_all(dir).unwrap();
 }

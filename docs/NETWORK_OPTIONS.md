@@ -9,8 +9,8 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--source-address 192.0.2.10`: bind outgoing connections to this client-side IP address. The value must be a valid IP literal.
 - `--option 'downloader.http.headers={"Accept":"image/webp,*/*"}'`: add validated HTTP headers to media download requests. Invalid names and values fail before processing inputs, and error messages do not echo values.
 - `--limit-rate 500k` or `--limit-rate 500k-2M`: pace response-body writes at a fixed or per-download sampled rate. Values accept byte, k, m or g units; this does not yet establish full upstream rate-policy parity.
-- `--sleep-retries 0.5` or `--sleep-retries 0.2-0.8`: replace the default exponential retry pause with a fixed or sampled delay. For a 429 without a positive `Retry-After`, `--sleep-429` and `--sleep-retries` act as lower bounds, so the longer sampled delay is used.
-- `--sleep-429 2` or `--sleep-429 1-3`: set an additional fixed or sampled delay for 429 responses without a positive `Retry-After`. A positive `Retry-After` still takes precedence.
+- `--sleep-retries 0.5`, `0.2-0.8`, `exp=0.5`, or `lin:1:30=0.5`: configure a fixed/ranged retry pause or a capped exponential/linear schedule. For a 429 without a positive `Retry-After`, `--sleep-429` and `--sleep-retries` act as lower bounds, so the longer sampled delay is used.
+- `--sleep-429 2`, `1-3`, or `exp=1`: set a fixed/ranged or scheduled delay for 429 responses without a positive `Retry-After`. A positive `Retry-After` still takes precedence.
 - `--sleep 0.15`: wait this many seconds before each media download. `--sleep 0.1-0.3` samples an inclusive range before each media download. Values must be finite and between 0 and 3600 seconds.
 - `--option extractor.sleep-skip=0.12`: wait after a media file is skipped. The preview supports fixed or ranged duration values and global/category configuration precedence for this option.
 - `--option extractor.sleep-extractor=0.12`: wait before handling each input URL, also accepting the fixed or ranged duration forms.

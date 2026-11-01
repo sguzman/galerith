@@ -1,7 +1,7 @@
 //! Conservative resumable HTTP downloader.
 //! A partial file is never appended without a matching source fingerprint and
 //! an HTTP validator. This is a safe subset of gallery-dl's HTTP semantics.
-use crate::pacing::{DelayRange, RateRange};
+use crate::pacing::{DelayRange, RateRange, RetryDelay};
 use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
@@ -34,9 +34,9 @@ pub struct DownloadOptions {
     /// Additional downloader-only headers from explicit configuration.
     pub headers: HeaderMap,
     /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
-    pub retry_delay: Option<DelayRange>,
+    pub retry_delay: Option<RetryDelay>,
     /// Optional fixed or ranged pause for 429 responses without a positive Retry-After.
-    pub rate_limit_delay: Option<DelayRange>,
+    pub rate_limit_delay: Option<RetryDelay>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -299,10 +299,9 @@ async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Opt
     (size, Some(meta))
 }
 
-async fn delay(attempt: u32, retry_after: Option<Duration>, configured: Option<DelayRange>) {
-    let fallback = configured
-        .map(DelayRange::sample)
-        .unwrap_or_else(|| Duration::from_millis(250 * (1_u64 << attempt.min(5))));
+async fn delay(attempt: u32, retry_after: Option<Duration>, configured: Option<Duration>) {
+    let fallback =
+        configured.unwrap_or_else(|| Duration::from_millis(250 * (1_u64 << attempt.min(5))));
     tokio::time::sleep(retry_after.unwrap_or(fallback)).await;
 }
 
@@ -482,7 +481,12 @@ pub async fn download(
             Ok(response) => response,
             Err(err) if attempt < options.retries => {
                 let _ = err;
-                delay(attempt, None, options.retry_delay).await;
+                delay(
+                    attempt,
+                    None,
+                    options.retry_delay.map(|policy| policy.sample(attempt + 1)),
+                )
+                .await;
                 continue;
             }
             Err(err) => return Err(err.into()),
@@ -498,14 +502,18 @@ pub async fn download(
                 if after.is_none_or(|delay| delay.is_zero()) {
                     let configured_delay = if status == StatusCode::TOO_MANY_REQUESTS {
                         match (options.rate_limit_delay, options.retry_delay) {
-                            (Some(rate_limit), Some(retry)) => Some(DelayRange::from_duration(
-                                rate_limit.sample().max(retry.sample()),
-                            )),
-                            (Some(delay), None) | (None, Some(delay)) => Some(delay),
+                            (Some(rate_limit), Some(retry)) => Some(
+                                rate_limit
+                                    .sample(attempt + 1)
+                                    .max(retry.sample(attempt + 1)),
+                            ),
+                            (Some(delay), None) | (None, Some(delay)) => {
+                                Some(delay.sample(attempt + 1))
+                            }
                             (None, None) => None,
                         }
                     } else {
-                        options.retry_delay
+                        options.retry_delay.map(|policy| policy.sample(attempt + 1))
                     };
                     delay(attempt, None, configured_delay).await;
                 }
@@ -796,7 +804,12 @@ pub async fn download(
                 invalidate_for_mode(&part, &metadata, options.no_part).await?;
             }
             if attempt < options.retries {
-                delay(attempt, None, options.retry_delay).await;
+                delay(
+                    attempt,
+                    None,
+                    options.retry_delay.map(|policy| policy.sample(attempt + 1)),
+                )
+                .await;
                 continue;
             }
             // Keep a validated .part pair for the next invocation.

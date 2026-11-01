@@ -226,14 +226,94 @@ pub struct DelayRange {
     maximum: Duration,
 }
 
-impl DelayRange {
-    pub fn from_duration(duration: Duration) -> Self {
-        Self {
-            minimum: duration,
-            maximum: duration,
-        }
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RetryStrategy {
+    Fixed,
+    Linear { start: f64, maximum: f64 },
+    Exponential { base: f64, start: f64, maximum: f64 },
+}
+
+/// A retry delay that can be fixed, sampled from a range, or scheduled with
+/// the pinned reference's capped linear/exponential forms.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RetryDelay {
+    duration: DelayRange,
+    strategy: RetryStrategy,
+}
+
+impl RetryDelay {
+    pub fn parse(input: &str) -> Result<Self, &'static str> {
+        let Some((schedule, duration)) = input.split_once('=') else {
+            return Ok(Self {
+                duration: DelayRange::parse(input)?,
+                strategy: RetryStrategy::Fixed,
+            });
+        };
+        let duration = DelayRange::parse(duration)?;
+        let mut parts = schedule.split(':');
+        let kind = parts.next().unwrap_or_default();
+        let values = parts.collect::<Vec<_>>();
+        let number = |value: Option<&&str>, default: f64| -> Result<f64, &'static str> {
+            match value {
+                Some(value) if !value.is_empty() => {
+                    let parsed = value.parse::<f64>().map_err(|_| "invalid retry schedule")?;
+                    if !parsed.is_finite() || !(0.0..=MAX_SLEEP_SECONDS).contains(&parsed) {
+                        return Err("invalid retry schedule");
+                    }
+                    Ok(parsed)
+                }
+                _ => Ok(default),
+            }
+        };
+        let strategy = match (kind, values.as_slice()) {
+            ("exp" | "exponential", []) => RetryStrategy::Exponential {
+                base: 2.0,
+                start: 0.0,
+                maximum: MAX_SLEEP_SECONDS,
+            },
+            ("exp" | "exponential", values) if values.len() <= 3 => {
+                let base = number(values.first(), 2.0)?;
+                if base == 0.0 {
+                    return Err("invalid retry schedule");
+                }
+                RetryStrategy::Exponential {
+                    base,
+                    start: number(values.get(1), 0.0)?,
+                    maximum: number(values.get(2), MAX_SLEEP_SECONDS)?,
+                }
+            }
+            ("lin" | "linear", []) => RetryStrategy::Linear {
+                start: 0.0,
+                maximum: MAX_SLEEP_SECONDS,
+            },
+            ("lin" | "linear", values) if values.len() <= 2 => RetryStrategy::Linear {
+                start: number(values.first(), 0.0)?,
+                maximum: number(values.get(1), MAX_SLEEP_SECONDS)?,
+            },
+            _ => return Err("invalid retry schedule"),
+        };
+        Ok(Self { duration, strategy })
     }
 
+    /// `attempt` is one-based, matching the reference retry counter.
+    pub fn sample(self, attempt: u32) -> Duration {
+        let base = self.duration.sample().as_secs_f64();
+        let seconds = match self.strategy {
+            RetryStrategy::Fixed => base,
+            RetryStrategy::Linear { start, maximum } => {
+                (start + base * f64::from(attempt.max(1))).min(maximum)
+            }
+            RetryStrategy::Exponential {
+                base: factor,
+                start,
+                maximum,
+            } => (start + base * factor.powf(f64::from(attempt.saturating_sub(1)))).min(maximum),
+        };
+        Duration::from_secs_f64(seconds.min(MAX_SLEEP_SECONDS))
+    }
+}
+
+impl DelayRange {
     pub fn parse(input: &str) -> Result<Self, &'static str> {
         let (minimum, maximum) = if input.parse::<f64>().is_ok() {
             let value = parse_seconds(input)?;
@@ -364,6 +444,40 @@ mod tests {
     fn rejects_invalid_descending_and_unbounded_values() {
         for value in ["", "NaN", "inf", "-1", "0.3-0.1", "0-3600.1", "0.1-0.2-0.3"] {
             assert!(DelayRange::parse(value).is_err(), "accepted {value:?}");
+        }
+    }
+
+    #[test]
+    fn retry_schedules_follow_capped_linear_and_exponential_attempts() {
+        let exponential = RetryDelay::parse("exp=0.5").unwrap();
+        assert_eq!(exponential.sample(1), Duration::from_millis(500));
+        assert_eq!(exponential.sample(2), Duration::from_secs(1));
+        assert_eq!(exponential.sample(3), Duration::from_secs(2));
+
+        let exponential = RetryDelay::parse("exp:3:1:4=0.5").unwrap();
+        assert_eq!(exponential.sample(1), Duration::from_millis(1500));
+        assert_eq!(exponential.sample(2), Duration::from_millis(2500));
+        assert_eq!(exponential.sample(3), Duration::from_secs(4));
+        assert_eq!(exponential.sample(5), Duration::from_secs(4));
+
+        let linear = RetryDelay::parse("lin:1:3=0.5").unwrap();
+        assert_eq!(linear.sample(1), Duration::from_millis(1500));
+        assert_eq!(linear.sample(2), Duration::from_secs(2));
+        assert_eq!(linear.sample(5), Duration::from_secs(3));
+    }
+
+    #[test]
+    fn retry_schedules_reject_invalid_factors_and_caps() {
+        for value in [
+            "exp:0=1",
+            "exp:NaN=1",
+            "exp:2:0:3601=1",
+            "exp:1:2:3:4=1",
+            "lin:0:Infinity=1",
+            "linear:1:2:3=1",
+            "other=1",
+        ] {
+            assert!(RetryDelay::parse(value).is_err(), "accepted {value:?}");
         }
     }
 
