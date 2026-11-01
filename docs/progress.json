@@ -458,10 +458,11 @@
                 },
                 {
                   "title": "Migration and retry fixtures",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/archive.rs archive::tests::failed_archive_import_rolls_back_all_native_rows: malformed synthetic reference rolls back with zero native rows; after repair, reopening imports the supported key and a repeated retry is idempotent; source remains unchanged during import; focused local Rust test passed"
                 }
               ],
-              "progress": 60
+              "progress": 80
             },
             {
               "id": "T303",

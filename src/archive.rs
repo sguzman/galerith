@@ -6873,12 +6873,11 @@ mod tests {
         foreign
             .execute_batch(
                 "CREATE TABLE archive(entry TEXT PRIMARY KEY);
-                 INSERT INTO archive(entry) VALUES ('directlinkexample.org/valid.jpg');
+                 INSERT INTO archive(entry) VALUES ('directlinkexample.org//valid.jpg');
                  INSERT INTO archive(entry) VALUES (X'FF');",
             )
             .unwrap();
         drop(foreign);
-        let initial = fs::read(&source_path).unwrap();
         let native = Archive::open_with_reference(&native_path, Some(&source_path)).unwrap();
         assert!(native.import_reference().is_err());
         let count: i64 = native
@@ -6889,7 +6888,26 @@ mod tests {
             .unwrap();
         assert_eq!(count, 0, "failed imports must be atomic");
         drop(native);
-        assert_eq!(fs::read(&source_path).unwrap(), initial);
+        // Repair the synthetic reference after its transient malformed row,
+        // then reopen and retry. A failed transaction must not leave partial
+        // rows that interfere with a later migration attempt.
+        let repaired = Connection::open(&source_path).unwrap();
+        assert_eq!(
+            repaired
+                .execute("DELETE FROM archive WHERE typeof(entry) = 'blob'", [])
+                .unwrap(),
+            1
+        );
+        drop(repaired);
+        let repaired_bytes = fs::read(&source_path).unwrap();
+        let retry = Archive::open_with_reference(&native_path, Some(&source_path)).unwrap();
+        assert_eq!(retry.import_reference().unwrap(), (1, 1));
+        assert_eq!(retry.import_reference().unwrap(), (1, 0));
+        let media =
+            extract_direct_media("https://example.org/valid.jpg?signature=private").unwrap();
+        assert!(retry.contains(&media).unwrap());
+        drop(retry);
+        assert_eq!(fs::read(&source_path).unwrap(), repaired_bytes);
         fs::remove_dir_all(root).unwrap();
     }
 
