@@ -9,7 +9,10 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tokio::fs;
+use tokio::{
+    fs::{self, OpenOptions},
+    io::AsyncWriteExt,
+};
 
 fn sidecar_path(target: &Path) -> Result<PathBuf, io::Error> {
     let mut filename = OsString::from(
@@ -19,6 +22,27 @@ fn sidecar_path(target: &Path) -> Result<PathBuf, io::Error> {
     );
     filename.push(".json");
     Ok(target.with_file_name(filename))
+}
+
+async fn write_atomic(output: &Path, bytes: &[u8], tmp: &Path) -> io::Result<()> {
+    // create_new prevents following a pre-existing symlink or truncating an
+    // unrelated file if a stale or attacker-planted temporary path collides.
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(tmp)
+        .await?;
+    if let Err(error) = file.write_all(bytes).await {
+        drop(file);
+        let _ = fs::remove_file(tmp).await;
+        return Err(error);
+    }
+    drop(file);
+    if let Err(error) = fs::rename(tmp, output).await {
+        let _ = fs::remove_file(tmp).await;
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// Write a JSON sidecar atomically after the media path exists.
@@ -43,11 +67,7 @@ pub async fn write_metadata(
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
     tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
     let tmp = output.with_file_name(tmp_name);
-    fs::write(&tmp, bytes).await?;
-    if let Err(error) = fs::rename(&tmp, &output).await {
-        let _ = fs::remove_file(&tmp).await;
-        return Err(error.into());
-    }
+    write_atomic(&output, &bytes, &tmp).await?;
     Ok(output)
 }
 
@@ -95,6 +115,35 @@ mod tests {
         let actual = fs::read_to_string(sidecar).await.unwrap();
         let expected = include_str!("../tests/fixtures/metadata/directlink.json").trim_end();
         assert_eq!(actual, expected);
+
+        fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn atomic_sidecar_temp_creation_does_not_follow_existing_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "galerith-metadata-symlink-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root).await;
+        fs::create_dir_all(&root).await.unwrap();
+        let output = root.join("image.jpg.json");
+        let protected = root.join("protected");
+        let tmp = root.join("image.jpg.json.tmp.planted");
+        fs::write(&protected, b"preserve me").await.unwrap();
+        symlink(&protected, &tmp).unwrap();
+
+        assert!(write_atomic(&output, b"replacement", &tmp).await.is_err());
+        assert_eq!(fs::read(&protected).await.unwrap(), b"preserve me");
+        assert!(!output.exists());
+        assert!(fs::symlink_metadata(&tmp)
+            .await
+            .unwrap()
+            .file_type()
+            .is_symlink());
 
         fs::remove_dir_all(root).await.unwrap();
     }
