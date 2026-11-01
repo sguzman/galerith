@@ -2,7 +2,13 @@
 //! extractor. Upstream Python is executed ONLY by the isolated CI oracle job;
 //! Galerith and its runtime remain Rust-native.
 use serde_json::{json, Value};
-use std::{env, path::Path, process::Command};
+use std::{
+    env,
+    io::{Read, Write},
+    net::TcpListener,
+    path::Path,
+    process::Command,
+};
 
 const PINNED: &str = "7f226f74108501c8ac3120548370f68f19e6f9b3";
 const URLS: &[&str] = &[
@@ -57,6 +63,147 @@ fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONDONTWRITEBYTECODE", "1");
     serde_json::from_str(&spawn(cmd, "pinned gallery-dl")).expect("upstream typed-message JSON")
+}
+
+fn serve_retry_sequence(responses: [&'static [u8]; 4]) -> (String, std::thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let url = format!("http://{}/asset.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        for response in responses {
+            let (mut socket, _) = loop {
+                match listener.accept() {
+                    Ok(connection) => break connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "retry fixture timed out"
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("accept retry fixture connection: {error}"),
+                }
+            };
+            socket
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut request = [0_u8; 2048];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            socket.write_all(response).unwrap();
+        }
+    });
+    (url, server)
+}
+
+fn run_input_retry_case(
+    root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    responses: [&'static [u8]; 4],
+    expected_success: bool,
+) {
+    let (url, server) = serve_retry_sequence(responses);
+    let reference_input = root.join(format!("{label}-reference.txt"));
+    let native_input = root.join(format!("{label}-native.txt"));
+    let reference_output = root.join(format!("{label}-reference-output"));
+    let native_output = root.join(format!("{label}-native-output"));
+    std::fs::create_dir_all(&reference_output).unwrap();
+    std::fs::create_dir_all(&native_output).unwrap();
+    std::fs::write(&reference_input, format!("{url}\n")).unwrap();
+    std::fs::write(&native_input, format!("{url}\n")).unwrap();
+
+    let mut reference = Command::new("python3");
+    reference.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "--quiet",
+        "--sleep-retries",
+        "0",
+        "-R",
+        "1",
+        "-I",
+        reference_input.to_str().unwrap(),
+        "-d",
+        reference_output.to_str().unwrap(),
+    ]);
+    reference.env("PYTHONPATH", pinned_root);
+    reference.env("PYTHONNOUSERSITE", "1");
+    reference.env("PYTHONDONTWRITEBYTECODE", "1");
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        reference.env_remove(key);
+    }
+    let reference_result = reference.output().expect("launch pinned CLI");
+    let mut native = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    native.args([
+        "--quiet",
+        "--sleep-retries",
+        "0",
+        "--retries",
+        "1",
+        "--input-file-comment",
+        native_input.to_str().unwrap(),
+        "-d",
+        native_output.to_str().unwrap(),
+    ]);
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        native.env_remove(key);
+    }
+    let native_result = native.output().unwrap();
+    server.join().unwrap();
+
+    assert_eq!(
+        reference_result.status.success(),
+        expected_success,
+        "{label}: pinned exit status"
+    );
+    assert_eq!(
+        native_result.status.success(),
+        expected_success,
+        "{label}: native exit status: {}",
+        String::from_utf8_lossy(&native_result.stderr)
+    );
+    let expected_input = if expected_success {
+        format!("# {url}\n")
+    } else {
+        format!("{url}\n")
+    };
+    assert_eq!(
+        std::fs::read_to_string(&reference_input).unwrap(),
+        expected_input,
+        "{label}: pinned input-file mutation"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&native_input).unwrap(),
+        expected_input,
+        "{label}: native input-file mutation"
+    );
+    if expected_success {
+        assert_eq!(
+            std::fs::read(reference_output.join("asset.jpg")).unwrap(),
+            b"JPEG"
+        );
+        assert_eq!(
+            std::fs::read(native_output.join("asset.jpg")).unwrap(),
+            b"JPEG"
+        );
+    }
 }
 
 fn same_field(native: &Value, reference: &Value, field: &str, label: &str) {
@@ -283,6 +430,43 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         )
         .expect("write pinned reference comparison evidence");
     }
+}
+
+#[test]
+fn pinned_cli_and_native_match_input_mutation_after_retry_success_and_exhaustion() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let root = Path::new(&root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let case_root = env::temp_dir().join(format!(
+        "galerith-pinned-input-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&case_root);
+    std::fs::create_dir_all(&case_root).unwrap();
+    const RETRYABLE: &[u8] =
+        b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    const SUCCESS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG";
+    run_input_retry_case(
+        &case_root,
+        root,
+        "retry-success",
+        [RETRYABLE, SUCCESS, RETRYABLE, SUCCESS],
+        true,
+    );
+    run_input_retry_case(
+        &case_root,
+        root,
+        "retry-exhausted",
+        [RETRYABLE, RETRYABLE, RETRYABLE, RETRYABLE],
+        false,
+    );
+    std::fs::remove_dir_all(case_root).unwrap();
 }
 
 #[test]
