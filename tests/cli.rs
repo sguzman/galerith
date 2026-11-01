@@ -1,4 +1,7 @@
-use std::process::Command;
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
 
 fn run(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_galerith"))
@@ -23,6 +26,33 @@ fn url_extraction_is_offline() {
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
         "https://example.org/photo.png?size=large"
+    );
+}
+
+#[test]
+fn input_file_stdin_ignores_blank_and_comment_lines() {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--input-file", "-", "--get-urls"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"\n# ignore this\nhttps://example.org/a.jpg\nhttps://example.org/b.jpg\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "https://example.org/a.jpg\nhttps://example.org/b.jpg\n"
     );
 }
 

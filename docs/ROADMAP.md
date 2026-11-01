@@ -35,7 +35,7 @@
   - [ ] Reach complete upstream argument parity
 - 📥 **T102** URL inputs and input-file semantics — `█████░░░░░ 50%`
   - [x] Accept arguments and URL files — src/main.rs
-  - [x] Support stdin — src/main.rs
+  - [x] Support stdin — src/main.rs; tests/cli.rs input_file_stdin_ignores_blank_and_comment_lines; focused local CLI test passed
   - [ ] Match input-file mutation/retry behavior
   - [ ] Differential CLI acceptance fixtures
 - 🖨️ **T103** Output, simulation and extraction flags — `█████░░░░░ 50%`

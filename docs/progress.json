@@ -153,7 +153,7 @@
                 {
                   "title": "Support stdin",
                   "passed": true,
-                  "evidence": "src/main.rs"
+                  "evidence": "src/main.rs; tests/cli.rs input_file_stdin_ignores_blank_and_comment_lines; focused local CLI test passed"
                 },
                 {
                   "title": "Match input-file mutation/retry behavior",
