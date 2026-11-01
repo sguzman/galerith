@@ -6,6 +6,7 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--proxy http://127.0.0.1:8080`: route HTTP(S) traffic through the supplied proxy URL. The CLI handles malformed proxy URLs with a generic error rather than printing the supplied credentials.
 - `--http-timeout 30` or `--http-timeout 0.5`: client timeout, expressed as a positive finite number of seconds.
 - `-o downloader.http.timeout=0.5`: override the timeout for media transfers only. An explicit `--http-timeout` or global `-o timeout=...` takes precedence; absent all three, the shared client keeps its 30-second default.
+- `-o downloader.http.verify=false`: disable TLS certificate verification for media transfers only. This weakens HTTPS protection; the shared extractor client continues to verify certificates unless `--no-check-certificate` is supplied.
 - `--force-ipv4` or `--force-ipv6`: bind outgoing connections to the selected address family. These options conflict with each other and with `--source-address`.
 - `--source-address 192.0.2.10`: bind outgoing connections to this client-side IP address. The value must be a valid IP literal.
 - `--option 'downloader.http.headers={"Accept":"image/webp,*/*"}'`: add validated HTTP headers to media download requests. Invalid names and values fail before processing inputs, and error messages do not echo values.

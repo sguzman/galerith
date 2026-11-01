@@ -194,7 +194,7 @@ fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicit
             "-quiet",
             "-WWW",
             "-naccept",
-            "3",
+            "4",
             "-accept",
             &address.to_string(),
             "-cert",
@@ -230,8 +230,30 @@ fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicit
         "self-signed TLS unexpectedly passed verification"
     );
 
+    let configured = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            "downloader.http.verify=false",
+            "--retries",
+            "0",
+            "-d",
+            download_root.to_str().unwrap(),
+        ])
+        .arg(&url)
+        .output()
+        .unwrap();
+    assert!(
+        configured.status.success(),
+        "{}",
+        String::from_utf8_lossy(&configured.stderr)
+    );
+    assert_eq!(fs::read(download_root.join("asset.jpg")).unwrap(), b"TLS!");
+    fs::remove_file(download_root.join("asset.jpg")).unwrap();
+
     let unverified = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
+            "-o",
+            "downloader.http.verify=true",
             "--no-check-certificate",
             "--retries",
             "0",

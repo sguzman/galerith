@@ -54,6 +54,17 @@ impl Config {
         parse_timeout(self.root.pointer("/downloader/http/timeout"))
     }
 
+    /// Optional media-downloader TLS certificate verification setting.
+    pub fn downloader_http_verify(&self) -> Result<Option<bool>, &'static str> {
+        let Some(value) = self.root.pointer("/downloader/http/verify") else {
+            return Ok(None);
+        };
+        value
+            .as_bool()
+            .map(Some)
+            .ok_or("downloader.http.verify must be a boolean")
+    }
+
     /// Optional bounded retry count for the media downloader.
     pub fn downloader_http_retries(&self) -> Result<Option<u32>, &'static str> {
         let Some(value) = self
@@ -302,6 +313,20 @@ mod tests {
         );
         config.option("downloader.http.timeout=0").unwrap();
         assert!(config.downloader_http_timeout().is_err());
+    }
+
+    #[test]
+    fn downloader_tls_verification_is_optional_and_boolean() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_verify().unwrap(), None);
+        config.option("downloader.http.verify=false").unwrap();
+        assert_eq!(config.downloader_http_verify().unwrap(), Some(false));
+        config.option("downloader.http.verify=true").unwrap();
+        assert_eq!(config.downloader_http_verify().unwrap(), Some(true));
+        config
+            .option("downloader.http.verify=\"/tmp/cert.pem\"")
+            .unwrap();
+        assert!(config.downloader_http_verify().is_err());
     }
 
     #[test]

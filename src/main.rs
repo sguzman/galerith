@@ -21,6 +21,7 @@ use std::{
     error::Error,
     io::{self, Read},
     path::PathBuf,
+    sync::Arc,
     time::Duration,
 };
 
@@ -431,6 +432,43 @@ async fn main() {
     }
 }
 
+#[derive(Clone, Copy)]
+struct HttpClientOptions<'a> {
+    timeout: Duration,
+    no_check_certificate: bool,
+    user_agent: &'a str,
+    cookies: Option<&'a Arc<reqwest::cookie::Jar>>,
+    proxy_url: Option<&'a str>,
+    source_address: Option<std::net::IpAddr>,
+    force_ipv4: bool,
+    force_ipv6: bool,
+}
+
+fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, &'static str> {
+    let mut builder = reqwest::Client::builder()
+        .timeout(options.timeout)
+        .danger_accept_invalid_certs(options.no_check_certificate)
+        .user_agent(options.user_agent);
+    if let Some(jar) = options.cookies {
+        builder = builder.cookie_provider(Arc::clone(jar));
+    }
+    if let Some(proxy_url) = options.proxy_url {
+        // Never include proxy credentials in diagnostic output.
+        let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
+        builder = builder.proxy(proxy);
+    }
+    if let Some(address) = options.source_address {
+        builder = builder.local_address(address);
+    } else if options.force_ipv4 {
+        builder = builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    } else if options.force_ipv6 {
+        builder = builder.local_address(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
+    }
+    builder
+        .build()
+        .map_err(|_| "invalid HTTP client configuration")
+}
+
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Clap's presence constraints are not a substitute for validating these
     // typed-job selectors. Never silently ignore them in inspection mode.
@@ -595,36 +633,34 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .or(downloader_http_timeout);
 
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
-    let mut client_builder = reqwest::Client::builder();
-    if let Some(jar) = cookies {
-        client_builder = client_builder.cookie_provider(jar);
-    }
-    if let Some(ref proxy_url) = cli.proxy {
-        // Never include proxy credentials in diagnostic output.
-        let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
-        client_builder = client_builder.proxy(proxy);
-    }
-    if let Some(address) = cli.source_address {
-        client_builder = client_builder.local_address(address);
-    } else if cli.force_ipv4 {
-        client_builder =
-            client_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
-    } else if cli.force_ipv6 {
-        client_builder =
-            client_builder.local_address(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
-    }
     let user_agent = cli.user_agent.unwrap_or_else(|| {
         format!(
             "Galerith/{} (+https://github.com/sguzman/galerith)",
             env!("CARGO_PKG_VERSION")
         )
     });
-    let client = client_builder
-        .timeout(http_timeout)
-        .danger_accept_invalid_certs(cli.no_check_certificate)
-        .user_agent(user_agent)
-        .build()
-        .map_err(|_| "invalid HTTP client configuration")?;
+    let downloader_http_verify = config
+        .downloader_http_verify()
+        .map_err(std::io::Error::other)?;
+    let client_options = HttpClientOptions {
+        timeout: http_timeout,
+        no_check_certificate: cli.no_check_certificate,
+        user_agent: &user_agent,
+        cookies: cookies.as_ref(),
+        proxy_url: cli.proxy.as_deref(),
+        source_address: cli.source_address,
+        force_ipv4: cli.force_ipv4,
+        force_ipv6: cli.force_ipv6,
+    };
+    let client = build_http_client(client_options)?;
+    let media_client = if !cli.no_check_certificate && downloader_http_verify == Some(false) {
+        build_http_client(HttpClientOptions {
+            no_check_certificate: true,
+            ..client_options
+        })?
+    } else {
+        client.clone()
+    };
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
             config
@@ -888,7 +924,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 media_options.request_delay = config
                     .duration(item.extractor, "sleep-request")
                     .map_err(std::io::Error::other)?;
-                match download(&client, &item, &media_options).await {
+                match download(&media_client, &item, &media_options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
