@@ -156,6 +156,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
     };
     let expected = match mime.as_str() {
         "image/jpeg" => Some(&["jpg", "jpeg", "jpe"][..]),
+        "image/apng" => Some(&["apng", "png"][..]),
         "image/png" => Some(&["png"][..]),
         "image/gif" => Some(&["gif"][..]),
         "image/webp" => Some(&["webp"][..]),
@@ -199,9 +200,9 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .rsplit_once('.')
         .map(|(_, ext)| ext.to_ascii_lowercase());
     let binary_extensions = [
-        "jpg", "jpeg", "jpe", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl", "heic",
-        "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "m4v", "mp3", "wav", "flac", "ogg",
-        "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "gz", "xz", "swf",
+        "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
+        "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "m4v", "mp3", "wav", "flac",
+        "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "gz", "xz", "swf",
     ];
     if !extension
         .as_deref()
@@ -907,6 +908,7 @@ mod tests {
 
         for (filename, mime) in [
             ("cover.jpeg", "image/jpeg"),
+            ("animation.apng", "image/apng"),
             ("poster.tiff", "image/tiff"),
             ("raw.heic", "image/heic"),
             ("raw.heif", "image/heif"),
