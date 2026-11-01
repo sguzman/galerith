@@ -909,6 +909,7 @@ mod tests {
             ("cover.jpeg", "image/jpeg"),
             ("poster.tiff", "image/tiff"),
             ("raw.heic", "image/heic"),
+            ("raw.heif", "image/heif"),
             ("design.psd", "image/vnd.adobe.photoshop"),
             ("sound.mp3", "audio/mpeg"),
             ("clip.m4v", "video/mp4"),

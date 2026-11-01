@@ -91,6 +91,37 @@ async fn known_content_type_does_not_reject_extensionless_custom_output() {
 }
 
 #[tokio::test]
+async fn direct_heif_media_matches_its_response_mime() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/heif\r\nContent-Length: 4\r\nConnection: close\r\n\r\nHEIF")
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("heif");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/photo.heif")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    assert_eq!(
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dir.join("photo.heif"))
+    );
+    assert_eq!(fs::read(dir.join("photo.heif")).unwrap(), b"HEIF");
+    server.await.unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
 async fn retries_transient_server_errors() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
