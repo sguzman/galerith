@@ -93,14 +93,26 @@ fn proxy_from_config_routes_http_downloads() {
     });
     let dir = destination("proxy-config");
     let _ = fs::remove_dir_all(&dir);
-    let proxy_option = format!(
+    let unused_proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    let unused_proxy_port = unused_proxy.local_addr().unwrap().port();
+    drop(unused_proxy);
+    let global_proxy_option = format!(
         "proxy={}",
-        serde_json::to_string(&format!("127.0.0.1:{port}")).unwrap()
+        serde_json::to_string(&format!("127.0.0.1:{unused_proxy_port}")).unwrap()
+    );
+    let media_proxy_option = format!(
+        "downloader.http.proxy={}",
+        serde_json::to_string(&serde_json::json!({
+            "http": format!("127.0.0.1:{port}")
+        }))
+        .unwrap()
     );
     let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
     command.args([
         "-o",
-        &proxy_option,
+        &global_proxy_option,
+        "-o",
+        &media_proxy_option,
         "-d",
         dir.to_str().unwrap(),
         "http://example.invalid/asset.jpg",

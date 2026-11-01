@@ -74,30 +74,21 @@ impl Config {
 
     /// Optional shared proxy map for extractor and media HTTP clients.
     pub fn http_proxy_settings(&self) -> Result<Option<HttpProxySettings>, &'static str> {
-        let Some(value) = self.root.get("proxy") else {
-            return Ok(None);
-        };
-        if let Some(proxy) = value.as_str() {
-            let proxy = normalize_proxy_url(proxy);
-            return Ok((!proxy.is_empty()).then(|| HttpProxySettings {
-                http: Some(proxy.clone()),
-                https: Some(proxy),
-            }));
-        }
-        let object = value
-            .as_object()
-            .ok_or("proxy must be a URL string or an object with http/https URLs")?;
-        let http = object
-            .get("http")
-            .map(|value| value.as_str().ok_or("proxy.http must be a URL string"))
-            .transpose()?
-            .map(normalize_proxy_url);
-        let https = object
-            .get("https")
-            .map(|value| value.as_str().ok_or("proxy.https must be a URL string"))
-            .transpose()?
-            .map(normalize_proxy_url);
-        Ok((http.is_some() || https.is_some()).then_some(HttpProxySettings { http, https }))
+        self.root
+            .get("proxy")
+            .map(parse_proxy_settings)
+            .transpose()
+            .map(Option::flatten)
+    }
+
+    /// Optional downloader proxy setting; an explicitly empty value clears the shared proxy.
+    pub fn downloader_http_proxy_settings(
+        &self,
+    ) -> Result<Option<Option<HttpProxySettings>>, &'static str> {
+        self.root
+            .pointer("/downloader/http/proxy")
+            .map(parse_proxy_settings)
+            .transpose()
     }
 
     /// Optional bounded retry count for the media downloader.
@@ -292,6 +283,33 @@ fn normalize_proxy_url(proxy: &str) -> String {
     }
 }
 
+fn parse_proxy_settings(value: &Value) -> Result<Option<HttpProxySettings>, &'static str> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    if let Some(proxy) = value.as_str() {
+        let proxy = normalize_proxy_url(proxy);
+        return Ok((!proxy.is_empty()).then(|| HttpProxySettings {
+            http: Some(proxy.clone()),
+            https: Some(proxy),
+        }));
+    }
+    let object = value
+        .as_object()
+        .ok_or("proxy must be a URL string or an object with http/https URLs")?;
+    let http = object
+        .get("http")
+        .map(|value| value.as_str().ok_or("proxy.http must be a URL string"))
+        .transpose()?
+        .map(normalize_proxy_url);
+    let https = object
+        .get("https")
+        .map(|value| value.as_str().ok_or("proxy.https must be a URL string"))
+        .transpose()?
+        .map(normalize_proxy_url);
+    Ok((http.is_some() || https.is_some()).then_some(HttpProxySettings { http, https }))
+}
+
 fn parse_timeout(value: Option<&Value>) -> Result<Option<Duration>, &'static str> {
     let Some(value) = value else {
         return Ok(None);
@@ -428,6 +446,20 @@ mod tests {
                 https: Some("http://proxy.example:8443".into()),
             })
         );
+        config
+            .option(r#"downloader.http.proxy={"http":"media-proxy:8000"}"#)
+            .unwrap();
+        assert_eq!(
+            config.downloader_http_proxy_settings().unwrap(),
+            Some(Some(HttpProxySettings {
+                http: Some("http://media-proxy:8000".into()),
+                https: None,
+            }))
+        );
+        config.option("downloader.http.proxy={}").unwrap();
+        assert_eq!(config.downloader_http_proxy_settings().unwrap(), Some(None));
+        config.option("downloader.http.proxy=null").unwrap();
+        assert_eq!(config.downloader_http_proxy_settings().unwrap(), Some(None));
         config.option("proxy=42").unwrap();
         assert!(config.http_proxy_settings().is_err());
     }

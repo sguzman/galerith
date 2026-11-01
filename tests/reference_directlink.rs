@@ -146,6 +146,10 @@ fn run_user_agent_fixture(
     std::fs::create_dir_all(&output).unwrap();
     let url = "http://example.invalid/asset.jpg";
     let proxy = format!("http://user:secret@{address}");
+    let media_proxy_option = format!(
+        "downloader.http.proxy={}",
+        serde_json::to_string(&proxy).unwrap()
+    );
     let user_agent = "galerith-reference-probe/7";
     let mut command = if reference {
         let mut command = Command::new("python3");
@@ -159,8 +163,8 @@ fn run_user_agent_fixture(
             user_agent,
             "-o",
             r#"downloader.http.headers={"X-Preview":"header"}"#,
-            "--proxy",
-            &proxy,
+            "-o",
+            &media_proxy_option,
             "-R",
             "0",
             "-d",
@@ -182,8 +186,8 @@ fn run_user_agent_fixture(
             user_agent,
             "-o",
             r#"downloader.http.headers={"X-Preview":"header"}"#,
-            "--proxy",
-            &proxy,
+            "-o",
+            &media_proxy_option,
             "--retries",
             "0",
             "-d",

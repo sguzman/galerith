@@ -661,11 +661,16 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .proxy
         .as_deref()
         .and_then(galerith::config::HttpProxySettings::all);
-    let proxy_settings = if cli.proxy.is_some() {
-        cli_proxy.as_ref()
+    let shared_proxy_settings = if cli.proxy.is_some() {
+        cli_proxy
     } else {
-        config_proxy.as_ref()
+        config_proxy
     };
+    let downloader_proxy_settings = config
+        .downloader_http_proxy_settings()
+        .map_err(std::io::Error::other)?;
+    let media_proxy_settings =
+        downloader_proxy_settings.unwrap_or_else(|| shared_proxy_settings.clone());
     let downloader_http_verify = config
         .downloader_http_verify()
         .map_err(std::io::Error::other)?;
@@ -688,26 +693,29 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         root_certificates: None,
         user_agent: &user_agent,
         cookies: cookies.as_ref(),
-        proxy_settings,
+        proxy_settings: shared_proxy_settings.as_ref(),
         source_address: cli.source_address,
         force_ipv4: cli.force_ipv4,
         force_ipv6: cli.force_ipv6,
     };
     let client = build_http_client(client_options)?;
-    let media_client = match &downloader_http_verify {
-        Some(galerith::config::DownloaderHttpVerify::Disabled) if !cli.no_check_certificate => {
-            build_http_client(HttpClientOptions {
-                no_check_certificate: true,
-                ..client_options
-            })?
-        }
-        Some(galerith::config::DownloaderHttpVerify::CaFile(_)) if !cli.no_check_certificate => {
-            build_http_client(HttpClientOptions {
-                root_certificates: media_root_certificates.as_deref(),
-                ..client_options
-            })?
-        }
-        _ => client.clone(),
+    let media_no_check_certificate = cli.no_check_certificate
+        || matches!(
+            downloader_http_verify,
+            Some(galerith::config::DownloaderHttpVerify::Disabled)
+        );
+    let media_client = if media_proxy_settings == shared_proxy_settings
+        && media_no_check_certificate == cli.no_check_certificate
+        && media_root_certificates.is_none()
+    {
+        client.clone()
+    } else {
+        build_http_client(HttpClientOptions {
+            no_check_certificate: media_no_check_certificate,
+            root_certificates: media_root_certificates.as_deref(),
+            proxy_settings: media_proxy_settings.as_ref(),
+            ..client_options
+        })?
     };
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
