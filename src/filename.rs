@@ -312,6 +312,32 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     if spec.starts_with('X') || spec.starts_with('L') {
         return Err(FormatError("invalid filename length formatter".into()));
     }
+    if let Some(operation) = spec.strip_prefix('A') {
+        let operation = operation
+            .strip_suffix('/')
+            .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
+        let (operator, operand) = operation
+            .split_at_checked(1)
+            .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
+        let left = value
+            .parse::<i128>()
+            .map_err(|_| FormatError("filename arithmetic requires an integer field".into()))?;
+        let right = operand
+            .parse::<i128>()
+            .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+        let result = match operator {
+            "+" => left.checked_add(right),
+            "-" => left.checked_sub(right),
+            "*" => left.checked_mul(right),
+            _ => {
+                return Err(FormatError(
+                    "unsupported filename arithmetic operator".into(),
+                ))
+            }
+        }
+        .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
+        return Ok(result.to_string());
+    }
     // Small compatible subset: numeric padding, including Python's :>03 form.
     if !matches!(base_name, "id" | "post_id") {
         return Err(FormatError(format!(
@@ -503,6 +529,20 @@ mod tests {
         assert!(render("{post_id}", &item).is_err());
         assert!(render("{filename||category}", &item).is_err());
         assert!(render("{filename|unsupported}", &item).is_err());
+    }
+
+    #[test]
+    fn integer_arithmetic_specs_use_checked_operations() {
+        let item = sample();
+        assert_eq!(render("{id:A+8/}", &item).unwrap(), "50");
+        assert_eq!(render("{id:A-2/}", &item).unwrap(), "40");
+        assert_eq!(render("{id:A*3/}", &item).unwrap(), "126");
+        assert!(render("{filename:A+1/}", &item).is_err());
+        assert!(render("{id:A/}", &item).is_err());
+        assert!(render("{id:A/2/}", &item).is_err());
+        let mut large = item;
+        large.filename = i128::MAX.to_string();
+        assert!(render("{filename:A*4/}", &large).is_err());
     }
 
     #[test]
