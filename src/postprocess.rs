@@ -77,4 +77,25 @@ mod tests {
         assert_eq!(entries, 2);
         fs::remove_dir_all(root).await.unwrap();
     }
+
+    #[tokio::test]
+    async fn redacted_sidecar_matches_stable_synthetic_golden() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-metadata-golden-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root).await;
+        fs::create_dir_all(&root).await.unwrap();
+        let item = extract_direct_media(
+            "https://user:private@example.org/picture.jpg?sig=synthetic-secret#image",
+        )
+        .unwrap();
+        let target = root.join("picture.jpg");
+        fs::write(&target, b"synthetic image").await.unwrap();
+
+        let sidecar = write_metadata(&target, &item).await.unwrap();
+        let actual = fs::read_to_string(sidecar).await.unwrap();
+        let expected = include_str!("../tests/fixtures/metadata/directlink.json").trim_end();
+        assert_eq!(actual, expected);
+
+        fs::remove_dir_all(root).await.unwrap();
+    }
 }

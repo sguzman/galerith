@@ -480,7 +480,8 @@
                 },
                 {
                   "title": "Golden sidecar comparison tests",
-                  "passed": false
+              "passed": true,
+              "evidence": "src/postprocess.rs redacted_sidecar_matches_stable_synthetic_golden compares exact serialized bytes with tests/fixtures/metadata/directlink.json; offline unit test passed"
                 },
                 {
                   "title": "Verify atomic per-media redacted JSON metadata preview",
@@ -488,7 +489,7 @@
                   "evidence": "src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 40
+      "progress": 60
             },
             {
               "id": "T304",

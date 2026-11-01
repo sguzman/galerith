@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 59%`
+## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 61%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████░░░░ 63%`
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
 
-### 🗃️ P3 — Paths, archive and persistence — `██████░░░░ 55%`
+### 🗃️ P3 — Paths, archive and persistence — `██████░░░░ 59%`
 
 - 🗂️ **T301** Safe names and format templates — `████░░░░░░ 40%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -99,11 +99,11 @@
   - [ ] Archive ID semantics across extractors
   - [x] Cache expiry/locking/recovery — src/cache.rs TTL=0/nonzero, stale/invalid-row recovery, redirected-response nonpersistence, advisory-lock single-flight and killed-worker recovery; src/extractor/http_json.rs real reader integration; tests/cache_cli.rs cache isolation; full Linux CI 40243416911 and 40243609804
   - [ ] Migration and retry fixtures
-- 📋 **T303** Metadata sidecars and extension handling — `████░░░░░░ 40%`
+- 📋 **T303** Metadata sidecars and extension handling — `██████░░░░ 60%`
   - [x] Metadata model for extractors — src/lib.rs
   - [ ] Sidecar JSON/text/original metadata
   - [ ] Media extensions and MIME matching
-  - [ ] Golden sidecar comparison tests
+  - [x] Golden sidecar comparison tests — src/postprocess.rs redacted_sidecar_matches_stable_synthetic_golden compares exact serialized bytes with tests/fixtures/metadata/directlink.json; offline unit test passed
   - [x] Verify atomic per-media redacted JSON metadata preview — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418
 - 🗄️ **T304** Download history and collision semantics — `████████░░ 75%`
   - [x] Existing files skip by default — src/download.rs
