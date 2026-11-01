@@ -259,6 +259,10 @@ struct Cli {
     )]
     source_address: Option<std::net::IpAddr>,
 
+    /// Disable TLS certificate validation (unsafe; use only with trusted targets)
+    #[arg(long = "no-check-certificate")]
+    no_check_certificate: bool,
+
     /// Netscape cookie jar for authenticated media and API requests
     #[arg(short = 'C', long = "cookies", value_name = "FILE")]
     cookies: Option<PathBuf>,
@@ -558,6 +562,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     });
     let client = client_builder
         .timeout(http_timeout)
+        .danger_accept_invalid_certs(cli.no_check_certificate)
         .user_agent(user_agent)
         .build()
         .map_err(|_| "invalid HTTP client configuration")?;

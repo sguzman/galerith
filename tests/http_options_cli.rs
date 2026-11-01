@@ -2,7 +2,7 @@
 use std::{
     fs,
     io::{Read, Write},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     path::PathBuf,
     process::Command,
 };
@@ -169,6 +169,87 @@ fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
         "proxy endpoint leaked into diagnostics"
     );
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicitly() {
+    let root = destination("tls-certificate");
+    let _ = fs::remove_dir_all(&root);
+    let server_root = root.join("server");
+    let download_root = root.join("downloads");
+    fs::create_dir_all(&server_root).unwrap();
+    fs::create_dir_all(&download_root).unwrap();
+    fs::write(server_root.join("asset.jpg"), b"TLS!").unwrap();
+    let cert = root.join("server-cert.pem");
+    let key = root.join("server-key.pem");
+    fs::write(&cert, include_str!("fixtures/tls/server-cert.pem")).unwrap();
+    fs::write(&key, include_str!("fixtures/tls/server-key.pem")).unwrap();
+
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = reservation.local_addr().unwrap();
+    drop(reservation);
+    let mut server = Command::new("openssl")
+        .args([
+            "s_server",
+            "-quiet",
+            "-WWW",
+            "-naccept",
+            "3",
+            "-accept",
+            &address.to_string(),
+            "-cert",
+            cert.to_str().unwrap(),
+            "-key",
+            key.to_str().unwrap(),
+        ])
+        .current_dir(&server_root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("openssl is required for the local TLS fixture");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if TcpStream::connect(address).is_ok() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "TLS fixture did not start"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    let url = format!("https://{address}/asset.jpg");
+    let verified = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--retries", "0", "-d", download_root.to_str().unwrap()])
+        .arg(&url)
+        .output()
+        .unwrap();
+    assert!(
+        !verified.status.success(),
+        "self-signed TLS unexpectedly passed verification"
+    );
+
+    let unverified = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--no-check-certificate",
+            "--retries",
+            "0",
+            "-d",
+            download_root.to_str().unwrap(),
+        ])
+        .arg(&url)
+        .output()
+        .unwrap();
+    let _ = server.kill();
+    let _ = server.wait();
+    assert!(
+        unverified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&unverified.stderr)
+    );
+    assert_eq!(fs::read(download_root.join("asset.jpg")).unwrap(), b"TLS!");
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
