@@ -85,6 +85,7 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "3g2"
             | "m2ts"
             | "mts"
+            | "asf"
             | "webm"
             | "mov"
             | "m4v"
@@ -174,8 +175,8 @@ mod tests {
     fn recognizes_additional_pinned_directlink_media_extensions() {
         for extension in [
             "jpe", "heic", "heif", "apng", "psd", "mkv", "avi", "mpeg", "mpg", "3gp", "3g2", "ogm",
-            "ogv", "m4a", "aac", "m2ts", "mts", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz",
-            "zst", "swf",
+            "ogv", "m4a", "aac", "m2ts", "mts", "asf", "rar", "7z", "tar", "tgz", "gz", "bz2",
+            "xz", "zst", "swf",
         ] {
             let url = format!("https://assets.example.org/downloads/file.{extension}");
             let item = extract_direct_media(&url).unwrap();

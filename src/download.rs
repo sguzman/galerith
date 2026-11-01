@@ -186,6 +186,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "video/quicktime" => Some(&["mov"][..]),
         "video/x-matroska" => Some(&["mkv"][..]),
         "video/ogg" => Some(&["ogm", "ogv"][..]),
+        "application/vnd.ms-asf" => Some(&["asf"][..]),
         "application/x-shockwave-flash" => Some(&["swf"][..]),
         "application/pdf" => Some(&["pdf"][..]),
         "application/zip" | "application/x-zip-compressed" => Some(&["zip", "cbz"][..]),
@@ -212,8 +213,9 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
         "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg", "m4v",
-        "3gp", "3g2", "m2ts", "mts", "mp3", "m4a", "aac", "wav", "flac", "ogg", "ogm", "ogv",
-        "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
+        "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav", "flac", "ogg", "ogm",
+        "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz", "zst",
+        "swf",
     ];
     if !extension
         .as_deref()
@@ -930,6 +932,7 @@ mod tests {
             ("clip.m4v", "video/mp4"),
             ("clip.3gp", "video/3gpp"),
             ("clip.3g2", "video/3gpp2"),
+            ("clip.asf", "application/vnd.ms-asf"),
             ("clip.m2ts", "video/mp2t"),
             ("clip.mts", "video/mp2t"),
             ("clip.avi", "video/x-msvideo"),
