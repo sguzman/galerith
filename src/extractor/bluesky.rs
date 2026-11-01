@@ -268,7 +268,7 @@ async fn resolve_search(
                 params.append_pair("cursor", cursor);
             }
         }
-        crate::pacing::wait_for_request().await;
+        crate::pacing::wait_for_request_to(endpoint.as_str()).await;
         let body: Value = client
             .get(endpoint)
             .send()
@@ -336,7 +336,7 @@ async fn resolve_collection_feed(
                 params.append_pair("cursor", cursor);
             }
         }
-        crate::pacing::wait_for_request().await;
+        crate::pacing::wait_for_request_to(endpoint.as_str()).await;
         let body: Value = client
             .get(endpoint)
             .send()
@@ -378,7 +378,7 @@ async fn resolve_actor(
     }
     let mut endpoint = base.join("xrpc/com.atproto.identity.resolveHandle")?;
     endpoint.query_pairs_mut().append_pair("handle", actor);
-    crate::pacing::wait_for_request().await;
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
     let response: Value = client
         .get(endpoint)
         .send()
@@ -456,7 +456,7 @@ async fn resolve_at_base(
             };
             let mut endpoint = base.join("xrpc/app.bsky.actor.getProfile")?;
             endpoint.query_pairs_mut().append_pair("actor", &did);
-            crate::pacing::wait_for_request().await;
+            crate::pacing::wait_for_request_to(endpoint.as_str()).await;
             let profile: Value = client
                 .get(endpoint)
                 .send()
@@ -473,7 +473,7 @@ async fn resolve_at_base(
                 .append_pair("uri", &format!("at://{did}/app.bsky.feed.post/{rkey}"))
                 .append_pair("depth", "0")
                 .append_pair("parentHeight", "0");
-            crate::pacing::wait_for_request().await;
+            crate::pacing::wait_for_request_to(endpoint.as_str()).await;
             let body: Value = client
                 .get(endpoint)
                 .send()
@@ -520,7 +520,7 @@ async fn resolve_at_base(
                         query.append_pair("cursor", cursor);
                     }
                 }
-                crate::pacing::wait_for_request().await;
+                crate::pacing::wait_for_request_to(endpoint.as_str()).await;
                 let body: Value = client
                     .get(endpoint)
                     .send()
@@ -759,6 +759,52 @@ mod tests {
             "avatar": "https://evil.example.org/img/cid@png"
         });
         assert!(profile_image(&invalid_host, "did:plc:alice", "avatar").is_none());
+    }
+
+    #[tokio::test]
+    async fn xrpc_request_pacing_uses_api_origin_instead_of_input_origin() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let api_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let api_address = api_listener.local_addr().unwrap();
+        let api_server = tokio::spawn(async move {
+            let (mut socket, _) = api_listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let body = r#"{"feed":[]}"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let input_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let input_url = format!(
+            "http://{}/profile/alice",
+            input_listener.local_addr().unwrap()
+        );
+        let endpoint = format!("http://{api_address}/xrpc/app.bsky.feed.getAuthorFeed");
+        crate::pacing::defer_host_for_url(&endpoint, Duration::from_millis(120)).await;
+
+        let base = Url::parse(&format!("http://{api_address}/")).unwrap();
+        let client = Client::new();
+        let request = resolve_at_base(
+            &client,
+            Target::Media {
+                actor: "did:plc:alice".into(),
+            },
+            1,
+            &base,
+        );
+        let started = tokio::time::Instant::now();
+        let result = crate::pacing::with_request_delay_for_url(&input_url, None, request)
+            .await
+            .unwrap();
+        assert!(result.is_empty());
+        assert!(started.elapsed() >= Duration::from_millis(110));
+        api_server.await.unwrap();
     }
 
     #[test]

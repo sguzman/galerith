@@ -278,7 +278,7 @@
                 {
                   "title": "Implement per-host and global pacing",
                   "passed": true,
-                  "evidence": "src/pacing.rs tracks global and per-origin request slots/cooldowns; src/main.rs scopes explicit extractor hooks to the input origin, src/extractor/http_json.rs uses the API endpoint origin, and src/download.rs uses the media origin; tests/download_quality.rs verifies same-origin Retry-After cooldown; src/pacing.rs host_cooldowns_are_scoped_while_global_slots_cover_all_hosts verifies origin isolation/global deadlines; src/extractor/http_json.rs tests verify actual-endpoint cooldown and concurrent global spacing"
+                  "evidence": "src/pacing.rs tracks global and per-origin request slots/cooldowns; src/main.rs scopes explicit extractor hooks to the input origin, src/extractor/http_json.rs and src/extractor/bluesky.rs use API endpoint origins, and src/download.rs uses the media origin; tests/download_quality.rs verifies same-origin Retry-After cooldown; src/pacing.rs host_cooldowns_are_scoped_while_global_slots_cover_all_hosts verifies origin isolation/global deadlines; src/extractor/http_json.rs tests verify actual-endpoint cooldown and concurrent global spacing; src/extractor/bluesky.rs xrpc_request_pacing_uses_api_origin_instead_of_input_origin verifies XRPC endpoint cooldown"
                 },
                 {
                   "title": "Verify HTTP 429/5xx fixture matrix",
