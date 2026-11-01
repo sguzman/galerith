@@ -7,8 +7,11 @@ use std::{
     process::Command,
 };
 
-fn destination() -> PathBuf {
-    std::env::temp_dir().join(format!("galerith-http-options-{}", std::process::id()))
+fn destination(suffix: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "galerith-http-options-{suffix}-{}",
+        std::process::id()
+    ))
 }
 
 #[test]
@@ -36,7 +39,7 @@ fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPROX")
             .unwrap();
     });
-    let dir = destination();
+    let dir = destination("proxy");
     let _ = fs::remove_dir_all(&dir);
     let proxy_address = format!("http://127.0.0.1:{port}");
     let args = [
@@ -59,6 +62,56 @@ fn custom_user_agent_and_proxy_are_sent_to_synthetic_proxy_only() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"PROX");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn proxy_url_credentials_are_sent_only_to_the_proxy() {
+    let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = proxy.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = proxy.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 4096];
+        let count = socket.read(&mut request).unwrap();
+        let line = String::from_utf8_lossy(&request[..count]);
+        let lower = line.to_ascii_lowercase();
+        assert!(
+            lower
+                .lines()
+                .any(|header| header.starts_with("proxy-authorization: basic dxnlcjpzzwnyzxq=")),
+            "missing proxy authorization header: {line}"
+        );
+        assert!(!lower
+            .lines()
+            .any(|header| header.starts_with("authorization:")));
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nAUTH")
+            .unwrap();
+    });
+    let dir = destination("proxy-auth");
+    let _ = fs::remove_dir_all(&dir);
+    let proxy_address = format!("http://user:secret@127.0.0.1:{port}");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--proxy",
+            proxy_address.as_str(),
+            "-d",
+            dir.to_str().unwrap(),
+            "http://example.invalid/authenticated.jpg",
+        ])
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("secret"));
+    assert_eq!(fs::read(dir.join("authenticated.jpg")).unwrap(), b"AUTH");
     fs::remove_dir_all(dir).unwrap();
 }
 
