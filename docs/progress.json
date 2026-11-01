@@ -32,10 +32,11 @@
                 },
                 {
                   "title": "Automate catalog drift detection",
-                  "passed": false
+              "passed": true,
+              "evidence": "src/bin/galerith-roadmap.rs --check-catalog compares recursive extractor .py paths against docs/port-matrix.json; added/missing path regression tests; .github/workflows/ci.yml runs it against the SHA-verified pinned checkout"
                 }
               ],
-              "progress": 67
+          "progress": 100
             },
             {
               "id": "T002",

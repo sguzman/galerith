@@ -1,7 +1,13 @@
 //! Keep roadmap, upstream module inventory and acceptance percentages consistent.
 //! No Python, external generators or implicit claims of successful site parity.
 use serde::Deserialize;
-use std::{collections::BTreeSet, error::Error, fs, process};
+use std::{
+    collections::BTreeSet,
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+    process,
+};
 
 #[derive(Deserialize)]
 struct Ledger {
@@ -252,6 +258,53 @@ fn verify_or_write(path: &str, expected: &str, check: bool) -> Result<(), Box<dy
     Ok(())
 }
 
+fn extractor_sources(root: &Path) -> Result<BTreeSet<String>, Box<dyn Error>> {
+    let mut pending = vec![root.join("gallery_dl/extractor")];
+    let mut sources = BTreeSet::new();
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory)? {
+            let entry = entry?;
+            let path = entry.path();
+            if entry.file_type()?.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "py") {
+                let relative = path
+                    .strip_prefix(root)?
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                sources.insert(relative);
+            }
+        }
+    }
+    Ok(sources)
+}
+
+fn check_catalog(root: &Path, matrix: &PortMatrix) -> Result<(), Box<dyn Error>> {
+    let expected: BTreeSet<String> = matrix
+        .modules
+        .iter()
+        .map(|module| module.path.clone())
+        .collect();
+    let actual = extractor_sources(root)?;
+    let missing: Vec<_> = expected.difference(&actual).cloned().collect();
+    let added: Vec<_> = actual.difference(&expected).cloned().collect();
+    if missing.is_empty() && added.is_empty() {
+        println!(
+            "pinned extractor inventory matches {} source files",
+            actual.len()
+        );
+        return Ok(());
+    }
+    let mut details = Vec::new();
+    if !missing.is_empty() {
+        details.push(format!("missing from checkout: {}", missing.join(", ")));
+    }
+    if !added.is_empty() {
+        details.push(format!("missing from matrix: {}", added.join(", ")));
+    }
+    Err(format!("extractor catalog drift detected ({})", details.join("; ")).into())
+}
+
 fn main() {
     if let Err(err) = execute() {
         eprintln!("galerith-roadmap: {err}");
@@ -321,7 +374,16 @@ fn render_readme_progress(
 }
 
 fn execute() -> Result<(), Box<dyn Error>> {
-    let check = std::env::args().any(|arg| arg == "--check");
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(index) = args.iter().position(|arg| arg == "--check-catalog") {
+        let root = args
+            .get(index + 1)
+            .ok_or("--check-catalog requires an upstream checkout path")?;
+        let matrix: PortMatrix =
+            serde_json::from_str(&fs::read_to_string("docs/port-matrix.json")?)?;
+        return check_catalog(&PathBuf::from(root), &matrix);
+    }
+    let check = args.iter().any(|arg| arg == "--check");
     let ledger: Ledger = serde_json::from_str(&fs::read_to_string("docs/progress.json")?)?;
     let matrix: PortMatrix = serde_json::from_str(&fs::read_to_string("docs/port-matrix.json")?)?;
     verify_or_write("docs/ROADMAP.md", &render_roadmap(&ledger)?, check)?;
@@ -330,4 +392,50 @@ fn execute() -> Result<(), Box<dyn Error>> {
     let expected_readme = render_readme_progress(&readme, &ledger, &matrix)?;
     verify_or_write("README.md", &expected_readme, check)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+
+    #[test]
+    fn discovers_python_sources_recursively_and_ignores_other_files() {
+        let root = std::env::temp_dir().join(format!("galerith-catalog-{}", process::id()));
+        let extractor = root.join("gallery_dl/extractor/nested");
+        fs::create_dir_all(&extractor).unwrap();
+        fs::write(root.join("gallery_dl/extractor/__init__.py"), "").unwrap();
+        fs::write(extractor.join("sample.py"), "").unwrap();
+        fs::write(extractor.join("notes.txt"), "").unwrap();
+        let found = extractor_sources(&root).unwrap();
+        assert_eq!(
+            found,
+            BTreeSet::from([
+                "gallery_dl/extractor/__init__.py".to_owned(),
+                "gallery_dl/extractor/nested/sample.py".to_owned(),
+            ])
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn detects_added_and_missing_inventory_entries() {
+        let root = std::env::temp_dir().join(format!("galerith-catalog-drift-{}", process::id()));
+        let extractor = root.join("gallery_dl/extractor");
+        fs::create_dir_all(&extractor).unwrap();
+        fs::write(extractor.join("actual.py"), "").unwrap();
+        let matrix = PortMatrix {
+            schema: 1,
+            pinned_commit: "test".into(),
+            module_count: 1,
+            modules: vec![Module {
+                path: "gallery_dl/extractor/expected.py".into(),
+                status: "not_ported".into(),
+                rust_paths: Vec::new(),
+            }],
+        };
+        let error = check_catalog(&root, &matrix).unwrap_err().to_string();
+        assert!(error.contains("gallery_dl/extractor/expected.py"));
+        assert!(error.contains("gallery_dl/extractor/actual.py"));
+        fs::remove_dir_all(root).unwrap();
+    }
 }

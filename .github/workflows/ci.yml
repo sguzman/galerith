@@ -52,6 +52,8 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check "requests==2.32.5"
       - name: Verify immutable upstream source checkout
         run: test "$(git -C .oracle/pinned-gallery-dl rev-parse HEAD)" = "7f226f74108501c8ac3120548370f68f19e6f9b3"
+      - name: Verify pinned extractor inventory
+        run: cargo run --bin galerith-roadmap -- --check-catalog .oracle/pinned-gallery-dl
       - name: Compare pinned directlink events without network
         env:
           GALERITH_REFERENCE_ORACLE: "1"

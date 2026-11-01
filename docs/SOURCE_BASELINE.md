@@ -9,4 +9,6 @@
 
 [port-matrix.json](port-matrix.json) is the canonical file-by-file inventory. Modules with `__init__` or shared-helper semantics are listed rather than omitted. A second, class-level extractor/support-site matrix is a required MVP task.
 
+The pinned-reference CI job checks that inventory against the checked-out source tree with `cargo run --bin galerith-roadmap -- --check-catalog <checkout>`. The command compares every Python file under `gallery_dl/extractor/` and reports added or missing paths; the CI job separately verifies the checkout commit above.
+
 Baseline policy: pin references for deterministic comparisons; any upstream updates are proposed as explicit deltas, not silently folded into completed percentages.
