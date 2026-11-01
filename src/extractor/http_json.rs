@@ -40,7 +40,7 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
-    crate::pacing::wait_for_api_request().await;
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     let final_url = response.url().clone();
     if response
@@ -174,7 +174,7 @@ mod tests {
         let client = Client::new();
         let future = fetch_json_uncached(&client, endpoint, 128);
         let started = tokio::time::Instant::now();
-        let value = crate::pacing::with_api_request_delay(
+        let value = crate::pacing::with_request_delay(
             Some(crate::pacing::DelayRange::parse("0.12").unwrap()),
             future,
         )

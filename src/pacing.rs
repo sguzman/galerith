@@ -10,18 +10,18 @@ const MAX_SLEEP_SECONDS: f64 = 3600.0;
 static SAMPLE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 tokio::task_local! {
-    static API_REQUEST_DELAY: DelayRange;
+    static REQUEST_DELAY: DelayRange;
 }
 
-pub async fn with_api_request_delay<F: Future>(delay: Option<DelayRange>, future: F) -> F::Output {
+pub async fn with_request_delay<F: Future>(delay: Option<DelayRange>, future: F) -> F::Output {
     match delay {
-        Some(delay) => API_REQUEST_DELAY.scope(delay, future).await,
+        Some(delay) => REQUEST_DELAY.scope(delay, future).await,
         None => future.await,
     }
 }
 
-pub async fn wait_for_api_request() {
-    if let Ok(delay) = API_REQUEST_DELAY.try_with(|range| range.sample()) {
+pub async fn wait_for_request() {
+    if let Ok(delay) = REQUEST_DELAY.try_with(|range| range.sample()) {
         tokio::time::sleep(delay).await;
     }
 }

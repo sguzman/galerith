@@ -11,7 +11,7 @@ use galerith::{
     },
     filename::render as render_filename,
     message::JobSelection,
-    pacing::{with_api_request_delay, DelayRange},
+    pacing::{with_request_delay, DelayRange},
     postprocess::write_metadata,
     privacy::{display_error, display_url},
     range::IndexRange,
@@ -584,7 +584,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     resolve_messages(&client, &url, cli.max_pages).await
                 }
             };
-            let message_future = with_api_request_delay(api_request_delay, message_future);
+            let message_future = with_request_delay(api_request_delay, message_future);
             let events = if let Some(cache) = &public_cache {
                 cache.clone().scope(message_future).await
             } else {
@@ -614,7 +614,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 resolve(&client, &url, cli.max_pages).await
             }
         };
-        let extraction_future = with_api_request_delay(api_request_delay, extraction_future);
+        let extraction_future = with_request_delay(api_request_delay, extraction_future);
         let extraction = if let Some(cache) = &public_cache {
             cache.clone().scope(extraction_future).await
         } else {

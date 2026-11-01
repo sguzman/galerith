@@ -509,6 +509,7 @@ async fn html(
     endpoint: Url,
     origin: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response.url().origin() != origin.origin() {
         return Err("Hatena Blog public page redirected outside its source origin".into());
@@ -794,6 +795,36 @@ mod tests {
         let target = match_url("https://author.hatenablog.com/entry/2026/10/25/test").unwrap();
         let events = at_base(&Client::new(), &base, &target, 4).await.unwrap();
         assert_eq!(events.len(), 2);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn configured_request_delay_precedes_hatenablog_html_request() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 4096];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let body = r#"<article class="entry"><div class="entry-content hatenablog-entry"><img class="hatena-fotolife" src="https://cdn-ak.f.st-hatena.com/images/fotolife/u/author/20261025/one.png"></div></article>"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let target = match_url("https://author.hatenablog.com/entry/2026/10/25/test").unwrap();
+        let range = crate::pacing::DelayRange::parse("0.12").unwrap();
+        let started = tokio::time::Instant::now();
+        let events = crate::pacing::with_request_delay(
+            Some(range),
+            at_base(&Client::new(), &base, &target, 1),
+        )
+        .await
+        .unwrap();
+        assert!(!events.is_empty());
+        assert!(started.elapsed() >= std::time::Duration::from_millis(100));
         server.await.unwrap();
     }
 
