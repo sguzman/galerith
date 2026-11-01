@@ -17,4 +17,4 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, response diagnostics and complete reference networking options remain open.
 
-**Verification:** [CI 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) includes synthetic proxy/User-Agent, bounded sleep and date-based retry tests; no public origin is contacted.
+**Verification:** [CI 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) includes synthetic proxy/User-Agent, bounded sleep and date-based retry tests; no public origin is contacted. The address-selection and configured-header additions were verified with local loopback tests and the full local format, Clippy, test, roadmap and release-build gates; no CI run for those additions has been confirmed.
