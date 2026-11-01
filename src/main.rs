@@ -232,12 +232,28 @@ struct Cli {
     proxy: Option<String>,
 
     /// Resolve and connect using IPv4 only
-    #[arg(short = '4', long = "force-ipv4", conflicts_with = "force_ipv6")]
+    #[arg(
+        short = '4',
+        long = "force-ipv4",
+        conflicts_with_all = ["force_ipv6", "source_address"]
+    )]
     force_ipv4: bool,
 
     /// Resolve and connect using IPv6 only
-    #[arg(short = '6', long = "force-ipv6", conflicts_with = "force_ipv4")]
+    #[arg(
+        short = '6',
+        long = "force-ipv6",
+        conflicts_with_all = ["force_ipv4", "source_address"]
+    )]
     force_ipv6: bool,
+
+    /// Bind outgoing HTTP connections to this client-side IP address
+    #[arg(
+        long = "source-address",
+        value_parser = clap::value_parser!(std::net::IpAddr),
+        conflicts_with_all = ["force_ipv4", "force_ipv6"]
+    )]
+    source_address: Option<std::net::IpAddr>,
 
     /// Netscape cookie jar for authenticated media and API requests
     #[arg(short = 'C', long = "cookies", value_name = "FILE")]
@@ -509,7 +525,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
         client_builder = client_builder.proxy(proxy);
     }
-    if cli.force_ipv4 {
+    if let Some(address) = cli.source_address {
+        client_builder = client_builder.local_address(address);
+    } else if cli.force_ipv4 {
         client_builder =
             client_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
     } else if cli.force_ipv6 {

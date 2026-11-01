@@ -158,7 +158,8 @@ fn configured_downloader_headers_reach_media_requests() {
     let _ = fs::remove_dir_all(&dir);
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
-            "-4",
+            "--source-address",
+            "127.0.0.1",
             "-o",
             r#"downloader.http.headers={"X-Fixture-Token":"private-fixture-value"}"#,
             "-d",
@@ -189,6 +190,32 @@ fn force_ip_families_are_mutually_exclusive() {
         .output()
         .unwrap();
     assert!(!output.status.success());
+}
+
+#[test]
+fn source_address_must_be_a_valid_ip_and_cannot_mix_with_family_flags() {
+    let invalid = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--source-address",
+            "not-an-ip",
+            "--simulate",
+            "https://example.org/item.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!invalid.status.success());
+
+    let conflict = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--source-address",
+            "127.0.0.1",
+            "--force-ipv4",
+            "--simulate",
+            "https://example.org/item.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!conflict.status.success());
 }
 
 #[test]
