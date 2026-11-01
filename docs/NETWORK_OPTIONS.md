@@ -8,7 +8,7 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--sleep 0.15`: wait this many seconds before each media download. `--sleep 0.1-0.3` samples an inclusive range before each media download. Values must be finite and between 0 and 3600 seconds.
 - `--option extractor.sleep-skip=0.12`: wait after a media file is skipped. The preview supports fixed or ranged duration values and global/category configuration precedence for this option.
 - `--option extractor.sleep-extractor=0.12`: wait before handling each input URL, also accepting the fixed or ranged duration forms.
-- `--option extractor.sleep-request=0.12`: wait before media HTTP attempts (including retries), shared bounded JSON API requests, and Hatena Blog HTML page requests. Other extractor-specific HTTP request paths are not all paced yet.
+- `--option extractor.sleep-request=0.12`: reserve globally spaced slots before media HTTP attempts (including retries), shared bounded JSON API requests, and Hatena Blog HTML page requests. Other extractor-specific HTTP request paths are not all paced yet.
 
 **Privacy:** Proxy URLs may contain credentials. Avoid putting secrets in arguments or shell history: another local process may be able to inspect command-line arguments. Do not store credentials in public scripts, issues or fixtures.
 

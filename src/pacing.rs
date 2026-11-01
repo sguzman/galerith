@@ -1,13 +1,16 @@
-//! Bounded download delay values used by the CLI pacing preview.
+//! Bounded request delay values and shared pacing for the CLI preview.
 use serde_json::Value;
 use std::{
     future::Future,
     sync::atomic::{AtomicU64, Ordering},
+    sync::OnceLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const MAX_SLEEP_SECONDS: f64 = 3600.0;
 static SAMPLE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static GLOBAL_REQUEST_SLOT: OnceLock<tokio::sync::Mutex<Option<tokio::time::Instant>>> =
+    OnceLock::new();
 
 tokio::task_local! {
     static REQUEST_DELAY: DelayRange;
@@ -22,8 +25,23 @@ pub async fn with_request_delay<F: Future>(delay: Option<DelayRange>, future: F)
 
 pub async fn wait_for_request() {
     if let Ok(delay) = REQUEST_DELAY.try_with(|range| range.sample()) {
-        tokio::time::sleep(delay).await;
+        wait_for_request_delay(Some(delay)).await;
     }
+}
+
+pub async fn wait_for_request_delay(delay: Option<Duration>) {
+    let Some(delay) = delay.filter(|delay| !delay.is_zero()) else {
+        return;
+    };
+    let slot = GLOBAL_REQUEST_SLOT.get_or_init(|| tokio::sync::Mutex::new(None));
+    let mut next_allowed = slot.lock().await;
+    let now = tokio::time::Instant::now();
+    let earliest = next_allowed.map_or(now, |deadline| deadline.max(now));
+    let deadline = earliest + delay;
+    tokio::time::sleep_until(deadline).await;
+    // Store only after the wait completes. A cancelled future then cannot
+    // reserve a stale future slot that delays later requests unnecessarily.
+    *next_allowed = Some(tokio::time::Instant::now());
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

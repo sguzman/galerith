@@ -413,7 +413,7 @@ pub async fn download(
         // HTTP content encoding to keep sidecar byte counts meaningful.
         let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
         if let Some(delay) = options.request_delay {
-            tokio::time::sleep(delay.sample()).await;
+            crate::pacing::wait_for_request_delay(Some(delay.sample())).await;
         }
         if offset > 0 {
             request = request.header(RANGE, format!("bytes={offset}-")).header(

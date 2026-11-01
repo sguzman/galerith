@@ -186,6 +186,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_delay_spaces_concurrent_shared_json_calls_globally() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut arrivals = Vec::new();
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                arrivals.push(tokio::time::Instant::now());
+                let mut request = [0_u8; 1024];
+                assert!(socket.read(&mut request).await.unwrap() > 0);
+                socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                    )
+                    .await
+                    .unwrap();
+            }
+            arrivals
+        });
+        let client = Client::new();
+        let first = Url::parse(&format!("http://{addr}/first")).unwrap();
+        let second = Url::parse(&format!("http://{addr}/second")).unwrap();
+        let delay = Some(crate::pacing::DelayRange::parse("0.12").unwrap());
+        let (first, second) = tokio::join!(
+            crate::pacing::with_request_delay(delay, fetch_json_uncached(&client, first, 128)),
+            crate::pacing::with_request_delay(delay, fetch_json_uncached(&client, second, 128))
+        );
+        assert!(first.is_ok());
+        assert!(second.is_ok());
+        let arrivals = server.await.unwrap();
+        assert_eq!(arrivals.len(), 2);
+        assert!(
+            arrivals[1].duration_since(arrivals[0]) >= std::time::Duration::from_millis(100),
+            "concurrent configured requests were not globally spaced"
+        );
+    }
+
+    #[tokio::test]
     async fn rejects_oversized_content_length_without_body() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
