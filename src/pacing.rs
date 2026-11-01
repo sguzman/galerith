@@ -227,6 +227,13 @@ pub struct DelayRange {
 }
 
 impl DelayRange {
+    pub fn from_duration(duration: Duration) -> Self {
+        Self {
+            minimum: duration,
+            maximum: duration,
+        }
+    }
+
     pub fn parse(input: &str) -> Result<Self, &'static str> {
         let (minimum, maximum) = if input.parse::<f64>().is_ok() {
             let value = parse_seconds(input)?;

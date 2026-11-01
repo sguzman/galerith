@@ -327,6 +327,52 @@ fn configured_sleep_429_takes_precedence_over_general_retry_delay() {
 }
 
 #[test]
+fn sleep_429_does_not_shorten_general_retry_delay() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        for attempt in 0..2 {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            let response: &[u8] = if attempt == 0 {
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            } else {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD"
+            };
+            socket.write_all(response).unwrap();
+        }
+    });
+    let dir = destination("retry-delay-over-429");
+    let _ = fs::remove_dir_all(&dir);
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-429",
+            "0",
+            "--sleep-retries",
+            "0.15",
+            "--retries",
+            "1",
+            "-d",
+            dir.to_str().unwrap(),
+        ])
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(140), "{elapsed:?}");
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn ranged_retry_sleep_is_sampled_between_transient_media_attempts() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

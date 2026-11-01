@@ -497,7 +497,13 @@ pub async fn download(
             if attempt < options.retries {
                 if after.is_none_or(|delay| delay.is_zero()) {
                     let configured_delay = if status == StatusCode::TOO_MANY_REQUESTS {
-                        options.rate_limit_delay.or(options.retry_delay)
+                        match (options.rate_limit_delay, options.retry_delay) {
+                            (Some(rate_limit), Some(retry)) => Some(DelayRange::from_duration(
+                                rate_limit.sample().max(retry.sample()),
+                            )),
+                            (Some(delay), None) | (None, Some(delay)) => Some(delay),
+                            (None, None) => None,
+                        }
                     } else {
                         options.retry_delay
                     };
