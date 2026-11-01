@@ -226,6 +226,9 @@ fn invalid_sleep_values_are_rejected_before_network() {
         ("--sleep-retries=-1", "invalid --sleep-retries"),
         ("--sleep-retries=4000", "invalid --sleep-retries"),
         ("--sleep-retries=NaN", "invalid --sleep-retries"),
+        ("--sleep-429=-1", "invalid --sleep-429"),
+        ("--sleep-429=4000", "invalid --sleep-429"),
+        ("--sleep-429=NaN", "invalid --sleep-429"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args([value, "--simulate", "https://example.org/file.jpg"])
@@ -262,6 +265,52 @@ fn configured_retry_sleep_delays_a_transient_media_retry() {
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args(["--sleep-retries", "0.15", "--retries", "1", "-d"])
         .arg(dir.to_str().unwrap())
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(140), "{elapsed:?}");
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn configured_sleep_429_takes_precedence_over_general_retry_delay() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        for attempt in 0..2 {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            let response: &[u8] = if attempt == 0 {
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            } else {
+                b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nGOOD"
+            };
+            socket.write_all(response).unwrap();
+        }
+    });
+    let dir = destination("sleep-429");
+    let _ = fs::remove_dir_all(&dir);
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-429",
+            "0.15",
+            "--sleep-retries",
+            "0",
+            "--retries",
+            "1",
+            "-d",
+            dir.to_str().unwrap(),
+        ])
         .arg(format!("http://{address}/image.jpg"))
         .output()
         .unwrap();

@@ -35,6 +35,8 @@ pub struct DownloadOptions {
     pub headers: HeaderMap,
     /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
     pub retry_delay: Option<DelayRange>,
+    /// Optional fixed or ranged pause for 429 responses without a positive Retry-After.
+    pub rate_limit_delay: Option<DelayRange>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -494,7 +496,12 @@ pub async fn download(
             }
             if attempt < options.retries {
                 if after.is_none_or(|delay| delay.is_zero()) {
-                    delay(attempt, None, options.retry_delay).await;
+                    let configured_delay = if status == StatusCode::TOO_MANY_REQUESTS {
+                        options.rate_limit_delay.or(options.retry_delay)
+                    } else {
+                        options.retry_delay
+                    };
+                    delay(attempt, None, configured_delay).await;
                 }
                 continue;
             }

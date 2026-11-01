@@ -29,6 +29,7 @@ cargo run -- -f '{category}_{filename}' --range '1:5:2' --simulate 'https://exam
 cargo run -- -c ./config.toml --write-metadata 'https://example.org/sample.jpg'
 cargo run -- -a 'MyAgent/1.0' --proxy 'http://127.0.0.1:8080' 'https://example.org/sample.jpg'
 cargo run -- --sleep 0.15 -d ./media 'https://example.org/sample.jpg'
+cargo run -- --sleep-retries 0.5 --sleep-429 2 -d ./media 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://boards.4chan.org/g/thread/123456'
 ```
 
