@@ -349,6 +349,8 @@ fn configured_sleep_429_respects_the_minimum_retry_interval() {
     let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
+            "-o",
+            "downloader.http.retry-codes=[429]",
             "--sleep-429",
             "0.15",
             "--sleep-retries",
@@ -395,6 +397,8 @@ fn sleep_429_does_not_shorten_general_retry_delay() {
     let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
+            "-o",
+            "downloader.http.retry-codes=[429]",
             "--sleep-429",
             "0",
             "--sleep-retries",

@@ -2,6 +2,7 @@
 //! configuration overlay semantics. Only explicit files are loaded in preview.
 use crate::pacing::DelayRange;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::StatusCode;
 use serde_json::{Map, Value};
 use std::{error::Error, fs, path::Path};
 
@@ -43,6 +44,31 @@ fn overlay_field(destination: &mut Map<String, Value>, name: &str, value: Value)
 }
 
 impl Config {
+    /// Additional HTTP response codes the media downloader should retry.
+    /// Server errors remain retryable independently of this setting.
+    pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
+        let Some(value) = self.root.pointer("/downloader/http/retry-codes") else {
+            return Ok(Vec::new());
+        };
+        let codes = value
+            .as_array()
+            .ok_or("downloader.http.retry-codes must be an array")?;
+        codes
+            .iter()
+            .map(|value| {
+                let code = value
+                    .as_u64()
+                    .and_then(|code| u16::try_from(code).ok())
+                    .ok_or("downloader.http.retry-codes entries must be HTTP status integers")?;
+                if !(100..=599).contains(&code) {
+                    return Err("downloader.http.retry-codes entries must be valid HTTP statuses");
+                }
+                StatusCode::from_u16(code)
+                    .map_err(|_| "downloader.http.retry-codes entries must be valid HTTP statuses")
+            })
+            .collect()
+    }
+
     /// Build validated extra headers for the media downloader only.
     pub fn downloader_http_headers(&self) -> Result<HeaderMap, &'static str> {
         let Some(value) = self.root.pointer("/downloader/http/headers") else {
@@ -161,6 +187,21 @@ mod tests {
         let headers = config.downloader_http_headers().unwrap();
         assert!(headers["x-token"].is_sensitive());
         assert_eq!(headers["x-token"], "synthetic-secret");
+    }
+
+    #[test]
+    fn retry_codes_are_empty_by_default_and_validate_configured_statuses() {
+        let mut config = Config::default();
+        assert!(config.downloader_http_retry_codes().unwrap().is_empty());
+        config
+            .option("downloader.http.retry-codes=[429, 408]")
+            .unwrap();
+        assert_eq!(
+            config.downloader_http_retry_codes().unwrap(),
+            [StatusCode::TOO_MANY_REQUESTS, StatusCode::REQUEST_TIMEOUT]
+        );
+        config.option("downloader.http.retry-codes=[700]").unwrap();
+        assert!(config.downloader_http_retry_codes().is_err());
     }
 
     #[test]

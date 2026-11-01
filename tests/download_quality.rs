@@ -21,9 +21,16 @@ fn opts(path: PathBuf, retries: u32) -> DownloadOptions {
         no_part: false,
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
+        retry_codes: vec![],
         retry_delay: None,
         rate_limit_delay: None,
         request_delay: None,
+    }
+}
+fn opts_with_429(path: PathBuf, retries: u32) -> DownloadOptions {
+    DownloadOptions {
+        retry_codes: vec![reqwest::StatusCode::TOO_MANY_REQUESTS],
+        ..opts(path, retries)
     }
 }
 fn client() -> reqwest::Client {
@@ -67,6 +74,32 @@ async fn streams_multi_megabyte_body_to_atomic_target() {
 }
 
 #[tokio::test]
+async fn does_not_retry_429_unless_configured_as_retryable() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 2048];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(
+                b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .await
+            .unwrap();
+    });
+    let path = destination("429-default");
+    let _ = fs::remove_dir_all(&path);
+    let item = extract_direct_media(&format!("http://{addr}/default.jpg")).unwrap();
+    assert!(download(&client(), &item, &opts(path.clone(), 3))
+        .await
+        .is_err());
+    server.await.unwrap();
+    assert!(!path.join("default.jpg").exists());
+    let _ = fs::remove_dir_all(path);
+}
+
+#[tokio::test]
 async fn recovers_from_429_500_and_503_then_saves() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -95,7 +128,7 @@ async fn recovers_from_429_500_and_503_then_saves() {
     let path = destination("retries");
     let _ = fs::remove_dir_all(&path);
     let item = extract_direct_media(&format!("http://{addr}/attempt.jpg")).unwrap();
-    download(&client(), &item, &opts(path.clone(), 3))
+    download(&client(), &item, &opts_with_429(path.clone(), 3))
         .await
         .unwrap();
     assert_eq!(fs::read(path.join("attempt.jpg")).unwrap(), b"GOOD");
@@ -127,7 +160,7 @@ async fn honors_retry_after_before_retrying_rate_limited_media() {
     let _ = fs::remove_dir_all(&path);
     let item = extract_direct_media(&format!("http://{addr}/retry-after.jpg")).unwrap();
     let started = tokio::time::Instant::now();
-    download(&client(), &item, &opts(path.clone(), 1))
+    download(&client(), &item, &opts_with_429(path.clone(), 1))
         .await
         .unwrap();
     assert!(

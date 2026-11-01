@@ -206,6 +206,128 @@ fn run_user_agent_fixture(
     request
 }
 
+fn run_429_retry_delay_fixture(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+) -> std::time::Duration {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let accept = || loop {
+            match listener.accept() {
+                Ok((socket, _)) => break socket,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "429 fixture timed out"
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("accept 429 fixture request: {error}"),
+            }
+        };
+        let mut first = accept();
+        first
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 2048];
+        assert!(first.read(&mut request).unwrap() > 0);
+        first
+            .write_all(
+                b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .unwrap();
+        drop(first);
+
+        let started = std::time::Instant::now();
+        let mut second = accept();
+        let elapsed = started.elapsed();
+        second
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        assert!(second.read(&mut request).unwrap() > 0);
+        second
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+        elapsed
+    });
+
+    let output = working_root.join(format!("{label}-429-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/retry.jpg");
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "--sleep-429",
+            "0.05",
+            "-o",
+            "downloader.http.retry-codes=[429]",
+            "-R",
+            "1",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "--sleep-429",
+            "0.05",
+            "-o",
+            "downloader.http.retry-codes=[429]",
+            "--retries",
+            "1",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command.output().expect("launch 429 retry fixture client");
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let elapsed = server.join().unwrap();
+    if reference {
+        assert!(
+            contains_file_with_bytes(&output, b"JPEG"),
+            "{label}: pinned CLI did not save the fixture body"
+        );
+    } else {
+        assert_eq!(std::fs::read(output.join("retry.jpg")).unwrap(), b"JPEG");
+    }
+    std::fs::remove_dir_all(output).unwrap();
+    elapsed
+}
+
 fn run_input_retry_case(
     root: &Path,
     pinned_root: &Path,
@@ -615,6 +737,36 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
             "{label}: proxy credentials missing from proxy request: {request}"
         );
     }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_429_retry_interval() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let root = env::temp_dir().join(format!("galerith-429-oracle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_429_retry_delay_fixture(&root, pinned_root, "pinned", true);
+    let native = run_429_retry_delay_fixture(&root, pinned_root, "native", false);
+    for (label, elapsed) in [("pinned", pinned), ("native", native)] {
+        assert!(
+            (std::time::Duration::from_millis(900)..std::time::Duration::from_secs(3))
+                .contains(&elapsed),
+            "{label}: configured first 429 retry interval was {elapsed:?}"
+        );
+    }
+    assert!(
+        pinned.abs_diff(native) < std::time::Duration::from_millis(500),
+        "pinned/native 429 intervals differ: pinned={pinned:?}, native={native:?}"
+    );
     std::fs::remove_dir_all(root).unwrap();
 }
 

@@ -28,6 +28,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         no_part: false,
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
+        retry_codes: vec![],
         retry_delay: None,
         rate_limit_delay: None,
         request_delay: None,
@@ -932,9 +933,16 @@ async fn retryable_rate_limit_preserves_resumable_partial_and_validator() {
     clean(&path);
     let item = extract_direct_media(&format!("http://{addr}/429.jpg")).unwrap();
     assert_eq!(
-        download(&client(), &item, &settings(path.clone(), 2))
-            .await
-            .unwrap(),
+        download(
+            &client(),
+            &item,
+            &DownloadOptions {
+                retry_codes: vec![reqwest::StatusCode::TOO_MANY_REQUESTS],
+                ..settings(path.clone(), 2)
+            }
+        )
+        .await
+        .unwrap(),
         DownloadOutcome::Saved(path.join("429.jpg"))
     );
     assert_eq!(fs::read(path.join("429.jpg")).unwrap(), b"ABCDEFGH");

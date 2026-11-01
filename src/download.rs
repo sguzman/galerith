@@ -33,6 +33,8 @@ pub struct DownloadOptions {
     pub limit_rate: Option<RateRange>,
     /// Additional downloader-only headers from explicit configuration.
     pub headers: HeaderMap,
+    /// Additional response codes configured as retryable; 5xx are always retried.
+    pub retry_codes: Vec<StatusCode>,
     /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
     pub retry_delay: Option<RetryDelay>,
     /// Optional configured pause for 429 responses; unset uses the reference 60-second interval.
@@ -512,27 +514,31 @@ pub async fn download(
         };
 
         let status = response.status();
-        if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
-            let after = retry_after(&response);
-            if let Some(after) = after {
-                crate::pacing::defer_host_for_url(&item.url, after).await;
+        let after = if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+            retry_after(&response)
+        } else {
+            None
+        };
+        if let Some(after) = after {
+            crate::pacing::defer_host_for_url(&item.url, after).await;
+        }
+        if (status.is_server_error() || options.retry_codes.contains(&status))
+            && attempt < options.retries
+        {
+            if after.is_none() {
+                delay(
+                    attempt,
+                    None,
+                    configured_retry_delay(
+                        status,
+                        attempt + 1,
+                        options.retry_delay,
+                        options.rate_limit_delay,
+                    ),
+                )
+                .await;
             }
-            if attempt < options.retries {
-                if after.is_none() {
-                    delay(
-                        attempt,
-                        None,
-                        configured_retry_delay(
-                            status,
-                            attempt + 1,
-                            options.retry_delay,
-                            options.rate_limit_delay,
-                        ),
-                    )
-                    .await;
-                }
-                continue;
-            }
+            continue;
         }
         if offset > 0 && status == StatusCode::RANGE_NOT_SATISFIABLE {
             invalidate_for_mode(&part, &metadata, options.no_part).await?;

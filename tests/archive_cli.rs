@@ -605,7 +605,14 @@ fn rate_limited_retry_respects_archive_commit_only_after_success() {
             .arg(&dir)
             .arg("--download-archive")
             .arg(&archive)
-            .args(["--http-timeout", "3", "--retries", retries])
+            .args([
+                "--http-timeout",
+                "3",
+                "--retries",
+                retries,
+                "-o",
+                "downloader.http.retry-codes=[429]",
+            ])
             .arg(&url)
             .output()
             .unwrap()

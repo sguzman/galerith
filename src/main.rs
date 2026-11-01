@@ -227,7 +227,7 @@ struct Cli {
     #[arg(long = "sleep-retries", value_name = "SCHEDULE")]
     sleep_retries: Option<String>,
 
-    /// Delay before retrying a 429 response (default 60 seconds when Retry-After is absent)
+    /// Delay before retrying a configured 429 response (default 60 seconds when Retry-After is absent)
     #[arg(long = "sleep-429", value_name = "SCHEDULE")]
     sleep_429: Option<String>,
 
@@ -611,6 +611,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map_err(std::io::Error::other)?,
         headers: config
             .downloader_http_headers()
+            .map_err(std::io::Error::other)?,
+        retry_codes: config
+            .downloader_http_retry_codes()
             .map_err(std::io::Error::other)?,
         retry_delay,
         rate_limit_delay,
