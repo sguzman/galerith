@@ -4,7 +4,7 @@ use crate::pacing::DelayRange;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::StatusCode;
 use serde_json::{Map, Value};
-use std::{error::Error, fs, path::Path};
+use std::{error::Error, fs, path::Path, time::Duration};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Format {
@@ -44,6 +44,16 @@ fn overlay_field(destination: &mut Map<String, Value>, name: &str, value: Value)
 }
 
 impl Config {
+    /// Optional global HTTP timeout in seconds.
+    pub fn global_http_timeout(&self) -> Result<Option<Duration>, &'static str> {
+        parse_timeout(self.root.get("timeout"))
+    }
+
+    /// Optional media-downloader timeout in seconds.
+    pub fn downloader_http_timeout(&self) -> Result<Option<Duration>, &'static str> {
+        parse_timeout(self.root.pointer("/downloader/http/timeout"))
+    }
+
     /// Optional bounded retry count for the media downloader.
     pub fn downloader_http_retries(&self) -> Result<Option<u32>, &'static str> {
         let Some(value) = self
@@ -205,6 +215,19 @@ impl Config {
     }
 }
 
+fn parse_timeout(value: Option<&Value>) -> Result<Option<Duration>, &'static str> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let seconds = value
+        .as_f64()
+        .filter(|seconds| seconds.is_finite() && *seconds > 0.0)
+        .ok_or("HTTP timeout must be a positive finite number of seconds")?;
+    Duration::try_from_secs_f64(seconds)
+        .map(Some)
+        .map_err(|_| "HTTP timeout is out of range")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,6 +283,25 @@ mod tests {
         assert_eq!(config.downloader_http_mtime().unwrap(), Some(true));
         config.option("mtime=1").unwrap();
         assert!(config.downloader_http_mtime().is_err());
+    }
+
+    #[test]
+    fn http_timeout_config_supports_global_and_downloader_scope() {
+        let mut config = Config::default();
+        assert_eq!(config.global_http_timeout().unwrap(), None);
+        assert_eq!(config.downloader_http_timeout().unwrap(), None);
+        config.option("downloader.http.timeout=0.25").unwrap();
+        assert_eq!(
+            config.downloader_http_timeout().unwrap(),
+            Some(Duration::from_millis(250))
+        );
+        config.option("timeout=2").unwrap();
+        assert_eq!(
+            config.global_http_timeout().unwrap(),
+            Some(Duration::from_secs(2))
+        );
+        config.option("downloader.http.timeout=0").unwrap();
+        assert!(config.downloader_http_timeout().is_err());
     }
 
     #[test]

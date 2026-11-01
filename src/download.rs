@@ -35,6 +35,8 @@ pub struct DownloadOptions {
     pub headers: HeaderMap,
     /// Additional response codes configured as retryable; 5xx are always retried.
     pub retry_codes: Vec<StatusCode>,
+    /// Optional per-request media timeout, overriding the shared client's timeout.
+    pub http_timeout: Option<Duration>,
     /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
     pub retry_delay: Option<RetryDelay>,
     /// Optional configured pause for 429 responses; unset uses the reference 60-second interval.
@@ -485,6 +487,9 @@ pub async fn download(
             .get(&item.url)
             .header(ACCEPT, "*/*")
             .header(ACCEPT_ENCODING, "identity");
+        if let Some(timeout) = options.http_timeout {
+            request = request.timeout(timeout);
+        }
         request = request.headers(options.headers.clone());
         crate::pacing::wait_for_request_url(
             &item.url,

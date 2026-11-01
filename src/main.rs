@@ -237,9 +237,9 @@ struct Cli {
     #[arg(long = "sleep-429", value_name = "SCHEDULE")]
     sleep_429: Option<String>,
 
-    /// HTTP request timeout in seconds
-    #[arg(long, default_value_t = 30.0)]
-    http_timeout: f64,
+    /// HTTP request timeout in seconds (default 30)
+    #[arg(long, value_name = "SECONDS")]
+    http_timeout: Option<f64>,
 
     /// User-Agent HTTP header (upstream -a/--user-agent)
     #[arg(short = 'a', long = "user-agent", value_name = "UA")]
@@ -571,11 +571,28 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .transpose()
         .map_err(|_| "invalid --sleep-429: expected a duration or capped lin/exp schedule")?;
 
-    if !cli.http_timeout.is_finite() || cli.http_timeout <= 0.0 {
-        return Err("invalid --http-timeout: expected a positive number of seconds".into());
-    }
-    let http_timeout = Duration::try_from_secs_f64(cli.http_timeout)
-        .map_err(|_| "invalid --http-timeout: value is out of range")?;
+    let cli_http_timeout = cli
+        .http_timeout
+        .map(|seconds| {
+            if !seconds.is_finite() || seconds <= 0.0 {
+                return Err("invalid --http-timeout: expected a positive number of seconds");
+            }
+            Duration::try_from_secs_f64(seconds)
+                .map_err(|_| "invalid --http-timeout: value is out of range")
+        })
+        .transpose()?;
+    let global_http_timeout = config
+        .global_http_timeout()
+        .map_err(std::io::Error::other)?;
+    let downloader_http_timeout = config
+        .downloader_http_timeout()
+        .map_err(std::io::Error::other)?;
+    let http_timeout = cli_http_timeout
+        .or(global_http_timeout)
+        .unwrap_or(Duration::from_secs(30));
+    let media_http_timeout = cli_http_timeout
+        .or(global_http_timeout)
+        .or(downloader_http_timeout);
 
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
     let mut client_builder = reqwest::Client::builder();
@@ -640,6 +657,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         retry_codes: config
             .downloader_http_retry_codes()
             .map_err(std::io::Error::other)?,
+        http_timeout: media_http_timeout,
         retry_delay,
         rate_limit_delay,
         request_delay: None,

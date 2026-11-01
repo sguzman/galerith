@@ -29,6 +29,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
         retry_codes: vec![],
+        http_timeout: None,
         retry_delay: None,
         rate_limit_delay: None,
         request_delay: None,
@@ -938,6 +939,7 @@ async fn retryable_rate_limit_preserves_resumable_partial_and_validator() {
             &item,
             &DownloadOptions {
                 retry_codes: vec![reqwest::StatusCode::TOO_MANY_REQUESTS],
+                http_timeout: None,
                 ..settings(path.clone(), 2)
             }
         )

@@ -28,6 +28,7 @@ fn options(destination: PathBuf, no_skip: bool) -> DownloadOptions {
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
         retry_codes: vec![],
+        http_timeout: None,
         retry_delay: None,
         rate_limit_delay: None,
         request_delay: None,

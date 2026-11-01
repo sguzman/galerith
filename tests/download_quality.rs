@@ -22,6 +22,7 @@ fn opts(path: PathBuf, retries: u32) -> DownloadOptions {
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
         retry_codes: vec![],
+        http_timeout: None,
         retry_delay: None,
         rate_limit_delay: None,
         request_delay: None,
@@ -30,6 +31,7 @@ fn opts(path: PathBuf, retries: u32) -> DownloadOptions {
 fn opts_with_429(path: PathBuf, retries: u32) -> DownloadOptions {
     DownloadOptions {
         retry_codes: vec![reqwest::StatusCode::TOO_MANY_REQUESTS],
+        http_timeout: None,
         ..opts(path, retries)
     }
 }
