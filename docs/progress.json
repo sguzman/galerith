@@ -55,10 +55,11 @@
                 },
                 {
                   "title": "Verify accessible application contrast",
-                  "passed": false
+              "passed": true,
+              "evidence": "docs/COLOR.md records WCAG 2.2 AA contrast checks for every foreground/background pair in assets/galerith-color.svg: jade/charcoal 9.50:1, off-white/charcoal 15.07:1, charcoal/jade 9.50:1"
                 }
               ],
-              "progress": 67
+          "progress": 100
             },
             {
               "id": "T003",

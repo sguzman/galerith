@@ -4,19 +4,19 @@
 
 **Overall:** `███████░░░ 69%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
-## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 70%`
+## 🧱 M0 — Identity, provenance, project controls — `███████░░░ 74%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
 
-### 🧭 P0 — Source reference and identity — `████████░░ 84%`
+### 🧭 P0 — Source reference and identity — `█████████░ 92%`
 
 - 📌 **T001** Pin upstream commit and module inventory — `██████████ 100%`
   - [x] Record upstream commit — docs/SOURCE_BASELINE.md
   - [x] Catalog Python extractor files — docs/port-matrix.json
   - [x] Automate catalog drift detection — src/bin/galerith-roadmap.rs --check-catalog compares recursive extractor .py paths against docs/port-matrix.json; added/missing path regression tests; .github/workflows/ci.yml runs it against the SHA-verified pinned checkout
-- 🎨 **T002** Assign OKLCH accent and README swatch — `███████░░░ 67%`
+- 🎨 **T002** Assign OKLCH accent and README swatch — `██████████ 100%`
   - [x] Specify perceptual color — docs/COLOR.md
   - [x] Commit SVG and embed it — assets/galerith-color.svg; README.md
-  - [ ] Verify accessible application contrast
+  - [x] Verify accessible application contrast — docs/COLOR.md records WCAG 2.2 AA contrast checks for every foreground/background pair in assets/galerith-color.svg: jade/charcoal 9.50:1, off-white/charcoal 15.07:1, charcoal/jade 9.50:1
 - ⚖️ **T003** Establish upstream licensing and provenance boundary — `███████░░░ 67%`
   - [x] Preserve repository's initial MIT file — LICENSE
   - [x] Document GPL-2.0 upstream and independent implementation policy — docs/PROVENANCE.md
