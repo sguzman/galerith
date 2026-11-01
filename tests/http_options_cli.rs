@@ -1,4 +1,7 @@
 //! Synthetic HTTP proxy and user-agent CLI regression tests.
+#[path = "support/tls.rs"]
+mod tls;
+
 use std::{
     fs,
     io::{Read, Write},
@@ -180,10 +183,7 @@ fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicit
     fs::create_dir_all(&server_root).unwrap();
     fs::create_dir_all(&download_root).unwrap();
     fs::write(server_root.join("asset.jpg"), b"TLS!").unwrap();
-    let cert = root.join("server-cert.pem");
-    let key = root.join("server-key.pem");
-    fs::write(&cert, include_str!("fixtures/tls/server-cert.pem")).unwrap();
-    fs::write(&key, include_str!("fixtures/tls/server-key.pem")).unwrap();
+    let certificates = tls::create_ca_signed_server_certificate(&root.join("certificates"));
 
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = reservation.local_addr().unwrap();
@@ -194,13 +194,13 @@ fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicit
             "-quiet",
             "-WWW",
             "-naccept",
-            "4",
+            "5",
             "-accept",
             &address.to_string(),
             "-cert",
-            cert.to_str().unwrap(),
+            certificates.server.to_str().unwrap(),
             "-key",
-            key.to_str().unwrap(),
+            certificates.server_key.to_str().unwrap(),
         ])
         .current_dir(&server_root)
         .stdout(std::process::Stdio::null())
@@ -246,6 +246,30 @@ fn tls_certificate_validation_is_enabled_by_default_and_can_be_disabled_explicit
         configured.status.success(),
         "{}",
         String::from_utf8_lossy(&configured.stderr)
+    );
+    assert_eq!(fs::read(download_root.join("asset.jpg")).unwrap(), b"TLS!");
+    fs::remove_file(download_root.join("asset.jpg")).unwrap();
+
+    let ca_option = format!(
+        "downloader.http.verify={}",
+        serde_json::to_string(certificates.ca.to_str().unwrap()).unwrap()
+    );
+    let trusted = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "-o",
+            &ca_option,
+            "--retries",
+            "0",
+            "-d",
+            download_root.to_str().unwrap(),
+        ])
+        .arg(&url)
+        .output()
+        .unwrap();
+    assert!(
+        trusted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trusted.stderr)
     );
     assert_eq!(fs::read(download_root.join("asset.jpg")).unwrap(), b"TLS!");
     fs::remove_file(download_root.join("asset.jpg")).unwrap();

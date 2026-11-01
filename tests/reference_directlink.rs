@@ -1,6 +1,9 @@
 //! Offline differential against the pinned upstream gallery-dl directlink
 //! extractor. Upstream Python is executed ONLY by the isolated CI oracle job;
 //! Galerith and its runtime remain Rust-native.
+#[path = "support/tls.rs"]
+mod tls;
+
 use serde_json::{json, Value};
 use std::{
     env,
@@ -1052,22 +1055,20 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
     let address = address_probe.local_addr().unwrap();
     drop(address_probe);
 
-    let certificate =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls/server-cert.pem");
-    let key = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls/server-key.pem");
+    let certificates = tls::create_ca_signed_server_certificate(&root.join("certificates"));
     let mut server = Command::new("openssl")
         .args([
             "s_server",
             "-quiet",
             "-WWW",
             "-naccept",
-            "3",
+            "11",
             "-accept",
             &address.to_string(),
             "-cert",
-            certificate.to_str().unwrap(),
+            certificates.server.to_str().unwrap(),
             "-key",
-            key.to_str().unwrap(),
+            certificates.server_key.to_str().unwrap(),
         ])
         .current_dir(&server_root)
         .stdout(std::process::Stdio::null())
@@ -1088,7 +1089,29 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
     }
 
     let url = format!("https://{address}/asset.jpg");
-    let run = |label: &str, reference: bool| {
+    let ca_certificates =
+        reqwest::Certificate::from_pem_bundle(&std::fs::read(&certificates.ca).unwrap()).unwrap();
+    let mut direct_client = reqwest::Client::builder();
+    for certificate in ca_certificates {
+        direct_client = direct_client.add_root_certificate(certificate);
+    }
+    let direct_client = direct_client.build().unwrap();
+    let direct_runtime = tokio::runtime::Runtime::new().unwrap();
+    let direct_response = direct_runtime
+        .block_on(direct_client.get(&url).send())
+        .unwrap_or_else(|error| panic!("direct CA trust probe failed: {error:?}"));
+    assert_eq!(
+        direct_runtime
+            .block_on(direct_response.bytes())
+            .unwrap()
+            .as_ref(),
+        b"TLS!"
+    );
+    let ca_option = format!(
+        "downloader.http.verify={}",
+        serde_json::to_string(certificates.ca.to_str().unwrap()).unwrap()
+    );
+    let run = |label: &str, reference: bool, verification: &str| {
         let output = root.join(label);
         std::fs::create_dir_all(&output).unwrap();
         let mut command = if reference {
@@ -1100,7 +1123,7 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
                 "--no-input",
                 "--quiet",
                 "-o",
-                "downloader.http.verify=false",
+                verification,
                 "-R",
                 "0",
                 "-d",
@@ -1116,7 +1139,7 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
             command.args([
                 "--quiet",
                 "-o",
-                "downloader.http.verify=false",
+                verification,
                 "--retries",
                 "0",
                 "-d",
@@ -1137,18 +1160,25 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
         }
         command.output().expect("launch TLS fixture client")
     };
-    let pinned = run("pinned", true);
-    let native = run("native", false);
+    let pinned_disabled = run("pinned-disabled", true, "downloader.http.verify=false");
+    let native_disabled = run("native-disabled", false, "downloader.http.verify=false");
+    let pinned_ca_file = run("pinned-ca-file", true, &ca_option);
+    let native_ca_file = run("native-ca-file", false, &ca_option);
     let _ = server.kill();
     let _ = server.wait();
 
-    for (label, output) in [("pinned", pinned), ("native", native)] {
+    for (label, output) in [
+        ("pinned-disabled", pinned_disabled),
+        ("native-disabled", native_disabled),
+        ("pinned-ca-file", pinned_ca_file),
+        ("native-ca-file", native_ca_file),
+    ] {
         assert!(
             output.status.success(),
             "{label}: client failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        if label == "pinned" {
+        if label.starts_with("pinned") {
             assert!(
                 contains_file_with_bytes(&root.join(label), b"TLS!"),
                 "{label}: client did not save the TLS fixture body"

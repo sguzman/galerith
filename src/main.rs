@@ -436,6 +436,7 @@ async fn main() {
 struct HttpClientOptions<'a> {
     timeout: Duration,
     no_check_certificate: bool,
+    root_certificates: Option<&'a [reqwest::Certificate]>,
     user_agent: &'a str,
     cookies: Option<&'a Arc<reqwest::cookie::Jar>>,
     proxy_url: Option<&'a str>,
@@ -449,6 +450,11 @@ fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, 
         .timeout(options.timeout)
         .danger_accept_invalid_certs(options.no_check_certificate)
         .user_agent(options.user_agent);
+    if let Some(certificates) = options.root_certificates {
+        for certificate in certificates {
+            builder = builder.add_root_certificate(certificate.clone());
+        }
+    }
     if let Some(jar) = options.cookies {
         builder = builder.cookie_provider(Arc::clone(jar));
     }
@@ -642,9 +648,23 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let downloader_http_verify = config
         .downloader_http_verify()
         .map_err(std::io::Error::other)?;
+    let media_root_certificates = match &downloader_http_verify {
+        Some(galerith::config::DownloaderHttpVerify::CaFile(path)) if !cli.no_check_certificate => {
+            let pem =
+                std::fs::read(path).map_err(|_| "could not read downloader HTTP CA certificate")?;
+            let certificates = reqwest::Certificate::from_pem_bundle(&pem)
+                .map_err(|_| "invalid downloader HTTP CA certificate")?;
+            if certificates.is_empty() {
+                return Err("invalid downloader HTTP CA certificate".into());
+            }
+            Some(certificates)
+        }
+        _ => None,
+    };
     let client_options = HttpClientOptions {
         timeout: http_timeout,
         no_check_certificate: cli.no_check_certificate,
+        root_certificates: None,
         user_agent: &user_agent,
         cookies: cookies.as_ref(),
         proxy_url: cli.proxy.as_deref(),
@@ -653,13 +673,20 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         force_ipv6: cli.force_ipv6,
     };
     let client = build_http_client(client_options)?;
-    let media_client = if !cli.no_check_certificate && downloader_http_verify == Some(false) {
-        build_http_client(HttpClientOptions {
-            no_check_certificate: true,
-            ..client_options
-        })?
-    } else {
-        client.clone()
+    let media_client = match &downloader_http_verify {
+        Some(galerith::config::DownloaderHttpVerify::Disabled) if !cli.no_check_certificate => {
+            build_http_client(HttpClientOptions {
+                no_check_certificate: true,
+                ..client_options
+            })?
+        }
+        Some(galerith::config::DownloaderHttpVerify::CaFile(_)) if !cli.no_check_certificate => {
+            build_http_client(HttpClientOptions {
+                root_certificates: media_root_certificates.as_deref(),
+                ..client_options
+            })?
+        }
+        _ => client.clone(),
     };
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {

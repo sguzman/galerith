@@ -55,14 +55,21 @@ impl Config {
     }
 
     /// Optional media-downloader TLS certificate verification setting.
-    pub fn downloader_http_verify(&self) -> Result<Option<bool>, &'static str> {
+    pub fn downloader_http_verify(&self) -> Result<Option<DownloaderHttpVerify>, &'static str> {
         let Some(value) = self.root.pointer("/downloader/http/verify") else {
             return Ok(None);
         };
+        if let Some(enabled) = value.as_bool() {
+            return Ok(Some(if enabled {
+                DownloaderHttpVerify::System
+            } else {
+                DownloaderHttpVerify::Disabled
+            }));
+        }
         value
-            .as_bool()
-            .map(Some)
-            .ok_or("downloader.http.verify must be a boolean")
+            .as_str()
+            .map(|path| Some(DownloaderHttpVerify::CaFile(path.into())))
+            .ok_or("downloader.http.verify must be a boolean or CA certificate path")
     }
 
     /// Optional bounded retry count for the media downloader.
@@ -226,6 +233,13 @@ impl Config {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloaderHttpVerify {
+    System,
+    Disabled,
+    CaFile(std::path::PathBuf),
+}
+
 fn parse_timeout(value: Option<&Value>) -> Result<Option<Duration>, &'static str> {
     let Some(value) = value else {
         return Ok(None);
@@ -316,16 +330,27 @@ mod tests {
     }
 
     #[test]
-    fn downloader_tls_verification_is_optional_and_boolean() {
+    fn downloader_tls_verification_accepts_boolean_or_ca_file() {
         let mut config = Config::default();
         assert_eq!(config.downloader_http_verify().unwrap(), None);
         config.option("downloader.http.verify=false").unwrap();
-        assert_eq!(config.downloader_http_verify().unwrap(), Some(false));
+        assert_eq!(
+            config.downloader_http_verify().unwrap(),
+            Some(DownloaderHttpVerify::Disabled)
+        );
         config.option("downloader.http.verify=true").unwrap();
-        assert_eq!(config.downloader_http_verify().unwrap(), Some(true));
+        assert_eq!(
+            config.downloader_http_verify().unwrap(),
+            Some(DownloaderHttpVerify::System)
+        );
         config
             .option("downloader.http.verify=\"/tmp/cert.pem\"")
             .unwrap();
+        assert_eq!(
+            config.downloader_http_verify().unwrap(),
+            Some(DownloaderHttpVerify::CaFile("/tmp/cert.pem".into()))
+        );
+        config.option("downloader.http.verify=42").unwrap();
         assert!(config.downloader_http_verify().is_err());
     }
 
