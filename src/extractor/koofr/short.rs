@@ -47,6 +47,7 @@ async fn short_at_base(
     code: &Code,
 ) -> Result<Share, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&code.0)?;
+    crate::pacing::wait_for_request().await;
     let response = no_redirect_client.get(endpoint).send().await?;
     if !response.status().is_redirection() {
         return Err("Koofr short URL is not a supported public redirect".into());

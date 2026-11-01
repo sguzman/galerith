@@ -212,6 +212,7 @@ fn next_page(
 }
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url.clone()).send().await?.error_for_status()?;
     if response.url().origin() != url.origin() {
         return Err("IMHentai listing redirected outside its source origin".into());

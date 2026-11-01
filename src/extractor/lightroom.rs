@@ -150,6 +150,7 @@ fn page_items(
 }
 
 async fn read_limited(client: &Client, url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(url).send().await?.error_for_status()?;
     if response
         .content_length()

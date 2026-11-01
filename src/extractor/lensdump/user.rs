@@ -141,6 +141,7 @@ fn next_page(html: &str, base: &Url, user: &User, current: u16) -> Option<Url> {
 }
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut resp = client.get(url.clone()).send().await?.error_for_status()?;
     if resp.url().origin() != url.origin() {
         return Err("Lensdump user page redirected outside first-party origin".into());
