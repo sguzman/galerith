@@ -61,6 +61,7 @@ pub fn mark_success(path: &Path, url: &str, action: InputFileAction) -> io::Resu
                 InputFileAction::ReadOnly => updated.extend_from_slice(line.as_bytes()),
                 InputFileAction::Comment => {
                     updated.push(b'#');
+                    updated.push(b' ');
                     updated.extend_from_slice(line.as_bytes());
                 }
                 InputFileAction::Delete => {}
@@ -162,7 +163,7 @@ mod tests {
         mark_success(&path, "https://example.org/a.jpg", InputFileAction::Comment).unwrap();
         assert_eq!(
             fs::read(&path).unwrap(),
-            b"#https://example.org/a.jpg\r\nkeep\nhttps://example.org/a.jpg\n"
+            b"# https://example.org/a.jpg\r\nkeep\nhttps://example.org/a.jpg\n"
         );
         fs::remove_file(path).unwrap();
     }
@@ -181,5 +182,33 @@ mod tests {
             b"keep\nhttps://example.org/a.jpg\n"
         );
         fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mutation_through_input_symlink_replaces_the_target_and_preserves_permissions() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+
+        let target = temp_file("symlink-target");
+        let link = temp_file("symlink");
+        let _ = fs::remove_file(&target);
+        let _ = fs::remove_file(&link);
+        fs::write(&target, b"https://example.org/a.jpg\n").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o640)).unwrap();
+        symlink(&target, &link).unwrap();
+
+        mark_success(&link, "https://example.org/a.jpg", InputFileAction::Comment).unwrap();
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read(&target).unwrap(), b"# https://example.org/a.jpg\n");
+        assert_eq!(
+            fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o640
+        );
+
+        fs::remove_file(link).unwrap();
+        fs::remove_file(target).unwrap();
     }
 }
