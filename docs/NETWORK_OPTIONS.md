@@ -9,8 +9,8 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 - `--source-address 192.0.2.10`: bind outgoing connections to this client-side IP address. The value must be a valid IP literal.
 - `--option 'downloader.http.headers={"Accept":"image/webp,*/*"}'`: add validated HTTP headers to media download requests. Invalid names and values fail before processing inputs, and error messages do not echo values.
 - `--limit-rate 500k` or `--limit-rate 500k-2M`: pace response-body writes at a fixed or per-download sampled rate. Values accept byte, k, m or g units; this does not yet establish full upstream rate-policy parity.
-- `--sleep-retries 0.5`, `0.2-0.8`, `exp=0.5`, or `lin:1:30=0.5`: configure a fixed/ranged retry pause or a capped exponential/linear schedule. For a 429 without a positive `Retry-After`, `--sleep-429` and `--sleep-retries` act as lower bounds, so the longer sampled delay is used.
-- `--sleep-429 2`, `1-3`, or `exp=1`: set a fixed/ranged or scheduled delay for 429 responses without a positive `Retry-After`. A positive `Retry-After` still takes precedence.
+- `--sleep-retries 0.5`, `0.2-0.8`, `exp=0.5`, or `lin:1:30=0.5`: configure a fixed/ranged retry pause or a capped exponential/linear schedule. For a 429 without `Retry-After`, this delay is a lower bound alongside `--sleep-429` and the reference per-attempt minimum.
+- `--sleep-429 2`, `1-3`, or `exp=1`: set a fixed/ranged or scheduled delay for 429 responses without `Retry-After`; the first retry waits at least one second, with the minimum increasing by one second per attempt. When unset, the reference default interval is 60 seconds. A supplied `Retry-After` value takes precedence, including `0` for an immediate retry.
 - `--sleep 0.15`: wait this many seconds before each media download. `--sleep 0.1-0.3` samples an inclusive range before each media download. Values must be finite and between 0 and 3600 seconds.
 - `--option extractor.sleep-skip=0.12`: wait after a media file is skipped. The preview supports fixed or ranged duration values and global/category configuration precedence for this option.
 - `--option extractor.sleep-extractor=0.12`: wait before handling each input URL, also accepting the fixed or ranged duration forms.
@@ -20,4 +20,4 @@ Galerith currently exposes **`-a` / `--user-agent`**, **`--proxy`**, **`--http-t
 
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, response diagnostics and complete reference networking options remain open.
 
-**Verification:** [CI 39957860428](https://github.com/sguzman/galerith/actions/runs/39957860428) includes synthetic proxy/User-Agent, bounded sleep and date-based retry tests; no public origin is contacted. The address-selection and configured-header additions were verified with local loopback tests and the full local format, Clippy, test, roadmap and release-build gates; no CI run for those additions has been confirmed.
+**Verification:** [CI 41336923648](https://github.com/sguzman/galerith/actions/runs/41336923648) passed format, Clippy, all-target tests, roadmap consistency, release build and the pinned-reference job. Network fixtures use loopback endpoints; no public origin is contacted by those tests.

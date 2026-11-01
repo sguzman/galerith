@@ -328,7 +328,7 @@ fn exponential_retry_sleep_grows_for_each_attempt() {
 }
 
 #[test]
-fn configured_sleep_429_takes_precedence_over_general_retry_delay() {
+fn configured_sleep_429_respects_the_minimum_retry_interval() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = std::thread::spawn(move || {
@@ -368,7 +368,7 @@ fn configured_sleep_429_takes_precedence_over_general_retry_delay() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(elapsed >= Duration::from_millis(140), "{elapsed:?}");
+    assert!(elapsed >= Duration::from_millis(950), "{elapsed:?}");
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
     fs::remove_dir_all(dir).unwrap();
 }
@@ -398,7 +398,7 @@ fn sleep_429_does_not_shorten_general_retry_delay() {
             "--sleep-429",
             "0",
             "--sleep-retries",
-            "0.15",
+            "1.5",
             "--retries",
             "1",
             "-d",
@@ -414,7 +414,7 @@ fn sleep_429_does_not_shorten_general_retry_delay() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(elapsed >= Duration::from_millis(140), "{elapsed:?}");
+    assert!(elapsed >= Duration::from_millis(1490), "{elapsed:?}");
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"GOOD");
     fs::remove_dir_all(dir).unwrap();
 }

@@ -35,7 +35,7 @@ pub struct DownloadOptions {
     pub headers: HeaderMap,
     /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
     pub retry_delay: Option<RetryDelay>,
-    /// Optional fixed or ranged pause for 429 responses without a positive Retry-After.
+    /// Optional configured pause for 429 responses; unset uses the reference 60-second interval.
     pub rate_limit_delay: Option<RetryDelay>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
@@ -305,6 +305,25 @@ async fn delay(attempt: u32, retry_after: Option<Duration>, configured: Option<D
     tokio::time::sleep(retry_after.unwrap_or(fallback)).await;
 }
 
+fn configured_retry_delay(
+    status: StatusCode,
+    attempt: u32,
+    retry_delay: Option<RetryDelay>,
+    rate_limit_delay: Option<RetryDelay>,
+) -> Option<Duration> {
+    let general = retry_delay.map(|policy| policy.sample(attempt));
+    if status == StatusCode::TOO_MANY_REQUESTS {
+        let attempt_floor = Duration::from_secs(u64::from(attempt));
+        let rate_limit = rate_limit_delay
+            .map(|policy| policy.sample(attempt))
+            .unwrap_or(Duration::from_secs(60))
+            .max(attempt_floor);
+        Some(general.map_or(rate_limit, |delay| delay.max(rate_limit)))
+    } else {
+        general
+    }
+}
+
 fn parse_retry_after(value: &str, now: std::time::SystemTime) -> Option<Duration> {
     let delay = if let Ok(seconds) = value.trim().parse::<u64>() {
         Duration::from_secs(seconds.min(60))
@@ -499,23 +518,18 @@ pub async fn download(
                 crate::pacing::defer_host_for_url(&item.url, after).await;
             }
             if attempt < options.retries {
-                if after.is_none_or(|delay| delay.is_zero()) {
-                    let configured_delay = if status == StatusCode::TOO_MANY_REQUESTS {
-                        match (options.rate_limit_delay, options.retry_delay) {
-                            (Some(rate_limit), Some(retry)) => Some(
-                                rate_limit
-                                    .sample(attempt + 1)
-                                    .max(retry.sample(attempt + 1)),
-                            ),
-                            (Some(delay), None) | (None, Some(delay)) => {
-                                Some(delay.sample(attempt + 1))
-                            }
-                            (None, None) => None,
-                        }
-                    } else {
-                        options.retry_delay.map(|policy| policy.sample(attempt + 1))
-                    };
-                    delay(attempt, None, configured_delay).await;
+                if after.is_none() {
+                    delay(
+                        attempt,
+                        None,
+                        configured_retry_delay(
+                            status,
+                            attempt + 1,
+                            options.retry_delay,
+                            options.rate_limit_delay,
+                        ),
+                    )
+                    .await;
                 }
                 continue;
             }
@@ -856,6 +870,47 @@ pub async fn download(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn absent_429_retry_after_uses_reference_interval_unless_configured() {
+        let rate_limit = StatusCode::TOO_MANY_REQUESTS;
+        assert_eq!(
+            configured_retry_delay(rate_limit, 1, None, None),
+            Some(Duration::from_secs(60))
+        );
+
+        let zero = RetryDelay::parse("0").unwrap();
+        assert_eq!(
+            configured_retry_delay(rate_limit, 1, None, Some(zero)),
+            Some(Duration::from_secs(1))
+        );
+
+        let general = RetryDelay::parse("0.5").unwrap();
+        let short_rate = RetryDelay::parse("0.15").unwrap();
+        assert_eq!(
+            configured_retry_delay(rate_limit, 1, Some(general), Some(short_rate)),
+            Some(Duration::from_secs(1))
+        );
+        let long_rate = RetryDelay::parse("2").unwrap();
+        assert_eq!(
+            configured_retry_delay(rate_limit, 1, Some(general), Some(long_rate)),
+            Some(Duration::from_secs(2))
+        );
+        let long_general = RetryDelay::parse("1.5").unwrap();
+        assert_eq!(
+            configured_retry_delay(rate_limit, 1, Some(long_general), Some(zero)),
+            Some(Duration::from_millis(1500))
+        );
+        let two_seconds = RetryDelay::parse("2").unwrap();
+        assert_eq!(
+            configured_retry_delay(rate_limit, 3, None, Some(two_seconds)),
+            Some(Duration::from_secs(3))
+        );
+        assert_eq!(
+            configured_retry_delay(StatusCode::SERVICE_UNAVAILABLE, 1, Some(general), None),
+            Some(Duration::from_millis(500))
+        );
+    }
 
     #[test]
     fn strict_resumed_content_range() {
