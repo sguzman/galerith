@@ -41,8 +41,19 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
         return Err("JSON response byte limit must be positive".into());
     }
     crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let request_method = request.method().clone();
+    let request_url = request.url().clone();
+    let request_headers = request.headers().clone();
+    let mut response = client.execute(request).await?.error_for_status()?;
     let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method: request_method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
     if response
         .content_length()
         .is_some_and(|size| size > max_bytes as u64)
@@ -56,7 +67,9 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
         }
         body.extend_from_slice(&chunk);
     }
-    if let Err(error) = crate::http_diagnostics::dump_response_page(&final_url, &body).await {
+    if let Err(error) =
+        crate::http_diagnostics::dump_response_page(&final_url, &body, Some(&response_info)).await
+    {
         eprintln!("galerith: response page dump failed ({})", error.kind());
     }
     Ok((serde_json::from_slice(&body)?, final_url))
@@ -160,9 +173,11 @@ mod tests {
         tokio::fs::create_dir_all(&directory).await.unwrap();
         let endpoint = Url::parse(&format!("http://{address}/page.json")).unwrap();
         let client = Client::new();
-        let value = crate::http_diagnostics::scope_response_pages(directory.clone(), async {
-            fetch_json_uncached(&client, endpoint, 1024).await.unwrap()
-        })
+        let value = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            async { fetch_json_uncached(&client, endpoint, 1024).await.unwrap() },
+        )
         .await;
         assert_eq!(value["post_ids"][0], 88);
         server.await.unwrap();
@@ -178,6 +193,53 @@ mod tests {
             tokio::fs::read(&path).await.unwrap(),
             b"{\"post_ids\":[88]}"
         );
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn shared_json_reader_all_mode_captures_redacted_response_headers() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1024];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-Diagnostic: fixture\r\nSet-Cookie: sid=private-secret; HttpOnly\r\nContent-Length: 17\r\nConnection: close\r\n\r\n{\"post_ids\":[88]}",
+                )
+                .await
+                .unwrap();
+        });
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-http-json-pages-all-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let endpoint =
+            Url::parse(&format!("http://{address}/page.json?token=request-secret")).unwrap();
+        let client = Client::new();
+        let value = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { fetch_json_uncached(&client, endpoint, 1024).await.unwrap() },
+        )
+        .await;
+        assert_eq!(value["post_ids"][0], 88);
+        server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let path = entries.next_entry().await.unwrap().unwrap().path();
+        assert!(entries.next_entry().await.unwrap().is_none());
+        let contents = tokio::fs::read_to_string(&path).await.unwrap();
+        assert!(contents.contains("GET http://127.0.0.1:"));
+        assert!(contents.contains("Status: 200 OK"));
+        assert!(contents.contains("x-diagnostic: fixture"));
+        assert!(contents.contains("set-cookie: ***"));
+        assert!(contents.contains("content-type: application/json"));
+        assert!(!contents.contains("request-secret"));
+        assert!(!contents.contains("private-secret"));
+        assert!(contents.ends_with("{\"post_ids\":[88]}"));
         tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 

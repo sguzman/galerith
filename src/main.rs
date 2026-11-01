@@ -211,9 +211,15 @@ struct Cli {
     #[arg(long = "write-metadata")]
     write_metadata: bool,
 
-    /// Write bounded extractor API response bodies to numbered .txt files
-    #[arg(long = "write-pages")]
-    write_pages: bool,
+    /// Write successful bounded API responses to .txt files; all includes redacted headers
+    #[arg(
+        long = "write-pages",
+        value_enum,
+        num_args = 0..=1,
+        default_missing_value = "body",
+        require_equals = true
+    )]
+    write_pages: Option<ResponsePageMode>,
 
     /// Seconds to wait before each media download (SECONDS or inclusive MIN-MAX)
     #[arg(long = "sleep", value_name = "SECONDS|MIN-MAX")]
@@ -352,6 +358,12 @@ struct Cli {
     quiet: bool,
 }
 
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum ResponsePageMode {
+    Body,
+    All,
+}
+
 // Cache and download/reference archives must never alias: otherwise opening
 // the cache may create tables or prune entries in an unrelated database.
 fn same_cache_archive_file(
@@ -399,10 +411,14 @@ fn same_cache_archive_file(
 async fn main() {
     let cli = Cli::parse();
     let write_pages = cli.write_pages;
-    let result = if write_pages {
+    let result = if let Some(mode) = write_pages {
         match std::env::current_dir() {
             Ok(directory) => {
-                galerith::http_diagnostics::scope_response_pages(directory, run(cli)).await
+                let mode = match mode {
+                    ResponsePageMode::Body => galerith::http_diagnostics::ResponsePageMode::Body,
+                    ResponsePageMode::All => galerith::http_diagnostics::ResponsePageMode::All,
+                };
+                galerith::http_diagnostics::scope_response_pages(directory, mode, run(cli)).await
             }
             Err(error) => Err(Box::new(error) as Box<dyn Error + Send + Sync>),
         }
@@ -927,5 +943,20 @@ fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usiz
             path.display()
         );
         *failed += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, ResponsePageMode};
+    use clap::Parser;
+
+    #[test]
+    fn write_pages_accepts_body_default_and_header_inclusive_mode() {
+        let body = Cli::try_parse_from(["galerith", "--write-pages"]).unwrap();
+        assert!(matches!(body.write_pages, Some(ResponsePageMode::Body)));
+        let all = Cli::try_parse_from(["galerith", "--write-pages=all"]).unwrap();
+        assert!(matches!(all.write_pages, Some(ResponsePageMode::All)));
+        assert!(Cli::try_parse_from(["galerith", "--write-pages=ALL"]).is_err());
     }
 }
