@@ -236,6 +236,7 @@ async fn at_base(
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let mut url = base.join("mypage/")?;
     url.query_pairs_mut().append_pair("id", &user.id);
+    crate::pacing::wait_for_request().await;
     let response = client.get(url.clone()).send().await?;
     if response.url().origin() != url.origin() {
         return Err("Kabeuchi profile redirected outside its source origin".into());
@@ -260,6 +261,7 @@ async fn at_base(
             ("latest_post", previous.clone()),
             ("page_num", page.to_string()),
         ];
+        crate::pacing::wait_for_request().await;
         let response = client.post(endpoint.clone()).form(&fields).send().await?;
         if response.url().origin() != endpoint.origin() {
             return Err("Kabeuchi pagination redirected outside its source origin".into());

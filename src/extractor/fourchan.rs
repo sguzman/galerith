@@ -139,6 +139,7 @@ async fn queue_board_at_base(
     api: &Url,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{board}/threads.json"))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()
@@ -304,6 +305,7 @@ async fn thread_json(
     api: &Url,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{}/thread/{}.json", target.board, target.id))?;
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response
         .content_length()

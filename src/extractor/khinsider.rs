@@ -241,6 +241,7 @@ async fn fetch_html(
     endpoint: Url,
     origin: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     if response.url().origin() != origin.origin() {
         return Err("KHInsider source redirected outside trusted album origin".into());

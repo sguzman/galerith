@@ -449,6 +449,7 @@ async fn at_base(
             url.query_pairs_mut()
                 .append_pair("method", "photo.getData")
                 .append_pair("photoId", &id);
+            crate::pacing::wait_for_request().await;
             let bytes = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let source: Value = serde_json::from_slice(&bytes)?;
             Ok((photo_records(&source, &id)?, Vec::new()))
@@ -462,6 +463,7 @@ async fn at_base(
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
                 let url = page_base.join(&format!("tags/{name}/list_{page}/"))?;
+                crate::pacing::wait_for_request().await;
                 let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
                 let text = String::from_utf8(body)?;
                 let previous = output.len();
@@ -474,6 +476,7 @@ async fn at_base(
         }
         Target::User(name) => {
             let url = page_base.join(&format!("{name}/"))?;
+            crate::pacing::wait_for_request().await;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
             let (_, tail) = html
@@ -510,6 +513,7 @@ async fn at_base(
                 format!("genre_{id}/")
             };
             let url = page_base.join(&path)?;
+            crate::pacing::wait_for_request().await;
             let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
             let html = String::from_utf8(body)?;
             let markup = html

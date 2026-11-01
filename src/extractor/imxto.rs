@@ -246,6 +246,7 @@ async fn gallery_at_base(
         endpoint
             .query_pairs_mut()
             .append_pair("page", &page.to_string());
+        crate::pacing::wait_for_request().await;
         let response = client.get(endpoint).send().await?;
         let html = read_limited_html(response).await?;
         if !gallery_children(&html, id, &mut seen, &mut messages) {

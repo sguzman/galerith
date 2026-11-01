@@ -195,9 +195,11 @@ async fn gallery_at_base(
     hash: &str,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let gallery = base.join(&format!("thumbs/{hash}/index.html"))?;
+    crate::pacing::wait_for_request().await;
     let html =
         String::from_utf8(bounded(client.get(gallery.clone()).send().await?, &gallery).await?)?;
     let api = base.join("ajax/auth.aspx")?;
+    crate::pacing::wait_for_request().await;
     let token = String::from_utf8(
         bounded(
             client
@@ -221,6 +223,7 @@ async fn gallery_at_base(
         .append_pair("X-Auth", token)
         .append_pair("hash", hash)
         .append_pair("_", &now.to_string());
+    crate::pacing::wait_for_request().await;
     let data: Value = serde_json::from_slice(
         &bounded(
             client
@@ -298,6 +301,7 @@ async fn search_at_base(
         if page > 0 {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+        crate::pacing::wait_for_request().await;
         let html =
             String::from_utf8(bounded(client.get(current.clone()).send().await?, &current).await?)?;
         listing_urls(&html, &mut seen_galleries, &mut output);

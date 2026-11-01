@@ -136,6 +136,7 @@ async fn resolve_endpoint(
     service: &str,
 ) -> Result<Url, Box<dyn Error + Send + Sync>> {
     let client = Client::builder().redirect(Policy::none()).build()?;
+    crate::pacing::wait_for_request().await;
     let head = client.head(endpoint.clone()).send().await?;
     if head.url().origin() != endpoint.origin() {
         return Err("Shortener initial request escaped its origin".into());
@@ -151,6 +152,7 @@ async fn resolve_endpoint(
         || head.status().is_success()
         || (head.status().is_redirection() && head.headers().get(LOCATION).is_none())
     {
+        crate::pacing::wait_for_request().await;
         let response = client.get(endpoint.clone()).send().await?;
         if response.url().origin() != endpoint.origin() {
             return Err("Shortener GET escaped its origin".into());
