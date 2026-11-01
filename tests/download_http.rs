@@ -414,6 +414,19 @@ async fn failed_no_part_transfer_leaves_a_partial_at_the_requested_output_path()
 
 #[tokio::test]
 async fn limit_rate_paces_body_bytes_at_the_configured_average() {
+    assert_limit_rate_paces_body_bytes("8k", "limited-rate", 900).await;
+}
+
+#[tokio::test]
+async fn ranged_limit_rate_paces_body_bytes_at_the_fastest_configured_rate() {
+    assert_limit_rate_paces_body_bytes("4k-8k", "limited-rate-range", 900).await;
+}
+
+async fn assert_limit_rate_paces_body_bytes(
+    rate: &'static str,
+    label: &'static str,
+    minimum_ms: u64,
+) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -433,14 +446,14 @@ async fn limit_rate_paces_body_bytes_at_the_configured_average() {
             .unwrap();
         stream.write_all(&body).await.unwrap();
     });
-    let dir = test_dir("limited-rate");
+    let dir = test_dir(label);
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/photo.jpg");
     let output_dir = dir.clone();
     let started = Instant::now();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(env!("CARGO_BIN_EXE_galerith"))
-            .args(["--limit-rate", "8k", "-d"])
+            .args(["--limit-rate", rate, "-d"])
             .arg(output_dir)
             .arg(url)
             .output()
@@ -456,7 +469,7 @@ async fn limit_rate_paces_body_bytes_at_the_configured_average() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        elapsed >= Duration::from_millis(900),
+        elapsed >= Duration::from_millis(minimum_ms),
         "rate limit elapsed {elapsed:?}"
     );
     assert_eq!(fs::metadata(dir.join("photo.jpg")).unwrap().len(), 8192);
