@@ -49,19 +49,19 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 61%`
+## 🌐 M1 — HTTP, storage and download parity — `██████░░░░ 63%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `██████░░░░ 63%`
+### 📡 P2 — HTTP transfer engine — `███████░░░ 67%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
   - [x] Add local HTTP fixture tests — tests/download_http.rs; GitHub Actions 39898967165 passed
   - [x] Verify interrupted/large downloads — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [ ] Match upstream downloader behavior
-- 🔄 **T202** Retry, backoff and rate control — `█████░░░░░ 50%`
+- 🔄 **T202** Retry, backoff and rate control — `████████░░ 75%`
   - [x] Provide bounded transient retries — src/download.rs
-  - [ ] Honor Retry-After and timing policies
+  - [x] Honor Retry-After and timing policies — src/download.rs; Retry-After parser unit tests cover seconds, HTTP dates, past dates and invalid values; tests/download_quality.rs verifies a positive one-second 429 delay end to end; tests/sleep_cli.rs covers fixed/ranged download, skip, extractor and global/category request timing; offline full suite passed locally
   - [ ] Implement per-host and global pacing
   - [x] Verify HTTP 429/5xx fixture matrix — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 - ⏯️ **T203** Resume, partial files and atomic completion — `██████████ 100%`

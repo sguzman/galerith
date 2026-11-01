@@ -99,6 +99,41 @@ async fn recovers_from_429_500_and_503_then_saves() {
 }
 
 #[tokio::test]
+async fn honors_retry_after_before_retrying_rate_limited_media() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for (status, body, retry_after) in [
+            ("429 Too Many Requests", "", "Retry-After: 1\r\n"),
+            ("200 OK", "GOOD", ""),
+        ] {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 2048];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            let reply = format!(
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\n{retry_after}Connection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+        }
+    });
+    let path = destination("retry-after-delay");
+    let _ = fs::remove_dir_all(&path);
+    let item = extract_direct_media(&format!("http://{addr}/retry-after.jpg")).unwrap();
+    let started = tokio::time::Instant::now();
+    download(&client(), &item, &opts(path.clone(), 1))
+        .await
+        .unwrap();
+    assert!(
+        started.elapsed() >= Duration::from_millis(950),
+        "retry began before the server's Retry-After delay"
+    );
+    assert_eq!(fs::read(path.join("retry-after.jpg")).unwrap(), b"GOOD");
+    server.await.unwrap();
+    fs::remove_dir_all(&path).unwrap();
+}
+
+#[tokio::test]
 async fn rejects_unsolicited_partial_without_overwriting_anything() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();

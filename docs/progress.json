@@ -272,7 +272,8 @@
                 },
                 {
                   "title": "Honor Retry-After and timing policies",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/download.rs; Retry-After parser unit tests cover seconds, HTTP dates, past dates and invalid values; tests/download_quality.rs verifies a positive one-second 429 delay end to end; tests/sleep_cli.rs covers fixed/ranged download, skip, extractor and global/category request timing; offline full suite passed locally"
                 },
                 {
                   "title": "Implement per-host and global pacing",
@@ -284,7 +285,7 @@
                   "evidence": "GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed"
                 }
               ],
-              "progress": 50
+              "progress": 75
             },
             {
               "id": "T203",
