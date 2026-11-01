@@ -1145,6 +1145,10 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
         "downloader.http.verify={}",
         serde_json::to_string(certificates.ca.to_str().unwrap()).unwrap()
     );
+    let extractor_ca_option = format!(
+        "extractor.directlink.verify={}",
+        serde_json::to_string(certificates.ca.to_str().unwrap()).unwrap()
+    );
     let run = |label: &str, reference: bool, verification: &str| {
         let output = root.join(label);
         std::fs::create_dir_all(&output).unwrap();
@@ -1198,6 +1202,18 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
     let native_disabled = run("native-disabled", false, "downloader.http.verify=false");
     let pinned_ca_file = run("pinned-ca-file", true, &ca_option);
     let native_ca_file = run("native-ca-file", false, &ca_option);
+    let pinned_extractor_disabled = run(
+        "pinned-extractor-disabled",
+        true,
+        "extractor.directlink.verify=false",
+    );
+    let native_extractor_disabled = run(
+        "native-extractor-disabled",
+        false,
+        "extractor.directlink.verify=false",
+    );
+    let pinned_extractor_ca_file = run("pinned-extractor-ca-file", true, &extractor_ca_option);
+    let native_extractor_ca_file = run("native-extractor-ca-file", false, &extractor_ca_option);
     let _ = server.kill();
     let _ = server.wait();
 
@@ -1206,6 +1222,10 @@ fn pinned_and_native_clients_match_downloader_http_verify_false() {
         ("native-disabled", native_disabled),
         ("pinned-ca-file", pinned_ca_file),
         ("native-ca-file", native_ca_file),
+        ("pinned-extractor-disabled", pinned_extractor_disabled),
+        ("native-extractor-disabled", native_extractor_disabled),
+        ("pinned-extractor-ca-file", pinned_extractor_ca_file),
+        ("native-extractor-ca-file", native_extractor_ca_file),
     ] {
         assert!(
             output.status.success(),

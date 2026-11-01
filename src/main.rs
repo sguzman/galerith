@@ -490,6 +490,16 @@ fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, 
         .map_err(|_| "invalid HTTP client configuration")
 }
 
+fn load_http_ca_bundle(path: &std::path::Path) -> Result<Vec<reqwest::Certificate>, &'static str> {
+    let pem = std::fs::read(path).map_err(|_| "could not read HTTP CA certificate")?;
+    let certificates =
+        reqwest::Certificate::from_pem_bundle(&pem).map_err(|_| "invalid HTTP CA certificate")?;
+    if certificates.is_empty() {
+        return Err("invalid HTTP CA certificate");
+    }
+    Ok(certificates)
+}
+
 async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     // Clap's presence constraints are not a substitute for validating these
     // typed-job selectors. Never silently ignore them in inspection mode.
@@ -678,19 +688,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let downloader_http_verify = config
         .downloader_http_verify()
         .map_err(std::io::Error::other)?;
-    let media_root_certificates = match &downloader_http_verify {
-        Some(galerith::config::DownloaderHttpVerify::CaFile(path)) if !cli.no_check_certificate => {
-            let pem =
-                std::fs::read(path).map_err(|_| "could not read downloader HTTP CA certificate")?;
-            let certificates = reqwest::Certificate::from_pem_bundle(&pem)
-                .map_err(|_| "invalid downloader HTTP CA certificate")?;
-            if certificates.is_empty() {
-                return Err("invalid downloader HTTP CA certificate".into());
-            }
-            Some(certificates)
-        }
-        _ => None,
-    };
     let client_options = HttpClientOptions {
         timeout: http_timeout,
         no_check_certificate: cli.no_check_certificate,
@@ -704,11 +701,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         force_ipv6: cli.force_ipv6,
     };
     let client = build_http_client(client_options)?;
-    let media_no_check_certificate = cli.no_check_certificate
-        || matches!(
-            downloader_http_verify,
-            Some(galerith::config::DownloaderHttpVerify::Disabled)
-        );
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
             config
@@ -813,11 +805,28 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map_err(std::io::Error::other)?;
         let extractor_proxy_settings =
             extractor_proxy_override.unwrap_or_else(|| shared_proxy_settings.clone());
+        let extractor_http_verify = config
+            .extractor_http_verify(category)
+            .map_err(std::io::Error::other)?;
+        let extractor_no_check_certificate = cli.no_check_certificate
+            || extractor_http_verify.as_ref().is_some_and(|verify| {
+                matches!(verify, galerith::config::HttpTlsVerification::Disabled)
+            });
+        let extractor_root_certificates = match extractor_http_verify.as_ref() {
+            Some(galerith::config::HttpTlsVerification::CaFile(path))
+                if !cli.no_check_certificate =>
+            {
+                Some(load_http_ca_bundle(path)?)
+            }
+            _ => None,
+        };
         let extractor_headers = config
             .extractor_http_headers(category)
             .map_err(std::io::Error::other)?;
         let extractor_header_map = extractor_headers.as_ref().map(|headers| &headers.values);
         let mut extractor_client_options = client_options;
+        extractor_client_options.no_check_certificate = extractor_no_check_certificate;
+        extractor_client_options.root_certificates = extractor_root_certificates.as_deref();
         if extractor_headers
             .as_ref()
             .is_some_and(|headers| headers.disable_user_agent)
@@ -835,6 +844,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let extractor_client = if extractor_proxy_settings == shared_proxy_settings
             && extractor_header_map.is_none()
+            && extractor_no_check_certificate == cli.no_check_certificate
+            && extractor_root_certificates.is_none()
         {
             client.clone()
         } else {
@@ -847,31 +858,44 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let media_proxy_settings = downloader_proxy_settings
             .clone()
             .unwrap_or_else(|| extractor_proxy_settings.clone());
-        let media_client = if media_no_check_certificate == cli.no_check_certificate
-            && media_root_certificates.is_none()
-        {
-            if media_proxy_settings == extractor_proxy_settings {
+        let media_http_verify = downloader_http_verify
+            .as_ref()
+            .or(extractor_http_verify.as_ref());
+        let media_no_check_certificate = cli.no_check_certificate
+            || media_http_verify.is_some_and(|verify| {
+                matches!(verify, galerith::config::HttpTlsVerification::Disabled)
+            });
+        let media_root_certificates = match media_http_verify {
+            Some(galerith::config::HttpTlsVerification::CaFile(path))
+                if !cli.no_check_certificate && downloader_http_verify.is_some() =>
+            {
+                Some(load_http_ca_bundle(path)?)
+            }
+            Some(galerith::config::HttpTlsVerification::CaFile(_)) if !cli.no_check_certificate => {
+                extractor_root_certificates.clone()
+            }
+            _ => None,
+        };
+        let media_uses_extractor_tls =
+            downloader_http_verify.is_none() || downloader_http_verify == extractor_http_verify;
+        let media_client =
+            if media_uses_extractor_tls && media_proxy_settings == extractor_proxy_settings {
                 extractor_client.clone()
-            } else if media_proxy_settings == shared_proxy_settings
+            } else if media_no_check_certificate == cli.no_check_certificate
+                && media_root_certificates.is_none()
+                && media_proxy_settings == shared_proxy_settings
                 && extractor_header_map.is_none()
             {
                 client.clone()
             } else {
                 build_http_client(HttpClientOptions {
+                    no_check_certificate: media_no_check_certificate,
+                    root_certificates: media_root_certificates.as_deref(),
                     proxy_settings: media_proxy_settings.as_ref(),
                     headers: extractor_header_map,
                     ..extractor_client_options
                 })?
-            }
-        } else {
-            build_http_client(HttpClientOptions {
-                no_check_certificate: media_no_check_certificate,
-                root_certificates: media_root_certificates.as_deref(),
-                proxy_settings: media_proxy_settings.as_ref(),
-                headers: extractor_header_map,
-                ..extractor_client_options
-            })?
-        };
+            };
         let api_request_delay = config
             .duration(category, "sleep-request")
             .map_err(std::io::Error::other)?;

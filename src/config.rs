@@ -61,21 +61,19 @@ impl Config {
     }
 
     /// Optional media-downloader TLS certificate verification setting.
-    pub fn downloader_http_verify(&self) -> Result<Option<DownloaderHttpVerify>, &'static str> {
-        let Some(value) = self.root.pointer("/downloader/http/verify") else {
-            return Ok(None);
-        };
-        if let Some(enabled) = value.as_bool() {
-            return Ok(Some(if enabled {
-                DownloaderHttpVerify::System
-            } else {
-                DownloaderHttpVerify::Disabled
-            }));
-        }
-        value
-            .as_str()
-            .map(|path| Some(DownloaderHttpVerify::CaFile(path.into())))
-            .ok_or("downloader.http.verify must be a boolean or CA certificate path")
+    pub fn downloader_http_verify(&self) -> Result<Option<HttpTlsVerification>, &'static str> {
+        parse_http_tls_verification(self.root.pointer("/downloader/http/verify"))
+    }
+
+    /// Optional extractor-wide or category-specific TLS verification setting.
+    pub fn extractor_http_verify(
+        &self,
+        extractor: &str,
+    ) -> Result<Option<HttpTlsVerification>, &'static str> {
+        let value = self
+            .path(&["extractor", extractor, "verify"])
+            .or_else(|| self.path(&["extractor", "verify"]));
+        parse_http_tls_verification(value)
     }
 
     /// Optional shared proxy map for extractor and media HTTP clients.
@@ -305,7 +303,7 @@ impl Config {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DownloaderHttpVerify {
+pub enum HttpTlsVerification {
     System,
     Disabled,
     CaFile(std::path::PathBuf),
@@ -360,6 +358,25 @@ fn parse_proxy_settings(value: &Value) -> Result<Option<HttpProxySettings>, &'st
         .transpose()?
         .map(normalize_proxy_url);
     Ok((http.is_some() || https.is_some()).then_some(HttpProxySettings { http, https }))
+}
+
+fn parse_http_tls_verification(
+    value: Option<&Value>,
+) -> Result<Option<HttpTlsVerification>, &'static str> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if let Some(enabled) = value.as_bool() {
+        return Ok(Some(if enabled {
+            HttpTlsVerification::System
+        } else {
+            HttpTlsVerification::Disabled
+        }));
+    }
+    value
+        .as_str()
+        .map(|path| Some(HttpTlsVerification::CaFile(path.into())))
+        .ok_or("HTTP verify setting must be a boolean or CA certificate path")
 }
 
 fn parse_timeout(value: Option<&Value>) -> Result<Option<Duration>, &'static str> {
@@ -458,22 +475,42 @@ mod tests {
         config.option("downloader.http.verify=false").unwrap();
         assert_eq!(
             config.downloader_http_verify().unwrap(),
-            Some(DownloaderHttpVerify::Disabled)
+            Some(HttpTlsVerification::Disabled)
         );
         config.option("downloader.http.verify=true").unwrap();
         assert_eq!(
             config.downloader_http_verify().unwrap(),
-            Some(DownloaderHttpVerify::System)
+            Some(HttpTlsVerification::System)
         );
         config
             .option("downloader.http.verify=\"/tmp/cert.pem\"")
             .unwrap();
         assert_eq!(
             config.downloader_http_verify().unwrap(),
-            Some(DownloaderHttpVerify::CaFile("/tmp/cert.pem".into()))
+            Some(HttpTlsVerification::CaFile("/tmp/cert.pem".into()))
         );
         config.option("downloader.http.verify=42").unwrap();
         assert!(config.downloader_http_verify().is_err());
+    }
+
+    #[test]
+    fn extractor_tls_verification_follows_category_precedence() {
+        let mut config = Config::default();
+        assert_eq!(config.extractor_http_verify("e621").unwrap(), None);
+        config.option("extractor.verify=false").unwrap();
+        config
+            .option("extractor.e621.verify=\"/tmp/e621-ca.pem\"")
+            .unwrap();
+        assert_eq!(
+            config.extractor_http_verify("e621").unwrap(),
+            Some(HttpTlsVerification::CaFile("/tmp/e621-ca.pem".into()))
+        );
+        assert_eq!(
+            config.extractor_http_verify("pixiv").unwrap(),
+            Some(HttpTlsVerification::Disabled)
+        );
+        config.option("extractor.verify=42").unwrap();
+        assert!(config.extractor_http_verify("pixiv").is_err());
     }
 
     #[test]
