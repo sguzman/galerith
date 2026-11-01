@@ -28,6 +28,12 @@ pub struct Config {
     root: Value,
 }
 
+#[derive(Debug, Default)]
+pub struct ExtractorHttpHeaders {
+    pub values: HeaderMap,
+    pub disable_user_agent: bool,
+}
+
 fn overlay(target: &mut Value, overlay: Value) {
     if let (Some(destination), Value::Object(source)) = (target.as_object_mut(), &overlay) {
         for (key, value) in source {
@@ -100,6 +106,41 @@ impl Config {
             .or_else(|| self.path(&["extractor", "proxy"]))
             .map(parse_proxy_settings)
             .transpose()
+    }
+
+    /// Optional shared or category-specific headers for extractor requests.
+    pub fn extractor_http_headers(
+        &self,
+        extractor: &str,
+    ) -> Result<Option<ExtractorHttpHeaders>, &'static str> {
+        let Some(value) = self
+            .path(&["extractor", extractor, "headers"])
+            .or_else(|| self.path(&["extractor", "headers"]))
+        else {
+            return Ok(None);
+        };
+        let object = value
+            .as_object()
+            .ok_or("extractor HTTP headers must be an object")?;
+        let mut headers = ExtractorHttpHeaders::default();
+        for (name, value) in object {
+            let name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|_| "invalid extractor HTTP header name")?;
+            if value.is_null() {
+                if name == reqwest::header::USER_AGENT {
+                    headers.disable_user_agent = true;
+                }
+                continue;
+            }
+            let value = value
+                .as_str()
+                .ok_or("extractor HTTP header values must be strings or null")?;
+            let mut value =
+                HeaderValue::from_str(value).map_err(|_| "invalid extractor HTTP header value")?;
+            value.set_sensitive(true);
+            headers.values.insert(name, value);
+        }
+        Ok(Some(headers))
     }
 
     /// Optional bounded retry count for the media downloader.
@@ -507,6 +548,32 @@ mod tests {
                 .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn extractor_headers_follow_category_precedence_and_mark_values_sensitive() {
+        let mut config = Config::default();
+        config
+            .option(r#"extractor.headers={"X-Shared":"default","X-Token":"secret"}"#)
+            .unwrap();
+        config
+            .option(
+                r#"extractor.e621.headers={"X-Category":"specific","X-Token":null,"User-Agent":null}"#,
+            )
+            .unwrap();
+
+        let category_headers = config.extractor_http_headers("e621").unwrap().unwrap();
+        assert_eq!(category_headers.values["x-category"], "specific");
+        assert!(!category_headers.values.contains_key("x-shared"));
+        assert!(!category_headers.values.contains_key("x-token"));
+        assert!(category_headers.values["x-category"].is_sensitive());
+        assert!(category_headers.disable_user_agent);
+
+        let shared_headers = config.extractor_http_headers("pixiv").unwrap().unwrap();
+        assert_eq!(shared_headers.values["x-shared"], "default");
+        assert_eq!(shared_headers.values["x-token"], "secret");
+        assert!(shared_headers.values["x-token"].is_sensitive());
+        assert!(!shared_headers.disable_user_agent);
     }
 
     #[test]

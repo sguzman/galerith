@@ -437,7 +437,8 @@ struct HttpClientOptions<'a> {
     timeout: Duration,
     no_check_certificate: bool,
     root_certificates: Option<&'a [reqwest::Certificate]>,
-    user_agent: &'a str,
+    user_agent: Option<&'a str>,
+    headers: Option<&'a reqwest::header::HeaderMap>,
     cookies: Option<&'a Arc<reqwest::cookie::Jar>>,
     proxy_settings: Option<&'a galerith::config::HttpProxySettings>,
     source_address: Option<std::net::IpAddr>,
@@ -448,8 +449,13 @@ struct HttpClientOptions<'a> {
 fn build_http_client(options: HttpClientOptions<'_>) -> Result<reqwest::Client, &'static str> {
     let mut builder = reqwest::Client::builder()
         .timeout(options.timeout)
-        .danger_accept_invalid_certs(options.no_check_certificate)
-        .user_agent(options.user_agent);
+        .danger_accept_invalid_certs(options.no_check_certificate);
+    if let Some(user_agent) = options.user_agent {
+        builder = builder.user_agent(user_agent);
+    }
+    if let Some(headers) = options.headers {
+        builder = builder.default_headers(headers.clone());
+    }
     if let Some(certificates) = options.root_certificates {
         builder = builder.tls_built_in_root_certs(false);
         for certificate in certificates {
@@ -689,7 +695,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         timeout: http_timeout,
         no_check_certificate: cli.no_check_certificate,
         root_certificates: None,
-        user_agent: &user_agent,
+        user_agent: Some(&user_agent),
+        headers: None,
         cookies: cookies.as_ref(),
         proxy_settings: shared_proxy_settings.as_ref(),
         source_address: cli.source_address,
@@ -806,12 +813,26 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map_err(std::io::Error::other)?;
         let extractor_proxy_settings =
             extractor_proxy_override.unwrap_or_else(|| shared_proxy_settings.clone());
-        let extractor_client = if extractor_proxy_settings == shared_proxy_settings {
+        let extractor_headers = config
+            .extractor_http_headers(category)
+            .map_err(std::io::Error::other)?;
+        let extractor_header_map = extractor_headers.as_ref().map(|headers| &headers.values);
+        let mut extractor_client_options = client_options;
+        if extractor_headers
+            .as_ref()
+            .is_some_and(|headers| headers.disable_user_agent)
+        {
+            extractor_client_options.user_agent = None;
+        }
+        let extractor_client = if extractor_proxy_settings == shared_proxy_settings
+            && extractor_header_map.is_none()
+        {
             client.clone()
         } else {
             build_http_client(HttpClientOptions {
                 proxy_settings: extractor_proxy_settings.as_ref(),
-                ..client_options
+                headers: extractor_header_map,
+                ..extractor_client_options
             })?
         };
         let media_proxy_settings = downloader_proxy_settings
@@ -822,12 +843,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         {
             if media_proxy_settings == extractor_proxy_settings {
                 extractor_client.clone()
-            } else if media_proxy_settings == shared_proxy_settings {
+            } else if media_proxy_settings == shared_proxy_settings
+                && extractor_header_map.is_none()
+            {
                 client.clone()
             } else {
                 build_http_client(HttpClientOptions {
                     proxy_settings: media_proxy_settings.as_ref(),
-                    ..client_options
+                    headers: extractor_header_map,
+                    ..extractor_client_options
                 })?
             }
         } else {
@@ -835,7 +859,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 no_check_certificate: media_no_check_certificate,
                 root_certificates: media_root_certificates.as_deref(),
                 proxy_settings: media_proxy_settings.as_ref(),
-                ..client_options
+                headers: extractor_header_map,
+                ..extractor_client_options
             })?
         };
         let api_request_delay = config

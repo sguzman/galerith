@@ -204,9 +204,20 @@ fn extractor_proxy_overrides_shared_proxy_for_downloads() {
         let mut request = [0_u8; 4096];
         let count = socket.read(&mut request).unwrap();
         let line = String::from_utf8_lossy(&request[..count]);
+        let lower = line.to_ascii_lowercase();
         assert!(
             line.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1"),
             "extractor proxy did not receive an absolute-form request: {line}"
+        );
+        assert!(
+            lower.contains("x-extractor: category-value\r\n"),
+            "extractor-specific header was not sent with the media request: {line}"
+        );
+        assert!(
+            !lower
+                .lines()
+                .any(|header| header.starts_with("user-agent:")),
+            "null extractor User-Agent should suppress the shared value: {line}"
         );
         socket
             .write_all(
@@ -227,12 +238,16 @@ fn extractor_proxy_overrides_shared_proxy_for_downloads() {
         "extractor.directlink.proxy={}",
         serde_json::to_string(&format!("127.0.0.1:{port}")).unwrap()
     );
+    let extractor_headers_option =
+        r#"extractor.directlink.headers={"X-Extractor":"category-value","User-Agent":null}"#;
     let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
     command.args([
         "-o",
         &global_proxy_option,
         "-o",
         &extractor_proxy_option,
+        "-o",
+        extractor_headers_option,
         "--retries",
         "0",
         "-d",
