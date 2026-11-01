@@ -93,6 +93,10 @@ pub async fn dump_response_page(
     ))
 }
 
+pub fn response_page_dump_enabled() -> bool {
+    RESPONSE_PAGE_OPTIONS.try_with(|_| ()).is_ok()
+}
+
 fn format_headers(headers: &HeaderMap) -> String {
     let mut entries = headers
         .iter()

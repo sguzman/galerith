@@ -45,7 +45,7 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     let request_method = request.method().clone();
     let request_url = request.url().clone();
     let request_headers = request.headers().clone();
-    let mut response = client.execute(request).await?.error_for_status()?;
+    let mut response = client.execute(request).await?;
     let final_url = response.url().clone();
     let response_info = crate::http_diagnostics::ResponsePageInfo {
         method: request_method,
@@ -54,6 +54,35 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
         status: response.status(),
         response_headers: response.headers().clone(),
     };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_response_body_limited(&mut response, max_bytes).await {
+                if let Err(error) = crate::http_diagnostics::dump_response_page(
+                    &final_url,
+                    &body,
+                    Some(&response_info),
+                )
+                .await
+                {
+                    eprintln!("galerith: response page dump failed ({})", error.kind());
+                }
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_response_body_limited(&mut response, max_bytes).await?;
+    if let Err(error) =
+        crate::http_diagnostics::dump_response_page(&final_url, &body, Some(&response_info)).await
+    {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
+    Ok((serde_json::from_slice(&body)?, final_url))
+}
+
+async fn read_response_body_limited(
+    response: &mut reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|size| size > max_bytes as u64)
@@ -67,12 +96,7 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
         }
         body.extend_from_slice(&chunk);
     }
-    if let Err(error) =
-        crate::http_diagnostics::dump_response_page(&final_url, &body, Some(&response_info)).await
-    {
-        eprintln!("galerith: response page dump failed ({})", error.kind());
-    }
-    Ok((serde_json::from_slice(&body)?, final_url))
+    Ok(body)
 }
 
 #[cfg(test)]
@@ -240,6 +264,46 @@ mod tests {
         assert!(!contents.contains("request-secret"));
         assert!(!contents.contains("private-secret"));
         assert!(contents.ends_with("{\"post_ids\":[88]}"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn all_mode_dumps_bounded_error_responses_before_returning_status_error() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1024];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: 19\r\nConnection: close\r\n\r\n{\"error\":\"missing\"}",
+                )
+                .await
+                .unwrap();
+        });
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-http-json-pages-error-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let endpoint = Url::parse(&format!("http://{address}/missing.json")).unwrap();
+        let client = Client::new();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { fetch_json_uncached(&client, endpoint, 128).await },
+        )
+        .await;
+        assert!(result.unwrap_err().to_string().contains("404"));
+        server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let path = entries.next_entry().await.unwrap().unwrap().path();
+        assert!(entries.next_entry().await.unwrap().is_none());
+        let contents = tokio::fs::read_to_string(&path).await.unwrap();
+        assert!(contents.contains("Status: 404 Not Found"));
+        assert!(contents.ends_with("{\"error\":\"missing\"}"));
         tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
