@@ -215,6 +215,37 @@ async fn direct_icon_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
+async fn direct_asf_media_matches_its_response_mime() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.ms-asf\r\nContent-Length: 4\r\nConnection: close\r\n\r\nASF0")
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("asf");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/recording.asf")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    assert_eq!(
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dir.join("recording.asf"))
+    );
+    assert_eq!(fs::read(dir.join("recording.asf")).unwrap(), b"ASF0");
+    server.await.unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
 async fn retries_transient_server_errors() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
