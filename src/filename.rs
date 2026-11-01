@@ -14,7 +14,8 @@ impl fmt::Display for FormatError {
 impl Error for FormatError {}
 
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
-    let (name, spec) = field.split_once(':').unwrap_or((field, ""));
+    let (field_name, spec) = field.split_once(':').unwrap_or((field, ""));
+    let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
     let value = match name {
         "filename" => item.filename.clone(),
         "name" | "stem" => item
@@ -35,6 +36,16 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             .ok_or_else(|| FormatError(format!("missing metadata field '{name}'")))?
             .to_string(),
         _ => return Err(FormatError(format!("unsupported filename field '{name}'"))),
+    };
+    let value = match conversion {
+        "" => value,
+        "l" => value.to_lowercase(),
+        "u" => value.to_uppercase(),
+        _ => {
+            return Err(FormatError(format!(
+                "unsupported conversion '{conversion}'"
+            )))
+        }
     };
     if spec.is_empty() {
         return Ok(value);
@@ -171,6 +182,18 @@ mod tests {
         let mut empty = item;
         empty.filename = "extensionless".into();
         assert_eq!(render("x{extension:?[/]/}", &empty).unwrap(), "x");
+    }
+
+    #[test]
+    fn supports_lowercase_and_uppercase_field_conversions() {
+        let item = sample();
+        assert_eq!(
+            render("{category!u}_{extension!l}", &item).unwrap(),
+            "DANBOORU_webp"
+        );
+        assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL.WEBP");
+        assert!(render("{category!x}", &item).is_err());
+        assert!(render("{category!lower}", &item).is_err());
     }
 
     #[test]
