@@ -40,7 +40,7 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
-    crate::pacing::wait_for_request().await;
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
     let mut response = client.get(endpoint).send().await?.error_for_status()?;
     let final_url = response.url().clone();
     if response
@@ -171,16 +171,45 @@ mod tests {
                 .unwrap();
         });
         let endpoint = Url::parse(&format!("http://{addr}/api")).unwrap();
+        let endpoint_string = endpoint.to_string();
         let client = Client::new();
         let future = fetch_json_uncached(&client, endpoint, 128);
         let started = tokio::time::Instant::now();
-        let value = crate::pacing::with_request_delay(
+        let value = crate::pacing::with_request_delay_for_url(
+            &endpoint_string,
             Some(crate::pacing::DelayRange::parse("0.12").unwrap()),
             future,
         )
         .await
         .unwrap();
         assert_eq!(value, serde_json::json!({}));
+        assert!(started.elapsed() >= std::time::Duration::from_millis(110));
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn shared_json_reader_uses_actual_endpoint_host_cooldown() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .await
+                .unwrap();
+        });
+        let endpoint = Url::parse(&format!("http://{addr}/api")).unwrap();
+        let endpoint_string = endpoint.to_string();
+        crate::pacing::defer_host_for_url(&endpoint_string, std::time::Duration::from_millis(120))
+            .await;
+        let client = Client::new();
+        let future = fetch_json_uncached(&client, endpoint, 128);
+        let started = tokio::time::Instant::now();
+        crate::pacing::with_request_delay_for_url(&endpoint_string, None, future)
+            .await
+            .unwrap();
         assert!(started.elapsed() >= std::time::Duration::from_millis(110));
         server.await.unwrap();
     }
@@ -209,9 +238,19 @@ mod tests {
         let first = Url::parse(&format!("http://{addr}/first")).unwrap();
         let second = Url::parse(&format!("http://{addr}/second")).unwrap();
         let delay = Some(crate::pacing::DelayRange::parse("0.12").unwrap());
+        let first_url = first.to_string();
+        let second_url = second.to_string();
         let (first, second) = tokio::join!(
-            crate::pacing::with_request_delay(delay, fetch_json_uncached(&client, first, 128)),
-            crate::pacing::with_request_delay(delay, fetch_json_uncached(&client, second, 128))
+            crate::pacing::with_request_delay_for_url(
+                &first_url,
+                delay,
+                fetch_json_uncached(&client, first, 128)
+            ),
+            crate::pacing::with_request_delay_for_url(
+                &second_url,
+                delay,
+                fetch_json_uncached(&client, second, 128)
+            )
         );
         assert!(first.is_ok());
         assert!(second.is_ok());

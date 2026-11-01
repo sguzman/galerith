@@ -55,6 +55,11 @@ pub async fn wait_for_request() {
     wait_for_request_in_scope(host, delay).await;
 }
 
+pub async fn wait_for_request_to(url: &str) {
+    let delay = REQUEST_DELAY.try_with(|range| range.sample()).ok();
+    wait_for_request_in_scope(request_origin(url), delay).await;
+}
+
 pub async fn wait_for_request_delay(delay: Option<Duration>) {
     wait_for_request_in_scope(None, delay).await;
 }
