@@ -475,7 +475,7 @@
         "src/lib.rs"
       ],
       "evidence": [
-        "direct media matching implementation; upstream parity tests pending"
+      "Direct media matching covers additional HEIF, APNG, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; unit and localhost download fixtures pass in this session. Pinned upstream parity remains open."
       ]
     },
     {
