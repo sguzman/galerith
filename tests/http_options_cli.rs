@@ -117,6 +117,61 @@ fn proxy_url_credentials_are_sent_only_to_the_proxy() {
 }
 
 #[test]
+fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
+    let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = proxy.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = proxy.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 4096];
+        let count = socket.read(&mut request).unwrap();
+        let line = String::from_utf8_lossy(&request[..count]);
+        assert!(
+            line.starts_with("CONNECT example.invalid:443 HTTP/1.1\r\n"),
+            "expected CONNECT tunnel request, got {line}"
+        );
+        assert!(!line.to_ascii_lowercase().contains("authorization:"));
+        socket
+            .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            .unwrap();
+        let count = socket.read(&mut request).unwrap();
+        assert!(count >= 3, "client did not begin a TLS handshake");
+        assert_eq!(
+            request[0], 0x16,
+            "first tunneled record was not TLS handshake"
+        );
+        assert_eq!(request[1], 0x03, "missing TLS record version");
+    });
+    let dir = destination("https-connect");
+    let _ = fs::remove_dir_all(&dir);
+    let proxy_address = format!("http://127.0.0.1:{port}");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--proxy",
+            proxy_address.as_str(),
+            "--retries",
+            "0",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.invalid/asset.jpg",
+        ])
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        !output.status.success(),
+        "the synthetic tunnel has no TLS origin"
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains(&proxy_address),
+        "proxy endpoint leaked into diagnostics"
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn proxy_parse_error_does_not_print_password() {
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
