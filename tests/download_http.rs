@@ -27,6 +27,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         no_part: false,
         limit_rate: None,
         headers: reqwest::header::HeaderMap::new(),
+        retry_delay: None,
         request_delay: None,
     }
 }

@@ -33,6 +33,8 @@ pub struct DownloadOptions {
     pub limit_rate: Option<RateRange>,
     /// Additional downloader-only headers from explicit configuration.
     pub headers: HeaderMap,
+    /// Optional fixed or ranged pause between retries; Retry-After takes precedence.
+    pub retry_delay: Option<DelayRange>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -295,8 +297,10 @@ async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Opt
     (size, Some(meta))
 }
 
-async fn delay(attempt: u32, retry_after: Option<Duration>) {
-    let fallback = Duration::from_millis(250 * (1_u64 << attempt.min(5)));
+async fn delay(attempt: u32, retry_after: Option<Duration>, configured: Option<DelayRange>) {
+    let fallback = configured
+        .map(DelayRange::sample)
+        .unwrap_or_else(|| Duration::from_millis(250 * (1_u64 << attempt.min(5))));
     tokio::time::sleep(retry_after.unwrap_or(fallback)).await;
 }
 
@@ -476,7 +480,7 @@ pub async fn download(
             Ok(response) => response,
             Err(err) if attempt < options.retries => {
                 let _ = err;
-                delay(attempt, None).await;
+                delay(attempt, None, options.retry_delay).await;
                 continue;
             }
             Err(err) => return Err(err.into()),
@@ -490,7 +494,7 @@ pub async fn download(
             }
             if attempt < options.retries {
                 if after.is_none_or(|delay| delay.is_zero()) {
-                    delay(attempt, None).await;
+                    delay(attempt, None, options.retry_delay).await;
                 }
                 continue;
             }
@@ -779,7 +783,7 @@ pub async fn download(
                 invalidate_for_mode(&part, &metadata, options.no_part).await?;
             }
             if attempt < options.retries {
-                delay(attempt, None).await;
+                delay(attempt, None, options.retry_delay).await;
                 continue;
             }
             // Keep a validated .part pair for the next invocation.

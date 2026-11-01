@@ -219,6 +219,10 @@ struct Cli {
     #[arg(short = 'R', long, default_value_t = 4)]
     retries: u32,
 
+    /// Delay between retries (SECONDS or inclusive MIN-MAX)
+    #[arg(long = "sleep-retries", value_name = "SECONDS|MIN-MAX")]
+    sleep_retries: Option<String>,
+
     /// HTTP request timeout in seconds
     #[arg(long, default_value_t = 30.0)]
     http_timeout: f64,
@@ -514,6 +518,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .map(DelayRange::parse)
         .transpose()
         .map_err(|_| "invalid --sleep: expected 0 to 3600 seconds or MIN-MAX")?;
+    let retry_delay = cli
+        .sleep_retries
+        .as_deref()
+        .map(DelayRange::parse)
+        .transpose()
+        .map_err(|_| "invalid --sleep-retries: expected 0 to 3600 seconds or MIN-MAX")?;
 
     if !cli.http_timeout.is_finite() || cli.http_timeout <= 0.0 {
         return Err("invalid --http-timeout: expected a positive number of seconds".into());
@@ -571,6 +581,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         headers: config
             .downloader_http_headers()
             .map_err(std::io::Error::other)?,
+        retry_delay,
         request_delay: None,
     };
     let archive =
