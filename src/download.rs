@@ -178,7 +178,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         "audio/wav" | "audio/x-wav" => Some(&["wav"][..]),
         "audio/flac" | "audio/x-flac" => Some(&["flac"][..]),
         "video/mp4" => Some(&["mp4", "m4v"][..]),
-        "video/mpeg" => Some(&["mpeg", "mpg"][..]),
+        "video/mpeg" => Some(&["mpeg", "mpg", "vob", "m1v", "m2v"][..]),
         "video/3gpp" => Some(&["3gp"][..]),
         "video/3gpp2" => Some(&["3g2"][..]),
         "video/mp2t" => Some(&["m2ts", "mts"][..]),
@@ -214,9 +214,9 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
         "ico", "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg",
-        "m4v", "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav", "flac", "ogg",
-        "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz",
-        "zst", "swf",
+        "m4v", "vob", "m1v", "m2v", "3gp", "3g2", "m2ts", "mts", "asf", "mp3", "m4a", "aac", "wav",
+        "flac", "ogg", "ogm", "ogv", "opus", "pdf", "zip", "cbz", "rar", "7z", "tar", "tgz", "gz",
+        "bz2", "xz", "zst", "swf",
     ];
     if !extension
         .as_deref()
@@ -940,6 +940,9 @@ mod tests {
             ("clip.avi", "video/x-msvideo"),
             ("clip.mpeg", "video/mpeg"),
             ("clip.mpg", "video/mpeg"),
+            ("clip.vob", "video/mpeg"),
+            ("clip.m1v", "video/mpeg"),
+            ("clip.m2v", "video/mpeg"),
             ("clip.mkv", "video/x-matroska"),
             ("clip.ogm", "video/ogg"),
             ("track.opus", "audio/opus"),
