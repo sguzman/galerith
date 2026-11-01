@@ -158,6 +158,7 @@ fn configured_downloader_headers_reach_media_requests() {
     let _ = fs::remove_dir_all(&dir);
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
+            "-4",
             "-o",
             r#"downloader.http.headers={"X-Fixture-Token":"private-fixture-value"}"#,
             "-d",
@@ -174,6 +175,20 @@ fn configured_downloader_headers_reach_media_requests() {
     );
     assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"HEAD");
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn force_ip_families_are_mutually_exclusive() {
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--force-ipv4",
+            "--force-ipv6",
+            "--simulate",
+            "https://example.org/item.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
 }
 
 #[test]

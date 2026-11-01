@@ -231,6 +231,14 @@ struct Cli {
     #[arg(long = "proxy", value_name = "URL")]
     proxy: Option<String>,
 
+    /// Resolve and connect using IPv4 only
+    #[arg(short = '4', long = "force-ipv4", conflicts_with = "force_ipv6")]
+    force_ipv4: bool,
+
+    /// Resolve and connect using IPv6 only
+    #[arg(short = '6', long = "force-ipv6", conflicts_with = "force_ipv4")]
+    force_ipv6: bool,
+
     /// Netscape cookie jar for authenticated media and API requests
     #[arg(short = 'C', long = "cookies", value_name = "FILE")]
     cookies: Option<PathBuf>,
@@ -500,6 +508,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         // Never include proxy credentials in diagnostic output.
         let proxy = reqwest::Proxy::all(proxy_url).map_err(|_| "invalid proxy configuration")?;
         client_builder = client_builder.proxy(proxy);
+    }
+    if cli.force_ipv4 {
+        client_builder =
+            client_builder.local_address(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED));
+    } else if cli.force_ipv6 {
+        client_builder =
+            client_builder.local_address(std::net::IpAddr::V6(std::net::Ipv6Addr::UNSPECIFIED));
     }
     let user_agent = cli.user_agent.unwrap_or_else(|| {
         format!(
