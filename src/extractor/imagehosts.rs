@@ -144,6 +144,7 @@ async fn read_public_html(
     client: &Client,
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
+    let expected_origin = endpoint.origin();
     crate::pacing::wait_for_request().await;
     let mut response = client
         .get(endpoint)
@@ -151,6 +152,9 @@ async fn read_public_html(
         .send()
         .await?
         .error_for_status()?;
+    if response.url().origin() != expected_origin {
+        return Err("Pixhost public page redirected outside its origin".into());
+    }
     if response
         .content_length()
         .is_some_and(|size| size > MAX_HTML_BYTES as u64)
@@ -503,5 +507,38 @@ mod tests {
             other => panic!("expected resolved URL message, got {other:?}"),
         }
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn gallery_rejects_redirects_to_a_different_origin() {
+        let destination = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let destination_addr = destination.local_addr().unwrap();
+        let destination_server = tokio::spawn(async move {
+            let (mut stream, _) = destination.accept().await.unwrap();
+            let mut bytes = [0_u8; 1024];
+            assert!(stream.read(&mut bytes).await.unwrap() > 0);
+            let body = r#"<div class="images"><a href="https://pixhost.to/show/190/130327671_test-.png">one</a></div>"#;
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let source = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let source_addr = source.local_addr().unwrap();
+        let source_server = tokio::spawn(async move {
+            let (mut stream, _) = source.accept().await.unwrap();
+            let mut bytes = [0_u8; 1024];
+            assert!(stream.read(&mut bytes).await.unwrap() > 0);
+            let reply = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{destination_addr}/gallery\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{source_addr}/")).unwrap();
+        let result = gallery_at_base(&Client::new(), "jSMFq", &base).await;
+        assert!(result.is_err());
+        source_server.await.unwrap();
+        destination_server.await.unwrap();
     }
 }

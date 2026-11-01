@@ -134,7 +134,7 @@
 - 📨 **T402** Structured extractor message protocol — `██████████ 100%`
   - [x] Represent a media item with source and filename — src/lib.rs
   - [x] Directory metadata and file message variants — src/message.rs typed Directory/Url and metadata; tests/message_cli.rs and CI 40032410873 passed
-  - [x] Deferred URL resolution and redirects — src/extractor/imagehosts.rs deferred_gallery_child_resolves_through_same_origin_redirect: localhost gallery queue, child HTTP redirect, resolved URL and inherited gallery metadata; full local fmt, Clippy, all-target tests, roadmap check and release build passed
+  - [x] Deferred URL resolution and redirects — src/extractor/imagehosts.rs deferred_gallery_child_resolves_through_same_origin_redirect verifies queued child redirect, resolved URL and inherited gallery metadata; gallery_rejects_redirects_to_a_different_origin rejects foreign final origins. Both use localhost HTTP fixtures; full local fmt, Clippy, all-target tests, roadmap check and release build passed
   - [x] Reference message fixtures — src/message.rs pinned_upstream_message_identifiers_and_tuple_payloads_round_trip: active IDs 2=Directory,3=Url,6=Queue, obsolete identifiers rejected, full tuple payload round-trip; full Linux CI 40217657098
 - 🔎 **T403** Pagination, filtering and selectors — `██░░░░░░░░ 20%`
   - [ ] Iterative pagination and stop conditions

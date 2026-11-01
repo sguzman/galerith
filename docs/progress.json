@@ -633,7 +633,7 @@
                 {
                   "title": "Deferred URL resolution and redirects",
                   "passed": true,
-                  "evidence": "src/extractor/imagehosts.rs deferred_gallery_child_resolves_through_same_origin_redirect: localhost gallery queue, child HTTP redirect, resolved URL and inherited gallery metadata; full local fmt, Clippy, all-target tests, roadmap check and release build passed"
+                  "evidence": "src/extractor/imagehosts.rs deferred_gallery_child_resolves_through_same_origin_redirect verifies queued child redirect, resolved URL and inherited gallery metadata; gallery_rejects_redirects_to_a_different_origin rejects foreign final origins. Both use localhost HTTP fixtures; full local fmt, Clippy, all-target tests, roadmap check and release build passed"
                 },
                 {
                   "title": "Reference message fixtures",
