@@ -8,12 +8,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn destination() -> PathBuf {
-    std::env::temp_dir().join(format!("galerith-pacing-cli-{}", std::process::id()))
+fn destination(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!(
+        "galerith-pacing-cli-{label}-{}",
+        std::process::id()
+    ))
 }
 
-#[test]
-fn constant_sleep_delays_media_request() {
+fn run_download_after_sleep(setting: &str) -> Duration {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -39,12 +41,12 @@ fn constant_sleep_delays_media_request() {
             }
         }
     });
-    let dir = destination();
+    let dir = destination(&setting.replace('.', "_"));
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/image.jpg");
     let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--sleep", "0.15", "-d", dir.to_str().unwrap(), &url])
+        .args(["--sleep", setting, "-d", dir.to_str().unwrap(), &url])
         .output()
         .unwrap();
     server.join().unwrap();
@@ -53,12 +55,30 @@ fn constant_sleep_delays_media_request() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        started.elapsed() >= Duration::from_millis(140),
-        "media download occurred before the requested delay"
-    );
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"PAUS");
     fs::remove_dir_all(dir).unwrap();
+    started.elapsed()
+}
+
+#[test]
+fn constant_sleep_delays_media_request() {
+    assert!(
+        run_download_after_sleep("0.15") >= Duration::from_millis(140),
+        "media download occurred before the requested delay"
+    );
+}
+
+#[test]
+fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
+    let elapsed = run_download_after_sleep("0.1-0.3");
+    assert!(
+        elapsed >= Duration::from_millis(90),
+        "media download occurred before the range minimum"
+    );
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "media download exceeded the configured range by too much"
+    );
 }
 
 #[test]

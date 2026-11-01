@@ -25,7 +25,7 @@ Filename input is revalidated at the downloader boundary; callers cannot bypass 
 
 ## HTTP retry behavior
 
-Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric seconds and RFC-style HTTP-date `Retry-After` values are accepted (each capped at 60 seconds). `--sleep` accepts constant nonnegative delays up to 3600 seconds before each media download. Sleep ranges, request/extractor/skip pacing and complete upstream retry policies remain unimplemented.
+Connection errors, interrupted bodies, HTTP 429 and HTTP 5xx responses use bounded retries. Numeric seconds and RFC-style HTTP-date `Retry-After` values are accepted (each capped at 60 seconds). `--sleep` accepts fixed delays and inclusive `MIN-MAX` ranges up to 3600 seconds before each media download. Request/extractor/skip pacing and complete upstream retry policies remain unimplemented.
 
 ## Verified synthetic tests
 
