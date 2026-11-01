@@ -71,6 +71,23 @@ fn filename_template_updates_json_without_network() {
 }
 
 #[test]
+fn filename_template_applies_slices_and_conversions_through_cli() {
+    let output = run(&[
+        "-f",
+        "{filename[-4:]!u}_{category!q}",
+        "--dump-json",
+        "https://example.org/image.webp",
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(item["filename"], "WEBP_directlink");
+}
+
+#[test]
 fn unsafe_filename_template_fails_without_file_access() {
     let output = run(&[
         "-f",
