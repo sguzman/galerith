@@ -13,6 +13,18 @@ impl fmt::Display for FormatError {
 }
 impl Error for FormatError {}
 
+fn encode_url_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
 fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     let mut depth = 0usize;
     for (index, character) in field.char_indices() {
@@ -157,6 +169,11 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     };
     let value = match conversion {
         "" | "s" => value,
+        "q" => encode_url_component(&value),
+        "Q" => percent_encoding::percent_decode_str(&value)
+            .decode_utf8()
+            .map_err(|_| FormatError("URL-decoded filename field is not valid UTF-8".into()))?
+            .into_owned(),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => {
@@ -421,6 +438,17 @@ mod tests {
         assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
         assert!(render("{filename[99]}", &item).is_err());
         assert!(render("{filename[::0]}", &item).is_err());
+    }
+
+    #[test]
+    fn url_component_conversions_encode_and_decode_utf8() {
+        let mut item = sample();
+        item.filename = "café + tea.jpg".into();
+        assert_eq!(render("{stem!q}", &item).unwrap(), "caf%C3%A9%20%2B%20tea");
+        item.filename = "caf%C3%A9%20tea.jpg".into();
+        assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
+        item.filename = "%FF.jpg".into();
+        assert!(render("{stem!Q}", &item).is_err());
     }
 
     #[test]
