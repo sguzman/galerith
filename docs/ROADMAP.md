@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 70%`
+## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 72%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `████████░░ 75%`
+### 📡 P2 — HTTP transfer engine — `████████░░ 79%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -69,11 +69,11 @@
   - [x] Implement Range-based resumes — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [x] Preserve metadata/mtime, validate lengths — src/download.rs preserves validated HTTP Last-Modified as output mtime after successful atomic rename, including resumed 206 responses; tests/download_http.rs keeps_valid_http_last_modified_as_output_mtime and tests/download_resume.rs persists_verified_partial_across_invocations; body/total lengths already validated; full Linux CI 40218907724
   - [x] Pass interruption and collision tests — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-- 🔌 **T204** HTTP configuration and proxy parity — `█████░░░░░ 50%`
+- 🔌 **T204** HTTP configuration and proxy parity — `████████░░ 75%`
   - [x] Set request timeout — src/main.rs
   - [x] Proxy, TLS, IPv4/IPv6 and user-agent — tests/http_options_cli.rs covers proxy authentication and HTTPS CONNECT, custom User-Agent routing, TLS certificate validation/opt-out, IPv4/IPv6 selection and source-address binding; GitHub Actions 41334265645 passed Rust and pinned-reference jobs
   - [ ] Request headers/response diagnostics
-  - [ ] Differential network tests
+  - [x] Differential network tests — tests/reference_directlink.rs::pinned_and_native_clients_match_proxy_auth_and_user_agent compares absolute-form proxy routing, synthetic proxy authentication and explicit User-Agent headers for both clients; GitHub Actions 41336646406 Rust and pinned-reference jobs passed
 - 🌐 **T205** User-agent and proxy transport preview — `█████░░░░░ 50%`
   - [x] Accept upstream -a/--user-agent and --proxy flags — src/main.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401

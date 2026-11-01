@@ -338,10 +338,11 @@
                 },
                 {
                   "title": "Differential network tests",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/reference_directlink.rs::pinned_and_native_clients_match_proxy_auth_and_user_agent compares absolute-form proxy routing, synthetic proxy authentication and explicit User-Agent headers for both clients; GitHub Actions 41336646406 Rust and pinned-reference jobs passed"
                 }
               ],
-              "progress": 50
+              "progress": 75
             },
             {
               "id": "T205",
