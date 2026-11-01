@@ -176,3 +176,55 @@ fn input_stays_active_after_all_download_retries_fail() {
     assert_eq!(fs::read_to_string(&input).unwrap(), content);
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn successful_mutation_preserves_unrelated_edits_made_while_download_runs() {
+    let root = dir("concurrent-edit-cli");
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).unwrap();
+    let input = root.join("urls.txt");
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/picture.jpg", listener.local_addr().unwrap());
+    let (requested_tx, requested_rx) = std::sync::mpsc::channel();
+    let (respond_tx, respond_rx) = std::sync::mpsc::channel();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        requested_tx.send(()).unwrap();
+        respond_rx.recv().unwrap();
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+    });
+    fs::write(&input, format!("{url}\n# keep this comment\n")).unwrap();
+
+    let child = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--input-file-comment", input.to_str().unwrap(), "-d"])
+        .arg(&root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    requested_rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("download request did not reach the fixture");
+    let mut file = fs::OpenOptions::new().append(true).open(&input).unwrap();
+    writeln!(file, "# added while running").unwrap();
+    respond_tx.send(()).unwrap();
+    server.join().unwrap();
+
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&input).unwrap(),
+        format!("# {url}\n# keep this comment\n# added while running\n")
+    );
+    fs::remove_dir_all(root).unwrap();
+}
