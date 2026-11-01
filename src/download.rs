@@ -27,6 +27,8 @@ pub struct DownloadOptions {
     pub retries: u32,
     pub no_skip: bool,
     pub no_mtime: bool,
+    /// Write directly to the destination; failed transfers may leave partial output.
+    pub no_part: bool,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
 }
@@ -317,6 +319,17 @@ async fn invalidate(part: &Path, metadata: &Path) -> io::Result<()> {
     Ok(())
 }
 
+async fn invalidate_for_mode(part: &Path, metadata: &Path, no_part: bool) -> io::Result<()> {
+    if no_part {
+        if fs::try_exists(metadata).await? {
+            fs::remove_file(metadata).await?;
+        }
+        Ok(())
+    } else {
+        invalidate(part, metadata).await
+    }
+}
+
 /// Never trust a preexisting destination or resume-sidecar alias. In
 /// particular, File::create follows symlinks, and a symlinked "completed"
 /// output could otherwise be falsely archived through the skip event.
@@ -407,7 +420,11 @@ pub async fn download(
     // rename. Parallel Galerith workers cannot clobber the same .part file.
     let _lock = lock_output(&options.destination, &item.filename).await?;
     let target = options.destination.join(&item.filename);
-    let part = options.destination.join(format!("{}.part", item.filename));
+    let part = if options.no_part {
+        target.clone()
+    } else {
+        options.destination.join(format!("{}.part", item.filename))
+    };
     let metadata = options
         .destination
         .join(format!("{}.part.json", item.filename));
@@ -424,7 +441,11 @@ pub async fn download(
     }
 
     for attempt in 0..=options.retries {
-        let (offset, prior) = partial_info(&part, &metadata, &item.url).await;
+        let (offset, prior) = if options.no_part {
+            (0, None)
+        } else {
+            partial_info(&part, &metadata, &item.url).await
+        };
         // Resume offsets refer to the raw representation: opt out of
         // HTTP content encoding to keep sidecar byte counts meaningful.
         let mut request = client.get(&item.url).header(ACCEPT_ENCODING, "identity");
@@ -467,7 +488,7 @@ pub async fn download(
             }
         }
         if offset > 0 && status == StatusCode::RANGE_NOT_SATISFIABLE {
-            invalidate(&part, &metadata).await?;
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
             if attempt < options.retries {
                 continue;
             }
@@ -484,7 +505,7 @@ pub async fn download(
                 StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED
             )
         {
-            invalidate(&part, &metadata).await?;
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
             if attempt < options.retries {
                 continue;
             }
@@ -506,7 +527,7 @@ pub async fn download(
             // Range request can satisfy the media transfer. A stale partial
             // must not make the next retry repeat the unusable range.
             if offset > 0 {
-                invalidate(&part, &metadata).await?;
+                invalidate_for_mode(&part, &metadata, options.no_part).await?;
                 if attempt < options.retries {
                     continue;
                 }
@@ -521,7 +542,7 @@ pub async fn download(
         if header(&response, CONTENT_ENCODING)
             .is_some_and(|encoding| !encoding.eq_ignore_ascii_case("identity"))
         {
-            invalidate(&part, &metadata).await?;
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
             if attempt < options.retries {
                 continue;
             }
@@ -531,7 +552,7 @@ pub async fn download(
         if status == StatusCode::PARTIAL_CONTENT && !append {
             // A server must not choose a partial representation for a full
             // GET. Never write it as a complete media file or archive hit.
-            invalidate(&part, &metadata).await?;
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
             if attempt < options.retries {
                 continue;
             }
@@ -544,7 +565,7 @@ pub async fn download(
                 None => {
                     // An invalid 206 is not recoverable using the stale range:
                     // drop both persisted partial components before retrying.
-                    invalidate(&part, &metadata).await?;
+                    invalidate_for_mode(&part, &metadata, options.no_part).await?;
                     if attempt < options.retries {
                         continue;
                     }
@@ -554,7 +575,7 @@ pub async fn download(
             match resumed_length(&header, offset) {
                 Some(range) => Some(range),
                 None => {
-                    invalidate(&part, &metadata).await?;
+                    invalidate_for_mode(&part, &metadata, options.no_part).await?;
                     if attempt < options.retries {
                         continue;
                     }
@@ -572,7 +593,7 @@ pub async fn download(
             {
                 // Even matching validators do not authorize a silently
                 // changing representation size across resumed chunks.
-                invalidate(&part, &metadata).await?;
+                invalidate_for_mode(&part, &metadata, options.no_part).await?;
                 if attempt < options.retries {
                     continue;
                 }
@@ -585,7 +606,7 @@ pub async fn download(
                 // The claimed suffix and the declared transport body length
                 // disagree before any bytes are appended. The stale partial
                 // is not a trustworthy basis for the next Range request.
-                invalidate(&part, &metadata).await?;
+                invalidate_for_mode(&part, &metadata, options.no_part).await?;
                 if attempt < options.retries {
                     continue;
                 }
@@ -609,7 +630,7 @@ pub async fn download(
                         .zip(new_modified.as_ref())
                         .is_some_and(|(a, b)| a != b)
                 {
-                    invalidate(&part, &metadata).await?;
+                    invalidate_for_mode(&part, &metadata, options.no_part).await?;
                     if attempt < options.retries {
                         continue;
                     }
@@ -621,9 +642,14 @@ pub async fn download(
         if !append {
             // A fresh representation never inherits a previous partial or
             // sidecar; clear both before publishing its validated metadata.
-            invalidate(&part, &metadata).await?;
-            write_metadata_atomically(&metadata, &PartMetadata::for_response(&item.url, &response))
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
+            if !options.no_part {
+                write_metadata_atomically(
+                    &metadata,
+                    &PartMetadata::for_response(&item.url, &response),
+                )
                 .await?;
+            }
         } else if let (Some((_, total)), Some(old)) = (resume_range, prior.as_ref()) {
             if old.total_length.is_none() {
                 // Upgrade a legacy sidecar as soon as the first validated 206
@@ -637,6 +663,9 @@ pub async fn download(
         let mut file = if append {
             fs::OpenOptions::new().append(true).open(&part).await?
         } else {
+            if options.no_part && fs::try_exists(&part).await? {
+                fs::remove_file(&part).await?;
+            }
             fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
@@ -728,7 +757,7 @@ pub async fn download(
             if misleading_error_body || oversized_response || (received == 0 && !append) {
                 // Discard deceptive or oversized responses and their sidecars.
                 // Never retain an untrustworthy suffix for future resume.
-                invalidate(&part, &metadata).await?;
+                invalidate_for_mode(&part, &metadata, options.no_part).await?;
             }
             if attempt < options.retries {
                 delay(attempt, None).await;
@@ -749,7 +778,9 @@ pub async fn download(
                 return Err(error("resumed chunk saved; more bytes remain"));
             }
         }
-        fs::rename(&part, &target).await?;
+        if !options.no_part {
+            fs::rename(&part, &target).await?;
+        }
         if !options.no_mtime {
             if let Some(modified) = source_mtime {
                 // Last-Modified is optional, and unsupported filesystem timestamp

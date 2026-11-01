@@ -25,6 +25,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         retries,
         no_skip: false,
         no_mtime: false,
+        no_part: false,
         request_delay: None,
     }
 }

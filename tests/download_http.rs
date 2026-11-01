@@ -24,6 +24,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         retries: 2,
         no_skip: false,
         no_mtime: false,
+        no_part: false,
         request_delay: None,
     }
 }
@@ -330,6 +331,83 @@ async fn no_mtime_ignores_http_last_modified_header() {
         modified > 1_450_000_000,
         "old Last-Modified was applied: {modified}"
     );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn no_part_writes_directly_to_the_output_path() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("no-part");
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{addr}/photo.jpg");
+    let output_dir = dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--no-part", "-d"])
+            .arg(output_dir)
+            .arg(url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    server.await.unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("photo.jpg")).unwrap(), b"JPEG");
+    assert!(!dir.join("photo.jpg.part").exists());
+    assert!(!dir.join("photo.jpg.part.json").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn failed_no_part_transfer_leaves_a_partial_at_the_requested_output_path() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 8\r\nConnection: close\r\n\r\nBAD",
+            )
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("no-part-incomplete");
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{addr}/photo.jpg");
+    let output_dir = dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--no-part", "--retries", "0", "-d"])
+            .arg(output_dir)
+            .arg(url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    server.await.unwrap();
+    assert!(!output.status.success());
+    assert_eq!(fs::read(dir.join("photo.jpg")).unwrap(), b"BAD");
+    assert!(!dir.join("photo.jpg.part").exists());
     fs::remove_dir_all(dir).unwrap();
 }
 
