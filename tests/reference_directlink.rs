@@ -118,6 +118,7 @@ fn run_user_agent_fixture(
     pinned_root: Option<&Path>,
     label: &str,
     reference: bool,
+    proxy_scope: &str,
 ) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -146,10 +147,7 @@ fn run_user_agent_fixture(
     std::fs::create_dir_all(&output).unwrap();
     let url = "http://example.invalid/asset.jpg";
     let proxy = format!("http://user:secret@{address}");
-    let media_proxy_option = format!(
-        "downloader.http.proxy={}",
-        serde_json::to_string(&proxy).unwrap()
-    );
+    let proxy_option = format!("{proxy_scope}={}", serde_json::to_string(&proxy).unwrap());
     let user_agent = "galerith-reference-probe/7";
     let mut command = if reference {
         let mut command = Command::new("python3");
@@ -164,7 +162,7 @@ fn run_user_agent_fixture(
             "-o",
             r#"downloader.http.headers={"X-Preview":"header"}"#,
             "-o",
-            &media_proxy_option,
+            &proxy_option,
             "-R",
             "0",
             "-d",
@@ -187,7 +185,7 @@ fn run_user_agent_fixture(
             "-o",
             r#"downloader.http.headers={"X-Preview":"header"}"#,
             "-o",
-            &media_proxy_option,
+            &proxy_option,
             "--retries",
             "0",
             "-d",
@@ -939,41 +937,52 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
     let root = env::temp_dir().join(format!("galerith-user-agent-oracle-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let pinned = run_user_agent_fixture(&root, Some(reference_root), "pinned", true);
-    let native = run_user_agent_fixture(&root, None, "native", false);
-    for (label, request) in [("pinned", pinned), ("native", native)] {
-        assert!(
-            request.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1\r\n"),
-            "{label}: proxy did not receive absolute-form request: {request}"
+    for (scope, label) in [
+        ("extractor.directlink.proxy", "extractor-proxy"),
+        ("downloader.http.proxy", "downloader-proxy"),
+    ] {
+        let pinned = run_user_agent_fixture(
+            &root,
+            Some(reference_root),
+            &format!("pinned-{label}"),
+            true,
+            scope,
         );
-        assert!(
-            request
-                .to_ascii_lowercase()
-                .lines()
-                .any(|header| header == "user-agent: galerith-reference-probe/7"),
-            "{label}: configured User-Agent missing from request: {request}"
-        );
-        assert!(
-            request
-                .to_ascii_lowercase()
-                .lines()
-                .any(|header| header == "accept: */*"),
-            "{label}: default HTTP Accept header missing from request: {request}"
-        );
-        assert!(
-            request
-                .to_ascii_lowercase()
-                .lines()
-                .any(|header| header == "x-preview: header"),
-            "{label}: configured media header missing from request: {request}"
-        );
-        assert!(
-            request
-                .to_ascii_lowercase()
-                .lines()
-                .any(|header| header == "proxy-authorization: basic dxnlcjpzzwnyzxq="),
-            "{label}: proxy credentials missing from proxy request: {request}"
-        );
+        let native = run_user_agent_fixture(&root, None, &format!("native-{label}"), false, scope);
+        for (label, request) in [("pinned", pinned), ("native", native)] {
+            assert!(
+                request.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1\r\n"),
+                "{label}: proxy did not receive absolute-form request: {request}"
+            );
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .lines()
+                    .any(|header| header == "user-agent: galerith-reference-probe/7"),
+                "{label}: configured User-Agent missing from request: {request}"
+            );
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .lines()
+                    .any(|header| header == "accept: */*"),
+                "{label}: default HTTP Accept header missing from request: {request}"
+            );
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .lines()
+                    .any(|header| header == "x-preview: header"),
+                "{label}: configured media header missing from request: {request}"
+            );
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .lines()
+                    .any(|header| header == "proxy-authorization: basic dxnlcjpzzwnyzxq="),
+                "{label}: proxy credentials missing from proxy request: {request}"
+            );
+        }
     }
     std::fs::remove_dir_all(root).unwrap();
 }

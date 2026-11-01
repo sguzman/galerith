@@ -669,8 +669,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     let downloader_proxy_settings = config
         .downloader_http_proxy_settings()
         .map_err(std::io::Error::other)?;
-    let media_proxy_settings =
-        downloader_proxy_settings.unwrap_or_else(|| shared_proxy_settings.clone());
     let downloader_http_verify = config
         .downloader_http_verify()
         .map_err(std::io::Error::other)?;
@@ -704,19 +702,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             downloader_http_verify,
             Some(galerith::config::DownloaderHttpVerify::Disabled)
         );
-    let media_client = if media_proxy_settings == shared_proxy_settings
-        && media_no_check_certificate == cli.no_check_certificate
-        && media_root_certificates.is_none()
-    {
-        client.clone()
-    } else {
-        build_http_client(HttpClientOptions {
-            no_check_certificate: media_no_check_certificate,
-            root_certificates: media_root_certificates.as_deref(),
-            proxy_settings: media_proxy_settings.as_ref(),
-            ..client_options
-        })?
-    };
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
             config
@@ -816,6 +801,43 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut input_succeeded = true;
         let mut selected_items = 0usize;
         let category = extractor_name(&url).unwrap_or("");
+        let extractor_proxy_override = config
+            .extractor_http_proxy_settings(category)
+            .map_err(std::io::Error::other)?;
+        let extractor_proxy_settings =
+            extractor_proxy_override.unwrap_or_else(|| shared_proxy_settings.clone());
+        let extractor_client = if extractor_proxy_settings == shared_proxy_settings {
+            client.clone()
+        } else {
+            build_http_client(HttpClientOptions {
+                proxy_settings: extractor_proxy_settings.as_ref(),
+                ..client_options
+            })?
+        };
+        let media_proxy_settings = downloader_proxy_settings
+            .clone()
+            .unwrap_or_else(|| extractor_proxy_settings.clone());
+        let media_client = if media_no_check_certificate == cli.no_check_certificate
+            && media_root_certificates.is_none()
+        {
+            if media_proxy_settings == extractor_proxy_settings {
+                extractor_client.clone()
+            } else if media_proxy_settings == shared_proxy_settings {
+                client.clone()
+            } else {
+                build_http_client(HttpClientOptions {
+                    proxy_settings: media_proxy_settings.as_ref(),
+                    ..client_options
+                })?
+            }
+        } else {
+            build_http_client(HttpClientOptions {
+                no_check_certificate: media_no_check_certificate,
+                root_certificates: media_root_certificates.as_deref(),
+                proxy_settings: media_proxy_settings.as_ref(),
+                ..client_options
+            })?
+        };
         let api_request_delay = config
             .duration(category, "sleep-request")
             .map_err(std::io::Error::other)?;
@@ -851,7 +873,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                             .transpose()?,
                     };
                     resolve_messages_traversing_selected(
-                        &client,
+                        &extractor_client,
                         &url,
                         cli.max_pages,
                         cli.max_queue_children.unwrap_or(8),
@@ -860,7 +882,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     )
                     .await
                 } else {
-                    resolve_messages(&client, &url, cli.max_pages).await
+                    resolve_messages(&extractor_client, &url, cli.max_pages).await
                 }
             };
             let message_future =
@@ -890,9 +912,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let extraction_future = async {
             if cli.follow_queues {
-                resolve_media_job_selected(&client, &url, cli.max_pages, &job_selection).await
+                resolve_media_job_selected(&extractor_client, &url, cli.max_pages, &job_selection)
+                    .await
             } else {
-                resolve(&client, &url, cli.max_pages).await
+                resolve(&extractor_client, &url, cli.max_pages).await
             }
         };
         let extraction_future =

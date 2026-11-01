@@ -193,6 +193,74 @@ fn proxy_from_config_routes_http_downloads() {
 }
 
 #[test]
+fn extractor_proxy_overrides_shared_proxy_for_downloads() {
+    let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = proxy.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = proxy.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 4096];
+        let count = socket.read(&mut request).unwrap();
+        let line = String::from_utf8_lossy(&request[..count]);
+        assert!(
+            line.starts_with("GET http://example.invalid/asset.jpg HTTP/1.1"),
+            "extractor proxy did not receive an absolute-form request: {line}"
+        );
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nEXTR",
+            )
+            .unwrap();
+    });
+    let dir = destination("extractor-proxy-config");
+    let _ = fs::remove_dir_all(&dir);
+    let unused_proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+    let unused_proxy_port = unused_proxy.local_addr().unwrap().port();
+    drop(unused_proxy);
+    let global_proxy_option = format!(
+        "proxy={}",
+        serde_json::to_string(&format!("127.0.0.1:{unused_proxy_port}")).unwrap()
+    );
+    let extractor_proxy_option = format!(
+        "extractor.directlink.proxy={}",
+        serde_json::to_string(&format!("127.0.0.1:{port}")).unwrap()
+    );
+    let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    command.args([
+        "-o",
+        &global_proxy_option,
+        "-o",
+        &extractor_proxy_option,
+        "--retries",
+        "0",
+        "-d",
+        dir.to_str().unwrap(),
+        "http://example.invalid/asset.jpg",
+    ]);
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let output = command.output().unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"EXTR");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn proxy_url_credentials_are_sent_only_to_the_proxy() {
     let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = proxy.local_addr().unwrap().port();

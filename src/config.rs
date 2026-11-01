@@ -91,6 +91,17 @@ impl Config {
             .transpose()
     }
 
+    /// Optional extractor-wide or category-specific proxy override.
+    pub fn extractor_http_proxy_settings(
+        &self,
+        extractor: &str,
+    ) -> Result<Option<Option<HttpProxySettings>>, &'static str> {
+        self.path(&["extractor", extractor, "proxy"])
+            .or_else(|| self.path(&["extractor", "proxy"]))
+            .map(parse_proxy_settings)
+            .transpose()
+    }
+
     /// Optional bounded retry count for the media downloader.
     pub fn downloader_http_retries(&self) -> Result<Option<u32>, &'static str> {
         let Some(value) = self
@@ -462,6 +473,40 @@ mod tests {
         assert_eq!(config.downloader_http_proxy_settings().unwrap(), Some(None));
         config.option("proxy=42").unwrap();
         assert!(config.http_proxy_settings().is_err());
+    }
+
+    #[test]
+    fn extractor_proxy_settings_override_the_shared_proxy_by_scope() {
+        let mut config = Config::default();
+        config.option("proxy=global-proxy:8000").unwrap();
+        config
+            .option("extractor.proxy=extractor-proxy:8001")
+            .unwrap();
+        config
+            .option("extractor.e621.proxy=e621-proxy:8002")
+            .unwrap();
+        assert_eq!(
+            config.extractor_http_proxy_settings("e621").unwrap(),
+            Some(Some(HttpProxySettings::all("e621-proxy:8002").unwrap()))
+        );
+        assert_eq!(
+            config.extractor_http_proxy_settings("pixiv").unwrap(),
+            Some(Some(
+                HttpProxySettings::all("extractor-proxy:8001").unwrap()
+            ))
+        );
+        assert_eq!(
+            config.extractor_http_proxy_settings("directlink").unwrap(),
+            Some(Some(
+                HttpProxySettings::all("extractor-proxy:8001").unwrap()
+            ))
+        );
+        assert_eq!(
+            Config::default()
+                .extractor_http_proxy_settings("directlink")
+                .unwrap(),
+            None
+        );
     }
 
     #[test]
