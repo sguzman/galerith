@@ -316,28 +316,15 @@ fn next_page(html: &str, person: &str, current: u16) -> bool {
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Listal public page redirected outside its origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("Listal public HTML exceeds size bound".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(bytes.len()) {
-            return Err("Listal public HTML exceeds size bound".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "Listal public HTML exceeds size bound",
+    )
+    .await?;
     Ok(String::from_utf8(bytes)?)
 }
 
