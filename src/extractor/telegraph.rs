@@ -124,7 +124,36 @@ fn article_images(html: &str, base: &Url) -> Vec<MediaItem> {
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    let request = client.get(url).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML_BYTES as u64)
@@ -138,7 +167,13 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_at_base(
@@ -239,17 +274,35 @@ mod tests {
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let files = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Article {
-                slug: "Article-03-04".into(),
-            },
+        let directory =
+            std::env::temp_dir().join(format!("galerith-telegraph-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let files = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_at_base(
+                &Client::new(),
+                &base,
+                Target::Article {
+                    slug: "Article-03-04".into(),
+                },
+            ),
         )
         .await
         .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].filename, "1_sample.jpg");
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let page = std::fs::read_to_string(page.path()).unwrap();
+        assert!(page.starts_with(&format!("GET http://{addr}/Article-03-04\n")));
+        assert!(page.contains("/file/sample.jpg"));
+        assert!(page.contains("Response Headers"));
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
