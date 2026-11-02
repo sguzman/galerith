@@ -4,34 +4,44 @@
   "scope": "galerith-cli-offline",
   "cases": [
     {
-      "id": "directlink-flat-json",
+      "id": "directlink-upstream-json-tuples",
       "args": [
         "--dump-json",
         "https://example.org/assets/night%20sky.png?size=original"
       ],
       "expect": {
         "kind": "json_subset",
-        "value": {
-          "url": "https://example.org/assets/night%20sky.png?size=original",
-          "filename": "night sky.png",
-          "extractor": "directlink"
-        }
+        "value": [
+          [
+            2,
+            "",
+            {
+              "category": "directlink",
+              "filename": "night sky.png",
+              "domain": "example.org"
+            }
+          ],
+          [
+            3,
+            "https://example.org/assets/night%20sky.png?size=original",
+            {
+              "filename": "night sky.png"
+            }
+          ]
+        ]
       }
     },
     {
-      "id": "directlink-custom-filename",
+      "id": "directlink-custom-filename-simulation",
       "args": [
         "-f",
         "{category}_{stem}.{extension}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/image.webp"
       ],
       "expect": {
-        "kind": "json_subset",
-        "value": {
-          "filename": "directlink_image.webp",
-          "extractor": "directlink"
-        }
+        "kind": "stdout",
+        "text": "[simulate] directlink_image.webp\n"
       }
     },
     {

@@ -52,6 +52,25 @@ fn native_events(url: &str) -> Vec<Value> {
         .collect()
 }
 
+fn native_upstream_tuples(url: &str) -> Vec<Value> {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    command.args(["--dump-json", url]);
+    serde_json::from_str(&spawn(command, "native upstream-compatible JSON"))
+        .expect("native upstream-compatible message tuple array")
+}
+
+fn pinned_dump_json(root: &Path, url: &str, options: &[&str]) -> Value {
+    let mut command = Command::new("python3");
+    command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+    command.args(options);
+    command.arg(url);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    serde_json::from_str(&spawn(command, "pinned gallery-dl --dump-json"))
+        .expect("pinned JSON message tuple array")
+}
+
 fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
     let mut cmd = Command::new("python3");
     cmd.args([
@@ -1183,8 +1202,10 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     for (case_index, url) in URLS.iter().enumerate() {
         let rust = native_events(url);
+        let native_tuples = native_upstream_tuples(url);
         let source = pinned_events(root, url);
         assert_eq!(rust.len(), 2, "{url}: native event count");
+        assert_eq!(native_tuples.len(), rust.len(), "{url}: native tuple count");
         assert_eq!(source.len(), 2, "{url}: upstream event count");
         for (ordinal, (native, upstream)) in rust.iter().zip(&source).enumerate() {
             let tuple = upstream.as_array().expect("upstream message tuple");
@@ -1199,6 +1220,16 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             }
             let reference = tuple.last().expect("pinned source metadata");
             let metadata = &native["metadata"];
+            let native_tuple = native_tuples[ordinal]
+                .as_array()
+                .expect("native upstream message tuple");
+            assert_eq!(native_tuple[0], tuple[0], "{url}: message identifier");
+            assert_eq!(native_tuple[1], tuple[1], "{url}: message URL member");
+            assert_eq!(
+                native_tuple.get(2),
+                Some(metadata),
+                "{url}: tuple metadata projection"
+            );
             let sidecar = if ordinal == 1 {
                 let item = galerith::extract_direct_media(url).unwrap();
                 Some(native_sidecar(
@@ -2092,6 +2123,33 @@ fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
 }
 
 #[test]
+fn pinned_and_native_dump_json_match_with_filename_override() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for filename override comparison");
+    let url = "https://example.org/photo.png";
+    let options = [
+        "--filename",
+        "{category}_{filename}.{extension}",
+        "--dump-json",
+    ];
+    let mut native_command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    native_command.args(options).arg(url);
+    let native: Value = serde_json::from_str(&spawn(
+        native_command,
+        "native --dump-json with filename override",
+    ))
+    .unwrap();
+    let pinned = pinned_dump_json(Path::new(&root), url, &options);
+    assert_eq!(
+        native, pinned,
+        "filename override changed tuple output differently"
+    );
+}
+
+#[test]
 fn pinned_and_native_info_json_match_directlink_directory_metadata() {
     let root = env::temp_dir().join(format!(
         "galerith-info-json-reference-{}",
@@ -2104,7 +2162,7 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
     let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
             "--write-info-json",
-            "--simulate",
+            "--no-download",
             "-d",
             native_dir.to_str().unwrap(),
             url,
@@ -2136,7 +2194,7 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
             "--config-ignore",
             "--no-input",
             "--write-info-json",
-            "--simulate",
+            "--no-download",
             "-D",
             pinned_dir.to_str().unwrap(),
             url,

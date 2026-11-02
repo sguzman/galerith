@@ -184,7 +184,8 @@
                 },
                 {
                   "title": "Reproduce upstream JSON message protocol",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "src/main.rs --dump-json now emits one JSON array of upstream-compatible Directory/Url tuples ([2, '', metadata], [3, url, metadata]); tests/cli.rs, tests/message_cli.rs and tests/fixtures/cli_golden.json cover the offline shape. tests/reference_directlink.rs adds pinned tuple comparisons; local CLI and golden tests pass, while pinned CI for that differential is pending."
                 },
                 {
                   "title": "Implement all print/list/diagnostics modes",
@@ -579,7 +580,7 @@
                 {
                   "title": "Reference golden metadata comparisons",
                   "passed": false,
-                  "evidence": "Partial directlink reference: src/postprocess.rs now writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs covers simulation output and redaction, and tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl in the oracle job. Local focused tests pass; full extractor metadata and golden parity remains incomplete pending the pushed CI result."
+                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Local focused tests pass; full extractor metadata and golden parity remains incomplete pending pinned CI."
                 }
               ]
             }
@@ -749,8 +750,8 @@
                 },
                 {
                   "title": "Expose read-only --dump-messages JSONL output without changing regular downloads or --dump-json",
-                  "passed": true,
-                  "evidence": "src/main.rs and tests/message_cli.rs CLI modes and regression fixtures; CI 40032410873"
+                  "passed": false,
+                  "evidence": "The original flat --dump-json media-object output was replaced with the pinned upstream tuple protocol while addressing T103. --dump-messages remains typed JSONL and regular downloads are unchanged, but the explicit no-change-to---dump-json invariant no longer holds; CI 40032410873 verifies only the earlier behavior."
                 },
                 {
                   "title": "Emit deferred collection queue events from Wallhaven public collection lists, without fetching child galleries",
@@ -767,7 +768,7 @@
                   "passed": false
                 }
               ],
-              "progress": 80
+              "progress": 60
             },
             {
               "id": "T407",

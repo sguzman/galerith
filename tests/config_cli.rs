@@ -36,7 +36,7 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
         toml.to_str().unwrap(),
         "-o",
         "filename=override_{filename}.{extension}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/file.png",
     ];
     let result = run(&args);
@@ -45,15 +45,17 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert_eq!(value["filename"], "override_file.png");
+    assert_eq!(
+        String::from_utf8(result.stdout).unwrap(),
+        "[simulate] override_file.png\n"
+    );
 
     let cli = run(&[
         "--config-json",
         json.to_str().unwrap(),
         "--filename",
         "explicit_{filename}.{extension}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/file.png",
     ]);
     assert!(
@@ -61,18 +63,22 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
         "{}",
         String::from_utf8_lossy(&cli.stderr)
     );
-    let value: serde_json::Value = serde_json::from_slice(&cli.stdout).unwrap();
-    assert_eq!(value["filename"], "explicit_file.png");
+    assert_eq!(
+        String::from_utf8(cli.stdout).unwrap(),
+        "[simulate] explicit_file.png\n"
+    );
 
     let fallback = run(&[
         "-c",
         json.to_str().unwrap(),
-        "--dump-json",
+        "--simulate",
         "https://example.org/file.png",
     ]);
     assert!(fallback.status.success());
-    let value: serde_json::Value = serde_json::from_slice(&fallback.stdout).unwrap();
-    assert_eq!(value["filename"], "directlink_file.png");
+    assert_eq!(
+        String::from_utf8(fallback.stdout).unwrap(),
+        "[simulate] directlink_file.png\n"
+    );
     fs::remove_dir_all(dir).unwrap();
 }
 

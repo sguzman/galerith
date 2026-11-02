@@ -31,7 +31,7 @@ fn direct_media_message_dump_is_ordered_json_lines_without_network() {
 }
 
 #[test]
-fn directlink_message_dump_preserves_native_source_fields_without_changing_flat_json() {
+fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
     let input = "https://cdn.example.org/archive/cover%20art.jpe?size=original#image";
     let response = run(&["--dump-messages", input]);
     assert!(response.status.success());
@@ -49,11 +49,15 @@ fn directlink_message_dump_preserves_native_source_fields_without_changing_flat_
     assert_eq!(events[0]["metadata"]["filename"], "cover art.jpe");
     assert_eq!(events[1]["metadata"], events[0]["metadata"]);
 
-    let legacy = run(&["--dump-json", input]);
-    assert!(legacy.status.success());
-    let item: serde_json::Value = serde_json::from_slice(&legacy.stdout).unwrap();
-    assert_eq!(item["filename"], "cover art.jpe");
-    assert!(item.get("domain").is_none());
+    let upstream = run(&["--dump-json", input]);
+    assert!(upstream.status.success());
+    let tuples: serde_json::Value = serde_json::from_slice(&upstream.stdout).unwrap();
+    assert_eq!(tuples[0][0], 2);
+    assert_eq!(tuples[0][1], "");
+    assert_eq!(tuples[0][2]["filename"], "cover art.jpe");
+    assert_eq!(tuples[0][2]["domain"], "cdn.example.org");
+    assert_eq!(tuples[1][0], 3);
+    assert_eq!(tuples[1][2], tuples[0][2]);
 }
 
 #[test]
@@ -76,13 +80,18 @@ fn message_mode_rejects_modes_that_would_have_ambiguous_output() {
 }
 
 #[test]
-fn legacy_media_dump_remains_unchanged() {
+fn dump_json_emits_upstream_directory_and_url_tuples() {
     let response = run(&["--dump-json", "https://example.org/photo.png"]);
     assert!(response.status.success());
-    let object: serde_json::Value = serde_json::from_slice(&response.stdout).unwrap();
-    assert_eq!(object["filename"], "photo.png");
-    assert_eq!(object["extractor"], "directlink");
-    assert!(object.get("type").is_none());
+    let tuples: serde_json::Value = serde_json::from_slice(&response.stdout).unwrap();
+    assert_eq!(tuples.as_array().unwrap().len(), 2);
+    assert_eq!(tuples[0][0], 2);
+    assert_eq!(tuples[0][1], "");
+    assert_eq!(tuples[0][2]["category"], "directlink");
+    assert_eq!(tuples[0][2]["filename"], "photo.png");
+    assert_eq!(tuples[1][0], 3);
+    assert_eq!(tuples[1][1], "https://example.org/photo.png");
+    assert_eq!(tuples[1][2], tuples[0][2]);
 }
 
 #[test]

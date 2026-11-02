@@ -10,7 +10,7 @@ use galerith::{
         resolve_messages_traversing_selected, PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
-    message::JobSelection,
+    message::{to_upstream_tuple, JobSelection},
     pacing::{with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
     postprocess::{write_info_json, write_metadata},
     privacy::{display_error, display_url},
@@ -83,7 +83,7 @@ struct Cli {
     #[arg(short = 'g', long)]
     get_urls: bool,
 
-    /// Print extracted media objects as JSON instead of downloading
+    /// Print upstream-compatible directory/URL message tuples as JSON
     #[arg(short = 'j', long)]
     dump_json: bool,
 
@@ -981,7 +981,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
-        if cli.dump_messages {
+        if cli.dump_messages || cli.dump_json {
             let message_future = async {
                 if cli.expand_queues {
                     let selection = JobSelection {
@@ -1038,8 +1038,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .await;
             match events {
                 Ok(events) => {
-                    for event in events {
-                        println!("{}", serde_json::to_string(&event)?);
+                    if cli.dump_json {
+                        let tuples = events.iter().map(to_upstream_tuple).collect::<Vec<_>>();
+                        println!("{}", serde_json::to_string(&tuples)?);
+                    } else {
+                        for event in events {
+                            println!("{}", serde_json::to_string(&event)?);
+                        }
                     }
                 }
                 Err(error) => {
@@ -1090,7 +1095,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 continue;
             }
         };
-        if cli.write_info_json {
+        if cli.write_info_json && !cli.simulate {
             if let Some(item) = items.first() {
                 write_info_json(&options.destination, item).await?;
             }

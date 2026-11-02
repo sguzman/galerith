@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 72%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 71%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `████████░░ 77%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -123,7 +123,7 @@
 ## 🧩 M2 — Extractor framework and site families — `████████░░ 77%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
 
-### 🧬 P4 — Extractor architecture — `███████░░░ 73%`
+### 🧬 P4 — Extractor architecture — `███████░░░ 72%`
 
 - 🧭 **T401** URL dispatch and category routing — `████░░░░░░ 40%`
   - [x] Implement conservative direct-media matching — src/lib.rs
@@ -152,9 +152,9 @@
   - [x] CLI index filtering and error regression tests — src/main.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
   - [ ] Stop paging before unnecessary extractor requests
   - [ ] Full post and child range parity
-- 🪜 **T406** Read-only extractor message inspection and deferred Wallhaven queues — `████████░░ 80%`
+- 🪜 **T406** Read-only extractor message inspection and deferred Wallhaven queues — `██████░░░░ 60%`
   - [x] Implement independent serialized directory, URL and child queue event types — src/message.rs typed event schema and unit fixtures; CI 40032410873
-  - [x] Expose read-only --dump-messages JSONL output without changing regular downloads or --dump-json — src/main.rs and tests/message_cli.rs CLI modes and regression fixtures; CI 40032410873
+  - [ ] Expose read-only --dump-messages JSONL output without changing regular downloads or --dump-json
   - [x] Emit deferred collection queue events from Wallhaven public collection lists, without fetching child galleries — src/extractor/wallhaven.rs queue_collections_at_base fixtures, src/extractor/mod.rs dispatch; CI 40032410873
   - [x] Validate queue ID/dedup/page bounds, event serialization, legacy output and redacted diagnostics in offline tests — src/message.rs, src/extractor/wallhaven.rs and tests/message_cli.rs; CI 40032410873
   - [ ] Port complete upstream queue execution, recursive extraction, redirects, metadata scope propagation and reference differential tests

@@ -81,13 +81,13 @@ fn dry_run_with_metadata_flag_never_creates_sidecar() {
 }
 
 #[test]
-fn info_json_writes_redacted_directory_metadata_before_simulated_download() {
+fn info_json_writes_redacted_directory_metadata_without_downloading_media() {
     let dir = dir().with_extension("info");
     let _ = fs::remove_dir_all(&dir);
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
             "--write-info-json",
-            "--simulate",
+            "--no-download",
             "-d",
             dir.to_str().unwrap(),
             "https://cdn.example.org/galleries/asset.jpg?token=private#secret",
@@ -113,4 +113,22 @@ fn info_json_writes_redacted_directory_metadata_before_simulated_download() {
     assert!(!text.contains("secret"));
     assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn info_json_is_suppressed_during_simulation() {
+    let dir = dir().with_extension("simulated-info");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--write-info-json",
+            "--simulate",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://cdn.example.org/galleries/asset.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(!dir.exists());
 }

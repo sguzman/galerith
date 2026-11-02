@@ -73,8 +73,13 @@ fn json_extraction_is_offline() {
     let output = run(&["--dump-json", "https://example.org/image.webp"]);
     assert!(output.status.success());
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(result["filename"], "image.webp");
-    assert_eq!(result["extractor"], "directlink");
+    assert_eq!(result.as_array().unwrap().len(), 2);
+    assert_eq!(result[0][0], 2);
+    assert_eq!(result[0][1], "");
+    assert_eq!(result[0][2]["category"], "directlink");
+    assert_eq!(result[0][2]["filename"], "image.webp");
+    assert_eq!(result[1][0], 3);
+    assert_eq!(result[1][1], "https://example.org/image.webp");
 }
 
 #[test]
@@ -96,11 +101,11 @@ fn danbooru_registered_but_not_claimed_complete() {
 }
 
 #[test]
-fn filename_template_updates_json_without_network() {
+fn filename_template_updates_simulated_path_without_network() {
     let output = run(&[
         "-f",
         "{category}_{stem}.{extension}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/image.webp",
     ]);
     assert!(
@@ -108,20 +113,24 @@ fn filename_template_updates_json_without_network() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(item["filename"], "directlink_image.webp");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "[simulate] directlink_image.webp\n"
+    );
 }
 
 #[test]
 fn original_filename_shortcut_preserves_source_name() {
-    let output = run(&["-f", "/O", "--dump-json", "https://example.org/image.webp"]);
+    let output = run(&["-f", "/O", "--simulate", "https://example.org/image.webp"]);
     assert!(
         output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(item["filename"], "image.webp");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "[simulate] image.webp\n"
+    );
 }
 
 #[test]
@@ -129,7 +138,7 @@ fn filename_template_applies_slices_and_conversions_through_cli() {
     let output = run(&[
         "-f",
         "{filename[-3:]!u}_{category!q}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/image.webp",
     ]);
     assert!(
@@ -137,8 +146,10 @@ fn filename_template_applies_slices_and_conversions_through_cli() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(item["filename"], "AGE_directlink");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "[simulate] AGE_directlink\n"
+    );
 }
 
 #[test]
@@ -146,7 +157,7 @@ fn filename_template_applies_conditional_wrappers_through_cli() {
     let output = run(&[
         "-f",
         "{extension:?[/]/}_{stem}",
-        "--dump-json",
+        "--simulate",
         "https://example.org/image.webp",
     ]);
     assert!(
@@ -154,8 +165,10 @@ fn filename_template_applies_conditional_wrappers_through_cli() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(item["filename"], "[webp]_image");
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "[simulate] [webp]_image\n"
+    );
 }
 
 #[test]

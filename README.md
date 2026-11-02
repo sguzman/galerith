@@ -16,7 +16,7 @@ cargo run -- --get-urls 'https://example.org/sample.jpg'
 cargo run -- --dump-json 'https://example.org/sample.jpg'
 cargo run -- --simulate 'https://example.org/sample.jpg'
 cargo run -- --range '1:10:2' --get-urls 'https://example.org/sample.jpg'
-cargo run -- --filename '{category}_{stem}.{extension}' --dump-json 'https://example.org/sample.jpg'
+cargo run -- --filename '{category}_{stem}.{extension}' --simulate 'https://example.org/sample.jpg'
 cargo run -- --write-info-json --simulate -d ./media 'https://example.org/sample.jpg'
 cargo run -- --config-json ./settings.json --get-urls 'https://example.org/sample.jpg'
 cargo run -- --download-archive ./gallery.sqlite -d ./media 'https://example.org/sample.jpg'
@@ -39,7 +39,7 @@ The native preview includes resumable transfers and retries, cross-process downl
 
 ## Port tracking
 
-**Overall MVP:** `███████░░░ 72%` (160 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `███████░░░ 71%` (160 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 **Pinned extractor-source inventory:** 1 complete · 76 partial · 195 not ported (272 upstream Python files).
 
