@@ -118,7 +118,36 @@ fn album_page(html: &str) -> Vec<MediaItem> {
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    let request = client.get(url).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(content) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &content, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let content = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &content, &response_info).await;
+    Ok(String::from_utf8(content)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|length| length > MAX_HTML_BYTES as u64)
@@ -132,7 +161,13 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
         }
         content.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(content)?)
+    Ok(content)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_at_base(
@@ -245,28 +280,60 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let image = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Image {
-                id: "image123".into(),
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imgbb-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (image, album) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let image = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Image {
+                        id: "image123".into(),
+                    },
+                )
+                .await
+                .unwrap();
+                let album = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Album {
+                        id: "album123".into(),
+                    },
+                )
+                .await
+                .unwrap();
+                (image, album)
             },
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(image.len(), 1);
         assert_eq!(image[0].filename, "direct.jpg");
-        let album = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Album {
-                id: "album123".into(),
-            },
-        )
-        .await
-        .unwrap();
         assert_eq!(album.len(), 1);
         assert_eq!(album[0].filename, "one.jpg");
+        let files = std::fs::read_dir(&directory)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(files.len(), 2);
+        let pages = files
+            .iter()
+            .map(|entry| std::fs::read_to_string(entry.path()).unwrap())
+            .collect::<Vec<_>>();
+        assert!(pages.iter().any(|page| {
+            page.starts_with(&format!("GET http://{addr}/image123\n"))
+                && page.contains("direct.jpg")
+                && page.contains("Request Headers")
+                && page.contains("Response Headers")
+        }));
+        assert!(pages.iter().any(|page| {
+            page.starts_with(&format!("GET http://{addr}/album/album123\n"))
+                && page.contains("one.jpg")
+        }));
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
