@@ -392,4 +392,57 @@ mod tests {
         assert!(page.contains("https://files.catbox.moe/image.webp"));
         tokio::fs::remove_dir_all(directory).await.unwrap();
     }
+
+    #[tokio::test]
+    async fn repeated_album_requests_obey_scoped_request_pacing() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let mut previous = None;
+            let mut interval = None;
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let arrived = tokio::time::Instant::now();
+                let mut request = [0_u8; 2048];
+                let count = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..count])
+                        .starts_with("GET /c/album123 HTTP/1.1"),
+                    "{}",
+                    String::from_utf8_lossy(&request[..count])
+                );
+                if let Some(previous) = previous {
+                    interval = Some(arrived.duration_since(previous));
+                }
+                previous = Some(arrived);
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    .await
+                    .unwrap();
+            }
+            interval.unwrap()
+        });
+
+        let base = Url::parse(&format!("http://{address}/")).unwrap();
+        let url = base.join("c/album123").unwrap().to_string();
+        let delay = crate::pacing::DelayRange::parse("0.1").unwrap();
+        let client = Client::new();
+        crate::pacing::with_request_delay_for_url(&url, Some(delay), async {
+            resolve_album_at_base(&client, &base, "album123")
+                .await
+                .unwrap();
+            resolve_album_at_base(&client, &base, "album123")
+                .await
+                .unwrap();
+        })
+        .await;
+        assert!(
+            server.await.unwrap() >= std::time::Duration::from_millis(90),
+            "successive Catbox API calls were not paced"
+        );
+    }
 }
