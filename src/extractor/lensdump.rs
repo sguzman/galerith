@@ -259,28 +259,15 @@ async fn source_html(
     client: &Client,
     endpoint: Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Lensdump page redirected outside its first-party origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
-    {
-        return Err("Lensdump HTML exceeds size limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
-            return Err("Lensdump HTML exceeds size limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML_BYTES,
+        "Lensdump HTML exceeds size limit",
+    )
+    .await?;
     Ok(String::from_utf8(body)?)
 }
 
