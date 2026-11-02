@@ -283,7 +283,36 @@ async fn gallery_page_at_base(
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("p/{}", gallery.id))?;
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    parse_page_payload(std::str::from_utf8(&body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|size| size > MAX_GALLERY_HTML_BYTES as u64)
@@ -297,7 +326,13 @@ async fn gallery_page_at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    parse_page_payload(std::str::from_utf8(&body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 pub async fn resolve(
@@ -692,19 +727,37 @@ mod tests {
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let files = resolve_at_base(
-            &Client::new(),
-            Gallery {
-                id: "abc123xyz45".into(),
-            },
-            &base,
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imagechest-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let files = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_at_base(
+                &Client::new(),
+                Gallery {
+                    id: "abc123xyz45".into(),
+                },
+                &base,
+            ),
         )
         .await
         .unwrap();
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].filename, "abc123xyz45.png");
         assert_eq!(files[1].filename, "def456uvw78.webp");
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let page = std::fs::read_to_string(page.path()).unwrap();
+        assert!(page.starts_with(&format!("GET http://{addr}/p/abc123xyz45\n")));
+        assert!(page.contains("data-page"));
+        assert!(page.contains("Response Headers"));
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
