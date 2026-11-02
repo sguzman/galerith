@@ -113,6 +113,92 @@ fn contains_file_with_bytes(directory: &Path, expected: &[u8]) -> bool {
     })
 }
 
+fn saved_paths_with_bytes(directory: &Path, expected: &[u8]) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .flat_map(|entry| {
+            let path = entry.path();
+            if path.is_dir() {
+                saved_paths_with_bytes(&path, expected)
+            } else if std::fs::read(&path).is_ok_and(|bytes| bytes == expected) {
+                vec![path]
+            } else {
+                Vec::new()
+            }
+        })
+        .collect()
+}
+
+fn run_reference_filename_filesystem_fixture(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+) -> std::path::PathBuf {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 1024];
+        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+            let count = socket.read(&mut buffer).unwrap();
+            assert_ne!(count, 0, "client closed before sending HTTP headers");
+            request.extend_from_slice(&buffer[..count]);
+            assert!(request.len() < 16 * 1024, "HTTP headers too large");
+        }
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+    });
+
+    let output = working_root.join(format!("{label}-filename-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/asset.jpg");
+    let template = "{category}_{filename:?[/]/}";
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+        command
+    } else {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+    };
+    if reference {
+        command.args(["--filename", template, "-D", output.to_str().unwrap(), &url]);
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+    } else {
+        command.args(["--filename", template, "-d", output.to_str().unwrap(), &url]);
+    }
+    let result = command
+        .output()
+        .expect("launch filename filesystem fixture");
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    server.join().unwrap();
+    let paths = saved_paths_with_bytes(&output, b"JPEG");
+    assert_eq!(
+        paths.len(),
+        1,
+        "{label}: expected exactly one saved fixture"
+    );
+    let relative = paths[0].strip_prefix(&output).unwrap().to_owned();
+    std::fs::remove_dir_all(output).unwrap();
+    relative
+}
+
 fn run_user_agent_fixture(
     output_root: &Path,
     pinned_root: Option<&Path>,
@@ -1719,6 +1805,30 @@ fn pinned_and_native_sleep_request_does_not_delay_direct_media() {
         pinned.abs_diff(native) < std::time::Duration::from_millis(75),
         "pinned/native direct-media intervals differ: pinned={pinned:?}, native={native:?}"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_save_the_same_formatted_filename() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!(
+        "galerith-filename-filesystem-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_reference_filename_filesystem_fixture(&root, pinned_root, "pinned", true);
+    let native = run_reference_filename_filesystem_fixture(&root, pinned_root, "native", false);
+    assert_eq!(pinned, native, "upstream/native saved path differs");
     std::fs::remove_dir_all(root).unwrap();
 }
 
