@@ -268,28 +268,15 @@ fn parse_catalog(
 }
 
 async fn html_at(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("2chen public page redirected outside site origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("2chen source HTML exceeds 2 MiB".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(body.len()) {
-            return Err("2chen source HTML exceeds 2 MiB".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "2chen source HTML exceeds 2 MiB",
+    )
+    .await?;
     Ok(String::from_utf8(body)?)
 }
 
