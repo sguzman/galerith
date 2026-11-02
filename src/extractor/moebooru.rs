@@ -130,30 +130,20 @@ async fn source_json(
         .await;
     }
     // Pinned Behoimi adapter needs a fixed source referer and no compression.
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    // Keep this request uncached and use the shared bounded diagnostics path.
+    let request = client
         .get(endpoint.clone())
         .header("Referer", "http://behoimi.org/post/show/")
         .header("Accept-Encoding", "identity")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("3dbooru public API redirected outside its source origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|size| size > MOEBOORU_JSON_RESPONSE_LIMIT as u64)
-    {
-        return Err("3dbooru API response exceeds byte cap".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MOEBOORU_JSON_RESPONSE_LIMIT.saturating_sub(body.len()) {
-            return Err("3dbooru API response exceeds byte cap".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MOEBOORU_JSON_RESPONSE_LIMIT,
+        "3dbooru API response exceeds byte cap",
+    )
+    .await?;
     Ok(serde_json::from_slice(&body)?)
 }
 
