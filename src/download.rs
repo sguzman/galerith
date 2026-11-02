@@ -31,6 +31,10 @@ pub struct DownloadOptions {
     pub no_part: bool,
     /// Optional maximum number of response bytes per second.
     pub limit_rate: Option<RateRange>,
+    /// Minimum response size; responses with a known smaller size are filtered.
+    pub filesize_min: Option<u64>,
+    /// Maximum response size; responses with a known larger size are filtered.
+    pub filesize_max: Option<u64>,
     /// Additional downloader-only headers from explicit configuration.
     pub headers: HeaderMap,
     /// Additional response codes configured as retryable; 5xx are always retried.
@@ -49,6 +53,7 @@ pub struct DownloadOptions {
 pub enum DownloadOutcome {
     Saved(PathBuf),
     Skipped(PathBuf),
+    Filtered(PathBuf),
 }
 
 /// Advisory locks live in stable per-target files and are released by the OS
@@ -649,6 +654,15 @@ pub async fn download(
         } else {
             None
         };
+        let declared_size = resume_range
+            .map(|(_, total)| total)
+            .or_else(|| response.content_length());
+        if declared_size.is_some_and(|size| {
+            options.filesize_min.is_some_and(|minimum| size < minimum)
+                || options.filesize_max.is_some_and(|maximum| size > maximum)
+        }) {
+            return Ok(DownloadOutcome::Filtered(target));
+        }
         if let Some((expected, total)) = resume_range {
             if prior
                 .as_ref()

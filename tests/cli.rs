@@ -21,6 +21,45 @@ fn version_flag_prints_the_native_package_version() {
 }
 
 #[test]
+fn filesize_limits_accept_size_suffixes_and_independent_bounds() {
+    let valid = run(&[
+        "--filesize-min",
+        "500k",
+        "--filesize-max",
+        "2.5M",
+        "--simulate",
+        "https://example.org/photo.jpg",
+    ]);
+    assert!(
+        valid.status.success(),
+        "{}",
+        String::from_utf8_lossy(&valid.stderr)
+    );
+
+    let inverted = run(&[
+        "--filesize-min",
+        "4M",
+        "--filesize-max",
+        "2M",
+        "--simulate",
+        "https://example.org/photo.jpg",
+    ]);
+    assert!(
+        inverted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inverted.stderr)
+    );
+
+    let bad_suffix = run(&[
+        "--filesize-min",
+        "12XB",
+        "--simulate",
+        "https://example.org/photo.jpg",
+    ]);
+    assert!(!bad_suffix.status.success());
+}
+
+#[test]
 fn lists_only_supported_extractors() {
     let output = run(&["--list-extractors"]);
     assert!(output.status.success());

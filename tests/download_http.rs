@@ -26,6 +26,8 @@ fn options(destination: PathBuf) -> DownloadOptions {
         no_mtime: false,
         no_part: false,
         limit_rate: None,
+        filesize_min: None,
+        filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),
         retry_codes: vec![],
         http_timeout: None,
@@ -689,6 +691,87 @@ async fn keeps_valid_http_last_modified_as_output_mtime() {
     let expected = httpdate::parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT").unwrap();
     assert!(actual.duration_since(expected).unwrap() < Duration::from_secs(2));
     assert_eq!(fs::read(dir.join("dated.png")).unwrap(), b"TIME");
+    server.await.unwrap();
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn known_content_lengths_outside_file_size_limits_are_filtered() {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    for (label, body, min, max) in [
+        ("below-minimum", b"DATA".as_slice(), Some(5), None),
+        ("above-maximum", b"TOO-LARGE".as_slice(), None, Some(8)),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let body = body.to_vec();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 512];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+            stream.write_all(&body).await.unwrap();
+        });
+        let dir = test_dir(label);
+        let _ = fs::remove_dir_all(&dir);
+        let item = extract_direct_media(&format!("http://{addr}/size.jpg")).unwrap();
+        let mut opts = options(dir.clone());
+        opts.filesize_min = min;
+        opts.filesize_max = max;
+        assert_eq!(
+            download(&client, &item, &opts).await.unwrap(),
+            DownloadOutcome::Filtered(dir.join("size.jpg")),
+            "{label}"
+        );
+        assert!(
+            !dir.join("size.jpg").exists(),
+            "{label}: wrote filtered media"
+        );
+        assert!(
+            !dir.join("size.jpg.part").exists(),
+            "{label}: wrote partial media"
+        );
+        server.await.unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn unknown_content_length_is_not_filtered_by_declared_size_limits() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nDATA\r\n0\r\n\r\n",
+            )
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("unknown-size-limit");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/unknown.jpg")).unwrap();
+    let mut opts = options(dir.clone());
+    opts.filesize_min = Some(5);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    assert_eq!(
+        download(&client, &item, &opts).await.unwrap(),
+        DownloadOutcome::Saved(dir.join("unknown.jpg"))
+    );
+    assert_eq!(fs::read(dir.join("unknown.jpg")).unwrap(), b"DATA");
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
 }

@@ -91,6 +91,30 @@ fn parse_bytes_per_second(input: &str) -> Result<u64, &'static str> {
     Ok(bytes_per_second)
 }
 
+/// Parse the byte-size syntax used by downloader size limits.
+pub fn parse_byte_size(input: &str) -> Result<u64, &'static str> {
+    let input = input.trim();
+    let number_end = input
+        .find(|character: char| !character.is_ascii_digit() && character != '.')
+        .unwrap_or(input.len());
+    let number = input[..number_end]
+        .parse::<f64>()
+        .map_err(|_| "invalid file size")?;
+    let multiplier = match input[number_end..].trim().to_ascii_lowercase().as_str() {
+        "" | "b" => 1.0,
+        "k" | "kb" | "kib" => 1024.0,
+        "m" | "mb" | "mib" => 1024.0 * 1024.0,
+        "g" | "gb" | "gib" => 1024.0 * 1024.0 * 1024.0,
+        "t" | "tb" | "tib" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        _ => return Err("invalid file size suffix"),
+    };
+    let bytes = number * multiplier;
+    if !bytes.is_finite() || bytes < 0.0 || bytes >= u64::MAX as f64 {
+        return Err("file size must be a nonnegative finite number of bytes");
+    }
+    Ok(bytes.round() as u64)
+}
+
 #[derive(Default)]
 struct RequestSchedule {
     global_last: Option<tokio::time::Instant>,
@@ -449,6 +473,15 @@ mod tests {
         assert!(RateRange::parse("0").is_err());
         assert!(RateRange::parse("2M-800k").is_err());
         assert!(RateRange::parse("1k-2M-3M").is_err());
+    }
+
+    #[test]
+    fn parses_downloader_file_size_limits() {
+        assert_eq!(parse_byte_size("500k").unwrap(), 500 * 1024);
+        assert_eq!(parse_byte_size("2.5M").unwrap(), 2_621_440);
+        assert_eq!(parse_byte_size("0").unwrap(), 0);
+        assert!(parse_byte_size("-1k").is_err());
+        assert!(parse_byte_size("12XB").is_err());
     }
 
     #[test]

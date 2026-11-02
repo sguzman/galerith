@@ -2364,6 +2364,100 @@ fn pinned_and_native_clients_match_last_modified_mtime() {
 }
 
 #[test]
+fn pinned_and_native_filter_known_content_lengths_by_size_limits() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    const SMALL: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nSMAL";
+    const LARGE: &[u8] =
+        b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nLARGE123";
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-filesize-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (url, server) = serve_retry_sequence([SMALL, SMALL, LARGE, LARGE]);
+
+    for (label, pinned, flag, value, response_body) in [
+        (
+            "reference-min",
+            true,
+            "--filesize-min",
+            "5",
+            b"SMAL".as_slice(),
+        ),
+        (
+            "native-min",
+            false,
+            "--filesize-min",
+            "5",
+            b"SMAL".as_slice(),
+        ),
+        (
+            "reference-max",
+            true,
+            "--filesize-max",
+            "7",
+            b"LARGE123".as_slice(),
+        ),
+        (
+            "native-max",
+            false,
+            "--filesize-max",
+            "7",
+            b"LARGE123".as_slice(),
+        ),
+    ] {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command
+            .args(["--quiet", flag, value, "-d"])
+            .arg(&output)
+            .arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command.output().expect("launch size-limit fixture client");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            !contains_file_with_bytes(&output, response_body),
+            "{label}: saved a response outside the configured size bounds"
+        );
+    }
+    server.join().unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
     let template = "{_lit[é猫]!n}";
     let url = "https://example.org/image.jpg";

@@ -1,6 +1,6 @@
 //! A deliberately bounded, independently implemented subset of gallery-dl's
 //! configuration overlay semantics. Only explicit files are loaded in preview.
-use crate::pacing::DelayRange;
+use crate::pacing::{parse_byte_size, DelayRange};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::StatusCode;
 use serde_json::{Map, Value};
@@ -222,6 +222,13 @@ impl Config {
             .ok_or("downloader.http.mtime must be a boolean")
     }
 
+    /// Optional minimum and maximum media sizes from downloader configuration.
+    pub fn downloader_filesize_limits(&self) -> Result<(Option<u64>, Option<u64>), &'static str> {
+        let minimum = parse_file_size_limit(self.root.pointer("/downloader/filesize-min"))?;
+        let maximum = parse_file_size_limit(self.root.pointer("/downloader/filesize-max"))?;
+        Ok((minimum, maximum))
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -357,6 +364,18 @@ impl Config {
             .or_else(|| self.path(&["extractor", name]));
         value.map(DelayRange::from_value).transpose()
     }
+}
+
+fn parse_file_size_limit(value: Option<&Value>) -> Result<Option<u64>, &'static str> {
+    let Some(value) = value.filter(|value| !value.is_null()) else {
+        return Ok(None);
+    };
+    let size = match value {
+        Value::Number(number) => parse_byte_size(&number.to_string())?,
+        Value::String(size) => parse_byte_size(size)?,
+        _ => return Err("downloader file-size limits must be byte counts or size strings"),
+    };
+    Ok((size > 0).then_some(size))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -521,6 +540,30 @@ mod tests {
         assert_eq!(config.downloader_http_mtime().unwrap(), Some(true));
         config.option("mtime=1").unwrap();
         assert!(config.downloader_http_mtime().is_err());
+    }
+
+    #[test]
+    fn downloader_file_size_limits_parse_suffixes_and_allow_independent_bounds() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_filesize_limits().unwrap(), (None, None));
+        config.option("downloader.filesize-min=500k").unwrap();
+        config.option("downloader.filesize-max=2.5M").unwrap();
+        assert_eq!(
+            config.downloader_filesize_limits().unwrap(),
+            (Some(500 * 1024), Some(2_621_440))
+        );
+        config.option("downloader.filesize-min=0").unwrap();
+        assert_eq!(
+            config.downloader_filesize_limits().unwrap(),
+            (None, Some(2_621_440))
+        );
+        config.option("downloader.filesize-min=3M").unwrap();
+        assert_eq!(
+            config.downloader_filesize_limits().unwrap(),
+            (Some(3 * 1024 * 1024), Some(2_621_440))
+        );
+        config.option("downloader.filesize-min=true").unwrap();
+        assert!(config.downloader_filesize_limits().is_err());
     }
 
     #[test]

@@ -13,7 +13,7 @@ use galerith::{
     message::{
         to_upstream_tuple, ExtractorMessage, JobSelection, MAX_QUEUE_CHILDREN, MAX_QUEUE_DEPTH,
     },
-    pacing::{with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
+    pacing::{parse_byte_size, with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
     postprocess::{write_info_json, write_metadata},
     privacy::{display_error, display_url},
     range::IndexRange,
@@ -452,6 +452,14 @@ struct Cli {
     #[arg(short = 'r', long = "limit-rate", value_name = "RATE")]
     limit_rate: Option<String>,
 
+    /// Skip files smaller than SIZE (optionally with k/M/G suffix)
+    #[arg(long = "filesize-min", value_name = "SIZE")]
+    filesize_min: Option<String>,
+
+    /// Skip files larger than SIZE (optionally with k/M/G suffix)
+    #[arg(long = "filesize-max", value_name = "SIZE")]
+    filesize_max: Option<String>,
+
     /// Maximum extractor feed/search pages to fetch (preview default: 1)
     #[arg(long, default_value_t = 1)]
     max_pages: u16,
@@ -795,6 +803,26 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .transpose()
         .map_err(|_| "invalid --sleep-429: expected a duration or capped lin/exp schedule")?;
 
+    let (configured_filesize_min, configured_filesize_max) = config
+        .downloader_filesize_limits()
+        .map_err(std::io::Error::other)?;
+    let filesize_min = cli
+        .filesize_min
+        .as_deref()
+        .map(parse_byte_size)
+        .transpose()
+        .map_err(|_| "invalid --filesize-min: expected a nonnegative byte size")?
+        .map(|size| (size > 0).then_some(size))
+        .unwrap_or(configured_filesize_min);
+    let filesize_max = cli
+        .filesize_max
+        .as_deref()
+        .map(parse_byte_size)
+        .transpose()
+        .map_err(|_| "invalid --filesize-max: expected a nonnegative byte size")?
+        .map(|size| (size > 0).then_some(size))
+        .unwrap_or(configured_filesize_max);
+
     let cli_http_timeout = cli
         .http_timeout
         .map(|seconds| {
@@ -883,6 +911,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(RateRange::parse)
             .transpose()
             .map_err(std::io::Error::other)?,
+        filesize_min,
+        filesize_max,
         headers: config
             .downloader_http_headers()
             .map_err(std::io::Error::other)?,
@@ -1337,6 +1367,25 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
                         }
+                        if record_skip {
+                            if let Some(ref archive) = archive {
+                                archive.record_for_source(&item, &url)?;
+                            }
+                        }
+                        if !cli.quiet {
+                            println!("skipped {}", path.display());
+                        }
+                        let skip_delay = match cli_sleep_skip {
+                            Some(delay) => Some(delay),
+                            None => config
+                                .duration(item.extractor, "sleep-skip")
+                                .map_err(std::io::Error::other)?,
+                        };
+                        if let Some(delay) = skip_delay {
+                            tokio::time::sleep(delay.sample()).await;
+                        }
+                    }
+                    Ok(DownloadOutcome::Filtered(path)) => {
                         if record_skip {
                             if let Some(ref archive) = archive {
                                 archive.record_for_source(&item, &url)?;
