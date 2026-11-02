@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `████████░░ 81%`
+## 🌐 M1 — HTTP, storage and download parity — `████████░░ 84%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████████ 96%`
@@ -85,13 +85,13 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [x] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy — src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted.
 
-### 🗃️ P3 — Paths, archive and persistence — `███████░░░ 65%`
+### 🗃️ P3 — Paths, archive and persistence — `███████░░░ 72%`
 
-- 🗂️ **T301** Safe names and format templates — `██████░░░░ 60%`
+- 🗂️ **T301** Safe names and format templates — `██████████ 100%`
   - [x] Sanitize a direct file basename — src/lib.rs
-  - [ ] Format field interpolation and conditionals
+  - [x] Format field interpolation and conditionals — src/filename.rs::template_basics_and_padding and conditionally_wraps_nonempty_values; tests/cli.rs::filename_template_updates_json_without_network and filename_template_applies_conditional_wrappers_through_cli cover the supported field and conditional subset. tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares a conditional category/extension template against the pinned directlink client. CI 41488106362 Rust and pinned oracle jobs passed.
   - [x] Platform filename rules and normalization — src/lib.rs safe_filename normalizes separators/invalid characters, strips Windows-invalid trailing dots/spaces and prefixes reserved DOS device basenames; unit tests cover CON/PRN/AUX/NUL, COM1-9, LPT1-9, CONIN$/CONOUT$, trailing characters and ordinary-name preservation
-  - [ ] Reference-compatible filesystem tests
+  - [x] Reference-compatible filesystem tests — tests/filename_filesystem.rs::rendered_template_is_the_saved_path_and_existing_output_is_skipped verifies the native saved path and existing-file behavior; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares exact relative paths and bytes from a local HTTP fixture between pinned gallery-dl and Galerith. CI 41488106362 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback only; no public origin contacted.
   - [x] Verify safe named-field, escaped brace and ID-width format subset — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418
 - 🧾 **T302** SQLite archive, cache and duplicate rules — `████████░░ 80%`
   - [x] Archive schemas and durable writes — src/archive.rs; tests/archive_cli.rs; GitHub Actions 39948367906 (successful SQLite reopen, CLI archive round-trip)

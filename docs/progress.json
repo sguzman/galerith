@@ -420,7 +420,8 @@
                 },
                 {
                   "title": "Format field interpolation and conditionals",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/filename.rs::template_basics_and_padding and conditionally_wraps_nonempty_values; tests/cli.rs::filename_template_updates_json_without_network and filename_template_applies_conditional_wrappers_through_cli cover the supported field and conditional subset. tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares a conditional category/extension template against the pinned directlink client. CI 41488106362 Rust and pinned oracle jobs passed."
                 },
                 {
                   "title": "Platform filename rules and normalization",
@@ -429,7 +430,8 @@
                 },
                 {
                   "title": "Reference-compatible filesystem tests",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/filename_filesystem.rs::rendered_template_is_the_saved_path_and_existing_output_is_skipped verifies the native saved path and existing-file behavior; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares exact relative paths and bytes from a local HTTP fixture between pinned gallery-dl and Galerith. CI 41488106362 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback only; no public origin contacted."
                 },
                 {
                   "title": "Verify safe named-field, escaped brace and ID-width format subset",
@@ -437,7 +439,7 @@
                   "evidence": "src/filename.rs; tests/cli.rs; GitHub Actions 39954702418"
                 }
               ],
-              "progress": 60
+              "progress": 100
             },
             {
               "id": "T302",
