@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 71%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 72%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `████████░░ 77%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `█████████░ 86%`
+## 🌐 M1 — HTTP, storage and download parity — `█████████░ 88%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████████ 96%`
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [x] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy — src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted.
 
-### 🗃️ P3 — Paths, archive and persistence — `████████░░ 75%`
+### 🗃️ P3 — Paths, archive and persistence — `████████░░ 80%`
 
 - 🗂️ **T301** Safe names and format templates — `██████████ 100%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -105,10 +105,10 @@
   - [x] Media extensions and MIME matching — src/download.rs::known_media_mime_types_match_expected_extensions covers image, audio, video and archive MIME aliases, rejects conflicting/clearly different types, and permits extensionless templates and unknown generic types; tests/download_http.rs covers representative response MIME/extension downloads. Full Rust CI 41488106362 passed. Synthetic fixtures only.
   - [x] Golden sidecar comparison tests — src/postprocess.rs redacted_sidecar_matches_stable_synthetic_golden compares exact serialized bytes with tests/fixtures/metadata/directlink.json; offline unit test passed
   - [x] Verify atomic per-media redacted JSON metadata preview — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418
-- 🗄️ **T304** Download history and collision semantics — `████████░░ 75%`
+- 🗄️ **T304** Download history and collision semantics — `██████████ 100%`
   - [x] Existing files skip by default — src/download.rs
   - [x] Safe overwrites and name conflict policy — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-  - [ ] Dedup across URLs/sites
+  - [x] Dedup across URLs/sites — src/archive.rs::fivehundredpx_single_photo_id_survives_changed_cdn_url_without_cross_matches verifies one source photo remains archived after CDN URL and extension rotation; exact_same_media_url_in_different_scopes_cannot_false_skip verifies source-scoped identities do not cross-suppress identical media URLs. tests/archive_cli.rs::completed_download_is_not_fetched_again_even_if_file_is_removed checks durable CLI skip behavior; tests/reference_directlink.rs::pinned_500px_archive_uses_photo_id_for_single_images compares the source key with pinned gallery-dl. CI 41488106362 Rust and pinned oracle jobs passed. Synthetic archive/loopback fixtures only.
   - [x] Regression tests for parallel tasks — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
 - 🧵 **T305** Safe field-based filename formatting preview — `███████░░░ 67%`
   - [x] Named fields, padding and escaped braces — src/filename.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded

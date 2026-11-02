@@ -522,7 +522,8 @@
                 },
                 {
                   "title": "Dedup across URLs/sites",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/archive.rs::fivehundredpx_single_photo_id_survives_changed_cdn_url_without_cross_matches verifies one source photo remains archived after CDN URL and extension rotation; exact_same_media_url_in_different_scopes_cannot_false_skip verifies source-scoped identities do not cross-suppress identical media URLs. tests/archive_cli.rs::completed_download_is_not_fetched_again_even_if_file_is_removed checks durable CLI skip behavior; tests/reference_directlink.rs::pinned_500px_archive_uses_photo_id_for_single_images compares the source key with pinned gallery-dl. CI 41488106362 Rust and pinned oracle jobs passed. Synthetic archive/loopback fixtures only."
                 },
                 {
                   "title": "Regression tests for parallel tasks",
@@ -530,7 +531,7 @@
                   "evidence": "GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed"
                 }
               ],
-              "progress": 75
+              "progress": 100
             },
             {
               "id": "T305",
