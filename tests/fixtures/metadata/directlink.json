@@ -1,6 +1,11 @@
 {
   "category": "directlink",
+  "domain": "example.org",
+  "extension": "jpg",
   "filename": "picture.jpg",
+  "path": "",
   "post_id": null,
-  "source_url": "https://example.org/picture.jpg"
+  "source_url": "https://example.org/picture.jpg",
+  "stem": "picture",
+  "subcategory": "example.org"
 }

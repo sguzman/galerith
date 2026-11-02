@@ -42,6 +42,10 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
     let value: serde_json::Value = serde_json::from_slice(&fs::read(&sidecar).unwrap()).unwrap();
     assert_eq!(value["filename"], "image.jpg");
     assert_eq!(value["category"], "directlink");
+    assert_eq!(value["domain"], "127.0.0.1");
+    assert_eq!(value["extension"], "jpg");
+    assert_eq!(value["stem"], "image");
+    assert_eq!(value["path"], "");
     assert!(!value["source_url"].as_str().unwrap().contains("top-secret"));
 
     fs::remove_file(&sidecar).unwrap();

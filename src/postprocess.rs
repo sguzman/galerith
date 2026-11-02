@@ -52,12 +52,25 @@ pub async fn write_metadata(
     item: &MediaItem,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
     let output = sidecar_path(target)?;
-    let value = json!({
+    let mut value = json!({
         "category": item.extractor,
         "filename": item.filename,
         "post_id": item.post_id,
         "source_url": display_url(&item.url),
     });
+    if item.extractor == "directlink" {
+        if let Some(crate::message::ExtractorMessage::Url { metadata, .. }) =
+            crate::extractor::directlink::resolve_messages(&item.url)?
+                .into_iter()
+                .last()
+        {
+            for field in ["domain", "subcategory", "path", "stem", "extension"] {
+                if let Some(source_value) = metadata.get(field) {
+                    value[field] = source_value.clone();
+                }
+            }
+        }
+    }
     let bytes = serde_json::to_vec_pretty(&value)?;
     let mut tmp_name = OsString::from(
         output

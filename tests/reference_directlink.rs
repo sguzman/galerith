@@ -1145,6 +1145,18 @@ fn same_field(native: &Value, reference: &Value, field: &str, label: &str) {
     );
 }
 
+fn native_sidecar(
+    item: &galerith::MediaItem,
+    target: &Path,
+    runtime: &tokio::runtime::Runtime,
+) -> Value {
+    std::fs::write(target, b"metadata fixture").unwrap();
+    let sidecar = runtime
+        .block_on(galerith::postprocess::write_metadata(target, item))
+        .unwrap();
+    serde_json::from_slice(&std::fs::read(sidecar).unwrap()).unwrap()
+}
+
 #[test]
 fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     // This test is intentionally optional for ordinary cargo test runs.
@@ -1168,6 +1180,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     ));
     let _ = std::fs::remove_dir_all(&db_dir);
     std::fs::create_dir_all(&db_dir).unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
     for (case_index, url) in URLS.iter().enumerate() {
         let rust = native_events(url);
         let source = pinned_events(root, url);
@@ -1186,6 +1199,16 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             }
             let reference = tuple.last().expect("pinned source metadata");
             let metadata = &native["metadata"];
+            let sidecar = if ordinal == 1 {
+                let item = galerith::extract_direct_media(url).unwrap();
+                Some(native_sidecar(
+                    &item,
+                    &db_dir.join(format!("metadata-{case_index}-{}", item.filename)),
+                    &runtime,
+                ))
+            } else {
+                None
+            };
             for key in [
                 "category",
                 "subcategory",
@@ -1196,6 +1219,21 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 "fragment",
             ] {
                 same_field(metadata, reference, key, url);
+            }
+            if let Some(sidecar) = sidecar {
+                for key in ["category", "domain", "subcategory", "path", "extension"] {
+                    same_field(&sidecar, reference, key, url);
+                }
+                assert_eq!(
+                    sidecar["stem"], reference["filename"],
+                    "{url}: sidecar stem"
+                );
+                assert!(
+                    sidecar["source_url"]
+                        .as_str()
+                        .is_some_and(|source| !source.contains('?') && !source.contains('#')),
+                    "{url}: sidecar must omit query and fragment"
+                );
             }
             assert_eq!(
                 metadata["stem"], reference["filename"],
