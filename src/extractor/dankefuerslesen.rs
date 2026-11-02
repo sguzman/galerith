@@ -72,28 +72,15 @@ async fn manga_json(
     slug: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("api/series/{slug}/"))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Danke manga API redirected outside its origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Danke manga API exceeds response limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(body.len()) {
-            return Err("Danke manga API exceeds response limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_JSON,
+        "Danke manga API exceeds response limit",
+    )
+    .await?;
     let value: Value = serde_json::from_slice(&body)?;
     if value.get("slug").and_then(Value::as_str) != Some(slug) {
         return Err("Danke API manga slug differs from requested source".into());
