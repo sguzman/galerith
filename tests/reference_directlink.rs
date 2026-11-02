@@ -1908,6 +1908,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
         ("negative-slice", "{extension[-2:]}", "pg"),
         ("replacement-specifier", "{category:Ri/I/}", "dIrectlInk"),
+        (
+            "chained-replacement-specifiers",
+            "{category:Ri/I/Rl/L/}",
+            "dIrectLInk",
+        ),
         ("truncate-specifier", "{category:X5/-/}", "dire-"),
         ("overlength-replacement", "{category:L5/long/}", "long"),
     ];

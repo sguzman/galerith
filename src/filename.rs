@@ -221,7 +221,8 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         ),
         _ => unreachable!("selected filename field must have a value"),
     };
-    let value = match conversion {
+    let mut spec = spec;
+    let mut value = match conversion {
         "" | "s" => value,
         "q" => encode_url_component(&value),
         "Q" => percent_encoding::percent_decode_str(&value)
@@ -267,6 +268,31 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             )))
         }
     };
+    while let Some(operation) = spec.strip_prefix('R') {
+        let (old, remainder) = operation
+            .split_once('/')
+            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        let (new, remainder) = remainder
+            .split_once('/')
+            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        let occurrences = if old.is_empty() {
+            value.chars().count().saturating_add(1)
+        } else {
+            value.matches(old).count()
+        };
+        let output_len = value
+            .len()
+            .checked_sub(old.len().saturating_mul(occurrences))
+            .and_then(|length| length.checked_add(new.len().checked_mul(occurrences)?))
+            .ok_or_else(|| FormatError("filename replacement output is too long".into()))?;
+        if output_len > 240 {
+            return Err(FormatError(
+                "filename replacement output exceeds 240 bytes".into(),
+            ));
+        }
+        value = value.replace(old, new);
+        spec = remainder;
+    }
     if spec.is_empty() {
         return Ok(value);
     }
@@ -349,31 +375,6 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         }
         .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
         return Ok(result.to_string());
-    }
-    if let Some(operation) = spec.strip_prefix('R') {
-        let (old, new) = operation
-            .split_once('/')
-            .and_then(|(old, new)| new.strip_suffix('/').map(|new| (old, new)))
-            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
-        let occurrences = if old.is_empty() {
-            value.chars().count().saturating_add(1)
-        } else {
-            value.matches(old).count()
-        };
-        let output_len = value
-            .len()
-            .checked_sub(old.len().saturating_mul(occurrences))
-            .and_then(|length| length.checked_add(new.len().checked_mul(occurrences)?))
-            .ok_or_else(|| FormatError("filename replacement output is too long".into()))?;
-        if output_len > 240 {
-            return Err(FormatError(
-                "filename replacement output exceeds 240 bytes".into(),
-            ));
-        }
-        return Ok(value.replace(old, new));
-    }
-    if spec.starts_with('R') {
-        return Err(FormatError("invalid filename replacement formatter".into()));
     }
     if let Some(precision) = spec.strip_prefix('.') {
         if matches!(base_name, "id" | "post_id")
@@ -650,6 +651,11 @@ mod tests {
         assert_eq!(
             render("{stem:Rorange/cyan/}", &item).unwrap(),
             "red blue red"
+        );
+        item.extractor = "directlink";
+        assert_eq!(
+            render("{category:Ri/I/Rl/L/}", &item).unwrap(),
+            "dIrectLInk"
         );
         assert_eq!(render("{stem:Rred/-/}", &item).unwrap(), "- blue -");
         assert!(render("{stem:Rred/green}", &item).is_err());
