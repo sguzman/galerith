@@ -209,7 +209,7 @@ struct Cli {
     file_range: Option<String>,
 
     /// Write a JSON sidecar for each saved or existing media file
-    #[arg(long = "write-metadata")]
+    #[arg(long = "write-info-json", visible_alias = "write-metadata")]
     write_metadata: bool,
 
     /// Write successful bounded API responses to .txt files; all includes redacted headers
