@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `████████░░ 79%`
+## 🌐 M1 — HTTP, storage and download parity — `████████░░ 81%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `█████████░ 92%`
+### 📡 P2 — HTTP transfer engine — `██████████ 96%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -79,11 +79,11 @@
   - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Implement full proxy authentication, TLS and address-family selection — src/main.rs build_http_client applies HTTP/HTTPS proxy settings, proxy Basic auth through reqwest, TLS verification/CA configuration, IPv4/IPv6 and source-address binding. tests/http_options_cli.rs::proxy_url_credentials_are_sent_only_to_the_proxy and https_targets_use_authenticated_proxy_connect_before_tls verify credentials on HTTP and HTTPS proxy requests without leaking them to origins/diagnostics; TLS certificate and IPv4/IPv6/source-address socket fixtures pass locally. Full local quality gates pass; synthetic fixtures only.
   - [x] Compare upstream HTTP configuration behavior — tests/reference_directlink.rs::pinned_and_native_clients_match_authenticated_https_proxy_connect compares HTTPS CONNECT routing, proxy Basic authentication, origin-header isolation and diagnostic redaction between native Galerith and pinned gallery-dl. GitHub Actions 41471778994 pinned upstream directlink oracle job passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback proxy only; no public origin contacted.
-- ⏱️ **T206** Retry-After dates and constant download pacing preview — `████████░░ 75%`
+- ⏱️ **T206** Retry-After dates and constant download pacing preview — `██████████ 100%`
   - [x] Bound numeric Retry-After and support HTTP-date values — src/download.rs; GitHub Actions 39957617755 passed
   - [x] Test date handling, past values and invalid retry hints offline — src/download.rs unit tests; GitHub Actions 39957617755 passed
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
-  - [ ] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy
+  - [x] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy — src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted.
 
 ### 🗃️ P3 — Paths, archive and persistence — `███████░░░ 65%`
 

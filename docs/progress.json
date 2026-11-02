@@ -377,7 +377,7 @@
               "id": "T206",
               "emoji": "⏱️",
               "name": "Retry-After dates and constant download pacing preview",
-              "progress": 75,
+              "progress": 100,
               "checks": [
                 {
                   "title": "Bound numeric Retry-After and support HTTP-date values",
@@ -396,7 +396,8 @@
                 },
                 {
                   "title": "Implement reference range-based sleeps, skip/extractor/request timing and pacing policy",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted."
                 }
               ]
             }
