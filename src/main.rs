@@ -250,9 +250,9 @@ struct Cli {
     #[arg(long)]
     no_download: bool,
 
-    /// Print currently implemented extractor names
-    #[arg(long)]
-    list_extractors: bool,
+    /// Print implemented extractors, optionally filtered by comma-separated category names
+    #[arg(long, num_args = 0..=1, default_missing_value = "")]
+    list_extractors: Option<String>,
 
     /// Print the distinct native extractor modules currently implemented
     #[arg(long, conflicts_with = "list_extractors")]
@@ -589,9 +589,16 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     {
         return Err("--message-file-range and --message-child-range require --dump-messages --expand-queues".into());
     }
-    if cli.list_extractors {
+    if let Some(categories) = cli.list_extractors.as_deref() {
+        let categories = categories
+            .split(',')
+            .map(str::trim)
+            .filter(|category| !category.is_empty())
+            .collect::<std::collections::BTreeSet<_>>();
         for (name, description) in PREVIEW_EXTRACTORS {
-            println!("{name} ({description}; partial parity)");
+            if categories.is_empty() || categories.contains(name) {
+                println!("{name} ({description}; partial parity)");
+            }
         }
         return Ok(());
     }

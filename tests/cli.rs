@@ -30,6 +30,17 @@ fn lists_only_supported_extractors() {
 }
 
 #[test]
+fn filters_native_extractor_listing_by_category() {
+    let output = run(&["--list-extractors=danbooru,directlink"]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("danbooru"));
+    assert!(text.contains("directlink"));
+    assert!(!text.contains("wallhaven"));
+    assert!(!text.contains("pixiv"));
+}
+
+#[test]
 fn url_extraction_is_offline() {
     let output = run(&["--get-urls", "https://example.org/photo.png?size=large"]);
     assert!(output.status.success());
