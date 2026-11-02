@@ -74,6 +74,37 @@ fn constant_sleep_delays_media_request() {
 }
 
 #[test]
+fn download_sleep_does_not_delay_an_existing_file_skip() {
+    let dir = destination("download-sleep-existing-file");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("image.jpg"), b"keep existing").unwrap();
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep",
+            "0.15",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed < Duration::from_millis(120),
+        "--sleep ran before the existing-file check: {elapsed:?}"
+    );
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"keep existing");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
     let elapsed = run_download_with_setting("--sleep", "0.1-0.3", "ranged");
     assert!(

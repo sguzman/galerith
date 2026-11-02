@@ -768,6 +768,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         retry_delay,
         rate_limit_delay,
         request_delay: None,
+        download_delay: None,
     };
     let archive =
         if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
@@ -1143,10 +1144,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     println!("[simulate] {}", item.filename);
                 }
             } else {
-                if let Some(delay) = download_sleep {
-                    tokio::time::sleep(delay.sample()).await;
-                }
                 let mut media_options = options.clone();
+                media_options.download_delay = download_sleep;
                 media_options.request_delay = match cli_sleep_request {
                     Some(delay) => Some(delay),
                     None => config

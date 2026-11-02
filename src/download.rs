@@ -43,6 +43,8 @@ pub struct DownloadOptions {
     pub rate_limit_delay: Option<RetryDelay>,
     /// Optional delay before each media HTTP attempt, including retries.
     pub request_delay: Option<DelayRange>,
+    /// Optional delay before starting a non-skipped media download.
+    pub download_delay: Option<DelayRange>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -473,6 +475,10 @@ pub async fn download(
         if existing.is_file() && existing.len() > 0 {
             return Ok(DownloadOutcome::Skipped(target));
         }
+    }
+
+    if let Some(delay) = options.download_delay {
+        tokio::time::sleep(delay.sample()).await;
     }
 
     for attempt in 0..=options.retries {
