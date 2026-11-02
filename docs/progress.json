@@ -489,7 +489,8 @@
                 },
                 {
                   "title": "Media extensions and MIME matching",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/download.rs::known_media_mime_types_match_expected_extensions covers image, audio, video and archive MIME aliases, rejects conflicting/clearly different types, and permits extensionless templates and unknown generic types; tests/download_http.rs covers representative response MIME/extension downloads. Full Rust CI 41488106362 passed. Synthetic fixtures only."
                 },
                 {
                   "title": "Golden sidecar comparison tests",
@@ -502,7 +503,7 @@
                   "evidence": "src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418"
                 }
               ],
-      "progress": 60
+      "progress": 80
             },
             {
               "id": "T304",

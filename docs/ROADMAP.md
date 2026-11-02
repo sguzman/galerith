@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `████████░░ 84%`
+## 🌐 M1 — HTTP, storage and download parity — `█████████░ 86%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████████ 96%`
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [x] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy — src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted.
 
-### 🗃️ P3 — Paths, archive and persistence — `███████░░░ 72%`
+### 🗃️ P3 — Paths, archive and persistence — `████████░░ 75%`
 
 - 🗂️ **T301** Safe names and format templates — `██████████ 100%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -99,10 +99,10 @@
   - [ ] Archive ID semantics across extractors
   - [x] Cache expiry/locking/recovery — src/cache.rs TTL=0/nonzero, stale/invalid-row recovery, redirected-response nonpersistence, advisory-lock single-flight and killed-worker recovery; src/extractor/http_json.rs real reader integration; tests/cache_cli.rs cache isolation; full Linux CI 40243416911 and 40243609804
   - [x] Migration and retry fixtures — src/archive.rs archive::tests::failed_archive_import_rolls_back_all_native_rows: malformed synthetic reference rolls back with zero native rows; after repair, reopening imports the supported key and a repeated retry is idempotent; source remains unchanged during import; focused local Rust test passed
-- 📋 **T303** Metadata sidecars and extension handling — `██████░░░░ 60%`
+- 📋 **T303** Metadata sidecars and extension handling — `████████░░ 80%`
   - [x] Metadata model for extractors — src/lib.rs
   - [ ] Sidecar JSON/text/original metadata
-  - [ ] Media extensions and MIME matching
+  - [x] Media extensions and MIME matching — src/download.rs::known_media_mime_types_match_expected_extensions covers image, audio, video and archive MIME aliases, rejects conflicting/clearly different types, and permits extensionless templates and unknown generic types; tests/download_http.rs covers representative response MIME/extension downloads. Full Rust CI 41488106362 passed. Synthetic fixtures only.
   - [x] Golden sidecar comparison tests — src/postprocess.rs redacted_sidecar_matches_stable_synthetic_golden compares exact serialized bytes with tests/fixtures/metadata/directlink.json; offline unit test passed
   - [x] Verify atomic per-media redacted JSON metadata preview — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418
 - 🗄️ **T304** Download history and collision semantics — `████████░░ 75%`
