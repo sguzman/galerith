@@ -1876,6 +1876,16 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "directlink_asset.jpg",
         ),
         (
+            "empty-alternative-fallback",
+            "{_lit[]|category}",
+            "directlink",
+        ),
+        (
+            "first-nonempty-alternative",
+            "{_lit[chosen]|category}",
+            "chosen",
+        ),
+        (
             "string-alignment",
             "{category:_>12}-{filename:#^7}.{extension}",
             "__directlink-#asset#.jpg",
