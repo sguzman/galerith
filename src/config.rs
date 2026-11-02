@@ -315,6 +315,13 @@ impl Config {
             .try_fold(&self.root, |v, segment| v.get(*segment))
     }
 
+    /// Return an explicitly configured extractor option, preferring the
+    /// category override over the extractor-wide value.
+    pub fn extractor_option(&self, extractor: &str, name: &str) -> Option<&Value> {
+        self.path(&["extractor", extractor, name])
+            .or_else(|| self.path(&["extractor", name]))
+    }
+
     pub fn filename(&self, extractor: &str) -> Option<&str> {
         self.path(&["filename"])
             .and_then(Value::as_str)
@@ -455,6 +462,23 @@ mod tests {
         let headers = config.downloader_http_headers().unwrap();
         assert!(headers["x-token"].is_sensitive());
         assert_eq!(headers["x-token"], "synthetic-secret");
+    }
+
+    #[test]
+    fn extractor_option_prefers_category_override_over_global_value() {
+        let mut config = Config::default();
+        config.option("extractor.filename=global").unwrap();
+        assert_eq!(
+            config.extractor_option("directlink", "filename"),
+            Some(&Value::String("global".into()))
+        );
+        config
+            .option("extractor.directlink.filename=category")
+            .unwrap();
+        assert_eq!(
+            config.extractor_option("directlink", "filename"),
+            Some(&Value::String("category".into()))
+        );
     }
 
     #[test]

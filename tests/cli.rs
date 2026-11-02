@@ -41,6 +41,53 @@ fn filters_native_extractor_listing_by_category() {
 }
 
 #[test]
+fn extractor_info_reports_directlink_defaults_without_network() {
+    let output = run(&["-E", "https://cdn.example.org/gallery/photo.jpg"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("Category / Subcategory\n  \"directlink\" / \"example.org\""));
+    assert!(text.contains("Filename format (default):"));
+    assert!(text.contains("Directory format (default):"));
+    assert!(text.contains("Archive format (default):"));
+    assert!(text.contains("Request interval (default):\n  0.0"));
+}
+
+#[test]
+fn extractor_info_reports_configured_values_and_directlink_defaults() {
+    let output = run(&[
+        "--extractor-info",
+        "--option",
+        "extractor.filename=custom/{filename}.{extension}",
+        "https://cdn.example.org/gallery/photo.jpg",
+    ]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("Filename format (custom):"));
+    assert!(text.contains("custom/{filename}.{extension}"));
+    assert!(text.contains("Filename format (default):"));
+    assert!(text.contains("{domain}/{path}/{filename}.{extension}"));
+}
+
+#[test]
+fn extractor_info_rejects_unsupported_sources_and_conflicting_output_modes() {
+    let unsupported = run(&["-E", "https://e621.net/posts/123"]);
+    assert!(!unsupported.status.success());
+    assert!(String::from_utf8_lossy(&unsupported.stderr)
+        .contains("currently supports direct media URLs only"));
+
+    let conflicting = run(&[
+        "-E",
+        "--dump-json",
+        "https://cdn.example.org/gallery/photo.jpg",
+    ]);
+    assert!(!conflicting.status.success());
+}
+
+#[test]
 fn url_extraction_is_offline() {
     let output = run(&["--get-urls", "https://example.org/photo.png?size=large"]);
     assert!(output.status.success());

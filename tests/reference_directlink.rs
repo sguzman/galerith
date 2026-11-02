@@ -1226,6 +1226,40 @@ fn pinned_cli_and_native_match_stdin_url_list_parsing() {
     );
 }
 
+#[test]
+fn pinned_and_native_extractor_info_match_directlink() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for extractor-info comparison");
+    let url = "https://cdn.example.org/gallery/photo.jpg";
+    let mut reference = Command::new("python3");
+    reference.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "-E",
+        url,
+    ]);
+    reference.env("PYTHONPATH", root);
+    reference.env("PYTHONNOUSERSITE", "1");
+    reference.env("PYTHONDONTWRITEBYTECODE", "1");
+    let reference = spawn(reference, "pinned gallery-dl --extractor-info");
+
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["-E", url])
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "native --extractor-info failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    assert_eq!(String::from_utf8(native.stdout).unwrap(), reference);
+}
+
 fn same_field(native: &Value, reference: &Value, field: &str, label: &str) {
     assert_eq!(
         native.get(field).and_then(Value::as_str),

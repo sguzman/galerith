@@ -132,6 +132,25 @@ struct Cli {
     )]
     resolve_json: bool,
 
+    /// Print supported extractor defaults and configured settings
+    #[arg(
+        short = 'E',
+        long = "extractor-info",
+        conflicts_with_all = [
+            "get_urls", "resolve_urls", "resolve_json", "dump_json", "dump_messages",
+            "list_keywords", "list_extractors", "list_modules", "follow_queues", "simulate",
+            "no_download", "file_range", "write_metadata", "write_info_json",
+            "write_pages", "destination", "error_file", "download_archive", "archive_event",
+            "gallery_dl_archive", "gallery_dl_archive_table", "gallery_dl_archive_prefix",
+            "archive_import", "cache_db", "cache_ttl", "no_skip", "no_mtime", "no_part",
+            "limit_rate", "sleep", "sleep_skip", "sleep_extractor", "retries",
+            "sleep_retries", "sleep_429", "http_timeout", "user_agent", "proxy",
+            "force_ipv4", "force_ipv6", "source_address", "no_check_certificate", "cookies",
+            "input_file_comment", "input_file_delete"
+        ]
+    )]
+    extractor_info: bool,
+
     /// Print metadata keywords exposed by the native extractor
     #[arg(
         short = 'K',
@@ -719,6 +738,30 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     }
     for option in &cli.options {
         config.option(option)?;
+    }
+
+    if cli.extractor_info {
+        if let Some(template) = cli.filename_template.as_deref() {
+            config.option(&format!(
+                "extractor.directlink.filename={}",
+                serde_json::to_string(template)?
+            ))?;
+        }
+        if let Some(delay) = cli.sleep_request.as_deref() {
+            config.option(&format!(
+                "extractor.directlink.sleep-request={}",
+                serde_json::to_string(delay)?
+            ))?;
+        }
+        for input in &urls {
+            if extractor_name(&input.url) != Some("directlink") {
+                return Err(
+                    "native --extractor-info currently supports direct media URLs only".into(),
+                );
+            }
+            print_directlink_extractor_info(&input.url, &config)?;
+        }
+        return Ok(());
     }
 
     let download_sleep = cli
@@ -1383,6 +1426,67 @@ fn print_message_keywords(events: &[ExtractorMessage]) {
             }
         }
     }
+}
+
+fn print_info_setting(
+    title: &str,
+    option: &str,
+    default: serde_json::Value,
+    config: &Config,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    if let Some(custom) = config.extractor_option("directlink", option) {
+        println!(
+            "{title} (custom):\n  {}\n{title} (default):\n  {}\n",
+            serde_json::to_string(custom)?,
+            serde_json::to_string(&default)?
+        );
+    } else {
+        println!(
+            "{title} (default):\n  {}\n",
+            serde_json::to_string(&default)?
+        );
+    }
+    Ok(())
+}
+
+fn print_directlink_extractor_info(
+    input: &str,
+    config: &Config,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let directory = galerith::extractor::directlink::resolve_messages(input)?
+        .into_iter()
+        .find_map(|message| match message {
+            ExtractorMessage::Directory { metadata } => Some(metadata),
+            _ => None,
+        })
+        .ok_or("direct media extractor did not provide directory metadata")?;
+    let category = directory
+        .get("category")
+        .ok_or("direct media extractor did not provide a category")?;
+    let subcategory = directory
+        .get("subcategory")
+        .ok_or("direct media extractor did not provide a subcategory")?;
+    println!(
+        "Category / Subcategory\n  {} / {}\n",
+        serde_json::to_string(category)?,
+        serde_json::to_string(subcategory)?
+    );
+    let filename = serde_json::json!("{domain}/{path}/{filename}.{extension}");
+    print_info_setting("Filename format", "filename", filename.clone(), config)?;
+    print_info_setting(
+        "Directory format",
+        "directory",
+        serde_json::json!(["{category}"]),
+        config,
+    )?;
+    print_info_setting("Archive format", "archive-format", filename, config)?;
+    print_info_setting(
+        "Request interval",
+        "sleep-request",
+        serde_json::json!(0.0),
+        config,
+    )?;
+    Ok(())
 }
 
 fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usize) {

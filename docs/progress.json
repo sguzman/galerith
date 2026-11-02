@@ -136,7 +136,7 @@
                 {
                   "title": "Reach complete upstream argument parity",
                   "passed": false,
-                  "evidence": "src/main.rs accepts the pinned legacy --write-infojson spelling as an alias for --write-info-json; tests/metadata_cli.rs checks it is accepted without creating output during simulation. Full upstream argument parity remains incomplete, including extractor-info (-E)."
+                  "evidence": "src/main.rs accepts the pinned legacy --write-infojson spelling as an alias for --write-info-json and implements a directlink subset of -E/--extractor-info; tests/metadata_cli.rs and tests/cli.rs cover these offline cases, and tests/reference_directlink.rs compares directlink extractor-info output with the pinned oracle when GALERITH_REFERENCE_ORACLE is enabled. Full upstream argument parity remains incomplete."
                 }
               ],
               "progress": 75
@@ -192,7 +192,7 @@
                 {
                   "title": "Implement all print/list/diagnostics modes",
                   "passed": false,
-                  "evidence": "src/main.rs implements bounded -G/--resolve-urls and -J/--resolve-json traversal (pinned directlink CI 41525422242 and 41526103351), -K/--list-keywords over native typed metadata keys, --list-extractors category filtering, and --list-modules for native modules. tests/message_cli.rs checks keyword output has no metadata values, rejects conflicting output modes, and includes child queue metadata from a local fixture. The complete upstream print/list/diagnostics option set and full extractor parity remain incomplete."
+                  "evidence": "src/main.rs implements bounded -G/--resolve-urls and -J/--resolve-json traversal (pinned directlink CI 41525422242 and 41526103351), a directlink subset of -E/--extractor-info with an optional pinned-reference comparison in tests/reference_directlink.rs, -K/--list-keywords over native typed metadata keys, --list-extractors category filtering, and --list-modules for native modules. Local tests cover info defaults, config overrides, unsupported-source rejection, keyword privacy, conflicting output modes, and child queue metadata. The complete upstream print/list/diagnostics option set and full extractor parity remain incomplete."
                 }
               ],
               "progress": 50
