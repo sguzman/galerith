@@ -279,10 +279,39 @@ async fn html(
     base: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(page).send().await?.error_for_status()?;
+    let request = client.get(page.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
     if response.url().origin() != base.origin() {
         return Err("Keenspot page redirected outside the comic origin".into());
     }
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -296,7 +325,13 @@ async fn html(
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn at_base(
@@ -517,13 +552,38 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let output = at_base(&Client::new(), &sample_comic(), &base)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-keenspot-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let output = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            at_base(&Client::new(), &sample_comic(), &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(output.len(), 2);
         assert_eq!(output[0].0.filename, "story_001_one.jpg");
         assert_eq!(output[1].0.filename, "story_002_two.jpg");
+        let pages = std::fs::read_dir(&directory)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(pages.len(), 3);
+        let contents = pages
+            .iter()
+            .map(|entry| std::fs::read_to_string(entry.path()).unwrap())
+            .collect::<Vec<_>>();
+        for path in ["/", "/comic/first/", "/comic/second/"] {
+            assert!(contents.iter().any(|page| {
+                page.starts_with(&format!("GET http://{addr}{path}\n"))
+                    && page.contains("Request Headers")
+                    && page.contains("Response Headers")
+            }));
+        }
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
