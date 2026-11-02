@@ -236,22 +236,7 @@ fn filesystem_media(
 }
 
 async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_JSON_BYTES as u64)
-    {
-        return Err("Pixeldrain API JSON exceeds the safety bound".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if body.len().saturating_add(chunk.len()) > MAX_JSON_BYTES {
-            return Err("Pixeldrain API JSON exceeds the safety bound".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&body)?)
+    super::http_json::fetch_json_uncached(client, url, MAX_JSON_BYTES).await
 }
 
 async fn resolve_at_base(
@@ -533,37 +518,66 @@ mod tests {
                 let request = String::from_utf8_lossy(&buf[..n]);
                 assert!(request.starts_with(route), "{request}");
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nX-Pixeldrain-Fixture: api\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let file = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::File {
-                id: "abc123".into(),
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-pixeldrain-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (file, album) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let file = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::File {
+                        id: "abc123".into(),
+                    },
+                )
+                .await
+                .unwrap();
+                let album = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Album {
+                        id: "list123".into(),
+                        selected: None,
+                    },
+                )
+                .await
+                .unwrap();
+                (file, album)
             },
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(file.len(), 1);
         assert_eq!(file[0].filename, "standalone.jpg");
-        let album = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Album {
-                id: "list123".into(),
-                selected: None,
-            },
-        )
-        .await
-        .unwrap();
         assert_eq!(album.len(), 2);
         assert_eq!(album[0].filename, "first.jpg");
         assert_eq!(album[1].filename, "second.png");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-pixeldrain-fixture: api")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages.iter().any(|page| page.contains("standalone.jpg")));
+        assert!(pages.iter().any(|page| page.contains("first.jpg")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
