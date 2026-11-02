@@ -166,6 +166,39 @@ fn python_string_repr(value: &str, ascii_only: bool) -> String {
     result
 }
 
+fn python_json_string(value: &str) -> String {
+    let mut result = String::with_capacity(value.len() + 2);
+    result.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => result.push_str("\\\""),
+            '\\' => result.push_str("\\\\"),
+            '\u{08}' => result.push_str("\\b"),
+            '\u{0c}' => result.push_str("\\f"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            character if character <= '\u{1f}' => {
+                result.push_str(&format!("\\u{:04x}", u32::from(character)));
+            }
+            character if !character.is_ascii() => {
+                let code = u32::from(character);
+                if code <= 0xffff {
+                    result.push_str(&format!("\\u{code:04x}"));
+                } else {
+                    let scalar = code - 0x1_0000;
+                    let high = 0xd800 + (scalar >> 10);
+                    let low = 0xdc00 + (scalar & 0x3ff);
+                    result.push_str(&format!("\\u{high:04x}\\u{low:04x}"));
+                }
+            }
+            character => result.push(character),
+        }
+    }
+    result.push('"');
+    result
+}
+
 fn slugify_ascii(value: &str) -> Result<String, FormatError> {
     if !value.is_ascii() {
         return Err(FormatError(
@@ -377,6 +410,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "r" => python_string_repr(&value, false),
         "a" if matches!(base_name, "id" | "post_id") => value,
         "a" => python_string_repr(&value, true),
+        "j" => python_json_string(&value),
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
         "Q" => percent_encoding::percent_decode_str(&value)
@@ -792,6 +826,23 @@ mod tests {
         );
         assert_eq!(field("_lit[é猫]!r", &item).unwrap(), "'é猫'");
         assert_eq!(field("_lit[é猫]!a", &item).unwrap(), "'\\xe9\\u732b'");
+    }
+
+    #[test]
+    fn json_conversion_matches_ascii_escaped_python_string_json() {
+        assert_eq!(field("_lit[élan]!j", &sample()).unwrap(), r#""\u00e9lan""#);
+        assert_eq!(
+            field("_lit[猫😀]!j", &sample()).unwrap(),
+            r#""\u732b\ud83d\ude00""#
+        );
+        assert_eq!(
+            field("_lit[line\nbreak]!j", &sample()).unwrap(),
+            r#""line\nbreak""#
+        );
+        assert_eq!(
+            field("_lit[quote\"slash\\]!j", &sample()).unwrap(),
+            r#""quote\"slash\\""#
+        );
     }
 
     #[test]
