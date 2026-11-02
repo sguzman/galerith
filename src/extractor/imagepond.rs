@@ -12,6 +12,63 @@ const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
 const MAX_QUEUE_CHILDREN: usize = 48;
 const MAX_QUEUE_PAGES: u16 = 4;
 
+async fn fetch_html(
+    client: &Client,
+    endpoint: Url,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(body)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
+    {
+        return Err("ImagePond HTML response exceeds byte limit".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
+            return Err("ImagePond HTML response exceeds byte limit".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     path: String,
@@ -253,25 +310,7 @@ async fn queue_at_base(
     let mut messages = Vec::new();
     let mut inherited_album_title = None;
     for page in 0..max_pages.clamp(1, MAX_QUEUE_PAGES) {
-        crate::pacing::wait_for_request().await;
-        let mut response = client
-            .get(endpoint.clone())
-            .send()
-            .await?
-            .error_for_status()?;
-        if response
-            .content_length()
-            .is_some_and(|size| size > MAX_HTML_BYTES as u64)
-        {
-            return Err("ImagePond listing HTML exceeds byte limit".into());
-        }
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
-                return Err("ImagePond listing HTML exceeds byte limit".into());
-            }
-            body.extend_from_slice(&chunk);
-        }
+        let body = fetch_html(client, endpoint.clone()).await?;
         let html = std::str::from_utf8(&body)?;
         if matches!(target, QueueTarget::Album(_)) {
             if let Some(title) = public_album_title(html) {
@@ -420,21 +459,7 @@ async fn resolve_at_base(
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&target.path)?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
-    {
-        return Err("ImagePond HTML response exceeds byte limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
-            return Err("ImagePond HTML response exceeds byte limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let body = fetch_html(client, endpoint).await?;
     parse_page(std::str::from_utf8(&body)?)
 }
 
@@ -674,21 +699,34 @@ mod tests {
                     assert!(request.contains("page=2"), "{request}");
                 }
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-ImagePond-Fixture: listing\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 stream.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = queue_at_base(
-            &Client::new(),
-            &QueueTarget::Album("gallery123".into()),
-            3,
-            &base,
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-imagepond-listing-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                queue_at_base(
+                    &Client::new(),
+                    &QueueTarget::Album("gallery123".into()),
+                    3,
+                    &base,
+                )
+                .await
+                .unwrap()
+            },
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(events.len(), 2);
         assert_eq!(
             serde_json::to_value(&events[0]).unwrap()["url"],
@@ -703,6 +741,24 @@ mod tests {
             "Public Album"
         );
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages.iter().all(|page| page.contains("Status: 200 OK")));
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-imagepond-fixture: listing")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains("?page=2")));
+        assert!(pages.iter().any(|page| page.contains("Public Album")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[test]
@@ -777,18 +833,38 @@ mod tests {
             assert!(String::from_utf8_lossy(&buffer[..n]).starts_with("GET /i/abc123 HTTP/1.1"));
             let body = r#"<meta property="og:type" content="image"><meta property="og:image" content="https://cdn.imagepond.net/photos/example.webp">"#;
             let reply = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-ImagePond-Fixture: image\r\nConnection: close\r\n\r\n{body}",
                 body.len()
             );
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let target = match_url("https://imagepond.net/i/abc123").unwrap();
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = resolve_at_base(&Client::new(), &target, &base)
-            .await
-            .unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-imagepond-image-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (file, _) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                resolve_at_base(&Client::new(), &target, &base)
+                    .await
+                    .unwrap()
+            },
+        )
+        .await;
         assert_eq!(file.filename, "example.webp");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let path = entries.next_entry().await.unwrap().unwrap().path();
+        let page = tokio::fs::read_to_string(path).await.unwrap();
+        assert!(page.contains("x-imagepond-fixture: image"));
+        assert!(page.contains("webp"));
+        assert!(entries.next_entry().await.unwrap().is_none());
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
