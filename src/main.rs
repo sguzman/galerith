@@ -264,7 +264,7 @@ struct Cli {
     no_download: bool,
 
     /// Print implemented extractors, optionally filtered by comma-separated category names
-    #[arg(short = 'E', long, num_args = 0..=1, default_missing_value = "")]
+    #[arg(long, num_args = 0..=1, default_missing_value = "")]
     list_extractors: Option<String>,
 
     /// Print the distinct native extractor modules currently implemented
