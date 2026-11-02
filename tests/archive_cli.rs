@@ -2654,6 +2654,46 @@ fn size_filtered_media_is_archived_only_as_an_explicit_skip_event() {
 }
 
 #[test]
+fn size_filtered_media_is_not_archived_as_a_successful_file() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("http://{}/filtered.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0u8; 1024];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nDATA")
+            .unwrap();
+    });
+    let dir = temp("size-filter-file-event");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("native.sqlite");
+    let result = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .arg("-d")
+        .arg(&dir)
+        .arg("--download-archive")
+        .arg(&db)
+        .args(["--filesize-min", "5", "--retries", "0"])
+        .arg(endpoint)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    server.join().unwrap();
+    assert!(!dir.join("filtered.jpg").exists());
+    let count: i64 = rusqlite::Connection::open(&db)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM downloads", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn archive_event_file_preserves_default_and_skip_only_omits_new_downloads() {
     let dir = temp("archive-event-file");
     let _ = fs::remove_dir_all(&dir);
