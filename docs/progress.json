@@ -552,7 +552,7 @@
                 {
                   "title": "Full upstream conditional and transformation language",
                   "passed": false,
-                  "evidence": "Partial implementation: src/filename.rs supports bounded decimal, binary, octal, hexadecimal and grouped numeric ID formatting, including alternate prefixes and width padding where accepted by the pinned formatter. src/filename.rs::integer_radix_specs_match_python_style_bases_and_padding, integer_decimal_specs_support_grouping_and_space_width and tests/reference_directlink.rs::pinned_formatter_matches_native_numeric_id_radix_formats cover the subset; the reference fixture compares against the pinned formatter when the oracle environment is enabled. Full upstream conditional and transformation parity remains incomplete."
+                  "evidence": "Partial implementation: src/filename.rs supports bounded decimal, binary, octal, hexadecimal, grouped numeric ID formatting, and string !r/!a conversions with bounded quote/control/Unicode handling. src/filename.rs::integer_radix_specs_match_python_style_bases_and_padding, integer_decimal_specs_support_grouping_and_space_width, repr_and_ascii_conversions_quote_and_escape_strings, and tests/reference_directlink.rs filename fixtures cover these subsets. Pinned numeric formatter comparison passed in GitHub Actions 41503959743; the newly added repr/ASCII reference cases await their pinned run. Full upstream conditional and transformation parity remains incomplete."
                 }
               ]
             },

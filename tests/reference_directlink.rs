@@ -1906,6 +1906,29 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("string-precision", "{category:.5}", "direc"),
         ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
+        ("repr-conversion", r#"{_lit[foo]!r:R'/_/}"#, "_foo_"),
+        (
+            "ascii-conversion",
+            r#"{_lit[é猫]!a:R'/_/R\/-/}"#,
+            "_-xe9-u732b_",
+        ),
+        (
+            "capitalize-conversion",
+            "{_lit[hELLO WORLD]!c}",
+            "Hello world",
+        ),
+        (
+            "title-conversion",
+            "{_lit[aUTUMN, ÉLAN vITAL]!C}",
+            "Autumn, Élan Vital",
+        ),
+        ("trim-conversion", "{_lit[  hello  ]!t}", "hello"),
+        (
+            "whitespace-conversion",
+            "{_lit[  spring\t\n  rain ]!W}",
+            "spring rain",
+        ),
+        ("length-conversion", "{_lit[é猫]!n}", "2"),
         ("negative-slice", "{extension[-2:]}", "pg"),
         ("replacement-specifier", "{category:Ri/I/}", "dIrectlInk"),
         (

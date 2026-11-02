@@ -121,6 +121,51 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
         .ok_or_else(|| FormatError("filename field index out of range".into()))
 }
 
+fn python_string_repr(value: &str, ascii_only: bool) -> String {
+    let quote = if value.contains('\'') && !value.contains('"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut result = String::with_capacity(value.len() + 2);
+    result.push(quote);
+    for character in value.chars() {
+        match character {
+            '\\' => result.push_str("\\\\"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            character if character == quote => {
+                result.push('\\');
+                result.push(character);
+            }
+            character if character.is_control() => {
+                let code = u32::from(character);
+                if code <= 0xff {
+                    result.push_str(&format!("\\x{code:02x}"));
+                } else if code <= 0xffff {
+                    result.push_str(&format!("\\u{code:04x}"));
+                } else {
+                    result.push_str(&format!("\\U{code:08x}"));
+                }
+            }
+            character if ascii_only && !character.is_ascii() => {
+                let code = u32::from(character);
+                if code <= 0xff {
+                    result.push_str(&format!("\\x{code:02x}"));
+                } else if code <= 0xffff {
+                    result.push_str(&format!("\\u{code:04x}"));
+                } else {
+                    result.push_str(&format!("\\U{code:08x}"));
+                }
+            }
+            character => result.push(character),
+        }
+    }
+    result.push(quote);
+    result
+}
+
 fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
     let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
         return Ok(None);
@@ -306,6 +351,10 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     let mut spec = spec;
     let mut value = match conversion {
         "" | "s" => value,
+        "r" if matches!(base_name, "id" | "post_id") => value,
+        "r" => python_string_repr(&value, false),
+        "a" if matches!(base_name, "id" | "post_id") => value,
+        "a" => python_string_repr(&value, true),
         "q" => encode_url_component(&value),
         "Q" => percent_encoding::percent_decode_str(&value)
             .decode_utf8()
@@ -699,6 +748,23 @@ mod tests {
         assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
         item.filename = "%FF.jpg".into();
         assert!(render("{stem!Q}", &item).is_err());
+    }
+
+    #[test]
+    fn repr_and_ascii_conversions_quote_and_escape_strings() {
+        let mut item = sample();
+        item.filename = "a'b.txt".into();
+        assert_eq!(field("filename!r", &item).unwrap(), "\"a'b\"");
+        assert_eq!(field("id!r", &item).unwrap(), "42");
+        assert_eq!(field("id!a", &item).unwrap(), "42");
+        assert_eq!(field("_lit[a'b]!a", &item).unwrap(), "\"a'b\"");
+        assert_eq!(field("_lit[a\"b']!r", &item).unwrap(), "'a\"b\\''");
+        assert_eq!(
+            field("_lit[line\nbreak]!r", &item).unwrap(),
+            "'line\\nbreak'"
+        );
+        assert_eq!(field("_lit[é猫]!r", &item).unwrap(), "'é猫'");
+        assert_eq!(field("_lit[é猫]!a", &item).unwrap(), "'\\xe9\\u732b'");
     }
 
     #[test]
