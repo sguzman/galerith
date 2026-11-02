@@ -25,7 +25,6 @@ fn opts(path: PathBuf, retries: u32) -> DownloadOptions {
         http_timeout: None,
         retry_delay: None,
         rate_limit_delay: None,
-        request_delay: None,
         download_delay: None,
     }
 }

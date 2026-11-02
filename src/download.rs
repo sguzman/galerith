@@ -41,8 +41,6 @@ pub struct DownloadOptions {
     pub retry_delay: Option<RetryDelay>,
     /// Optional configured pause for 429 responses; unset uses the reference 60-second interval.
     pub rate_limit_delay: Option<RetryDelay>,
-    /// Optional delay before each media HTTP attempt, including retries.
-    pub request_delay: Option<DelayRange>,
     /// Optional delay before starting a non-skipped media download.
     pub download_delay: Option<DelayRange>,
 }
@@ -497,11 +495,10 @@ pub async fn download(
             request = request.timeout(timeout);
         }
         request = request.headers(options.headers.clone());
-        crate::pacing::wait_for_request_url(
-            &item.url,
-            options.request_delay.map(DelayRange::sample),
-        )
-        .await;
+        // Media retries do not use extractor sleep-request intervals, but
+        // they still honor any Retry-After cooldown previously recorded for
+        // this origin.
+        crate::pacing::wait_for_request_url(&item.url, None).await;
         if offset > 0 {
             request = request.header(RANGE, format!("bytes={offset}-")).header(
                 IF_RANGE,

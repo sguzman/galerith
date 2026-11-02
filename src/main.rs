@@ -767,7 +767,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         http_timeout: media_http_timeout,
         retry_delay,
         rate_limit_delay,
-        request_delay: None,
         download_delay: None,
     };
     let archive =
@@ -1146,12 +1145,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             } else {
                 let mut media_options = options.clone();
                 media_options.download_delay = download_sleep;
-                media_options.request_delay = match cli_sleep_request {
-                    Some(delay) => Some(delay),
-                    None => config
-                        .duration(item.extractor, "sleep-request")
-                        .map_err(std::io::Error::other)?,
-                };
                 match download(&media_client, &item, &media_options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {

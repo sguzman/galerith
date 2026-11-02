@@ -118,67 +118,19 @@ fn ranged_sleep_delays_media_request_by_at_least_its_minimum() {
 }
 
 #[test]
-fn ranged_request_sleep_is_sampled_for_media_transfer() {
-    let elapsed = run_download_with_setting(
-        "--option",
-        "extractor.sleep-request=0.08-0.12",
-        "request-range",
-    );
-    assert!(
-        elapsed >= Duration::from_millis(70),
-        "media request occurred before the configured range minimum: {elapsed:?}"
-    );
-    assert!(
-        elapsed < Duration::from_millis(500),
-        "media request exceeded the configured range: {elapsed:?}"
-    );
-}
-
-#[test]
-fn configured_request_sleep_delays_each_media_transfer_attempt() {
-    assert!(
-        run_download_with_setting("--option", "extractor.sleep-request=0.12", "request",)
-            >= Duration::from_millis(110),
-        "media request occurred before configured sleep-request delay"
-    );
-}
-
-#[test]
-fn sleep_request_flag_delays_media_transfer() {
-    assert!(
-        run_download_with_setting("--sleep-request", "0.08", "request-flag")
-            >= Duration::from_millis(70),
-        "--sleep-request did not delay the media transfer"
-    );
-}
-
-#[test]
-fn sleep_request_flag_overrides_longer_configured_delay() {
+fn sleep_request_does_not_delay_direct_media_transfers() {
     let elapsed = run_download_with_args(
         &[
             "--sleep-request",
-            "0.08",
+            "0.8",
             "--option",
-            "extractor.sleep-request=0.5",
+            "extractor.sleep-request=0.8",
         ],
-        "request-cli-precedence",
+        "request-not-media",
     );
-    assert!(elapsed >= Duration::from_millis(70), "{elapsed:?}");
     assert!(
-        elapsed < Duration::from_millis(450),
-        "the CLI delay did not override the longer configured delay: {elapsed:?}"
-    );
-}
-
-#[test]
-fn extractor_specific_request_sleep_delays_media_transfer() {
-    assert!(
-        run_download_with_setting(
-            "--option",
-            "extractor.directlink.sleep-request=0.12",
-            "request-directlink",
-        ) >= Duration::from_millis(110),
-        "media request occurred before extractor-specific sleep-request delay"
+        elapsed < Duration::from_millis(500),
+        "extractor request pacing delayed a direct media transfer: {elapsed:?}"
     );
 }
 
