@@ -1913,6 +1913,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category:Ri/I/Rl/L/}",
             "dIrectLInk",
         ),
+        (
+            "replacement-conditional-chain",
+            "{category:Ri/I/?[/]/}",
+            "[dIrectlInk]",
+        ),
         ("truncate-specifier", "{category:X5/-/}", "dire-"),
         ("overlength-replacement", "{category:L5/long/}", "long"),
     ];

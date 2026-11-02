@@ -657,6 +657,10 @@ mod tests {
             render("{category:Ri/I/Rl/L/}", &item).unwrap(),
             "dIrectLInk"
         );
+        assert_eq!(
+            render("{category:Ri/I/?[/]/}", &item).unwrap(),
+            "[dIrectlInk]"
+        );
         assert_eq!(render("{stem:Rred/-/}", &item).unwrap(), "- blue -");
         assert!(render("{stem:Rred/green}", &item).is_err());
         item.filename = "café-café.webp".into();
