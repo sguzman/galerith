@@ -1906,6 +1906,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("string-precision", "{category:.5}", "direc"),
         ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
+        ("slug-conversion", "{_lit[Hello, World]!g}", "hello-world"),
         ("repr-conversion", r#"{_lit[foo]!r:R'/_/}"#, "_foo_"),
         (
             "ascii-conversion",

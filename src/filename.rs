@@ -166,6 +166,28 @@ fn python_string_repr(value: &str, ascii_only: bool) -> String {
     result
 }
 
+fn slugify_ascii(value: &str) -> Result<String, FormatError> {
+    if !value.is_ascii() {
+        return Err(FormatError(
+            "slug conversion currently accepts ASCII values only".into(),
+        ));
+    }
+    let mut result = String::with_capacity(value.len());
+    let mut separator = false;
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() {
+            if separator && !result.is_empty() {
+                result.push('-');
+            }
+            result.push(byte.to_ascii_lowercase() as char);
+            separator = false;
+        } else {
+            separator = true;
+        }
+    }
+    Ok(result)
+}
+
 fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
     let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
         return Ok(None);
@@ -355,6 +377,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         "r" => python_string_repr(&value, false),
         "a" if matches!(base_name, "id" | "post_id") => value,
         "a" => python_string_repr(&value, true),
+        "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
         "Q" => percent_encoding::percent_decode_str(&value)
             .decode_utf8()
@@ -765,6 +788,17 @@ mod tests {
         );
         assert_eq!(field("_lit[é猫]!r", &item).unwrap(), "'é猫'");
         assert_eq!(field("_lit[é猫]!a", &item).unwrap(), "'\\xe9\\u732b'");
+    }
+
+    #[test]
+    fn slug_conversion_normalizes_basic_ascii_values_and_rejects_unicode() {
+        let item = sample();
+        assert_eq!(field("_lit[Hello, World]!g", &item).unwrap(), "hello-world");
+        assert_eq!(
+            field("_lit[  Foo__BAR--baz  ]!g", &item).unwrap(),
+            "foo-bar-baz"
+        );
+        assert!(field("_lit[猫]!g", &item).is_err());
     }
 
     #[test]

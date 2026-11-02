@@ -552,7 +552,7 @@
                 {
                   "title": "Full upstream conditional and transformation language",
                   "passed": false,
-                  "evidence": "Partial implementation: src/filename.rs supports bounded decimal, binary, octal, hexadecimal, grouped numeric ID formatting, and string !r/!a conversions with bounded quote/control/Unicode handling. src/filename.rs::integer_radix_specs_match_python_style_bases_and_padding, integer_decimal_specs_support_grouping_and_space_width, repr_and_ascii_conversions_quote_and_escape_strings, and tests/reference_directlink.rs filename fixtures cover these subsets. Pinned numeric formatter comparison passed in GitHub Actions 41503959743; the newly added repr/ASCII reference cases await their pinned run. Full upstream conditional and transformation parity remains incomplete."
+                  "evidence": "Partial implementation: src/filename.rs supports bounded decimal, binary, octal, hexadecimal and grouped numeric ID formatting; string !r/!a conversions with bounded quote/control/Unicode handling; and ASCII-only !g slug conversion. Unit and directlink filesystem fixtures cover these subsets. Pinned numeric formatter comparison passed in GitHub Actions 41503959743; repr/ASCII reference cases are being checked in GitHub Actions 41504697959, and the slug case will be checked in its following oracle run. Full upstream conditional and transformation parity remains incomplete."
                 }
               ]
             },
