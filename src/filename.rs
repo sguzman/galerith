@@ -362,29 +362,58 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     if spec.starts_with('R') {
         return Err(FormatError("invalid filename replacement formatter".into()));
     }
-    // Small compatible subset: numeric padding, including Python's :>03 form.
-    if !matches!(base_name, "id" | "post_id") {
-        return Err(FormatError(format!(
-            "unsupported formatting for field '{base_name}'"
-        )));
+    // Bounded Python-style width formatting for numeric IDs and strings.
+    if matches!(base_name, "id" | "post_id") {
+        let width = spec.strip_prefix('>').unwrap_or(spec);
+        if width.is_empty() || width.len() > 3 || !width.bytes().all(|x| x.is_ascii_digit()) {
+            return Err(FormatError(
+                "unsupported numeric formatting specification".into(),
+            ));
+        }
+        let parsed = width
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid numeric width".into()))?;
+        if parsed > 64 {
+            return Err(FormatError("filename numeric width is too large".into()));
+        }
+        return if width.starts_with('0') {
+            Ok(format!("{value:0>parsed$}"))
+        } else {
+            Ok(format!("{value:>parsed$}"))
+        };
     }
-    let width = spec.strip_prefix('>').unwrap_or(spec);
-    if width.is_empty() || width.len() > 3 || !width.bytes().all(|x| x.is_ascii_digit()) {
-        return Err(FormatError(
-            "unsupported numeric formatting specification".into(),
-        ));
+    let chars: Vec<char> = spec.chars().collect();
+    let (fill, align, width_start) = match chars.as_slice() {
+        [align, ..] if matches!(align, '<' | '>' | '^') => (' ', *align, 1),
+        [fill, align, ..] if matches!(align, '<' | '>' | '^') => (*fill, *align, 2),
+        _ => {
+            return Err(FormatError(format!(
+                "unsupported formatting for field '{base_name}'"
+            )))
+        }
+    };
+    let width_text: String = chars[width_start..].iter().collect();
+    if width_text.is_empty() || !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(FormatError("invalid string width formatting".into()));
     }
-    let parsed = width
+    let width = width_text
         .parse::<usize>()
-        .map_err(|_| FormatError("invalid numeric width".into()))?;
-    if parsed > 64 {
-        return Err(FormatError("filename numeric width is too large".into()));
+        .map_err(|_| FormatError("invalid string width".into()))?;
+    if width > 240 {
+        return Err(FormatError("filename string width is too large".into()));
     }
-    if width.starts_with('0') {
-        Ok(format!("{value:0>parsed$}"))
-    } else {
-        Ok(format!("{value:>parsed$}"))
-    }
+    let value_len = value.chars().count();
+    let padding = width.saturating_sub(value_len);
+    let (left, right) = match align {
+        '<' => (0, padding),
+        '>' => (padding, 0),
+        '^' => (padding / 2, padding - padding / 2),
+        _ => unreachable!(),
+    };
+    Ok(std::iter::repeat_n(fill, left)
+        .chain(value.chars())
+        .chain(std::iter::repeat_n(fill, right))
+        .collect())
 }
 
 /// Render escaped braces, simple named fields, and a bounded ID-width format.
@@ -471,6 +500,12 @@ mod tests {
             render("第{id:03}集.{extension}", &item).unwrap(),
             "第042集.webp"
         );
+        assert_eq!(render("{filename:>9}", &item).unwrap(), " original");
+        assert_eq!(render("{category:_<12}", &item).unwrap(), "danbooru____");
+        assert_eq!(render("{filename:#^9}", &item).unwrap(), "original#");
+        assert_eq!(render("{filename:#^10}", &item).unwrap(), "#original#");
+        assert!(render("{filename:03}", &item).is_err());
+        assert!(render("{filename:>241}", &item).is_err());
     }
 
     #[test]

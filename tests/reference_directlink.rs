@@ -1875,6 +1875,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category}_{filename}.{extension}",
             "directlink_asset.jpg",
         ),
+        (
+            "string-alignment",
+            "{category:_>12}-{filename:#^7}.{extension}",
+            "__directlink-#asset#.jpg",
+        ),
     ];
     let oracle_enabled = env::var_os("GALERITH_REFERENCE_ORACLE").is_some();
     let pinned_root = if oracle_enabled {
