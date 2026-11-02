@@ -167,29 +167,18 @@ async fn at_base(
             params.append_pair(key, value);
         }
     }
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(url.clone())
         .header("Origin", "https://500px.com")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != url.origin() {
-        return Err("500px expanded photo API redirected outside its origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("500px API JSON exceeds response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("500px API JSON exceeds response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        url,
+        MAX_JSON,
+        "500px API JSON exceeds response limit",
+    )
+    .await?;
     record(&serde_json::from_slice::<Value>(&bytes)?, photo)
 }
 
