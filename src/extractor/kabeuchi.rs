@@ -53,11 +53,46 @@ pub fn match_url(raw: &str) -> Option<User> {
     })
 }
 
-async fn bytes(
-    response: reqwest::Response,
+async fn fetch_bytes(
+    client: &Client,
+    request: reqwest::Request,
+    expected_origin: &Url,
     size: usize,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let mut response = response.error_for_status()?;
+    crate::pacing::wait_for_request().await;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != expected_origin.origin() {
+        return Err("Kabeuchi request redirected outside its source origin".into());
+    }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_bytes(&mut response, size).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_bytes(&mut response, size).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(body)
+}
+
+async fn read_bounded_bytes(
+    response: &mut reqwest::Response,
+    size: usize,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response.content_length().is_some_and(|n| n > size as u64) {
         return Err("Kabeuchi source response exceeds byte cap".into());
     }
@@ -69,6 +104,12 @@ async fn bytes(
         body.extend_from_slice(&chunk);
     }
     Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 fn parse_target(html: &str) -> Option<String> {
@@ -236,12 +277,8 @@ async fn at_base(
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let mut url = base.join("mypage/")?;
     url.query_pairs_mut().append_pair("id", &user.id);
-    crate::pacing::wait_for_request().await;
-    let response = client.get(url.clone()).send().await?;
-    if response.url().origin() != url.origin() {
-        return Err("Kabeuchi profile redirected outside its source origin".into());
-    }
-    let html = String::from_utf8(bytes(response, MAX_HTML).await?)?;
+    let request = client.get(url.clone()).build()?;
+    let html = String::from_utf8(fetch_bytes(client, request, &url, MAX_HTML).await?)?;
     let target_id = parse_target(&html)
         .ok_or("Kabeuchi public page does not expose a validated upload target ID")?;
     let mut media = Vec::new();
@@ -261,12 +298,9 @@ async fn at_base(
             ("latest_post", previous.clone()),
             ("page_num", page.to_string()),
         ];
-        crate::pacing::wait_for_request().await;
-        let response = client.post(endpoint.clone()).form(&fields).send().await?;
-        if response.url().origin() != endpoint.origin() {
-            return Err("Kabeuchi pagination redirected outside its source origin".into());
-        }
-        let decoded: Value = serde_json::from_slice(&bytes(response, MAX_JSON).await?)?;
+        let request = client.post(endpoint.clone()).form(&fields).build()?;
+        let response = fetch_bytes(client, request, &endpoint, MAX_JSON).await?;
+        let decoded: Value = serde_json::from_slice(&response)?;
         let next = decode_posts(&decoded, user, &mut media)?;
         let Some(next) = next else { break };
         if !seen.insert(next.clone()) {
@@ -396,7 +430,7 @@ mod tests {
                 let count = socket.read(&mut request).await.unwrap();
                 assert!(String::from_utf8_lossy(&request[..count]).starts_with(method_path));
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Kabeuchi-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
@@ -404,11 +438,52 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let user = match_url("https://kabe-uchiroom.com/mypage/?id=12345").unwrap();
-        let media = at_base(&Client::new(), &base, &user, 3).await.unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-kabeuchi-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let media = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { at_base(&Client::new(), &base, &user, 3).await.unwrap() },
+        )
+        .await;
         assert_eq!(media.len(), 2);
         assert_eq!(media[0].0.filename, "1001_01_first.jpg");
         assert_eq!(media[1].0.filename, "1002_01_second.png");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 3);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-kabeuchi-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert_eq!(
+            pages
+                .iter()
+                .filter(|page| page.starts_with("POST "))
+                .count(),
+            2
+        );
+        assert_eq!(
+            pages
+                .iter()
+                .filter(|page| page.contains("content-type: application/x-www-form-urlencoded"))
+                .count(),
+            2
+        );
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains('?')));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]

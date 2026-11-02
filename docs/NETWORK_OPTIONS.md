@@ -51,6 +51,8 @@ Gelbooru v0.2 XML/DAPI responses are bounded to 4 MiB and can be saved with reda
 
 35photo image API, tag, user, and genre page requests use bounded diagnostic capture; AJAX requests retain their request-specific headers.
 
+Kabeuchi profile pages and paginated form posts are captured with bounded bodies, redacted cookies, and their request methods and headers.
+
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.
 
 **Verification:** [CI 41336923648](https://github.com/sguzman/galerith/actions/runs/41336923648) passed format, Clippy, all-target tests, roadmap consistency, release build and the pinned-reference job. Network fixtures use loopback endpoints; no public origin is contacted by those tests.
