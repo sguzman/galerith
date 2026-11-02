@@ -1861,6 +1861,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "directlink_[jpg].jpg",
         ),
         (
+            "conditional-empty",
+            "{category}{_lit[]:?[/]/}",
+            "directlink",
+        ),
+        (
             "conversion-and-escaped-braces",
             "{{proof}}_{category}_{extension!u}.{extension}",
             "{proof}_directlink_JPG.jpg",
