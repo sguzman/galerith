@@ -631,27 +631,70 @@ fn run_http_timeout_fixture(
     elapsed
 }
 
-fn run_reference_sleep_case(
+fn run_reference_sleep_interval_fixture(
     working_root: &Path,
     pinned_root: &Path,
     label: &str,
     reference: bool,
-    option: Option<&str>,
+    option: &str,
     skip_existing: bool,
 ) -> std::time::Duration {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let mut previous = None;
+        let mut interval = None;
+        for expected in ["/first.jpg", "/last.jpg"] {
+            let (mut socket, _) = listener.accept().unwrap();
+            let arrived = std::time::Instant::now();
+            socket
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let count = socket.read(&mut buffer).unwrap();
+                assert_ne!(count, 0, "client closed before sending HTTP headers");
+                request.extend_from_slice(&buffer[..count]);
+                assert!(request.len() < 16 * 1024, "HTTP headers too large");
+            }
+            assert!(
+                String::from_utf8_lossy(&request).starts_with(&format!("GET {expected} HTTP/1.1")),
+                "expected {expected}, got {}",
+                String::from_utf8_lossy(&request)
+            );
+            if let Some(previous) = previous {
+                interval = Some(arrived.duration_since(previous));
+            }
+            previous = Some(arrived);
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+                )
+                .unwrap();
+        }
+        interval.unwrap()
+    });
+
     let output = working_root.join(format!("{label}-sleep-output"));
     std::fs::create_dir_all(&output).unwrap();
+    let first = format!("http://{address}/first.jpg");
+    let skipped = format!("http://{address}/skip.jpg");
+    let last = format!("http://{address}/last.jpg");
     let existing_path = if reference {
-        output.join("example.invalid__file.jpg")
+        output.join("127.0.0.1__skip.jpg")
     } else {
-        output.join("file.jpg")
+        output.join("skip.jpg")
     };
     if skip_existing {
-        std::fs::create_dir_all(existing_path.parent().unwrap()).unwrap();
         std::fs::write(&existing_path, b"existing").unwrap();
     }
-    let url = "https://example.invalid/file.jpg";
-    let started = std::time::Instant::now();
+    let mut inputs = vec![first.clone()];
+    if skip_existing {
+        inputs.push(skipped.clone());
+        inputs.push(skipped);
+    }
+    inputs.push(last);
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args([
@@ -667,24 +710,19 @@ fn run_reference_sleep_case(
         command.args(["--quiet"]);
         command
     };
-    if let Some(option) = option {
-        command.args([option, "0.12-0.18"]);
-    }
-    if !skip_existing {
-        command.arg("--simulate");
-    }
+    command.args([option, "0.12-0.18"]);
     if reference {
-        command.args(["-D", output.to_str().unwrap(), url]);
+        command.args(["-D", output.to_str().unwrap()]);
     } else {
-        command.args(["-d", output.to_str().unwrap(), url]);
+        command.args(["-d", output.to_str().unwrap()]);
     }
+    command.args(&inputs);
     if reference {
         command.env("PYTHONPATH", pinned_root);
         command.env("PYTHONNOUSERSITE", "1");
         command.env("PYTHONDONTWRITEBYTECODE", "1");
     }
     let result = command.output().expect("launch reference sleep fixture");
-    let elapsed = started.elapsed();
     assert!(
         result.status.success(),
         "{label}: client failed: {}",
@@ -693,8 +731,10 @@ fn run_reference_sleep_case(
     if skip_existing {
         assert_eq!(std::fs::read(existing_path).unwrap(), b"existing");
     }
+    assert!(contains_file_with_bytes(&output, b"JPEG"));
+    let interval = server.join().unwrap();
     std::fs::remove_dir_all(output).unwrap();
-    elapsed
+    interval
 }
 
 fn run_reference_media_sleep_request_case(
@@ -1613,53 +1653,36 @@ fn pinned_and_native_clients_match_extractor_and_skip_sleep_timing() {
     let root = env::temp_dir().join(format!("galerith-sleep-oracle-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    for (label, option, skip_existing) in [
-        ("extractor", "--sleep-extractor", false),
-        ("skip", "--sleep-skip", true),
+    for (label, option, skip_existing, lower_bound_ms) in [
+        ("extractor", "--sleep-extractor", false, 100),
+        ("skip", "--sleep-skip", true, 200),
     ] {
-        let pinned_baseline = run_reference_sleep_case(
+        let pinned = run_reference_sleep_interval_fixture(
             &root,
             pinned_root,
-            &format!("pinned-{label}-baseline"),
+            &format!("pinned-{label}"),
             true,
-            None,
+            option,
             skip_existing,
         );
-        let pinned_elapsed = run_reference_sleep_case(
+        let native = run_reference_sleep_interval_fixture(
             &root,
             pinned_root,
-            &format!("pinned-{label}-delayed"),
-            true,
-            Some(option),
-            skip_existing,
-        );
-        let native_baseline = run_reference_sleep_case(
-            &root,
-            pinned_root,
-            &format!("native-{label}-baseline"),
+            &format!("native-{label}"),
             false,
-            None,
+            option,
             skip_existing,
         );
-        let native_elapsed = run_reference_sleep_case(
-            &root,
-            pinned_root,
-            &format!("native-{label}-delayed"),
-            false,
-            Some(option),
-            skip_existing,
-        );
-        let pinned = pinned_elapsed.saturating_sub(pinned_baseline);
-        let native = native_elapsed.saturating_sub(native_baseline);
         for (client, elapsed) in [("pinned", pinned), ("native", native)] {
             assert!(
-                (std::time::Duration::from_millis(100)..std::time::Duration::from_millis(500))
+                (std::time::Duration::from_millis(lower_bound_ms)
+                    ..std::time::Duration::from_millis(900))
                     .contains(&elapsed),
-                "{client} {option} added delay {elapsed:?}"
+                "{client} {option} interval was {elapsed:?}"
             );
         }
         assert!(
-            pinned.abs_diff(native) < std::time::Duration::from_millis(250),
+            pinned.abs_diff(native) < std::time::Duration::from_millis(350),
             "pinned/native {option} delays differ: pinned={pinned:?}, native={native:?}"
         );
     }
