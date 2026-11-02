@@ -62,13 +62,44 @@ pub fn match_url(input: &str) -> Option<Target> {
 }
 
 async fn bounded(
-    mut response: reqwest::Response,
+    client: &Client,
+    request: reqwest::Request,
     origin: &Url,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
     if response.url().origin() != origin.origin() {
         return Err("Fuskator public source redirected outside its origin".into());
     }
-    response = response.error_for_status()?;
+    let status = response.status();
+    let response_headers = response.headers().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(body)
+}
+
+async fn read_bounded(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -83,6 +114,12 @@ async fn bounded(
         body.extend_from_slice(&chunk);
     }
     Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 fn original_media(raw: &str) -> Option<(String, String)> {
@@ -196,22 +233,16 @@ async fn gallery_at_base(
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let gallery = base.join(&format!("thumbs/{hash}/index.html"))?;
     crate::pacing::wait_for_request().await;
-    let html =
-        String::from_utf8(bounded(client.get(gallery.clone()).send().await?, &gallery).await?)?;
+    let gallery_request = client.get(gallery.clone()).build()?;
+    let html = String::from_utf8(bounded(client, gallery_request, &gallery).await?)?;
     let api = base.join("ajax/auth.aspx")?;
     crate::pacing::wait_for_request().await;
-    let token = String::from_utf8(
-        bounded(
-            client
-                .post(api.clone())
-                .header("Referer", gallery.as_str())
-                .header("X-Requested-With", "XMLHttpRequest")
-                .send()
-                .await?,
-            &api,
-        )
-        .await?,
-    )?;
+    let token_request = client
+        .post(api.clone())
+        .header("Referer", gallery.as_str())
+        .header("X-Requested-With", "XMLHttpRequest")
+        .build()?;
+    let token = String::from_utf8(bounded(client, token_request, &api).await?)?;
     let token = token.trim();
     if token.is_empty() || token.len() > 256 || token.chars().any(char::is_whitespace) {
         return Err("Fuskator public gallery supplied an invalid anonymous auth token".into());
@@ -224,18 +255,12 @@ async fn gallery_at_base(
         .append_pair("hash", hash)
         .append_pair("_", &now.to_string());
     crate::pacing::wait_for_request().await;
-    let data: Value = serde_json::from_slice(
-        &bounded(
-            client
-                .get(details.clone())
-                .header("Referer", gallery.as_str())
-                .header("X-Requested-With", "XMLHttpRequest")
-                .send()
-                .await?,
-            &details,
-        )
-        .await?,
-    )?;
+    let details_request = client
+        .get(details.clone())
+        .header("Referer", gallery.as_str())
+        .header("X-Requested-With", "XMLHttpRequest")
+        .build()?;
+    let data: Value = serde_json::from_slice(&bounded(client, details_request, &details).await?)?;
     gallery_records(&html, &data, hash)
 }
 
@@ -302,8 +327,8 @@ async fn search_at_base(
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         crate::pacing::wait_for_request().await;
-        let html =
-            String::from_utf8(bounded(client.get(current.clone()).send().await?, &current).await?)?;
+        let request = client.get(current.clone()).build()?;
+        let html = String::from_utf8(bounded(client, request, &current).await?)?;
         listing_urls(&html, &mut seen_galleries, &mut output);
         if output.len() >= MAX_CHILDREN {
             break;
@@ -471,9 +496,18 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let delay = crate::pacing::DelayRange::parse("0.12").unwrap();
-        let files = crate::pacing::with_request_delay(
-            Some(delay),
-            gallery_at_base(&Client::new(), &base, "Abc12"),
+        let directory =
+            std::env::temp_dir().join(format!("galerith-fuskator-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let client = Client::new();
+        let files = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            crate::pacing::with_request_delay(
+                Some(delay),
+                gallery_at_base(&client, &base, "Abc12"),
+            ),
         )
         .await
         .unwrap();
@@ -484,5 +518,15 @@ mod tests {
         for pair in arrivals.windows(2) {
             assert!(pair[1].duration_since(pair[0]) >= Duration::from_millis(100));
         }
+        let pages = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(pages.len(), 3);
+        assert!(pages.iter().any(|page| page.starts_with("POST http://")));
+        assert!(pages
+            .iter()
+            .any(|page| page.starts_with("GET http://") && page.contains("Request Headers")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
