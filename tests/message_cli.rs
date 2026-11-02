@@ -134,7 +134,12 @@ fn resolve_urls_follows_local_recursive_queues_and_prints_only_media_urls() {
 
 #[test]
 fn resolve_urls_rejects_other_modes_that_would_ignore_its_output() {
-    for conflicting in ["--follow-queues", "--list-extractors", "--dump-json"] {
+    for conflicting in [
+        "--follow-queues",
+        "--list-extractors",
+        "--list-modules",
+        "--dump-json",
+    ] {
         let response = run(&[
             "--resolve-urls",
             conflicting,
@@ -146,7 +151,12 @@ fn resolve_urls_rejects_other_modes_that_would_ignore_its_output() {
 
 #[test]
 fn resolve_json_rejects_other_modes_that_would_ignore_its_output() {
-    for conflicting in ["--follow-queues", "--list-extractors", "--dump-json"] {
+    for conflicting in [
+        "--follow-queues",
+        "--list-extractors",
+        "--list-modules",
+        "--dump-json",
+    ] {
         let response = run(&[
             "--resolve-json",
             conflicting,

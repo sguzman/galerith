@@ -12,8 +12,11 @@
 
 ```sh
 cargo run -- --list-extractors
+cargo run -- --list-modules
 cargo run -- --get-urls 'https://example.org/sample.jpg'
+cargo run -- --resolve-urls 'https://example.org/sample.jpg'
 cargo run -- --dump-json 'https://example.org/sample.jpg'
+cargo run -- --resolve-json 'https://example.org/sample.jpg'
 cargo run -- --simulate 'https://example.org/sample.jpg'
 cargo run -- --range '1:10:2' --get-urls 'https://example.org/sample.jpg'
 cargo run -- --filename '{category}_{stem}.{extension}' --simulate 'https://example.org/sample.jpg'

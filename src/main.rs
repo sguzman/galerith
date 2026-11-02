@@ -94,6 +94,7 @@ struct Cli {
             "get_urls",
             "follow_queues",
             "list_extractors",
+            "list_modules",
             "dump_json",
             "resolve_json",
             "dump_messages",
@@ -116,6 +117,7 @@ struct Cli {
             "get_urls",
             "follow_queues",
             "list_extractors",
+            "list_modules",
             "dump_json",
             "resolve_urls",
             "dump_messages",
@@ -251,6 +253,10 @@ struct Cli {
     /// Print currently implemented extractor names
     #[arg(long)]
     list_extractors: bool,
+
+    /// Print the distinct native extractor modules currently implemented
+    #[arg(long, conflicts_with = "list_extractors")]
+    list_modules: bool,
 
     /// Select 1-based media indices, e.g. 5, 8-20, 1:24:3
     #[arg(long = "range", value_name = "RANGE")]
@@ -586,6 +592,16 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     if cli.list_extractors {
         for (name, description) in PREVIEW_EXTRACTORS {
             println!("{name} ({description}; partial parity)");
+        }
+        return Ok(());
+    }
+    if cli.list_modules {
+        let modules = PREVIEW_EXTRACTORS
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<std::collections::BTreeSet<_>>();
+        for module in modules {
+            println!("{module}");
         }
         return Ok(());
     }
