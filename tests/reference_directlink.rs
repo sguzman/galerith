@@ -682,7 +682,7 @@ fn run_reference_sleep_interval_fixture(
     let skipped = format!("http://{address}/skip.jpg");
     let last = format!("http://{address}/last.jpg");
     let existing_path = if reference {
-        output.join("127.0.0.1__skip.jpg")
+        output.join(format!("{address}__skip.jpg"))
     } else {
         output.join("skip.jpg")
     };
