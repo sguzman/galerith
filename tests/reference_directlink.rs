@@ -1929,7 +1929,6 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{_lit[  spring\t\n  rain ]!W}",
             "spring rain",
         ),
-        ("length-conversion", "{_lit[é猫]!n}", "2"),
         ("negative-slice", "{extension[-2:]}", "pg"),
         ("replacement-specifier", "{category:Ri/I/}", "dIrectlInk"),
         (
@@ -2045,6 +2044,46 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
     grouped_command.env("PYTHONDONTWRITEBYTECODE", "1");
     let grouped_reference = spawn(grouped_command, "Python grouped numeric formatter");
     assert_eq!(grouped_reference.trim(), grouped_native.join("|"));
+}
+
+#[test]
+fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
+    let template = "{_lit[é猫]!n}";
+    let url = "https://example.org/image.jpg";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--filename", template, "--simulate", url])
+        .output()
+        .unwrap();
+    assert!(
+        !native.status.success(),
+        "native formatter accepted a non-string filename conversion"
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for integer length conversion comparison");
+    let pinned = Command::new("python3")
+        .args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--filename",
+            template,
+            "--simulate",
+            url,
+        ])
+        .env("PYTHONPATH", root)
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        !pinned.status.success(),
+        "pinned gallery-dl accepted a non-string filename conversion"
+    );
 }
 
 #[test]

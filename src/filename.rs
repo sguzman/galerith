@@ -415,7 +415,11 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         }
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
-        "n" => value.chars().count().to_string(),
+        "n" => {
+            return Err(FormatError(
+                "length conversion produces a non-string filename value".into(),
+            ))
+        }
         _ => {
             return Err(FormatError(format!(
                 "unsupported conversion '{conversion}'"
@@ -903,10 +907,9 @@ mod tests {
     }
 
     #[test]
-    fn length_conversion_counts_unicode_characters() {
-        let mut item = sample();
-        item.filename = "é猫.webp".into();
-        assert_eq!(field("filename!n", &item).unwrap(), "2");
+    fn length_conversion_is_rejected_for_filename_output() {
+        let item = sample();
+        assert!(render("{_lit[é猫]!n}", &item).is_err());
     }
 
     #[test]
