@@ -150,8 +150,40 @@ fn page_items(
 }
 
 async fn read_limited(client: &Client, url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    crate::pacing::wait_for_request_to(url.as_str()).await;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != url.origin() {
+        return Err("Lightroom response left its source origin".into());
+    }
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_response_body(&mut response).await {
+                dump_page(&final_url, &bytes, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_response_body(&mut response).await?;
+    dump_page(&final_url, &bytes, &info).await;
+    Ok(bytes)
+}
+
+async fn read_response_body(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|len| len > MAX_DOCUMENT as u64)
@@ -160,12 +192,18 @@ async fn read_limited(client: &Client, url: Url) -> Result<Vec<u8>, Box<dyn Erro
     }
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_DOCUMENT {
+        if chunk.len() > MAX_DOCUMENT.saturating_sub(bytes.len()) {
             return Err("Lightroom gallery response exceeds 2 MiB".into());
         }
         bytes.extend_from_slice(&chunk);
     }
     Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_at_base(
@@ -333,13 +371,21 @@ mod tests {
             }
         });
         let root = Url::parse(&format!("http://{address}/")).unwrap();
-        let result = resolve_at_base(
-            &Client::new(),
-            &root,
-            Target::Share {
-                id: "abcdef".into(),
-            },
-            2,
+        let directory =
+            std::env::temp_dir().join(format!("galerith-lightroom-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            resolve_at_base(
+                &Client::new(),
+                &root,
+                Target::Share {
+                    id: "abcdef".into(),
+                },
+                2,
+            ),
         )
         .await
         .unwrap();
@@ -348,5 +394,7 @@ mod tests {
         assert_eq!(result[0].url, "https://assets.adobe.io/first-large.jpg");
         assert_eq!(result[1].filename, "0002_second.webp");
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 3);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
