@@ -109,22 +109,9 @@ fn photo_item(photo: &Value) -> Option<(String, MediaItem)> {
 }
 
 async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON_BYTES as u64)
-    {
-        return Err("Unsplash response exceeds the 2 MiB JSON limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_JSON_BYTES {
-            return Err("Unsplash response exceeds the 2 MiB JSON limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    let request = client.get(url.clone()).build()?;
+    super::http_json::fetch_json_request_uncached_from_origin(client, request, url, MAX_JSON_BYTES)
+        .await
 }
 
 async fn resolve_at_base(
@@ -313,32 +300,45 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let single = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Image {
-                id: "abc123".into(),
+        let directory =
+            std::env::temp_dir().join(format!("galerith-unsplash-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (single, search) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            async {
+                let single = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Image {
+                        id: "abc123".into(),
+                    },
+                    1,
+                )
+                .await?;
+                let search = resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Search {
+                        query: "blue sky".into(),
+                        orientation: Some("landscape".into()),
+                    },
+                    1,
+                )
+                .await?;
+                Ok::<_, Box<dyn Error + Send + Sync>>((single, search))
             },
-            1,
         )
         .await
         .unwrap();
         assert_eq!(single.len(), 1);
         assert_eq!(single[0].filename, "abc123.jpg");
-        let search = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Search {
-                query: "blue sky".into(),
-                orientation: Some("landscape".into()),
-            },
-            1,
-        )
-        .await
-        .unwrap();
         assert_eq!(search.len(), 1);
         assert_eq!(search[0].filename, "xyz789.jpg");
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
