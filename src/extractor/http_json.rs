@@ -77,6 +77,42 @@ async fn fetch_json_request_uncached_inner(
     max_bytes: usize,
     required_origin: Option<Url>,
 ) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
+    let (body, final_url) = fetch_bytes_request_inner(
+        client,
+        request,
+        max_bytes,
+        required_origin,
+        "extractor JSON response exceeds byte limit",
+    )
+    .await?;
+    Ok((serde_json::from_slice(&body)?, final_url))
+}
+
+pub(crate) async fn fetch_bytes_request_uncached_from_origin(
+    client: &Client,
+    request: reqwest::Request,
+    expected_origin: Url,
+    max_bytes: usize,
+    limit_message: &'static str,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let (body, _) = fetch_bytes_request_inner(
+        client,
+        request,
+        max_bytes,
+        Some(expected_origin),
+        limit_message,
+    )
+    .await?;
+    Ok(body)
+}
+
+async fn fetch_bytes_request_inner(
+    client: &Client,
+    request: reqwest::Request,
+    max_bytes: usize,
+    required_origin: Option<Url>,
+    limit_message: &'static str,
+) -> Result<(Vec<u8>, Url), Box<dyn Error + Send + Sync>> {
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
@@ -102,7 +138,9 @@ async fn fetch_json_request_uncached_inner(
     };
     if let Err(status_error) = response.error_for_status_ref() {
         if crate::http_diagnostics::response_page_dump_enabled() {
-            if let Ok(body) = read_response_body_limited(&mut response, max_bytes).await {
+            if let Ok(body) =
+                read_response_body_limited(&mut response, max_bytes, limit_message).await
+            {
                 if let Err(error) = crate::http_diagnostics::dump_response_page(
                     &final_url,
                     &body,
@@ -116,29 +154,30 @@ async fn fetch_json_request_uncached_inner(
         }
         return Err(status_error.into());
     }
-    let body = read_response_body_limited(&mut response, max_bytes).await?;
+    let body = read_response_body_limited(&mut response, max_bytes, limit_message).await?;
     if let Err(error) =
         crate::http_diagnostics::dump_response_page(&final_url, &body, Some(&response_info)).await
     {
         eprintln!("galerith: response page dump failed ({})", error.kind());
     }
-    Ok((serde_json::from_slice(&body)?, final_url))
+    Ok((body, final_url))
 }
 
 async fn read_response_body_limited(
     response: &mut reqwest::Response,
     max_bytes: usize,
+    limit_message: &'static str,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|size| size > max_bytes as u64)
     {
-        return Err("extractor JSON response exceeds byte limit".into());
+        return Err(limit_message.into());
     }
     let mut body = Vec::new();
     while let Some(chunk) = response.chunk().await? {
         if chunk.len() > max_bytes.saturating_sub(body.len()) {
-            return Err("extractor JSON response exceeds byte limit".into());
+            return Err(limit_message.into());
         }
         body.extend_from_slice(&chunk);
     }

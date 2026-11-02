@@ -283,28 +283,15 @@ fn board_children(
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("4archive source redirected to a different origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("4archive source HTML exceeds 2 MiB limit".into());
-    }
-    let mut content = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(content.len()) {
-            return Err("4archive source HTML exceeds 2 MiB limit".into());
-        }
-        content.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let content = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "4archive source HTML exceeds 2 MiB limit",
+    )
+    .await?;
     Ok(String::from_utf8(content)?)
 }
 
@@ -481,14 +468,25 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let records = thread_at_base(&Client::new(), &base, "a", "100")
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-fourarchive-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (records, boards) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            async {
+                let records = thread_at_base(&Client::new(), &base, "a", "100").await?;
+                let boards = board_at_base(&Client::new(), &base, "a", 1, 1).await?;
+                Ok::<_, Box<dyn Error + Send + Sync>>((records, boards))
+            },
+        )
+        .await
+        .unwrap();
         assert_eq!(records.1.len(), 1);
-        let boards = board_at_base(&Client::new(), &base, "a", 1, 1)
-            .await
-            .unwrap();
         assert_eq!(boards.len(), 1);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
