@@ -280,7 +280,7 @@ struct Cli {
     write_metadata: bool,
 
     /// Write bounded directory metadata to info.json
-    #[arg(long = "write-info-json")]
+    #[arg(long = "write-info-json", alias = "write-infojson")]
     write_info_json: bool,
 
     /// Write successful bounded API responses to .txt files; all includes redacted headers

@@ -132,3 +132,25 @@ fn info_json_is_suppressed_during_simulation() {
     assert!(output.status.success());
     assert!(!dir.exists());
 }
+
+#[test]
+fn legacy_write_infojson_alias_is_accepted() {
+    let dir = dir().with_extension("legacy-info");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--write-infojson",
+            "--simulate",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://cdn.example.org/galleries/asset.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!dir.exists());
+}

@@ -135,7 +135,8 @@
                 },
                 {
                   "title": "Reach complete upstream argument parity",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "src/main.rs accepts the pinned legacy --write-infojson spelling as an alias for --write-info-json; tests/metadata_cli.rs checks it is accepted without creating output during simulation. Full upstream argument parity remains incomplete, including extractor-info (-E)."
                 }
               ],
               "progress": 75
