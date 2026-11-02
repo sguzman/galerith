@@ -163,7 +163,7 @@ fn run_reference_filename_filesystem_fixture(
     let output = working_root.join(format!("{label}-filename-output"));
     std::fs::create_dir_all(&output).unwrap();
     let url = format!("http://{address}/asset.jpg");
-    let template = "{category}_{filename:?[/]/}";
+    let template = "{category}_{stem:?[/]/}.{extension}";
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
@@ -1810,7 +1810,16 @@ fn pinned_and_native_sleep_request_does_not_delay_direct_media() {
 
 #[test]
 fn pinned_and_native_clients_save_the_same_formatted_filename() {
+    let root = env::temp_dir().join(format!(
+        "galerith-filename-filesystem-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let native = run_reference_filename_filesystem_fixture(&root, Path::new("."), "native", false);
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        assert_eq!(native, Path::new("directlink_[asset].jpg"));
+        std::fs::remove_dir_all(root).unwrap();
         return;
     }
     let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
@@ -1820,14 +1829,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
 
-    let root = env::temp_dir().join(format!(
-        "galerith-filename-filesystem-oracle-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).unwrap();
     let pinned = run_reference_filename_filesystem_fixture(&root, pinned_root, "pinned", true);
-    let native = run_reference_filename_filesystem_fixture(&root, pinned_root, "native", false);
     assert_eq!(pinned, native, "upstream/native saved path differs");
     std::fs::remove_dir_all(root).unwrap();
 }
