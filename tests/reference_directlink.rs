@@ -1902,6 +1902,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "directlink_proof.jpg",
         ),
         ("unicode-literal", "{_lit[猫]}", "猫"),
+        ("unicode-alignment", "{_lit[猫]:_^5}", "__猫__"),
         ("string-precision", "{category:.5}", "direc"),
         ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
