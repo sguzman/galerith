@@ -51,7 +51,7 @@ Gelbooru v0.2 XML/DAPI responses are bounded to 4 MiB and can be saved with reda
 
 35photo image API, tag, user, and genre page requests use bounded diagnostic capture; AJAX requests retain their request-specific headers.
 
-Kabeuchi profile pages and paginated form posts are captured with bounded bodies, redacted cookies, and their request methods and headers. Wallhaven's JSON API responses retain the API Accept header and require redirects to remain on the API origin. Lightroom share HTML and paginated JSON responses are captured after same-origin redirect validation.
+Kabeuchi profile pages and paginated form posts are captured with bounded bodies, redacted cookies, and their request methods and headers. Wallhaven's JSON API responses retain the API Accept header and require redirects to remain on the API origin. Lightroom share HTML and paginated JSON responses are captured after same-origin redirect validation. 4chan board indexes and thread JSON responses use the same bounded diagnostics path with the API origin enforced.
 
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.
 

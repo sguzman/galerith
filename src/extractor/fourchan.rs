@@ -139,22 +139,18 @@ async fn queue_board_at_base(
     api: &Url,
 ) -> Result<Vec<ExtractorMessage>, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{board}/threads.json"))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_BOARD_INDEX_BYTES as u64)
-    {
-        return Err("4chan board JSON exceeded the response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_BOARD_INDEX_BYTES {
-            return Err("4chan board JSON exceeded the response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    board_queue_messages(&serde_json::from_slice(&bytes)?, board, max_pages)
+    let value = fetch_api_json(client, endpoint, MAX_BOARD_INDEX_BYTES).await?;
+    board_queue_messages(&value, board, max_pages)
+}
+
+async fn fetch_api_json(
+    client: &Client,
+    endpoint: Url,
+    max_bytes: usize,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    let request = client.get(endpoint.clone()).build()?;
+    super::http_json::fetch_json_request_uncached_from_origin(client, request, endpoint, max_bytes)
+        .await
 }
 
 /// Native read-only board index queue preview. Ordinary downloads keep their
@@ -189,14 +185,7 @@ async fn resolve_board_at_base(
     api: &Url,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{board}/threads.json"))?;
-    crate::pacing::wait_for_request().await;
-    let pages: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let pages = fetch_api_json(client, endpoint, MAX_BOARD_INDEX_BYTES).await?;
     let threads = board_thread_ids(&pages, max_pages)?;
     let mut items = Vec::new();
     for (index, id) in threads.into_iter().enumerate() {
@@ -306,22 +295,7 @@ async fn thread_json(
     api: &Url,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
     let endpoint = api.join(&format!("{}/thread/{}.json", target.board, target.id))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_THREAD_JSON_BYTES as u64)
-    {
-        return Err("4chan thread JSON exceeded the response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_THREAD_JSON_BYTES {
-            return Err("4chan thread JSON exceeded the response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    fetch_api_json(client, endpoint, MAX_THREAD_JSON_BYTES).await
 }
 
 async fn resolve_at_base(
@@ -493,11 +467,21 @@ mod tests {
             // of silently succeeding against this synthetic fixture.
         });
         let api = Url::parse(&format!("http://{address}/")).unwrap();
-        let events = queue_board_at_base(&Client::new(), "g", 1, &api)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-fourchan-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            queue_board_at_base(&Client::new(), "g", 1, &api),
+        )
+        .await
+        .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
@@ -522,7 +506,7 @@ mod tests {
         let error = queue_board_at_base(&Client::new(), "g", 1, &api)
             .await
             .unwrap_err();
-        assert!(error.to_string().contains("response limit"));
+        assert!(error.to_string().contains("byte limit"));
         server.await.unwrap();
     }
 
@@ -700,7 +684,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(error.to_string().contains("response limit"));
+        assert!(error.to_string().contains("byte limit"));
         server.await.unwrap();
     }
 
