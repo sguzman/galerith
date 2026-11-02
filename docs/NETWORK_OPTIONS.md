@@ -47,6 +47,8 @@ Fappic’s canonical image page uses the same opt-in bounded HTML response captu
 
 PixelDrain public file, album, and folder API JSON responses use the shared bounded diagnostic reader.
 
+Gelbooru v0.2 XML/DAPI responses are bounded to 4 MiB and can be saved with redacted request/response diagnostics.
+
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.
 
 **Verification:** [CI 41336923648](https://github.com/sguzman/galerith/actions/runs/41336923648) passed format, Clippy, all-target tests, roadmap consistency, release build and the pinned-reference job. Network fixtures use loopback endpoints; no public origin is contacted by those tests.

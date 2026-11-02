@@ -6,6 +6,8 @@ use reqwest::Client;
 use std::{collections::HashMap, error::Error, time::Duration};
 use url::Url;
 
+const MAX_XML_BYTES: usize = 4 * 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Post { host: String, id: u64 },
@@ -181,9 +183,7 @@ async fn resolve_at_base_limited(
                 }
             }
         }
-        crate::pacing::wait_for_request().await;
-        let response = client.get(endpoint).send().await?.error_for_status()?;
-        let body = response.text().await?;
+        let body = read_xml_page(client, endpoint).await?;
         let (fresh, post_count) = read_xml(&body, host)?;
         let done = matches!(target, Target::Post { .. }) || post_count < 100;
         let remaining = media_limit.saturating_sub(items.len());
@@ -196,6 +196,63 @@ async fn resolve_at_base_limited(
         }
     }
     Ok(items)
+}
+
+async fn read_xml_page(
+    client: &Client,
+    endpoint: Url,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    crate::pacing::wait_for_request().await;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_xml(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_xml(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_xml(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_XML_BYTES as u64)
+    {
+        return Err("Gelbooru v0.2 XML response exceeds byte limit".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > MAX_XML_BYTES.saturating_sub(body.len()) {
+            return Err("Gelbooru v0.2 XML response exceeds byte limit".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 #[cfg(test)]
@@ -277,7 +334,7 @@ mod tests {
             assert!(request.contains("id=44"), "{request}");
             let xml = r#"<posts count="1"><post id="44" file_url="https://cdn.example.test/photo.png"/></posts>"#;
             let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{xml}",
+                "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: {}\r\nX-Gelbooru-Fixture: xml\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{xml}",
                 xml.len()
             );
             socket.write_all(response.as_bytes()).await.unwrap();
@@ -287,12 +344,35 @@ mod tests {
             host: "tbib.org".into(),
             id: 44,
         };
-        let output = resolve_at_base(&Client::new(), target, 1, &api)
-            .await
-            .unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-gelbooru-v02-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let output = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                resolve_at_base(&Client::new(), target, 1, &api)
+                    .await
+                    .unwrap()
+            },
+        )
+        .await;
         assert_eq!(output.len(), 1);
         assert_eq!(output[0].filename, "44.png");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let path = entries.next_entry().await.unwrap().unwrap().path();
+        let page = tokio::fs::read_to_string(path).await.unwrap();
+        assert!(page.contains("x-gelbooru-fixture: xml"));
+        assert!(page.contains("set-cookie: ***"));
+        assert!(!page.contains("fixture-secret"));
+        assert!(page.contains("photo.png"));
+        assert!(!page.lines().next().unwrap().contains("?page="));
+        assert!(entries.next_entry().await.unwrap().is_none());
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
     #[tokio::test]
     async fn tag_search_uses_xml_dapi_and_stops_on_short_page() {
@@ -368,6 +448,34 @@ mod tests {
             .await
             .unwrap();
         assert!(files.is_empty());
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_declared_oversized_xml_before_reading_body() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 4096];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                MAX_XML_BYTES + 1
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let error = read_xml_page(
+            &Client::new(),
+            Url::parse(&format!("http://{address}/index.php?page=dapi")).unwrap(),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("byte limit"));
         server.await.unwrap();
     }
 
