@@ -1885,6 +1885,12 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category}_{_lit[proof]}.{extension}",
             "directlink_proof.jpg",
         ),
+        ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
+        ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
+        ("negative-slice", "{extension[-2:]}", "pg"),
+        ("replacement-specifier", "{category:Ri/I/}", "dIrectlInk"),
+        ("truncate-specifier", "{category:X5/-/}", "dire-"),
+        ("overlength-replacement", "{category:L5/long/}", "long"),
     ];
     let oracle_enabled = env::var_os("GALERITH_REFERENCE_ORACLE").is_some();
     let pinned_root = if oracle_enabled {
