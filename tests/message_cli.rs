@@ -65,6 +65,7 @@ fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
 fn message_mode_rejects_modes_that_would_have_ambiguous_output() {
     for forbidden in [
         "--dump-json",
+        "--resolve-json",
         "--get-urls",
         "--resolve-urls",
         "--simulate",
@@ -97,7 +98,6 @@ fn resolve_urls_follows_local_recursive_queues_and_prints_only_media_urls() {
     .unwrap();
     let source = url::Url::from_file_path(&list_path).unwrap();
     let response = run(&["--resolve-urls", &format!("recursive:{source}")]);
-    let _ = fs::remove_file(&list_path);
     assert!(
         response.status.success(),
         "{}",
@@ -107,13 +107,48 @@ fn resolve_urls_follows_local_recursive_queues_and_prints_only_media_urls() {
         String::from_utf8(response.stdout).unwrap(),
         "https://example.org/first.jpg\nhttps://cdn.example.org/second.webp\n"
     );
+
+    let response = run(&["--resolve-json", &format!("recursive:{source}")]);
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    let tuples: serde_json::Value = serde_json::from_slice(&response.stdout).unwrap();
+    let messages = tuples.as_array().unwrap();
+    assert!(messages.iter().any(|message| message[0] == 6));
+    let resolved = messages
+        .iter()
+        .filter(|message| message[0] == 3)
+        .map(|message| message[1].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        resolved,
+        [
+            "https://example.org/first.jpg",
+            "https://cdn.example.org/second.webp"
+        ]
+    );
+    let _ = fs::remove_file(&list_path);
 }
 
 #[test]
 fn resolve_urls_rejects_other_modes_that_would_ignore_its_output() {
-    for conflicting in ["--follow-queues", "--list-extractors"] {
+    for conflicting in ["--follow-queues", "--list-extractors", "--dump-json"] {
         let response = run(&[
             "--resolve-urls",
+            conflicting,
+            "https://example.org/photo.png",
+        ]);
+        assert!(!response.status.success(), "{conflicting} should conflict");
+    }
+}
+
+#[test]
+fn resolve_json_rejects_other_modes_that_would_ignore_its_output() {
+    for conflicting in ["--follow-queues", "--list-extractors", "--dump-json"] {
+        let response = run(&[
+            "--resolve-json",
             conflicting,
             "https://example.org/photo.png",
         ]);

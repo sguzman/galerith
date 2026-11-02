@@ -59,7 +59,7 @@ fn native_upstream_tuples(url: &str) -> Vec<Value> {
         .expect("native upstream-compatible message tuple array")
 }
 
-fn pinned_dump_json(root: &Path, url: &str, options: &[&str]) -> Value {
+fn pinned_json_output(root: &Path, url: &str, options: &[&str]) -> Value {
     let mut command = Command::new("python3");
     command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
     command.args(options);
@@ -67,7 +67,7 @@ fn pinned_dump_json(root: &Path, url: &str, options: &[&str]) -> Value {
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
     command.env("PYTHONDONTWRITEBYTECODE", "1");
-    serde_json::from_str(&spawn(command, "pinned gallery-dl --dump-json"))
+    serde_json::from_str(&spawn(command, "pinned gallery-dl JSON output"))
         .expect("pinned JSON message tuple array")
 }
 
@@ -2152,10 +2152,35 @@ fn pinned_and_native_dump_json_match_with_filename_override() {
         "native --dump-json with filename override",
     ))
     .unwrap();
-    let pinned = pinned_dump_json(Path::new(&root), url, &options);
+    let pinned = pinned_json_output(Path::new(&root), url, &options);
     assert_eq!(
         native, pinned,
         "filename override changed tuple output differently"
+    );
+}
+
+#[test]
+fn pinned_and_native_resolve_json_match_directlink() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for resolve-json comparison");
+    let url = "https://cdn.example.org/galleries/photo%20one.jpg?size=large";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--resolve-json", url])
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "native --resolve-json failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    let native: Value = serde_json::from_slice(&native.stdout).unwrap();
+    let pinned = pinned_json_output(Path::new(&root), url, &["--resolve-json"]);
+    assert_eq!(
+        native, pinned,
+        "directlink resolve-json differs from pinned"
     );
 }
 

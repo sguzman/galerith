@@ -95,6 +95,7 @@ struct Cli {
             "follow_queues",
             "list_extractors",
             "dump_json",
+            "resolve_json",
             "dump_messages",
             "simulate",
             "no_download",
@@ -106,6 +107,28 @@ struct Cli {
         ]
     )]
     resolve_urls: bool,
+
+    /// Print upstream-compatible JSON messages after resolving intermediary extractors
+    #[arg(
+        short = 'J',
+        long = "resolve-json",
+        conflicts_with_all = [
+            "get_urls",
+            "follow_queues",
+            "list_extractors",
+            "dump_json",
+            "resolve_urls",
+            "dump_messages",
+            "simulate",
+            "no_download",
+            "file_range",
+            "filename_template",
+            "write_metadata",
+            "write_info_json",
+            "download_archive"
+        ]
+    )]
+    resolve_json: bool,
 
     /// Print upstream-compatible directory/URL message tuples as JSON
     #[arg(short = 'j', long)]
@@ -800,6 +823,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
     };
     let archive = if cli.get_urls
         || cli.resolve_urls
+        || cli.resolve_json
         || cli.dump_json
         || cli.dump_messages
         || cli.simulate
@@ -1010,9 +1034,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
-        if cli.dump_messages || cli.dump_json || cli.resolve_urls {
+        if cli.dump_messages || cli.dump_json || cli.resolve_urls || cli.resolve_json {
             let message_future = async {
-                if cli.resolve_urls {
+                if cli.resolve_urls || cli.resolve_json {
                     resolve_messages_traversing_selected(
                         &extractor_client,
                         &url,
@@ -1077,7 +1101,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .await;
             match events {
                 Ok(events) => {
-                    if cli.dump_json {
+                    if cli.dump_json || cli.resolve_json {
                         let tuples = events.iter().map(to_upstream_tuple).collect::<Vec<_>>();
                         println!("{}", serde_json::to_string(&tuples)?);
                     } else if cli.resolve_urls {
@@ -1189,6 +1213,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                     if !cli.get_urls
                         && !cli.resolve_urls
+                        && !cli.resolve_json
                         && !cli.dump_json
                         && !cli.simulate
                         && !cli.no_download
@@ -1203,7 +1228,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     continue;
                 }
             }
-            if cli.get_urls || cli.resolve_urls {
+            if cli.get_urls || cli.resolve_urls || cli.resolve_json {
                 println!("{}", item.url);
             } else if cli.dump_json {
                 println!("{}", serde_json::to_string(&item)?);
@@ -1266,6 +1291,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             && selected_items > 0
             && !cli.get_urls
             && !cli.resolve_urls
+            && !cli.resolve_json
             && !cli.dump_json
             && !cli.simulate
             && !cli.no_download
