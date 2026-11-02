@@ -209,29 +209,18 @@ async fn read_json(
     endpoint: Url,
     referer: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(endpoint.clone())
         .header(reqwest::header::REFERER, referer)
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Picazor public API redirected outside its origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Picazor public API response exceeds the JSON cap".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(body.len()) {
-            return Err("Picazor public API response exceeds the JSON cap".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_JSON,
+        "Picazor public API response exceeds the JSON cap",
+    )
+    .await?;
     Ok(serde_json::from_slice(&body)?)
 }
 
@@ -406,10 +395,33 @@ mod tests {
         });
         let user = match_url("https://picazor.com/en/example").unwrap();
         let root = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (directory, media) = at_root(&Client::new(), &root, &user, 4).await.unwrap();
+        let diagnostic_dir =
+            std::env::temp_dir().join(format!("galerith-picazor-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&diagnostic_dir).await;
+        tokio::fs::create_dir_all(&diagnostic_dir).await.unwrap();
+        let (directory, media) = crate::http_diagnostics::scope_response_pages(
+            diagnostic_dir.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            at_root(&Client::new(), &root, &user, 4),
+        )
+        .await
+        .unwrap();
         assert_eq!(directory.unwrap()["subject"], "User");
         assert_eq!(media.len(), 1);
         assert_eq!(media[0].0.filename, "100_001.jpg");
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&diagnostic_dir).unwrap().count(), 2);
+        let diagnostic = tokio::fs::read_to_string(
+            std::fs::read_dir(&diagnostic_dir)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .path(),
+        )
+        .await
+        .unwrap();
+        assert!(diagnostic.contains("referer: ***"));
+        tokio::fs::remove_dir_all(diagnostic_dir).await.unwrap();
     }
 }
