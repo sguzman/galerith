@@ -212,26 +212,9 @@ fn records_for_post(
 }
 
 async fn get_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint.clone()).send().await?;
-    if response.url().origin() != endpoint.origin() || response.status().is_redirection() {
-        return Err("S3ndpics source redirected outside approved endpoint".into());
-    }
-    response = response.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("S3ndpics public source JSON exceeds response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("S3ndpics public source JSON exceeds response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    let request = client.get(endpoint.clone()).build()?;
+    super::http_json::fetch_json_request_uncached_from_origin(client, request, endpoint, MAX_JSON)
+        .await
 }
 
 async fn at_base(
@@ -464,12 +447,22 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let result = at_base(&Client::new(), &base, &Target::User("tester".into()), 3)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-s3ndpics-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            at_base(&Client::new(), &base, &Target::User("tester".into()), 3),
+        )
+        .await
+        .unwrap();
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0.filename, "aaaa1111_01.jpg");
         assert_eq!(result[1].0.filename, "bbbb2222_01.png");
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 3);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
