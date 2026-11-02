@@ -113,6 +113,18 @@ fn filename_template_updates_json_without_network() {
 }
 
 #[test]
+fn original_filename_shortcut_preserves_source_name() {
+    let output = run(&["-f", "/O", "--dump-json", "https://example.org/image.webp"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(item["filename"], "image.webp");
+}
+
+#[test]
 fn filename_template_applies_slices_and_conversions_through_cli() {
     let output = run(&[
         "-f",

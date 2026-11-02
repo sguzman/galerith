@@ -1855,6 +1855,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     let cases = [
+        ("original-filename-shortcut", "/O", "asset.jpg"),
         (
             "conditional",
             "{category}_{extension:?[/]/}.{extension}",
@@ -1862,7 +1863,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ),
         (
             "conditional-empty",
-            "{category}{_lit[]:?[/]/}",
+            "{category}{extension[99:]:?[/]/}",
             "directlink",
         ),
         (
@@ -1881,8 +1882,8 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "directlink_asset.jpg",
         ),
         (
-            "empty-alternative-fallback",
-            "{_lit[]|category}",
+            "missing-alternative-fallback",
+            "{post_id|category}",
             "directlink",
         ),
         (

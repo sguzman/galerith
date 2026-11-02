@@ -1094,11 +1094,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             selected_items += 1;
             if !cli.get_urls {
-                if let Some(template) = cli
-                    .filename_template
-                    .as_deref()
-                    .or_else(|| config.filename(item.extractor))
-                {
+                let original_filename = cli.filename_template.as_deref() == Some("/O");
+                let template = if original_filename {
+                    Some("{filename}.{extension}")
+                } else {
+                    cli.filename_template
+                        .as_deref()
+                        .or_else(|| config.filename(item.extractor))
+                };
+                if let Some(template) = template {
                     match render_filename(template, &item) {
                         Ok(name) => item.filename = name,
                         Err(error) => {
