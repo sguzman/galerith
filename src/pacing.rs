@@ -175,38 +175,38 @@ async fn wait_for_request_in_schedule(
     host: Option<String>,
     delay: Option<Duration>,
 ) {
-    if delay.is_none() {
-        loop {
-            let mut schedule = scheduler.lock().await;
-            let now = tokio::time::Instant::now();
-            schedule.host_cooldown.retain(|_, deadline| *deadline > now);
-            schedule.host_last.clear();
-            let deadline = request_deadline(&schedule, host.as_deref(), delay, now);
+    loop {
+        let mut schedule = scheduler.lock().await;
+        let now = tokio::time::Instant::now();
+        schedule.host_cooldown.retain(|_, deadline| *deadline > now);
+        if let Some(deadline) = host
+            .as_deref()
+            .and_then(|host| schedule.host_cooldown.get(host).copied())
+        {
             drop(schedule);
-            if deadline <= tokio::time::Instant::now() {
-                return;
-            }
-            // A host-only cooldown must not hold the shared scheduler lock:
+            // A host cooldown must not hold the shared scheduler lock:
             // unrelated origins remain eligible, and a refreshed cooldown is
             // picked up when this wait wakes and rechecks its deadline.
             tokio::time::sleep_until(deadline).await;
+            continue;
         }
-    }
 
-    let delay = delay.expect("no-delay waits return from the cooldown branch");
-    let mut schedule = scheduler.lock().await;
-    let now = tokio::time::Instant::now();
-    schedule.host_cooldown.retain(|_, deadline| *deadline > now);
-    schedule.host_last.retain(|_, last| *last + delay > now);
+        let Some(delay) = delay else {
+            schedule.host_last.clear();
+            return;
+        };
+        schedule.host_last.retain(|_, last| *last + delay > now);
 
-    let deadline = request_deadline(&schedule, host.as_deref(), Some(delay), now);
-    tokio::time::sleep_until(deadline).await;
-    // Store only after the wait completes. A cancelled future then cannot
-    // reserve a stale future slot that delays later requests unnecessarily.
-    let admitted = tokio::time::Instant::now();
-    schedule.global_last = Some(admitted);
-    if let Some(host) = host {
-        schedule.host_last.insert(host, admitted);
+        let deadline = request_deadline(&schedule, host.as_deref(), Some(delay), now);
+        tokio::time::sleep_until(deadline).await;
+        // Store only after the wait completes. A cancelled future then cannot
+        // reserve a stale future slot that delays later requests unnecessarily.
+        let admitted = tokio::time::Instant::now();
+        schedule.global_last = Some(admitted);
+        if let Some(host) = host {
+            schedule.host_last.insert(host, admitted);
+        }
+        return;
     }
 }
 
@@ -589,6 +589,39 @@ mod tests {
         throttled.await.unwrap();
         assert!(started.elapsed() >= Duration::from_millis(190));
         assert!(tokio::time::Instant::now() >= refreshed_deadline);
+    }
+
+    #[tokio::test]
+    async fn host_cooldown_does_not_block_other_hosts_with_request_pacing_enabled() {
+        let delay = Duration::from_millis(50);
+        let schedule = std::sync::Arc::new(tokio::sync::Mutex::new(RequestSchedule::default()));
+        schedule.lock().await.host_cooldown.insert(
+            "https://throttled.example".to_owned(),
+            tokio::time::Instant::now() + Duration::from_millis(200),
+        );
+
+        let throttled_schedule = schedule.clone();
+        let throttled = tokio::spawn(async move {
+            wait_for_request_in_schedule(
+                &throttled_schedule,
+                Some("https://throttled.example".to_owned()),
+                Some(delay),
+            )
+            .await;
+        });
+        tokio::task::yield_now().await;
+
+        tokio::time::timeout(
+            delay,
+            wait_for_request_in_schedule(
+                &schedule,
+                Some("https://unrelated.example".to_owned()),
+                Some(delay),
+            ),
+        )
+        .await
+        .expect("host cooldown blocked a different origin despite configured request pacing");
+        throttled.await.unwrap();
     }
 
     #[tokio::test]
