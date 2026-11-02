@@ -101,23 +101,15 @@ async fn request_page(
         .post(endpoint.clone())
         .header("Accept", "application/json, text/plain, */*")
         .header("Referer", referer)
-        .json(&payload);
-    crate::pacing::wait_for_request().await;
-    let mut response = request.send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_RESPONSE as u64)
-    {
-        return Err("Lexica API JSON exceeded the response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_RESPONSE {
-            return Err("Lexica API JSON exceeded the response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+        .json(&payload)
+        .build()?;
+    super::http_json::fetch_json_request_uncached_from_origin(
+        client,
+        request,
+        endpoint.clone(),
+        MAX_RESPONSE,
+    )
+    .await
 }
 
 async fn resolve_at_base(
@@ -289,13 +281,21 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let media = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Search {
-                query: "blue sky".into(),
-            },
-            3,
+        let directory =
+            std::env::temp_dir().join(format!("galerith-lexica-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let media = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            resolve_at_base(
+                &Client::new(),
+                &base,
+                Target::Search {
+                    query: "blue sky".into(),
+                },
+                3,
+            ),
         )
         .await
         .unwrap();
@@ -303,6 +303,8 @@ mod tests {
         assert_eq!(media[0].filename, "image1.jpg");
         assert_eq!(media[2].filename, "image3.jpg");
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
@@ -321,7 +323,7 @@ mod tests {
         });
         let url = Url::parse(&format!("http://{address}/api/infinite-prompts")).unwrap();
         let result = request_page(&Client::new(), &url, "blue sky", &json!(0)).await;
-        assert!(result.unwrap_err().to_string().contains("response limit"));
+        assert!(result.unwrap_err().to_string().contains("byte limit"));
         server.await.unwrap();
     }
 
