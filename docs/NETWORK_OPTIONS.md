@@ -57,6 +57,8 @@ Kabeuchi profile pages and paginated form posts are captured with bounded bodies
 
 Shortener HEAD redirect metadata and t.co refresh pages can also be captured; redirect targets remain redacted in diagnostic headers.
 
+Koofr k00.fr short-link responses capture redirect metadata without following the redirect; the Location header remains redacted.
+
 IMHentai tag and search listing pages capture bounded HTML after same-origin redirect validation.
 
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.

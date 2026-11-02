@@ -47,8 +47,25 @@ async fn short_at_base(
     code: &Code,
 ) -> Result<Share, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&code.0)?;
-    crate::pacing::wait_for_request().await;
-    let response = no_redirect_client.get(endpoint).send().await?;
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
+    let request = no_redirect_client.get(endpoint).build()?;
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let response = no_redirect_client.execute(request).await?;
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(error) =
+        crate::http_diagnostics::dump_response_page(response.url(), &[], Some(&response_info)).await
+    {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
     if !response.status().is_redirection() {
         return Err("Koofr short URL is not a supported public redirect".into());
     }
@@ -148,6 +165,48 @@ mod tests {
             target,
             super::super::match_url("https://koofr.net/links/1234-abc").unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn shortener_diagnostic_redacts_untrusted_location_header() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 2048];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream
+                .write_all(b"HTTP/1.1 302 Found\r\nLocation: https://app.koofr.net/links/1234-abc?password=private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let client = Client::builder().redirect(Policy::none()).build().unwrap();
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-koofr-short-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let _ = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            short_at_base(&client, &base, &Code("Example7".into())),
+        )
+        .await
+        .unwrap_err();
+        server.await.unwrap();
+        let diagnostic = tokio::fs::read_to_string(
+            std::fs::read_dir(&directory)
+                .unwrap()
+                .next()
+                .unwrap()
+                .unwrap()
+                .path(),
+        )
+        .await
+        .unwrap();
+        assert!(diagnostic.contains("location: ***"));
+        assert!(!diagnostic.contains("private"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
