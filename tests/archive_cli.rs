@@ -1161,7 +1161,14 @@ fn empty_http_bodies_never_create_archive_hits_and_later_valid_media_recovers() 
             .arg(&dir)
             .arg("--download-archive")
             .arg(&db)
-            .args(["--retries", "0", "--http-timeout", "3"])
+            .args([
+                "--retries",
+                "0",
+                "--http-timeout",
+                "3",
+                "--filesize-min",
+                "1",
+            ])
             .arg(&url)
             .output()
             .unwrap()

@@ -658,8 +658,9 @@ pub async fn download(
             .map(|(_, total)| total)
             .or_else(|| response.content_length());
         if declared_size.is_some_and(|size| {
-            options.filesize_min.is_some_and(|minimum| size < minimum)
-                || options.filesize_max.is_some_and(|maximum| size > maximum)
+            size > 0
+                && (options.filesize_min.is_some_and(|minimum| size < minimum)
+                    || options.filesize_max.is_some_and(|maximum| size > maximum))
         }) {
             return Ok(DownloadOutcome::Filtered(target));
         }
