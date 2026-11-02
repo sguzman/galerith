@@ -642,10 +642,7 @@ fn run_reference_sleep_case(
     let output = working_root.join(format!("{label}-sleep-output"));
     std::fs::create_dir_all(&output).unwrap();
     let existing_path = if reference {
-        output
-            .join("directlink")
-            .join("example.invalid")
-            .join("example.invalid__file.jpg")
+        output.join("example.invalid__file.jpg")
     } else {
         output.join("file.jpg")
     };
@@ -676,7 +673,11 @@ fn run_reference_sleep_case(
     if !skip_existing {
         command.arg("--simulate");
     }
-    command.args(["-d", output.to_str().unwrap(), url]);
+    if reference {
+        command.args(["-D", output.to_str().unwrap(), url]);
+    } else {
+        command.args(["-d", output.to_str().unwrap(), url]);
+    }
     if reference {
         command.env("PYTHONPATH", pinned_root);
         command.env("PYTHONNOUSERSITE", "1");
@@ -694,6 +695,100 @@ fn run_reference_sleep_case(
     }
     std::fs::remove_dir_all(output).unwrap();
     elapsed
+}
+
+fn run_reference_media_sleep_request_case(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+) -> std::time::Duration {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let mut previous = None;
+        let mut interval = None;
+        for _ in 0..2 {
+            let (mut socket, _) = listener.accept().unwrap();
+            let arrived = std::time::Instant::now();
+            socket
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut request = [0_u8; 2048];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            if let Some(previous) = previous {
+                interval = Some(arrived.duration_since(previous));
+            }
+            previous = Some(arrived);
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+                )
+                .unwrap();
+        }
+        interval.unwrap()
+    });
+
+    let output = working_root.join(format!("{label}-media-sleep-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let first = format!("http://{address}/first.jpg");
+    let second = format!("http://{address}/second.jpg");
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "--sleep-request",
+            "0.12-0.18",
+            "-d",
+            output.to_str().unwrap(),
+            &first,
+            &second,
+        ]);
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "--sleep-request",
+            "0.12-0.18",
+            "--retries",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &first,
+            &second,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command
+        .output()
+        .expect("launch media sleep-request fixture");
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(contains_file_with_bytes(&output, b"JPEG"));
+    let interval = server.join().unwrap();
+    std::fs::remove_dir_all(output).unwrap();
+    interval
 }
 
 fn run_429_default_fixture(working_root: &Path, pinned_root: &Path, label: &str, reference: bool) {
@@ -1568,6 +1663,39 @@ fn pinned_and_native_clients_match_extractor_and_skip_sleep_timing() {
             "pinned/native {option} delays differ: pinned={pinned:?}, native={native:?}"
         );
     }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_sleep_request_does_not_delay_direct_media() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!(
+        "galerith-sleep-request-media-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_reference_media_sleep_request_case(&root, pinned_root, "pinned", true);
+    let native = run_reference_media_sleep_request_case(&root, pinned_root, "native", false);
+    for (client, interval) in [("pinned", pinned), ("native", native)] {
+        assert!(
+            interval < std::time::Duration::from_millis(100),
+            "{client}: sleep-request delayed direct media by {interval:?}"
+        );
+    }
+    assert!(
+        pinned.abs_diff(native) < std::time::Duration::from_millis(75),
+        "pinned/native direct-media intervals differ: pinned={pinned:?}, native={native:?}"
+    );
     std::fs::remove_dir_all(root).unwrap();
 }
 
