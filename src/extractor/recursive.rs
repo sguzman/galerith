@@ -139,30 +139,54 @@ async fn fetch_remote(url: Url) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>
         .timeout(Duration::from_secs(15))
         .resolve(&host, first)
         .build()?;
-    crate::pacing::wait_for_request().await;
-    let response = client.get(url).send().await?;
-    read_remote_response(response).await
+    crate::pacing::wait_for_request_to(url.as_str()).await;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let response = client.execute(request).await?;
+    if response.url().origin() != url.origin() {
+        return Err("Recursive remote URL list escaped its source origin".into());
+    }
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    read_remote_response(response, Some(&info)).await
 }
 
 async fn read_remote_response(
-    response: reqwest::Response,
+    mut response: reqwest::Response,
+    info: Option<&crate::http_diagnostics::ResponsePageInfo>,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response.status().is_redirection() {
         return Err("Recursive remote URL list attempted an HTTP redirect".into());
     }
-    let mut response = response.error_for_status()?;
+    response.error_for_status_ref()?;
     if response
         .content_length()
         .is_some_and(|n| n > MAX_BYTES as u64)
     {
         return Err("Recursive remote URL list exceeds 2 MiB".into());
     }
+    let final_url = response.url().clone();
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
         if chunk.len() > MAX_BYTES.saturating_sub(bytes.len()) {
             return Err("Recursive remote URL list exceeds 2 MiB".into());
         }
         bytes.extend_from_slice(&chunk);
+    }
+    if let Some(info) = info {
+        if let Err(error) =
+            crate::http_diagnostics::dump_response_page(&final_url, &bytes, Some(info)).await
+        {
+            eprintln!("galerith: response page dump failed ({})", error.kind());
+        }
     }
     Ok(bytes)
 }
@@ -363,25 +387,47 @@ mod tests {
             }
         });
         let client = Client::builder().redirect(Policy::none()).build().unwrap();
-        let page = client
-            .get(format!("http://{addr}/list"))
-            .send()
+        let list_url = Url::parse(&format!("http://{addr}/list")).unwrap();
+        let request = client.get(list_url).build().unwrap();
+        let mut request_headers = crate::http_diagnostics::default_request_headers();
+        request_headers.extend(request.headers().clone());
+        let page = client.execute(request.try_clone().unwrap()).await.unwrap();
+        let info = crate::http_diagnostics::ResponsePageInfo {
+            method: request.method().clone(),
+            request_url: request.url().clone(),
+            request_headers,
+            status: page.status(),
+            response_headers: page.headers().clone(),
+        };
+        let directory =
+            std::env::temp_dir().join(format!("galerith-recursive-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let body = String::from_utf8(
+            crate::http_diagnostics::scope_response_pages(
+                directory.clone(),
+                crate::http_diagnostics::ResponsePageMode::Body,
+                read_remote_response(page, Some(&info)),
+            )
             .await
-            .unwrap();
-        let body = String::from_utf8(read_remote_response(page).await.unwrap()).unwrap();
+            .unwrap(),
+        )
+        .unwrap();
         assert_eq!(decode_links(&body).unwrap().len(), 1);
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
         let redirect = client
             .get(format!("http://{addr}/redirect"))
             .send()
             .await
             .unwrap();
-        assert!(read_remote_response(redirect).await.is_err());
+        assert!(read_remote_response(redirect, None).await.is_err());
         let oversized = client
             .get(format!("http://{addr}/oversized"))
             .send()
             .await
             .unwrap();
-        assert!(read_remote_response(oversized).await.is_err());
+        assert!(read_remote_response(oversized, None).await.is_err());
         server.await.unwrap();
     }
 
