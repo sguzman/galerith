@@ -220,26 +220,19 @@ async fn public_json(
             .query_pairs_mut()
             .append_pair("include", "media,tags,account");
     }
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(endpoint)
         .header("Authorization", format!("Client-ID {PUBLIC_CLIENT_ID}"))
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON_BYTES as u64)
-    {
-        return Err("Imgur public JSON exceeds the response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON_BYTES.saturating_sub(bytes.len()) {
-            return Err("Imgur public JSON exceeds the response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let expected_origin = request.url().clone();
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        expected_origin,
+        MAX_JSON_BYTES,
+        "Imgur public JSON exceeds the response limit",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
@@ -493,10 +486,27 @@ mod tests {
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let root = Url::parse(&format!("http://{address}/")).unwrap();
-        let result = records_at_base(&Client::new(), &Target::Image("abcde".into()), &root)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imgur-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            records_at_base(&Client::new(), &Target::Image("abcde".into()), &root),
+        )
+        .await
+        .unwrap();
         assert_eq!(result[0].0.filename, "imgur_abcde.jpg");
         server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let diagnostic = tokio::fs::read_to_string(page.path()).await.unwrap();
+        assert!(diagnostic.contains("authorization: ***"));
+        assert!(diagnostic.contains("GET http://"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
