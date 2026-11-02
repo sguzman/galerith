@@ -56,25 +56,7 @@ pub fn match_url(raw: &str) -> Option<Channel> {
 }
 
 async fn request_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
-    if response.url().origin() != url.origin() {
-        return Err("Are.na API left its source origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Are.na public response exceeds JSON cap".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("Are.na public response exceeds JSON cap".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    super::http_json::fetch_json_uncached_from_origin(client, url, MAX_JSON).await
 }
 
 fn source_media(raw: &str) -> Option<(String, String)> {
@@ -359,19 +341,51 @@ mod tests {
                 assert!(String::from_utf8_lossy(&req[..n])
                     .starts_with(&format!("GET {route} HTTP/1.1")));
                 let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Arena-Fixture: public\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let api = Url::parse(&format!("http://{addr}/v2/")).unwrap();
-        let result = records_at(&Client::new(), &api, &Channel("collection".into()), 4)
-            .await
-            .unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-arena-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                records_at(&Client::new(), &api, &Channel("collection".into()), 4)
+                    .await
+                    .unwrap()
+            },
+        )
+        .await;
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.filename, "001_13.jpg");
         assert_eq!(result[0].1["user"]["full_name"], "Alice");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages.iter().all(|page| page.contains("GET http://")));
+        assert!(pages.iter().all(|page| page.contains("Status: 200 OK")));
+        assert!(pages.iter().all(|page| page.contains("content-length: ")));
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-arena-fixture: public")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages.iter().all(|page| !page.contains("?page=")));
+        assert!(pages.iter().any(|page| page.contains("Archive")));
+        assert!(pages.iter().any(|page| page.contains("images.are.na/13")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }

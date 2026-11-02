@@ -37,6 +37,30 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     endpoint: Url,
     max_bytes: usize,
 ) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
+    fetch_json_uncached_with_final_url_inner(client, endpoint, max_bytes, None).await
+}
+
+pub(crate) async fn fetch_json_uncached_from_origin(
+    client: &Client,
+    endpoint: Url,
+    max_bytes: usize,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    let (value, _) = fetch_json_uncached_with_final_url_inner(
+        client,
+        endpoint.clone(),
+        max_bytes,
+        Some(endpoint),
+    )
+    .await?;
+    Ok(value)
+}
+
+async fn fetch_json_uncached_with_final_url_inner(
+    client: &Client,
+    endpoint: Url,
+    max_bytes: usize,
+    required_origin: Option<Url>,
+) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
@@ -48,6 +72,12 @@ pub(crate) async fn fetch_json_uncached_with_final_url(
     request_headers.extend(request.headers().clone());
     let mut response = client.execute(request).await?;
     let final_url = response.url().clone();
+    if required_origin
+        .as_ref()
+        .is_some_and(|expected| final_url.origin() != expected.origin())
+    {
+        return Err("extractor API response left its source origin".into());
+    }
     let response_info = crate::http_diagnostics::ResponsePageInfo {
         method: request_method,
         request_url,
@@ -175,6 +205,43 @@ mod tests {
         assert_ne!(start, final_url);
         assert_eq!(final_url.path(), "/final");
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn origin_guard_rejects_redirect_before_saving_private_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for reply in [
+                format!(
+                    "HTTP/1.1 302 Found\r\nLocation: http://localhost:{}/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    address.port()
+                ),
+                "HTTP/1.1 200 OK\r\nContent-Length: 21\r\nConnection: close\r\n\r\nprivate redirect body"
+                    .to_owned(),
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0; 1024];
+                assert!(socket.read(&mut request).await.unwrap() > 0);
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        let directory =
+            std::env::temp_dir().join(format!("galerith-http-json-origin-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let endpoint = Url::parse(&format!("http://{address}/start")).unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { fetch_json_uncached_from_origin(&Client::new(), endpoint, 1024).await },
+        )
+        .await;
+        assert!(result.is_err());
+        server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        assert!(entries.next_entry().await.unwrap().is_none());
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
