@@ -224,11 +224,40 @@ async fn at_base(
     base: &Url,
 ) -> Result<Records, Box<dyn Error + Send + Sync>> {
     let url = base.join(&format!("{}/res/{}.htm", target.board, target.id))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
-    if response.url().origin() != url.origin() {
+    crate::pacing::wait_for_request_to(url.as_str()).await;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != url.origin() {
         return Err("2chan thread redirect left first-party source origin".into());
     }
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(content) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &content, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let content = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &content, &info).await;
+    parse(std::str::from_utf8(&content)?, target, base)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -242,7 +271,14 @@ async fn at_base(
         }
         content.extend_from_slice(&chunk);
     }
-    parse(std::str::from_utf8(&content)?, target, base)
+    Ok(content)
+}
+
+async fn dump_page(url: &Url, content: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, content, Some(info)).await
+    {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 pub async fn resolve(
@@ -347,8 +383,20 @@ mod tests {
         });
         let target = match_url("https://dec.2chan.net/12/res/12345.htm").unwrap();
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (_, files) = at_base(&Client::new(), &target, &base).await.unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-twochan-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (_, files) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            at_base(&Client::new(), &target, &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(files.len(), 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
