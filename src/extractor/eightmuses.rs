@@ -214,10 +214,39 @@ fn decode_album(
 
 async fn html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
     if response.url().origin() != url.origin() {
         return Err("8muses public source redirected outside origin".into());
     }
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -231,7 +260,13 @@ async fn html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send 
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn records_at_base(
@@ -430,13 +465,38 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let album = match_url("https://comics.8muses.com/comics/album/Artist/Album").unwrap();
-        let (records, queued) = records_at_base(&Client::new(), &base, &album, 4)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-eightmuses-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (records, queued) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            records_at_base(&Client::new(), &base, &album, 4),
+        )
+        .await
+        .unwrap();
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].0.filename, "001.jpg");
         assert_eq!(records[1].0.filename, "002.jpg");
         assert_eq!(queued.len(), 1);
+        let pages = std::fs::read_dir(&directory)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(pages.len(), 2);
+        let contents = pages
+            .iter()
+            .map(|entry| std::fs::read_to_string(entry.path()).unwrap())
+            .collect::<Vec<_>>();
+        for path in ["/comics/album/Artist/Album", "/comics/album/Artist/Album/2"] {
+            assert!(contents.iter().any(|page| {
+                page.starts_with(&format!("GET http://{addr}{path}\n"))
+                    && page.contains("Request Headers")
+                    && page.contains("Response Headers")
+            }));
+        }
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
