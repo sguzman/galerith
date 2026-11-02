@@ -70,6 +70,32 @@ fn list_keywords_rejects_other_output_modes() {
 }
 
 #[test]
+fn list_keywords_includes_metadata_from_local_child_queues() {
+    let list_path = std::env::temp_dir().join(format!(
+        "galerith-keywords-queue-{}.txt",
+        std::process::id()
+    ));
+    fs::write(
+        &list_path,
+        "https://example.org/first.jpg\nhttps://cdn.example.org/second.webp\n",
+    )
+    .unwrap();
+    let source = url::Url::from_file_path(&list_path).unwrap();
+    let response = run(&["-K", &format!("recursive:{source}")]);
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    let output = String::from_utf8(response.stdout).unwrap();
+    assert!(output.contains("Child metadata:"));
+    assert!(output.contains("  ordinal\n"));
+    assert!(output.contains("File metadata:"));
+    assert!(output.contains("  extension\n"));
+    let _ = fs::remove_file(&list_path);
+}
+
+#[test]
 fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
     let input = "https://cdn.example.org/archive/cover%20art.jpe?size=original#image";
     let response = run(&["--dump-messages", input]);
