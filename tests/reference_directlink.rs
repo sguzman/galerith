@@ -1195,6 +1195,133 @@ fn pinned_and_native_clients_match_proxy_auth_and_user_agent() {
 }
 
 #[test]
+fn pinned_and_native_clients_match_authenticated_https_proxy_connect() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let reference_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let reference_root = Path::new(&reference_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!(
+        "galerith-https-proxy-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let run = |label: &str, reference: bool| {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let proxy = format!("http://user:secret@{address}");
+        let proxy_option = format!(
+            "extractor.directlink.proxy={}",
+            serde_json::to_string(&proxy).unwrap()
+        );
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let count = socket.read(&mut buffer).unwrap();
+                assert_ne!(count, 0, "client closed before sending CONNECT headers");
+                request.extend_from_slice(&buffer[..count]);
+                assert!(request.len() < 16 * 1024, "CONNECT headers too large");
+            }
+            socket
+                .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                .unwrap();
+            String::from_utf8_lossy(&request).into_owned()
+        });
+
+        let output = root.join(format!("{label}-output"));
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if reference {
+            let mut command = Command::new("python3");
+            command.args([
+                "-m",
+                "gallery_dl",
+                "--config-ignore",
+                "--no-input",
+                "--quiet",
+                "-o",
+                &proxy_option,
+                "-R",
+                "0",
+                "-d",
+                output.to_str().unwrap(),
+                "https://example.invalid/asset.jpg",
+            ]);
+            command.env("PYTHONPATH", reference_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+            command.args([
+                "--quiet",
+                "-o",
+                &proxy_option,
+                "--retries",
+                "0",
+                "-d",
+                output.to_str().unwrap(),
+                "https://example.invalid/asset.jpg",
+            ]);
+            command
+        };
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command.output().expect("launch HTTPS proxy fixture client");
+        assert!(
+            !result.status.success(),
+            "fixture should close after CONNECT"
+        );
+        assert!(
+            !String::from_utf8_lossy(&result.stderr).contains("secret"),
+            "{label}: proxy credential leaked into diagnostics"
+        );
+        let request = server.join().unwrap();
+        std::fs::remove_dir_all(output).unwrap();
+        request
+    };
+
+    let pinned = run("pinned", true);
+    let native = run("native", false);
+    for (label, request) in [("pinned", pinned.as_str()), ("native", native.as_str())] {
+        assert!(
+            request.starts_with("CONNECT example.invalid:443 HTTP/1.1\r\n"),
+            "{label}: expected an HTTPS CONNECT tunnel, got {request}"
+        );
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .lines()
+                .any(|header| header == "proxy-authorization: basic dxnlcjpzzwnyzxq="),
+            "{label}: proxy credentials missing from CONNECT: {request}"
+        );
+        assert!(
+            !request.to_ascii_lowercase().contains("\r\nauthorization:"),
+            "{label}: proxy credentials leaked into origin Authorization: {request}"
+        );
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_match_extractor_source_address_binding() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
