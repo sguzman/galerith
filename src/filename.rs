@@ -585,6 +585,10 @@ mod tests {
         let mut item = sample();
         item.filename = "猫original.webp".into();
         assert_eq!(render("{filename[0]}", &item).unwrap(), "猫");
+        item.filename = "猫é.webp".into();
+        assert_eq!(render("{filename:_^6}", &item).unwrap(), "__猫é__");
+        assert_eq!(render("{filename:.1}", &item).unwrap(), "猫");
+        item.filename = "猫original.webp".into();
         assert_eq!(render("{filename[-4:]}", &item).unwrap(), "inal");
         assert_eq!(render("{filename[1:4]!u}", &item).unwrap(), "ORI");
         assert_eq!(render("{filename[1:4:2]}", &item).unwrap(), "oi");
