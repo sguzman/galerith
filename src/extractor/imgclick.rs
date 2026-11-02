@@ -178,9 +178,9 @@ async fn resolve_at_base(
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     // Pinned imagehosts.py uses the shared "complex" continue form for Imgclick.
     // Build its fields from the validated token, never from the input URL's query.
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .post(base.join(&target.token)?)
+    let endpoint = base.join(&target.token)?;
+    let request = client
+        .post(endpoint.clone())
         .form(&[
             ("op", "view"),
             ("id", target.token.as_str()),
@@ -188,22 +188,15 @@ async fn resolve_at_base(
             ("adb", "1"),
             ("next", "Continue+to+image+...+"),
         ])
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
-    {
-        return Err("Imgclick public HTML exceeds byte limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(bytes.len()) {
-            return Err("Imgclick public HTML exceeds byte limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML_BYTES,
+        "Imgclick public HTML exceeds byte limit",
+    )
+    .await?;
     parse_page(std::str::from_utf8(&bytes)?, target)
 }
 
@@ -339,10 +332,27 @@ mod tests {
         });
         let target = match_url("https://imgclick.net/4tbrre1oxew9").unwrap();
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = resolve_at_base(&Client::new(), &target, &base)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imgclick-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (file, _) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_at_base(&Client::new(), &target, &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(file.filename, "Public.png");
         server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let diagnostic = tokio::fs::read_to_string(page.path()).await.unwrap();
+        assert!(diagnostic.contains("POST http://"));
+        assert!(diagnostic.contains("content-type: application/x-www-form-urlencoded"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
