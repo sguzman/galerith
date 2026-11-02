@@ -480,7 +480,7 @@ mod tests {
     async fn expiry_corruption_and_failed_refresh_do_not_poison_cache() {
         let path = path("expiry");
         let _ = fs::remove_file(&path);
-        let cache = Cache::open(&path, 1).unwrap();
+        let cache = Cache::open(&path, 30).unwrap();
         let endpoint = Url::parse("https://e621.net/pools/42.json").unwrap();
         let calls = AtomicUsize::new(0);
         let first = cache
@@ -517,7 +517,13 @@ mod tests {
                 .unwrap()["post_ids"][0],
             2
         );
-        tokio::time::sleep(Duration::from_millis(1200)).await;
+        connection(&path)
+            .unwrap()
+            .execute(
+                "UPDATE public_collection_cache SET expires_at = 1 WHERE key_sha256 = ?1",
+                params![digest(endpoint.as_str())],
+            )
+            .unwrap();
         assert!(cache
             .fetch(&endpoint, 1024, || async {
                 Err::<Value, Box<dyn Error + Send + Sync>>("remote failed".into())

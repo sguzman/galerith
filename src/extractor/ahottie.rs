@@ -103,10 +103,39 @@ fn optional_page(url: &Url) -> Option<u16> {
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
-    if response.url().origin() != url.origin() {
+    let request = client.get(url).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != request_url.origin() {
         return Err("Ahottie page redirected outside origin".into());
     }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -120,7 +149,13 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 fn between<'a>(s: &'a str, left: &str, right: &str) -> Option<&'a str> {
@@ -580,35 +615,60 @@ mod tests {
                 assert!(String::from_utf8_lossy(&data[..size])
                     .starts_with(&format!("GET {route} HTTP/1.1")));
                 let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Ahottie-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        assert_eq!(
-            gallery_at(&Client::new(), &base, "One", 4)
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-ahottie-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let counts = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let album = gallery_at(&Client::new(), &base, "One", 4)
+                    .await
+                    .unwrap()
+                    .len();
+                let tag = listing_at(
+                    &Client::new(),
+                    &base,
+                    Target::Tag {
+                        tag: "landscape".into(),
+                        start: 1,
+                    },
+                    4,
+                )
                 .await
                 .unwrap()
-                .len(),
-            1
-        );
-        assert_eq!(
-            listing_at(
-                &Client::new(),
-                &base,
-                Target::Tag {
-                    tag: "landscape".into(),
-                    start: 1
-                },
-                4
-            )
-            .await
-            .unwrap()
-            .len(),
-            1
-        );
+                .len();
+                (album, tag)
+            },
+        )
+        .await;
+        assert_eq!(counts, (1, 1));
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-ahottie-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains("?page=")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
