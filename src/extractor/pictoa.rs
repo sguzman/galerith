@@ -273,11 +273,40 @@ async fn source_html(
     endpoint: Url,
     root: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    if response.url().origin() != root.origin() {
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
+    let request = client.get(endpoint.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != root.origin() {
         return Err("Pictoa page redirected outside canonical first-party origin".into());
     }
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -291,7 +320,13 @@ async fn source_html(
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn image_at(
@@ -510,12 +545,24 @@ mod tests {
             }
         });
         let root = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = album_at(&Client::new(), &root, "12345", 4).await.unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-pictoa-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            album_at(&Client::new(), &root, "12345", 4),
+        )
+        .await
+        .unwrap();
         assert_eq!(events.len(), 2);
         assert_eq!(
             serde_json::to_value(&events[1]).unwrap()["url"],
             "https://pictoa.com/albums/12345/222.html"
         );
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
