@@ -213,25 +213,16 @@ async fn resolve_at_base(
     target: &Target,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(base.join(&target.request_path)?)
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
-    {
-        return Err("ImageVenue HTML exceeds preview byte limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(bytes.len()) {
-            return Err("ImageVenue HTML exceeds preview byte limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let endpoint = base.join(&target.request_path)?;
+    let request = client.get(endpoint.clone()).build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML_BYTES,
+        "ImageVenue HTML exceeds preview byte limit",
+    )
+    .await?;
     parse_page(std::str::from_utf8(&bytes)?, target)
 }
 
