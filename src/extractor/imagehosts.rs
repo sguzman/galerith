@@ -146,15 +146,44 @@ async fn read_public_html(
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let expected_origin = endpoint.origin();
     crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(endpoint)
         .header(reqwest::header::COOKIE, "pixhostads=1; pixhosttest=1")
-        .send()
-        .await?
-        .error_for_status()?;
+        .build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
     if response.url().origin() != expected_origin {
         return Err("Pixhost public page redirected outside its origin".into());
     }
+    let status = response.status();
+    let response_headers = response.headers().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|size| size > MAX_HTML_BYTES as u64)
@@ -168,7 +197,13 @@ async fn read_public_html(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn file_at_base(
@@ -403,17 +438,37 @@ mod tests {
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (file, _) = file_at_base(
-            &Client::new(),
+        let directory =
+            std::env::temp_dir().join(format!("galerith-pixhost-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let client = Client::new();
+        let file_future = file_at_base(
+            &client,
             "show/190/130327671_test-.png",
             "130327671",
             "190",
             &base,
+        );
+        let (file, _) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            file_future,
         )
         .await
         .unwrap();
         assert_eq!(file.filename, "original.png");
         server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let page = std::fs::read_to_string(page.path()).unwrap();
+        assert!(page.starts_with(&format!("GET http://{addr}/show/190/130327671_test-.png\n")));
+        assert!(page.contains("cookie: ***"));
+        assert!(!page.contains("pixhostads=1"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
