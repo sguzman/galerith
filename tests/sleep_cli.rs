@@ -285,6 +285,45 @@ fn sleep_skip_flag_waits_after_existing_file_is_skipped() {
 }
 
 #[test]
+fn sleep_skip_flag_waits_after_a_size_filtered_download() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0_u8; 1024];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nDATA")
+            .unwrap();
+    });
+    let dir = destination("sleep-skip-size-filter");
+    let _ = fs::remove_dir_all(&dir);
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-skip",
+            "0.08",
+            "--filesize-min",
+            "5",
+            "-d",
+            dir.to_str().unwrap(),
+        ])
+        .arg(format!("http://{address}/image.jpg"))
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(70), "{elapsed:?}");
+    assert!(!dir.join("image.jpg").exists());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn sleep_skip_flag_overrides_longer_configured_delay() {
     let dir = destination("sleep-skip-cli-precedence");
     let _ = fs::remove_dir_all(&dir);
