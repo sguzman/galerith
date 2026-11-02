@@ -510,10 +510,41 @@ async fn html(
     origin: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let status = response.status();
+    let response_headers = response.headers().clone();
     if response.url().origin() != origin.origin() {
         return Err("Hatena Blog public page redirected outside its source origin".into());
     }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -527,7 +558,13 @@ async fn html(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn at_base(
@@ -796,6 +833,45 @@ mod tests {
         let events = at_base(&Client::new(), &base, &target, 4).await.unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn response_page_scope_dumps_hatenablog_html() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let body = b"<article><div class=entry-content></div></article>";
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                String::from_utf8_lossy(body)
+            );
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let base = Url::parse(&format!("http://{addr}/")).unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-hatenablog-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            html(&Client::new(), base.clone(), &base),
+        )
+        .await
+        .unwrap();
+        assert_eq!(events, String::from_utf8_lossy(body));
+        server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        assert_eq!(tokio::fs::read(page.path()).await.unwrap(), body);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
