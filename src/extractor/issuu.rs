@@ -210,28 +210,15 @@ async fn at_base(
     publication: &Publication,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/docs/{}", publication.user, publication.slug))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Issuu public page redirected outside its origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("Issuu source HTML exceeds supported size limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(body.len()) {
-            return Err("Issuu source HTML exceeds supported size limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "Issuu source HTML exceeds supported size limit",
+    )
+    .await?;
     records(std::str::from_utf8(&body)?, publication)
 }
 
