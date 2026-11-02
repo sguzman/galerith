@@ -28,6 +28,12 @@ enum CollectionFeed {
     Likes,
 }
 
+const MAX_API_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
+async fn api_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    super::http_json::fetch_json_uncached(client, endpoint, MAX_API_RESPONSE_BYTES).await
+}
+
 fn valid_segment(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 256
@@ -268,14 +274,7 @@ async fn resolve_search(
                 params.append_pair("cursor", cursor);
             }
         }
-        crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-        let body: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let body = api_json(client, endpoint).await?;
         let posts = body
             .get("posts")
             .and_then(Value::as_array)
@@ -336,14 +335,7 @@ async fn resolve_collection_feed(
                 params.append_pair("cursor", cursor);
             }
         }
-        crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-        let body: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let body = api_json(client, endpoint).await?;
         let feed = body
             .get("feed")
             .and_then(Value::as_array)
@@ -378,14 +370,7 @@ async fn resolve_actor(
     }
     let mut endpoint = base.join("xrpc/com.atproto.identity.resolveHandle")?;
     endpoint.query_pairs_mut().append_pair("handle", actor);
-    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-    let response: Value = client
-        .get(endpoint)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let response = api_json(client, endpoint).await?;
     let did = response
         .get("did")
         .and_then(Value::as_str)
@@ -456,14 +441,7 @@ async fn resolve_at_base(
             };
             let mut endpoint = base.join("xrpc/app.bsky.actor.getProfile")?;
             endpoint.query_pairs_mut().append_pair("actor", &did);
-            crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-            let profile: Value = client
-                .get(endpoint)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            let profile = api_json(client, endpoint).await?;
             Ok(profile_image(&profile, &did, kind).into_iter().collect())
         }
         Target::Post { rkey, .. } => {
@@ -473,14 +451,7 @@ async fn resolve_at_base(
                 .append_pair("uri", &format!("at://{did}/app.bsky.feed.post/{rkey}"))
                 .append_pair("depth", "0")
                 .append_pair("parentHeight", "0");
-            crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-            let body: Value = client
-                .get(endpoint)
-                .send()
-                .await?
-                .error_for_status()?
-                .json()
-                .await?;
+            let body = api_json(client, endpoint).await?;
             let post = body
                 .get("thread")
                 .and_then(|thread| thread.get("post"))
@@ -520,14 +491,7 @@ async fn resolve_at_base(
                         query.append_pair("cursor", cursor);
                     }
                 }
-                crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-                let body: Value = client
-                    .get(endpoint)
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .json()
-                    .await?;
+                let body = api_json(client, endpoint).await?;
                 let feed = body
                     .get("feed")
                     .and_then(Value::as_array)
