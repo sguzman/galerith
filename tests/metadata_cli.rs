@@ -26,9 +26,9 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
     let dir = dir();
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/image.jpg?sig=top-secret");
-    let args = ["--write-info-json", "-d", dir.to_str().unwrap(), &url];
+    let args = ["--write-metadata", "-d", dir.to_str().unwrap(), &url];
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--write-metadata", "-d", dir.to_str().unwrap(), &url])
+        .args(args)
         .output()
         .unwrap();
     server.join().unwrap();
@@ -68,7 +68,7 @@ fn dry_run_with_metadata_flag_never_creates_sidecar() {
     let _ = fs::remove_dir_all(&dir);
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([
-            "--write-info-json",
+            "--write-metadata",
             "--simulate",
             "-d",
             dir.to_str().unwrap(),
