@@ -747,12 +747,6 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 serde_json::to_string(template)?
             ))?;
         }
-        if let Some(delay) = cli.sleep_request.as_deref() {
-            config.option(&format!(
-                "extractor.directlink.sleep-request={}",
-                serde_json::to_string(delay)?
-            ))?;
-        }
         for input in &urls {
             if extractor_name(&input.url) != Some("directlink") {
                 return Err(
@@ -1480,12 +1474,6 @@ fn print_directlink_extractor_info(
         config,
     )?;
     print_info_setting("Archive format", "archive-format", filename, config)?;
-    print_info_setting(
-        "Request interval",
-        "sleep-request",
-        serde_json::json!(0.0),
-        config,
-    )?;
     Ok(())
 }
 

@@ -53,7 +53,7 @@ fn extractor_info_reports_directlink_defaults_without_network() {
     assert!(text.contains("Filename format (default):"));
     assert!(text.contains("Directory format (default):"));
     assert!(text.contains("Archive format (default):"));
-    assert!(text.contains("Request interval (default):\n  0.0"));
+    assert!(!text.contains("Request interval"));
 }
 
 #[test]
