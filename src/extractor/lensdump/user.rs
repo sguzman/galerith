@@ -141,11 +141,40 @@ fn next_page(html: &str, base: &Url, user: &User, current: u16) -> Option<Url> {
 }
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut resp = client.get(url.clone()).send().await?.error_for_status()?;
-    if resp.url().origin() != url.origin() {
+    crate::pacing::wait_for_request_to(url.as_str()).await;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut resp = client.execute(request).await?;
+    let final_url = resp.url().clone();
+    if final_url.origin() != url.origin() {
         return Err("Lensdump user page redirected outside first-party origin".into());
     }
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: resp.status(),
+        response_headers: resp.headers().clone(),
+    };
+    if let Err(status_error) = resp.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut resp).await {
+                dump_page(&final_url, &body, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut resp).await?;
+    dump_page(&final_url, &body, &info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    resp: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if resp
         .content_length()
         .is_some_and(|n| n > MAX_HTML_BYTES as u64)
@@ -159,7 +188,13 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn at_base(
@@ -295,12 +330,24 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
         let user = match_url("https://lensdump.com/author").unwrap();
-        let children = at_base(&Client::new(), &base, &user, 4).await.unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-lensdump-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let children = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            at_base(&Client::new(), &base, &user, 4),
+        )
+        .await
+        .unwrap();
         assert_eq!(children.len(), 2);
         assert_eq!(
             serde_json::to_value(&children[1]).unwrap()["url"],
             "https://lensdump.com/a/Album2"
         );
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }

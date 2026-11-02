@@ -53,7 +53,7 @@ Gelbooru v0.2 XML/DAPI responses are bounded to 4 MiB and can be saved with reda
 
 Kabeuchi profile pages and paginated form posts are captured with bounded bodies, redacted cookies, and their request methods and headers. Wallhaven's JSON API responses retain the API Accept header and require redirects to remain on the API origin. Lightroom share HTML and paginated JSON responses are captured after same-origin redirect validation. 4chan board indexes and thread JSON responses use the same bounded diagnostics path with the API origin enforced. Pictoa album pages and image pages capture bodies only after the canonical origin redirect guard succeeds. Imxto image POSTs and paginated gallery pages retain their request methods and headers; cross-origin redirect bodies are not dumped. Unsplash photo, search, user, and collection API responses use the bounded same-origin JSON diagnostics reader. S3ndpics post and paginated user API responses preserve the source-origin redirect guard and diagnostics. Turboimagehost image and album pages capture bounded HTML when the redirect remains on the request origin. Urlgalleries source and image pages use bounded, same-origin HTML diagnostics. Lexica's cursor-based POST search retains its JSON request, Accept, and redacted Referer headers in bounded response diagnostics.
 
-2chan thread pages capture bounded HTML after their first-party origin guard.
+2chan thread pages capture bounded HTML after their first-party origin guard. Lensdump user listing pages capture bounded HTML after the same origin validation.
 
 Shortener HEAD redirect metadata and t.co refresh pages can also be captured; redirect targets remain redacted in diagnostic headers.
 
