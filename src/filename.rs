@@ -147,41 +147,51 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             }
             None => (*candidate, None),
         };
-        let field_value = match base_name {
-            "filename" | "name" | "stem" => Some(
-                item.filename
-                    .rsplit_once('.')
-                    .map(|(stem, _)| stem)
-                    .unwrap_or(&item.filename)
-                    .to_owned(),
-            ),
-            "extension" => Some(
-                item.filename
-                    .rsplit_once('.')
-                    .map(|(_, ext)| ext)
-                    .unwrap_or("")
-                    .to_owned(),
-            ),
-            "category" | "extractor" => Some(item.extractor.to_owned()),
-            "id" | "post_id" => match item.post_id {
-                Some(id) => Some(id.to_string()),
-                None => {
-                    missing_field.get_or_insert(base_name);
-                    None
-                }
-            },
-            _ => {
-                return Err(FormatError(format!(
-                    "unsupported filename field '{base_name}'"
-                )))
-            }
+        let (field_value, is_literal) = if base_name == "_lit" {
+            let literal = selector.ok_or_else(|| {
+                FormatError("literal filename field requires a bracketed value".into())
+            })?;
+            (Some(literal.to_owned()), true)
+        } else {
+            (
+                match base_name {
+                    "filename" | "name" | "stem" => Some(
+                        item.filename
+                            .rsplit_once('.')
+                            .map(|(stem, _)| stem)
+                            .unwrap_or(&item.filename)
+                            .to_owned(),
+                    ),
+                    "extension" => Some(
+                        item.filename
+                            .rsplit_once('.')
+                            .map(|(_, ext)| ext)
+                            .unwrap_or("")
+                            .to_owned(),
+                    ),
+                    "category" | "extractor" => Some(item.extractor.to_owned()),
+                    "id" | "post_id" => match item.post_id {
+                        Some(id) => Some(id.to_string()),
+                        None => {
+                            missing_field.get_or_insert(base_name);
+                            None
+                        }
+                    },
+                    _ => {
+                        return Err(FormatError(format!(
+                            "unsupported filename field '{base_name}'"
+                        )))
+                    }
+                },
+                false,
+            )
         };
         let Some(field_value) = field_value else {
             continue;
         };
-        let field_value = match selector {
-            Some(selector) => slice_field(&field_value, selector)?,
-            None => field_value,
+        let field_value = match (is_literal, selector) {
+            (true, _) | (false, None) => field_value,
+            (false, Some(selector)) => slice_field(&field_value, selector)?,
         };
         if !field_value.is_empty() && value.is_none() {
             selected_base = Some(base_name);
@@ -504,6 +514,9 @@ mod tests {
         assert_eq!(render("{category:_<12}", &item).unwrap(), "danbooru____");
         assert_eq!(render("{filename:#^9}", &item).unwrap(), "original#");
         assert_eq!(render("{filename:#^10}", &item).unwrap(), "#original#");
+        assert_eq!(render("{_lit[proof]}", &item).unwrap(), "proof");
+        assert_eq!(render("pre{_lit[]}", &item).unwrap(), "pre");
+        assert!(render("{_lit}", &item).is_err());
         assert!(render("{filename:03}", &item).is_err());
         assert!(render("{filename:>241}", &item).is_err());
     }
