@@ -580,8 +580,15 @@ mod tests {
         )
         .await
         .expect("one host's Retry-After cooldown blocked an unrelated origin");
+        let refreshed_deadline = tokio::time::Instant::now() + Duration::from_millis(200);
+        schedule
+            .lock()
+            .await
+            .host_cooldown
+            .insert("https://throttled.example".to_owned(), refreshed_deadline);
         throttled.await.unwrap();
         assert!(started.elapsed() >= Duration::from_millis(190));
+        assert!(tokio::time::Instant::now() >= refreshed_deadline);
     }
 
     #[tokio::test]
