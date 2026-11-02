@@ -116,7 +116,7 @@ fn filename_template_updates_json_without_network() {
 fn filename_template_applies_slices_and_conversions_through_cli() {
     let output = run(&[
         "-f",
-        "{filename[-4:]!u}_{category!q}",
+        "{filename[-3:]!u}_{category!q}",
         "--dump-json",
         "https://example.org/image.webp",
     ]);
@@ -126,7 +126,7 @@ fn filename_template_applies_slices_and_conversions_through_cli() {
         String::from_utf8_lossy(&output.stderr)
     );
     let item: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(item["filename"], "WEBP_directlink");
+    assert_eq!(item["filename"], "AGE_directlink");
 }
 
 #[test]

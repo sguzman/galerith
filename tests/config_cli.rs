@@ -22,11 +22,11 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
     let toml = dir.join("third.toml");
     fs::write(
         &json,
-        r#"{"extractor":{"filename":"{category}_{filename}"}}"#,
+        r#"{"extractor":{"filename":"{category}_{filename}.{extension}"}}"#,
     )
     .unwrap();
-    fs::write(&yaml, "filename: yaml_{filename}\n").unwrap();
-    fs::write(&toml, "filename = \"toml_{filename}\"\n").unwrap();
+    fs::write(&yaml, "filename: yaml_{filename}.{extension}\n").unwrap();
+    fs::write(&toml, "filename = \"toml_{filename}.{extension}\"\n").unwrap();
     let args = [
         "-c",
         json.to_str().unwrap(),
@@ -35,7 +35,7 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
         "--config-toml",
         toml.to_str().unwrap(),
         "-o",
-        "filename=override_{filename}",
+        "filename=override_{filename}.{extension}",
         "--dump-json",
         "https://example.org/file.png",
     ];
@@ -52,7 +52,7 @@ fn explicit_json_yaml_toml_and_overrides_merge_in_order() {
         "--config-json",
         json.to_str().unwrap(),
         "--filename",
-        "explicit_{filename}",
+        "explicit_{filename}.{extension}",
         "--dump-json",
         "https://example.org/file.png",
     ]);

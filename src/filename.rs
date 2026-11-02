@@ -148,8 +148,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             None => (*candidate, None),
         };
         let field_value = match base_name {
-            "filename" => Some(item.filename.clone()),
-            "name" | "stem" => Some(
+            "filename" | "name" | "stem" => Some(
                 item.filename
                     .rsplit_once('.')
                     .map(|(stem, _)| stem)
@@ -463,7 +462,11 @@ mod tests {
             render("{stem}_{{proof}}.{extension}", &item).unwrap(),
             "original_{proof}.webp"
         );
-        assert_eq!(render("{filename}", &item).unwrap(), "original.webp");
+        assert_eq!(render("{filename}", &item).unwrap(), "original");
+        assert_eq!(
+            render("{filename}.{extension}", &item).unwrap(),
+            "original.webp"
+        );
         assert_eq!(
             render("第{id:03}集.{extension}", &item).unwrap(),
             "第042集.webp"
@@ -473,10 +476,7 @@ mod tests {
     #[test]
     fn conditionally_wraps_nonempty_values() {
         let item = sample();
-        assert_eq!(
-            render("{filename:?[/]/}", &item).unwrap(),
-            "[original.webp]"
-        );
+        assert_eq!(render("{filename:?[/]/}", &item).unwrap(), "[original]");
         assert_eq!(render("x{extension:?[/]/}", &item).unwrap(), "x[webp]");
         assert_eq!(render("x{extension!u:?[/]/}", &item).unwrap(), "x[WEBP]");
 
@@ -503,7 +503,7 @@ mod tests {
             render("{category!u}_{extension!l}", &item).unwrap(),
             "DANBOORU_webp"
         );
-        assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL.WEBP");
+        assert_eq!(render("{filename!u}", &item).unwrap(), "ORIGINAL");
         assert!(render("{category!x}", &item).is_err());
         assert!(render("{category!lower}", &item).is_err());
     }
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn string_conversion_preserves_string_fields() {
         let item = sample();
-        assert_eq!(render("{filename!s}", &item).unwrap(), "original.webp");
+        assert_eq!(render("{filename!s}", &item).unwrap(), "original");
         assert_eq!(render("{id!s}", &item).unwrap(), "42");
     }
 
@@ -520,13 +520,10 @@ mod tests {
         let mut item = sample();
         item.filename = "猫original.webp".into();
         assert_eq!(render("{filename[0]}", &item).unwrap(), "猫");
-        assert_eq!(render("{filename[-4:]}", &item).unwrap(), "webp");
+        assert_eq!(render("{filename[-4:]}", &item).unwrap(), "inal");
         assert_eq!(render("{filename[1:4]!u}", &item).unwrap(), "ORI");
         assert_eq!(render("{filename[1:4:2]}", &item).unwrap(), "oi");
-        assert_eq!(
-            render("{filename[::-1]}", &item).unwrap(),
-            "pbew.lanigiro猫"
-        );
+        assert_eq!(render("{filename[::-1]}", &item).unwrap(), "lanigiro猫");
         assert_eq!(render("{filename[4:1:-1]}", &item).unwrap(), "gir");
         assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
         assert!(render("{filename[99]}", &item).is_err());
@@ -594,7 +591,7 @@ mod tests {
     fn capitalization_uppercases_first_character_and_lowers_the_rest() {
         let mut item = sample();
         item.filename = "élÉPHant.webp".into();
-        assert_eq!(field("filename!c", &item).unwrap(), "Éléphant.webp");
+        assert_eq!(field("filename!c", &item).unwrap(), "Éléphant");
         item.filename.clear();
         assert_eq!(field("filename!c", &item).unwrap(), "");
     }
@@ -603,31 +600,28 @@ mod tests {
     fn title_conversion_capitalizes_each_alphanumeric_word() {
         let mut item = sample();
         item.filename = "aUTUMN, ÉLAN vITAL.webp".into();
-        assert_eq!(
-            field("filename!C", &item).unwrap(),
-            "Autumn, Élan Vital.Webp"
-        );
+        assert_eq!(field("filename!C", &item).unwrap(), "Autumn, Élan Vital");
     }
 
     #[test]
     fn length_conversion_counts_unicode_characters() {
         let mut item = sample();
         item.filename = "é猫.webp".into();
-        assert_eq!(field("filename!n", &item).unwrap(), "7");
+        assert_eq!(field("filename!n", &item).unwrap(), "2");
     }
 
     #[test]
     fn trim_conversion_removes_outer_unicode_whitespace() {
         let mut item = sample();
         item.filename = "\u{2003}original.webp\t".into();
-        assert_eq!(field("filename!t", &item).unwrap(), "original.webp");
+        assert_eq!(field("filename!t", &item).unwrap(), "original");
     }
 
     #[test]
     fn whitespace_conversion_collapses_runs_to_one_space() {
         let mut item = sample();
         item.filename = "  spring\t\n  rain.webp  ".into();
-        assert_eq!(field("filename!W", &item).unwrap(), "spring rain.webp");
+        assert_eq!(field("filename!W", &item).unwrap(), "spring rain");
     }
 
     #[test]
