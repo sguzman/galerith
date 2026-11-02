@@ -202,33 +202,22 @@ fn media_record(
 }
 
 async fn api_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(endpoint.clone())
         .header("Content-Type", "application/json")
         .header("Origin", "https://audiochan.com")
         .header("Sec-Fetch-Dest", "empty")
         .header("Sec-Fetch-Mode", "cors")
         .header("Sec-Fetch-Site", "same-site")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Audiochan API redirected outside first-party origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Audiochan JSON response exceeds 2 MiB".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("Audiochan JSON response exceeds 2 MiB".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_JSON,
+        "Audiochan JSON response exceeds 2 MiB",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
