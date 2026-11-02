@@ -132,7 +132,36 @@ fn next_gallery_page(html: &str, current: &Url, first: &Url) -> Option<Url> {
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|length| length > MAX_HTML_BYTES as u64)
@@ -146,7 +175,13 @@ async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Err
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_at_base(
@@ -319,27 +354,59 @@ mod tests {
                 let request = String::from_utf8_lossy(&buf[..n]);
                 assert!(request.starts_with(route), "{request}");
                 let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nX-ImageBam-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 connection.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let result = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::Gallery {
-                path: "gallery/album7".into(),
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-imagebam-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let result = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                resolve_at_base(
+                    &Client::new(),
+                    &base,
+                    Target::Gallery {
+                        path: "gallery/album7".into(),
+                    },
+                    2,
+                )
+                .await
+                .unwrap()
             },
-            2,
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].filename, "two.png");
         assert_eq!(result[1].filename, "one.jpg");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 4);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-imagebam-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains("?page=2")));
+        assert!(pages
+            .iter()
+            .any(|page| page.contains("images2.imagebam.com/img/two.png")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
