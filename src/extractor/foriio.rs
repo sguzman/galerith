@@ -74,25 +74,13 @@ async fn read_json(
             .header("Origin", "https://foriio.com")
             .header("Referer", "https://foriio.com/");
     }
-    crate::pacing::wait_for_request().await;
-    let mut response = request.send().await?.error_for_status()?;
-    if response.url().origin() != base.origin() {
-        return Err("Foriio API redirected off its exact origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Foriio API response exceeds byte limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(body.len()) {
-            return Err("Foriio API response exceeds byte limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&body)?)
+    super::http_json::fetch_json_request_uncached_from_origin(
+        client,
+        request.build()?,
+        base.clone(),
+        MAX_JSON,
+    )
+    .await
 }
 
 fn scalar_id(v: &Value) -> Option<String> {
@@ -447,14 +435,25 @@ mod tests {
                     String::from_utf8_lossy(&buf[..n]).starts_with(&format!("GET {path} HTTP/1.1"))
                 );
                 let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Foriio-Fixture: api\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/api/")).unwrap();
-        let children = at_user(&Client::new(), &base, "artist", 4).await.unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-foriio-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let children = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { at_user(&Client::new(), &base, "artist", 4).await.unwrap() },
+        )
+        .await;
         let urls = children
             .iter()
             .map(|value| {
@@ -469,6 +468,26 @@ mod tests {
             vec!["https://foriio.com/works/12", "https://foriio.com/works/34"]
         );
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-foriio-fixture: api")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("origin: https://foriio.com")));
+        assert!(pages.iter().all(|page| page.contains("referer: ***")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains("?page=")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]

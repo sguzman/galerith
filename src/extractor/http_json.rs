@@ -45,13 +45,19 @@ pub(crate) async fn fetch_json_uncached_from_origin(
     endpoint: Url,
     max_bytes: usize,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    let (value, _) = fetch_json_uncached_with_final_url_inner(
-        client,
-        endpoint.clone(),
-        max_bytes,
-        Some(endpoint),
-    )
-    .await?;
+    let request = client.get(endpoint.clone()).build()?;
+    fetch_json_request_uncached_from_origin(client, request, endpoint, max_bytes).await
+}
+
+pub(crate) async fn fetch_json_request_uncached_from_origin(
+    client: &Client,
+    request: reqwest::Request,
+    expected_origin: Url,
+    max_bytes: usize,
+) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    let (value, _) =
+        fetch_json_request_uncached_inner(client, request, max_bytes, Some(expected_origin))
+            .await?;
     Ok(value)
 }
 
@@ -61,11 +67,20 @@ async fn fetch_json_uncached_with_final_url_inner(
     max_bytes: usize,
     required_origin: Option<Url>,
 ) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
+    let request = client.get(endpoint).build()?;
+    fetch_json_request_uncached_inner(client, request, max_bytes, required_origin).await
+}
+
+async fn fetch_json_request_uncached_inner(
+    client: &Client,
+    request: reqwest::Request,
+    max_bytes: usize,
+    required_origin: Option<Url>,
+) -> Result<(Value, Url), Box<dyn Error + Send + Sync>> {
     if max_bytes == 0 {
         return Err("JSON response byte limit must be positive".into());
     }
-    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
-    let request = client.get(endpoint).build()?;
+    crate::pacing::wait_for_request_to(request.url().as_str()).await;
     let request_method = request.method().clone();
     let request_url = request.url().clone();
     let mut request_headers = crate::http_diagnostics::default_request_headers();
