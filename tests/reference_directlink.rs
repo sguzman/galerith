@@ -154,6 +154,7 @@ fn run_user_agent_fixture(
         serde_json::to_string(&serde_json::json!({"X-Preview": "header"})).unwrap()
     );
     let user_agent = "galerith-reference-probe/7";
+    let extractor_user_agent_option = "extractor.directlink.user-agent=extractor-reference-agent/9";
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args([
@@ -164,6 +165,8 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "-o",
+            extractor_user_agent_option,
             "-o",
             &headers_option,
             "-o",
@@ -187,6 +190,8 @@ fn run_user_agent_fixture(
             "--quiet",
             "-a",
             user_agent,
+            "-o",
+            extractor_user_agent_option,
             "-o",
             &headers_option,
             "-o",
@@ -306,6 +311,99 @@ fn run_extractor_source_address_fixture(
     let peer = server.join().unwrap();
     std::fs::remove_dir_all(output).unwrap();
     peer
+}
+
+fn run_extractor_user_agent_fixture(
+    output_root: &Path,
+    pinned_root: Option<&Path>,
+    label: &str,
+    reference: bool,
+) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = Vec::new();
+        let mut buffer = [0; 1024];
+        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+            let count = socket.read(&mut buffer).unwrap();
+            assert_ne!(count, 0, "client closed before sending HTTP headers");
+            request.extend_from_slice(&buffer[..count]);
+        }
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+            )
+            .unwrap();
+        String::from_utf8_lossy(&request).into_owned()
+    });
+    let output = output_root.join(format!("{label}-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    let url = format!("http://{address}/asset.jpg");
+    let user_agent_option = "extractor.directlink.user-agent=extractor-reference-agent/9";
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+            "-o",
+            user_agent_option,
+            "-R",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command.env(
+            "PYTHONPATH",
+            pinned_root.expect("pinned source root required"),
+        );
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args([
+            "--quiet",
+            "-o",
+            user_agent_option,
+            "--retries",
+            "0",
+            "-d",
+            output.to_str().unwrap(),
+            &url,
+        ]);
+        command
+    };
+    for key in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        command.env_remove(key);
+    }
+    let result = command.output().unwrap();
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let request = server.join().unwrap();
+    assert!(
+        contains_file_with_bytes(&output, b"JPEG"),
+        "{label}: client did not save the fixture body"
+    );
+    std::fs::remove_dir_all(output).unwrap();
+    request
 }
 
 fn run_429_retry_delay_fixture(
@@ -1119,6 +1217,37 @@ fn pinned_and_native_clients_match_extractor_source_address_binding() {
     assert_eq!(pinned.ip(), expected, "pinned client bound {pinned}");
     assert_eq!(native.ip(), expected, "native client bound {native}");
     assert_eq!(pinned.ip(), native.ip());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_extractor_user_agent_config() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let root = env::temp_dir().join(format!(
+        "galerith-user-agent-config-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let pinned = run_extractor_user_agent_fixture(&root, Some(pinned_root), "pinned", true);
+    let native = run_extractor_user_agent_fixture(&root, None, "native", false);
+    for (label, request) in [("pinned", pinned), ("native", native)] {
+        assert!(
+            request
+                .to_ascii_lowercase()
+                .lines()
+                .any(|header| { header == "user-agent: extractor-reference-agent/9" }),
+            "{label}: category User-Agent was not applied: {request}"
+        );
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 

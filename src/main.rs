@@ -664,6 +664,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .or(downloader_http_timeout);
 
     let cookies = cli.cookies.as_deref().map(load_netscape_file).transpose()?;
+    let cli_user_agent_set = cli.user_agent.is_some();
     let user_agent = cli.user_agent.unwrap_or_else(|| {
         format!(
             "Galerith/{} (+https://github.com/sguzman/galerith)",
@@ -811,6 +812,17 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let extractor_source_address = config
             .extractor_http_source_address(category)
             .map_err(std::io::Error::other)?;
+        let configured_user_agent = config
+            .extractor_http_user_agent(category)
+            .map_err(std::io::Error::other)?;
+        let effective_user_agent = if cli_user_agent_set {
+            user_agent.as_str()
+        } else {
+            configured_user_agent
+                .as_deref()
+                .filter(|user_agent| *user_agent != "auto")
+                .unwrap_or(&user_agent)
+        };
         let extractor_no_check_certificate = cli.no_check_certificate
             || extractor_http_verify.as_ref().is_some_and(|verify| {
                 matches!(verify, galerith::config::HttpTlsVerification::Disabled)
@@ -830,6 +842,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut extractor_client_options = client_options;
         extractor_client_options.no_check_certificate = extractor_no_check_certificate;
         extractor_client_options.root_certificates = extractor_root_certificates.as_deref();
+        extractor_client_options.user_agent = Some(effective_user_agent);
         if cli.source_address.is_none() && !cli.force_ipv4 && !cli.force_ipv6 {
             extractor_client_options.source_address = extractor_source_address;
         }
@@ -853,6 +866,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             && extractor_no_check_certificate == cli.no_check_certificate
             && extractor_root_certificates.is_none()
             && extractor_client_options.source_address == cli.source_address
+            && extractor_client_options.user_agent == client_options.user_agent
         {
             client.clone()
         } else {
@@ -893,6 +907,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 && media_proxy_settings == shared_proxy_settings
                 && extractor_header_map.is_none()
                 && extractor_client_options.source_address == cli.source_address
+                && extractor_client_options.user_agent == client_options.user_agent
             {
                 client.clone()
             } else {

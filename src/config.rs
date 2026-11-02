@@ -95,6 +95,24 @@ impl Config {
         Ok(Some(address))
     }
 
+    /// Optional extractor-wide or category-specific User-Agent string.
+    pub fn extractor_http_user_agent(
+        &self,
+        extractor: &str,
+    ) -> Result<Option<String>, &'static str> {
+        let Some(value) = self
+            .path(&["extractor", extractor, "user-agent"])
+            .or_else(|| self.path(&["extractor", "user-agent"]))
+        else {
+            return Ok(None);
+        };
+        value
+            .as_str()
+            .map(str::to_owned)
+            .map(Some)
+            .ok_or("extractor user-agent must be a string")
+    }
+
     /// Optional shared proxy map for extractor and media HTTP clients.
     pub fn http_proxy_settings(&self) -> Result<Option<HttpProxySettings>, &'static str> {
         self.root
@@ -549,6 +567,30 @@ mod tests {
         );
         config.option("extractor.source-address=not-an-ip").unwrap();
         assert!(config.extractor_http_source_address("pixiv").is_err());
+    }
+
+    #[test]
+    fn extractor_user_agent_follows_category_precedence() {
+        let mut config = Config::default();
+        config
+            .option("extractor.user-agent=shared-agent/1")
+            .unwrap();
+        config
+            .option("extractor.e621.user-agent=category-agent/2")
+            .unwrap();
+        assert_eq!(
+            config.extractor_http_user_agent("e621").unwrap().as_deref(),
+            Some("category-agent/2")
+        );
+        assert_eq!(
+            config
+                .extractor_http_user_agent("pixiv")
+                .unwrap()
+                .as_deref(),
+            Some("shared-agent/1")
+        );
+        config.option("extractor.user-agent=42").unwrap();
+        assert!(config.extractor_http_user_agent("pixiv").is_err());
     }
 
     #[test]
