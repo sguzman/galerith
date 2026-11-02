@@ -85,14 +85,43 @@ pub fn match_url(raw: &str) -> Option<Target> {
     }
 }
 
-async fn read_bounded(
-    response: reqwest::Response,
-    request: &Url,
+async fn fetch_bounded(
+    client: &Client,
+    request: reqwest::Request,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let mut response = response.error_for_status()?;
-    if response.url().origin() != request.origin() {
+    crate::pacing::wait_for_request().await;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != request_url.origin() {
         return Err("35photo request redirected outside origin".into());
     }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_body(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_body(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(body)
+}
+
+async fn read_bounded_body(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_BODY as u64)
@@ -107,6 +136,12 @@ async fn read_bounded(
         bytes.extend_from_slice(&chunk);
     }
     Ok(bytes)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 fn media_source(raw: &str) -> Option<(String, String)> {
@@ -403,14 +438,12 @@ async fn ajax_listing(
             }
             pairs.append_pair("lastId", &cursor);
         }
-        crate::pacing::wait_for_request().await;
-        let response = client
+        let request = client
             .get(url.clone())
             .header("Referer", "https://35photo.pro")
             .header("X-Requested-With", "XMLHttpRequest")
-            .send()
-            .await?;
-        let body = read_bounded(response, &url).await?;
+            .build()?;
+        let body = fetch_bounded(client, request).await?;
         let data: Value = serde_json::from_slice(&body)?;
         let markup = data
             .get("data")
@@ -450,8 +483,8 @@ async fn at_base(
             url.query_pairs_mut()
                 .append_pair("method", "photo.getData")
                 .append_pair("photoId", &id);
-            crate::pacing::wait_for_request().await;
-            let bytes = read_bounded(client.get(url.clone()).send().await?, &url).await?;
+            let request = client.get(url.clone()).build()?;
+            let bytes = fetch_bounded(client, request).await?;
             let source: Value = serde_json::from_slice(&bytes)?;
             Ok((photo_records(&source, &id)?, Vec::new()))
         }
@@ -464,8 +497,8 @@ async fn at_base(
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
                 let url = page_base.join(&format!("tags/{name}/list_{page}/"))?;
-                crate::pacing::wait_for_request().await;
-                let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
+                let request = client.get(url.clone()).build()?;
+                let body = fetch_bounded(client, request).await?;
                 let text = String::from_utf8(body)?;
                 let previous = output.len();
                 list_ids(&text, &mut seen, &mut output, &scope);
@@ -477,8 +510,8 @@ async fn at_base(
         }
         Target::User(name) => {
             let url = page_base.join(&format!("{name}/"))?;
-            crate::pacing::wait_for_request().await;
-            let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
+            let request = client.get(url.clone()).build()?;
+            let body = fetch_bounded(client, request).await?;
             let html = String::from_utf8(body)?;
             let (_, tail) = html
                 .split_once("/user_")
@@ -514,8 +547,8 @@ async fn at_base(
                 format!("genre_{id}/")
             };
             let url = page_base.join(&path)?;
-            crate::pacing::wait_for_request().await;
-            let body = read_bounded(client.get(url.clone()).send().await?, &url).await?;
+            let request = client.get(url.clone()).build()?;
+            let body = fetch_bounded(client, request).await?;
             let html = String::from_utf8(body)?;
             let markup = html
                 .split_once(" class=\"photo")
@@ -691,32 +724,73 @@ mod tests {
                     "request mismatch for {expected}"
                 );
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-35Photo-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 stream.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let (_, user) = at_base(
-            &Client::new(),
-            &base,
-            &base,
-            Target::User("alice".into()),
-            2,
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-35photo-ajax-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (user, genre) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let (_, user) = at_base(
+                    &Client::new(),
+                    &base,
+                    &base,
+                    Target::User("alice".into()),
+                    2,
+                )
+                .await
+                .unwrap();
+                let (_, genre) =
+                    at_base(&Client::new(), &base, &base, Target::Genre("12".into()), 2)
+                        .await
+                        .unwrap();
+                (user, genre)
+            },
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(user.len(), 3);
-        let (_, genre) = at_base(&Client::new(), &base, &base, Target::Genre("12".into()), 2)
-            .await
-            .unwrap();
         assert_eq!(genre.len(), 3);
         assert_eq!(
             serde_json::to_value(&genre[2]).unwrap()["url"],
             "https://35photo.pro/photo_20/"
         );
         backend.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        assert_eq!(pages.len(), 5);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-35photo-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert_eq!(
+            pages
+                .iter()
+                .filter(|page| page.contains("x-requested-with: XMLHttpRequest"))
+                .count(),
+            3
+        );
+        assert!(pages
+            .iter()
+            .filter(|page| page.contains("x-requested-with: XMLHttpRequest"))
+            .all(|page| page.contains("referer: ***")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains('?')));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
@@ -789,33 +863,65 @@ mod tests {
                 assert!(String::from_utf8_lossy(&request[..n])
                     .starts_with(&format!("GET {path} HTTP/1.1")));
                 let reply = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-35Photo-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(reply.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (records, _) = at_base(
-            &Client::new(),
-            &base,
-            &base,
-            Target::Image("12345".into()),
-            4,
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-35photo-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (records, queued) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let (records, _) = at_base(
+                    &Client::new(),
+                    &base,
+                    &base,
+                    Target::Image("12345".into()),
+                    4,
+                )
+                .await
+                .unwrap();
+                let (_, queued) = at_base(
+                    &Client::new(),
+                    &base,
+                    &base,
+                    Target::Tag("sunset".into()),
+                    4,
+                )
+                .await
+                .unwrap();
+                (records, queued)
+            },
         )
-        .await
-        .unwrap();
+        .await;
         assert_eq!(records.len(), 1);
-        let (_, queued) = at_base(
-            &Client::new(),
-            &base,
-            &base,
-            Target::Tag("sunset".into()),
-            4,
-        )
-        .await
-        .unwrap();
         assert_eq!(queued.len(), 2);
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 4);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-35photo-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| !page.lines().next().unwrap().contains('?')));
+        assert!(pages.iter().any(|page| page.contains("photo.jpg")));
+        assert!(pages.iter().any(|page| page.contains("photo_20")));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
