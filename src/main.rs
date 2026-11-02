@@ -226,6 +226,18 @@ struct Cli {
     #[arg(long = "sleep", value_name = "SECONDS|MIN-MAX")]
     sleep: Option<String>,
 
+    /// Seconds to wait after skipping a media download (SECONDS or inclusive MIN-MAX)
+    #[arg(long = "sleep-skip", value_name = "SECONDS|MIN-MAX")]
+    sleep_skip: Option<String>,
+
+    /// Seconds to wait before extracting each input URL (SECONDS or inclusive MIN-MAX)
+    #[arg(long = "sleep-extractor", value_name = "SECONDS|MIN-MAX")]
+    sleep_extractor: Option<String>,
+
+    /// Seconds to wait between extractor HTTP requests (SECONDS or inclusive MIN-MAX)
+    #[arg(long = "sleep-request", value_name = "SECONDS|MIN-MAX")]
+    sleep_request: Option<String>,
+
     /// Maximum HTTP retries (default 4)
     #[arg(short = 'R', long, value_name = "N")]
     retries: Option<u32>,
@@ -627,6 +639,24 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         .map(DelayRange::parse)
         .transpose()
         .map_err(|_| "invalid --sleep: expected 0 to 3600 seconds or MIN-MAX")?;
+    let cli_sleep_skip = cli
+        .sleep_skip
+        .as_deref()
+        .map(DelayRange::parse)
+        .transpose()
+        .map_err(|_| "invalid --sleep-skip: expected 0 to 3600 seconds or MIN-MAX")?;
+    let cli_sleep_extractor = cli
+        .sleep_extractor
+        .as_deref()
+        .map(DelayRange::parse)
+        .transpose()
+        .map_err(|_| "invalid --sleep-extractor: expected 0 to 3600 seconds or MIN-MAX")?;
+    let cli_sleep_request = cli
+        .sleep_request
+        .as_deref()
+        .map(DelayRange::parse)
+        .transpose()
+        .map_err(|_| "invalid --sleep-request: expected 0 to 3600 seconds or MIN-MAX")?;
     let retry_delay = cli
         .sleep_retries
         .as_deref()
@@ -919,13 +949,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     ..extractor_client_options
                 })?
             };
-        let api_request_delay = config
-            .duration(category, "sleep-request")
-            .map_err(std::io::Error::other)?;
-        if let Some(delay) = config
-            .duration(category, "sleep-extractor")
-            .map_err(std::io::Error::other)?
-        {
+        let api_request_delay = match cli_sleep_request {
+            Some(delay) => Some(delay),
+            None => config
+                .duration(category, "sleep-request")
+                .map_err(std::io::Error::other)?,
+        };
+        let extractor_delay = match cli_sleep_extractor {
+            Some(delay) => Some(delay),
+            None => config
+                .duration(category, "sleep-extractor")
+                .map_err(std::io::Error::other)?,
+        };
+        if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
         if cli.dump_messages {
@@ -1089,9 +1125,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     tokio::time::sleep(delay.sample()).await;
                 }
                 let mut media_options = options.clone();
-                media_options.request_delay = config
-                    .duration(item.extractor, "sleep-request")
-                    .map_err(std::io::Error::other)?;
+                media_options.request_delay = match cli_sleep_request {
+                    Some(delay) => Some(delay),
+                    None => config
+                        .duration(item.extractor, "sleep-request")
+                        .map_err(std::io::Error::other)?,
+                };
                 match download(&media_client, &item, &media_options).await {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
@@ -1118,10 +1157,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         if !cli.quiet {
                             println!("skipped {}", path.display());
                         }
-                        if let Some(delay) = config
-                            .duration(item.extractor, "sleep-skip")
-                            .map_err(std::io::Error::other)?
-                        {
+                        let skip_delay = match cli_sleep_skip {
+                            Some(delay) => Some(delay),
+                            None => config
+                                .duration(item.extractor, "sleep-skip")
+                                .map_err(std::io::Error::other)?,
+                        };
+                        if let Some(delay) = skip_delay {
                             tokio::time::sleep(delay.sample()).await;
                         }
                     }

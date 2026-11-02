@@ -108,6 +108,15 @@ fn configured_request_sleep_delays_each_media_transfer_attempt() {
 }
 
 #[test]
+fn sleep_request_flag_delays_media_transfer() {
+    assert!(
+        run_download_with_setting("--sleep-request", "0.08", "request-flag")
+            >= Duration::from_millis(70),
+        "--sleep-request did not delay the media transfer"
+    );
+}
+
+#[test]
 fn extractor_specific_request_sleep_delays_media_transfer() {
     assert!(
         run_download_with_setting(
@@ -193,6 +202,53 @@ fn configured_extractor_sleep_waits_before_handling_input_url() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(started.elapsed() >= Duration::from_millis(110));
+}
+
+#[test]
+fn sleep_extractor_flag_delays_input_handling() {
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-extractor",
+            "0.08",
+            "--simulate",
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(started.elapsed() >= Duration::from_millis(70));
+}
+
+#[test]
+fn sleep_skip_flag_waits_after_existing_file_is_skipped() {
+    let dir = destination("sleep-skip-flag");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("image.jpg"), b"keep existing").unwrap();
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-skip",
+            "0.08",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(started.elapsed() >= Duration::from_millis(70));
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"keep existing");
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]
