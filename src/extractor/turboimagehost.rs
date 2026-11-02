@@ -174,8 +174,41 @@ fn parse_page(
 }
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+    crate::pacing::wait_for_request_to(url.as_str()).await;
+    let request = client.get(url.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url: request_url.clone(),
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled()
+            && final_url.origin() == request_url.origin()
+        {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    if final_url.origin() == request_url.origin() {
+        dump_page(&final_url, &body, &info).await;
+    }
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML_BYTES as u64)
@@ -189,7 +222,13 @@ async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + 
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn at_base(
@@ -410,11 +449,23 @@ mod tests {
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let album = match_album_url("https://www.turboimagehost.com/album/344597/gallery").unwrap();
-        let events = album_at_base(&Client::new(), &album, &base, 4)
-            .await
-            .unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-turboimagehost-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            album_at_base(&Client::new(), &album, &base, 4),
+        )
+        .await
+        .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 3);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[test]
