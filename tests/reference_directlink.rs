@@ -1918,6 +1918,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category:Ri/I/?[/]/}",
             "[dIrectlInk]",
         ),
+        (
+            "replacement-truncate-chain",
+            "{category:Ri/I/X5/-/}",
+            "dIre-",
+        ),
         ("truncate-specifier", "{category:X5/-/}", "dire-"),
         ("overlength-replacement", "{category:L5/long/}", "long"),
     ];
