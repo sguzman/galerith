@@ -143,8 +143,13 @@ async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Err
     let initial_origin = endpoint.origin();
     let initial_host = endpoint.host_str().unwrap_or_default().to_owned();
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
-    let final_url = response.url();
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
     let local_fixture = initial_host
         .parse::<std::net::IpAddr>()
         .is_ok_and(|address| address.is_loopback());
@@ -158,6 +163,31 @@ async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Err
     if !trusted_destination {
         return Err("Imgbox page redirected outside its trusted origin".into());
     }
+    let status = response.status();
+    let response_headers = response.headers().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|len| len > MAX_HTML_BYTES as u64)
@@ -171,7 +201,13 @@ async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Err
         }
         body.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(body)?)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_at_base(
@@ -350,6 +386,49 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].filename, "test.png");
         server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn single_image_page_can_be_saved_as_a_diagnostic() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut connection, _) = listener.accept().await.unwrap();
+            let mut buf = [0_u8; 4096];
+            let n = connection.read(&mut buf).await.unwrap();
+            assert!(String::from_utf8_lossy(&buf[..n]).starts_with("GET /page HTTP/1.1"));
+            let body = "Imgbox fixture diagnostic";
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            connection.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imgbox-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let endpoint = Url::parse(&format!("http://{addr}/page")).unwrap();
+        let saved = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            page_html(&Client::new(), endpoint),
+        )
+        .await
+        .unwrap();
+        assert_eq!(saved, "Imgbox fixture diagnostic");
+        let files = std::fs::read_dir(&directory)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(std::fs::read_to_string(files[0].path()).unwrap(), saved);
+        server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
