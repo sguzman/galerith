@@ -14,6 +14,7 @@
 cargo run -- --list-extractors
 cargo run -- --list-extractors=danbooru,directlink
 cargo run -- --list-modules
+cargo run -- --list-keywords 'https://example.org/sample.jpg'
 cargo run -- --get-urls 'https://example.org/sample.jpg'
 cargo run -- --resolve-urls 'https://example.org/sample.jpg'
 cargo run -- --dump-json 'https://example.org/sample.jpg'

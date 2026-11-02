@@ -132,6 +132,19 @@ struct Cli {
     )]
     resolve_json: bool,
 
+    /// Print metadata keywords exposed by the native extractor
+    #[arg(
+        short = 'K',
+        long = "list-keywords",
+        conflicts_with_all = [
+            "get_urls", "resolve_urls", "resolve_json", "dump_json", "dump_messages",
+            "follow_queues", "list_extractors", "list_modules", "simulate", "no_download",
+            "file_range", "filename_template", "write_metadata", "write_info_json",
+            "download_archive"
+        ]
+    )]
+    list_keywords: bool,
+
     /// Print upstream-compatible directory/URL message tuples as JSON
     #[arg(short = 'j', long)]
     dump_json: bool,
@@ -1057,9 +1070,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
-        if cli.dump_messages || cli.dump_json || cli.resolve_urls || cli.resolve_json {
+        if cli.dump_messages
+            || cli.dump_json
+            || cli.resolve_urls
+            || cli.resolve_json
+            || cli.list_keywords
+        {
             let message_future = async {
-                if cli.resolve_urls || cli.resolve_json {
+                if cli.resolve_urls || cli.resolve_json || cli.list_keywords {
                     resolve_messages_traversing_selected(
                         &extractor_client,
                         &url,
@@ -1133,6 +1151,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                                 println!("{url}");
                             }
                         }
+                    } else if cli.list_keywords {
+                        print_message_keywords(&events);
                     } else {
                         for event in events {
                             println!("{}", serde_json::to_string(&event)?);
@@ -1337,6 +1357,32 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Err(format!("{failed} URL(s) failed").into());
     }
     Ok(())
+}
+
+fn print_message_keywords(events: &[ExtractorMessage]) {
+    let mut directory = std::collections::BTreeSet::new();
+    let mut files = std::collections::BTreeSet::new();
+    let mut children = std::collections::BTreeSet::new();
+    for event in events {
+        let (target, metadata) = match event {
+            ExtractorMessage::Directory { metadata } => (&mut directory, metadata),
+            ExtractorMessage::Url { metadata, .. } => (&mut files, metadata),
+            ExtractorMessage::Queue { metadata, .. } => (&mut children, metadata),
+        };
+        target.extend(metadata.keys().cloned());
+    }
+    for (label, keys) in [
+        ("Directory metadata", directory),
+        ("File metadata", files),
+        ("Child metadata", children),
+    ] {
+        if !keys.is_empty() {
+            println!("{label}:");
+            for key in keys {
+                println!("  {key}");
+            }
+        }
+    }
 }
 
 fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usize) {

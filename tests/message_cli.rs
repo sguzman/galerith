@@ -31,6 +31,45 @@ fn direct_media_message_dump_is_ordered_json_lines_without_network() {
 }
 
 #[test]
+fn list_keywords_prints_sorted_native_metadata_keys_without_values() {
+    let response = run(&[
+        "-K",
+        "https://user:password@example.org/photo.webp?token=private#secret",
+    ]);
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    let output = String::from_utf8(response.stdout).unwrap();
+    assert!(output.contains("Directory metadata:"));
+    assert!(output.contains("File metadata:"));
+    assert!(output.contains("  filename\n"));
+    assert!(output.contains("  category\n"));
+    assert!(!output.contains("private"));
+    assert!(!output.contains("secret"));
+    assert!(!output.contains("password"));
+    assert!(!output.contains("token"));
+}
+
+#[test]
+fn list_keywords_rejects_other_output_modes() {
+    for conflicting in [
+        "--dump-json",
+        "--resolve-json",
+        "--dump-messages",
+        "--get-urls",
+    ] {
+        let response = run(&[
+            "--list-keywords",
+            conflicting,
+            "https://example.org/photo.png",
+        ]);
+        assert!(!response.status.success(), "{conflicting} should conflict");
+    }
+}
+
+#[test]
 fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
     let input = "https://cdn.example.org/archive/cover%20art.jpe?size=original#image";
     let response = run(&["--dump-messages", input]);
