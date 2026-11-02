@@ -1885,6 +1885,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category}_{_lit[proof]}.{extension}",
             "directlink_proof.jpg",
         ),
+        ("literal-pipe", "{_lit[proof|mark]!q}", "proof%7Cmark"),
         ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
         ("negative-slice", "{extension[-2:]}", "pg"),

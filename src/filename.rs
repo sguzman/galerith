@@ -38,6 +38,25 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     Ok((field, ""))
 }
 
+fn split_alternatives(field: &str) -> Vec<&str> {
+    let mut alternatives = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (index, character) in field.char_indices() {
+        match character {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            '|' if depth == 0 => {
+                alternatives.push(&field[start..index]);
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    alternatives.push(&field[start..]);
+    alternatives
+}
+
 fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
     let chars: Vec<char> = value.chars().collect();
     if selector.contains(':') {
@@ -124,7 +143,7 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
-    let candidates: Vec<_> = name.split('|').collect();
+    let candidates = split_alternatives(name);
     if candidates.iter().any(|candidate| candidate.is_empty()) {
         return Err(FormatError("empty alternative filename field".into()));
     }
@@ -515,6 +534,10 @@ mod tests {
         assert_eq!(render("{filename:#^9}", &item).unwrap(), "original#");
         assert_eq!(render("{filename:#^10}", &item).unwrap(), "#original#");
         assert_eq!(render("{_lit[proof]}", &item).unwrap(), "proof");
+        assert_eq!(
+            render("{_lit[proof|mark]!q}", &item).unwrap(),
+            "proof%7Cmark"
+        );
         assert_eq!(render("pre{_lit[]}", &item).unwrap(), "pre");
         assert!(render("{_lit}", &item).is_err());
         assert!(render("{filename:03}", &item).is_err());
