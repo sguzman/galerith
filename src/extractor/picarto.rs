@@ -178,28 +178,15 @@ fn decode_page(
 }
 
 async fn read_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Picarto API redirected outside origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_JSON as u64)
-    {
-        return Err("Picarto JSON response exceeded byte cap".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("Picarto JSON response exceeded byte cap".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_JSON,
+        "Picarto JSON response exceeded byte cap",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
