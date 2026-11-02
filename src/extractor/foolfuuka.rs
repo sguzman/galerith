@@ -11,6 +11,12 @@ use std::{
 };
 use url::Url;
 
+const MAX_API_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
+
+async fn api_json(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    super::http_json::fetch_json_uncached(client, endpoint, MAX_API_RESPONSE_BYTES).await
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     host: &'static str,
@@ -173,14 +179,7 @@ async fn resolve_board_at_base(
             .query_pairs_mut()
             .append_pair("board", &board.board)
             .append_pair("page", &page.to_string());
-        crate::pacing::wait_for_request().await;
-        let response: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let response = api_json(client, endpoint).await?;
         if response.is_null() {
             break;
         }
@@ -294,14 +293,7 @@ async fn resolve_gallery_at_base(
             .query_pairs_mut()
             .append_pair("board", &gallery.board)
             .append_pair("page", &page.to_string());
-        crate::pacing::wait_for_request().await;
-        let data: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let data = api_json(client, endpoint).await?;
         if data.is_null() {
             break;
         }
@@ -460,14 +452,7 @@ async fn resolve_search_at_base(
             }
             query.append_pair("page", &page.to_string());
         }
-        crate::pacing::wait_for_request().await;
-        let data: Value = client
-            .get(endpoint)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let data = api_json(client, endpoint).await?;
         let Some(posts) = search_posts(&data)? else {
             break;
         };
@@ -569,14 +554,7 @@ async fn resolve_at_base(
     api.query_pairs_mut()
         .append_pair("board", &target.board)
         .append_pair("num", &target.thread.to_string());
-    crate::pacing::wait_for_request().await;
-    let response: Value = client
-        .get(api)
-        .send()
-        .await?
-        .error_for_status()?
-        .json()
-        .await?;
+    let response = api_json(client, api).await?;
     parse_thread(&response, &target, base)
 }
 
