@@ -10,7 +10,7 @@ use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 const PINNED: &str = "7f226f74108501c8ac3120548370f68f19e6f9b3";
@@ -1170,6 +1170,60 @@ fn run_input_retry_case(
             b"JPEG"
         );
     }
+}
+
+#[test]
+fn pinned_cli_and_native_match_stdin_url_list_parsing() {
+    let input = b"\n# comment\nhttps://example.org/first.jpg?size=large\nhttps://cdn.example.org/second.webp\n";
+
+    let mut native = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    native
+        .args(["--get-urls", "--input-file", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped());
+    let mut native = native.spawn().expect("launch native stdin CLI");
+    native.stdin.take().unwrap().write_all(input).unwrap();
+    let native = native.wait_with_output().unwrap();
+    assert!(
+        native.status.success(),
+        "native stdin CLI failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(native.stdout.clone()).unwrap(),
+        "https://example.org/first.jpg?size=large\nhttps://cdn.example.org/second.webp\n"
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for stdin input comparison");
+
+    let mut reference = Command::new("python3");
+    reference.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "--get-urls",
+        "--input-file",
+        "-",
+    ]);
+    reference.env("PYTHONPATH", &root);
+    reference.env("PYTHONNOUSERSITE", "1");
+    reference.env("PYTHONDONTWRITEBYTECODE", "1");
+    reference.stdin(Stdio::piped()).stdout(Stdio::piped());
+    let mut reference = reference.spawn().expect("launch pinned stdin CLI");
+    reference.stdin.take().unwrap().write_all(input).unwrap();
+    let reference = reference.wait_with_output().unwrap();
+
+    assert!(reference.status.success(), "pinned stdin CLI failed");
+    assert_eq!(native.stdout, reference.stdout);
+    assert_eq!(
+        String::from_utf8(native.stdout).unwrap(),
+        "https://example.org/first.jpg?size=large\nhttps://cdn.example.org/second.webp\n"
+    );
 }
 
 fn same_field(native: &Value, reference: &Value, field: &str, label: &str) {

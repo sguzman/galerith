@@ -163,7 +163,8 @@
                 },
                 {
                   "title": "Differential CLI acceptance fixtures",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "tests/reference_directlink.rs::pinned_cli_and_native_match_stdin_url_list_parsing compares blank/comment handling and directlink URL output for --input-file - against the pinned oracle when GALERITH_REFERENCE_ORACLE is enabled. This fixture covers stdin parsing only; broad CLI differential acceptance remains incomplete."
                 }
               ],
               "progress": 75
