@@ -194,26 +194,23 @@ async fn resolve_at_base(
     image: &Image,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(base.join(&image.token)?)
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML_BYTES as u64)
-    {
-        return Err("Imagetwist HTML exceeds preview byte bound".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(bytes.len()) {
-            return Err("Imagetwist HTML exceeds preview byte bound".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let bytes = bounded_html(
+        client,
+        base.join(&image.token)?,
+        "Imagetwist HTML exceeds preview byte bound",
+    )
+    .await?;
     parse_page(std::str::from_utf8(&bytes)?, image)
+}
+
+async fn bounded_html(
+    client: &Client,
+    endpoint: Url,
+    limit_message: &'static str,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let request = client.get(endpoint).build()?;
+    super::http_json::fetch_bytes_request_uncached(client, request, MAX_HTML_BYTES, limit_message)
+        .await
 }
 
 pub async fn resolve(
@@ -495,25 +492,12 @@ async fn gallery_at_base(
     let mut inherited_title = gallery.title.clone();
     let mut last_page = gallery.start_page;
     for page in 0..max_pages.clamp(1, MAX_GALLERY_PAGES) {
-        crate::pacing::wait_for_request().await;
-        let mut response = client
-            .get(current.clone())
-            .send()
-            .await?
-            .error_for_status()?;
-        if response
-            .content_length()
-            .is_some_and(|n| n > MAX_HTML_BYTES as u64)
-        {
-            return Err("Imagetwist gallery exceeds HTML byte limit".into());
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            if chunk.len() > MAX_HTML_BYTES.saturating_sub(bytes.len()) {
-                return Err("Imagetwist gallery exceeds HTML byte limit".into());
-            }
-            bytes.extend_from_slice(&chunk);
-        }
+        let bytes = bounded_html(
+            client,
+            current.clone(),
+            "Imagetwist gallery exceeds HTML byte limit",
+        )
+        .await?;
         let html = std::str::from_utf8(&bytes)?;
         if let Some(title) = gallery_title(html, inherited_title.as_deref()) {
             inherited_title = Some(title);
