@@ -961,6 +961,18 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 .duration(category, "sleep-extractor")
                 .map_err(std::io::Error::other)?,
         };
+        let configured_response_pages = if cli.write_pages.is_none()
+            && config
+                .extractor_write_pages(category)
+                .map_err(std::io::Error::other)?
+        {
+            Some((
+                std::env::current_dir()?,
+                galerith::http_diagnostics::ResponsePageMode::Body,
+            ))
+        } else {
+            None
+        };
         if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
@@ -1008,11 +1020,17 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 diagnostic_request_headers.clone(),
                 message_future,
             );
-            let events = if let Some(cache) = &public_cache {
-                cache.clone().scope(message_future).await
-            } else {
-                message_future.await
-            };
+            let events = galerith::http_diagnostics::scope_response_pages_if(
+                configured_response_pages.clone(),
+                async {
+                    if let Some(cache) = &public_cache {
+                        cache.clone().scope(message_future).await
+                    } else {
+                        message_future.await
+                    }
+                },
+            )
+            .await;
             match events {
                 Ok(events) => {
                     for event in events {
@@ -1045,11 +1063,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             diagnostic_request_headers,
             extraction_future,
         );
-        let extraction = if let Some(cache) = &public_cache {
-            cache.clone().scope(extraction_future).await
-        } else {
-            extraction_future.await
-        };
+        let extraction =
+            galerith::http_diagnostics::scope_response_pages_if(configured_response_pages, async {
+                if let Some(cache) = &public_cache {
+                    cache.clone().scope(extraction_future).await
+                } else {
+                    extraction_future.await
+                }
+            })
+            .await;
         let items = match extraction {
             Ok(items) => items,
             Err(error) => {

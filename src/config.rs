@@ -113,6 +113,19 @@ impl Config {
             .ok_or("extractor user-agent must be a string")
     }
 
+    /// Whether bounded response-page diagnostics are enabled for an extractor.
+    pub fn extractor_write_pages(&self, extractor: &str) -> Result<bool, &'static str> {
+        self.path(&["extractor", extractor, "write-pages"])
+            .or_else(|| self.path(&["extractor", "write-pages"]))
+            .map(|value| {
+                value
+                    .as_bool()
+                    .ok_or("extractor write-pages must be a boolean")
+            })
+            .transpose()
+            .map(|enabled| enabled.unwrap_or(false))
+    }
+
     /// Optional shared proxy map for extractor and media HTTP clients.
     pub fn http_proxy_settings(&self) -> Result<Option<HttpProxySettings>, &'static str> {
         self.root
@@ -591,6 +604,17 @@ mod tests {
         );
         config.option("extractor.user-agent=42").unwrap();
         assert!(config.extractor_http_user_agent("pixiv").is_err());
+    }
+
+    #[test]
+    fn extractor_write_pages_follows_category_precedence() {
+        let mut config = Config::default();
+        config.option("extractor.write-pages=true").unwrap();
+        config.option("extractor.e621.write-pages=false").unwrap();
+        assert!(!config.extractor_write_pages("e621").unwrap());
+        assert!(config.extractor_write_pages("pixiv").unwrap());
+        config.option("extractor.write-pages=all").unwrap();
+        assert!(config.extractor_write_pages("pixiv").is_err());
     }
 
     #[test]

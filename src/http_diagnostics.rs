@@ -38,6 +38,16 @@ pub async fn scope_response_pages<F: Future>(
     RESPONSE_PAGE_OPTIONS.scope((directory, mode), future).await
 }
 
+pub async fn scope_response_pages_if<F: Future>(
+    options: Option<(PathBuf, ResponsePageMode)>,
+    future: F,
+) -> F::Output {
+    match options {
+        Some((directory, mode)) => scope_response_pages(directory, mode, future).await,
+        None => future.await,
+    }
+}
+
 pub async fn scope_default_request_headers<F: Future>(headers: HeaderMap, future: F) -> F::Output {
     DEFAULT_REQUEST_HEADERS.scope(headers, future).await
 }
