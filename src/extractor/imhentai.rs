@@ -272,28 +272,15 @@ async fn records(
     base: &Url,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("gallery/{}/", gallery.id))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("IMHentai gallery redirected outside its source origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("IMHentai source HTML exceeds safety limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(bytes.len()) {
-            return Err("IMHentai source HTML exceeds safety limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "IMHentai source HTML exceeds safety limit",
+    )
+    .await?;
     parse_gallery(std::str::from_utf8(&bytes)?, gallery)
 }
 
