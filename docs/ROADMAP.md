@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `████████░░ 76%`
+## 🌐 M1 — HTTP, storage and download parity — `████████░░ 79%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `█████████░ 88%`
+### 📡 P2 — HTTP transfer engine — `█████████░ 92%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -74,11 +74,11 @@
   - [x] Proxy, TLS, IPv4/IPv6 and user-agent — tests/http_options_cli.rs covers proxy authentication and HTTPS CONNECT, custom User-Agent routing, TLS certificate validation/opt-out, IPv4/IPv6 selection and source-address binding; GitHub Actions 41334265645 passed Rust and pinned-reference jobs
   - [x] Request headers/response diagnostics — src/extractor/http_json.rs shared bounded JSON/bytes diagnostics; src/http_diagnostics.rs redacts request and response metadata. Repository audit: production extractor requests use the bounded shared reader or explicit ResponsePageInfo capture; remaining .send() calls are test fixtures. Loopback fixtures cover body-only and all-header modes, header redaction, origin guards, POST methods, and the migrated extractor request shapes. Local fmt, Clippy, all-target tests, roadmap check, and release build passed; synthetic tests only, no live-site parity claimed.
   - [x] Differential network tests — tests/reference_directlink.rs::pinned_and_native_clients_match_proxy_auth_and_user_agent compares absolute-form proxy routing, synthetic proxy authentication and explicit User-Agent headers for both clients; GitHub Actions 41336646406 Rust and pinned-reference jobs passed
-- 🌐 **T205** User-agent and proxy transport preview — `████████░░ 75%`
+- 🌐 **T205** User-agent and proxy transport preview — `██████████ 100%`
   - [x] Accept upstream -a/--user-agent and --proxy flags — src/main.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Implement full proxy authentication, TLS and address-family selection — src/main.rs build_http_client applies HTTP/HTTPS proxy settings, proxy Basic auth through reqwest, TLS verification/CA configuration, IPv4/IPv6 and source-address binding. tests/http_options_cli.rs::proxy_url_credentials_are_sent_only_to_the_proxy and https_targets_use_authenticated_proxy_connect_before_tls verify credentials on HTTP and HTTPS proxy requests without leaking them to origins/diagnostics; TLS certificate and IPv4/IPv6/source-address socket fixtures pass locally. Full local quality gates pass; synthetic fixtures only.
-  - [ ] Compare upstream HTTP configuration behavior
+  - [x] Compare upstream HTTP configuration behavior — tests/reference_directlink.rs::pinned_and_native_clients_match_authenticated_https_proxy_connect compares HTTPS CONNECT routing, proxy Basic authentication, origin-header isolation and diagnostic redaction between native Galerith and pinned gallery-dl. GitHub Actions 41471778994 pinned upstream directlink oracle job passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback proxy only; no public origin contacted.
 - ⏱️ **T206** Retry-After dates and constant download pacing preview — `████████░░ 75%`
   - [x] Bound numeric Retry-After and support HTTP-date values — src/download.rs; GitHub Actions 39957617755 passed
   - [x] Test date handling, past values and invalid retry hints offline — src/download.rs unit tests; GitHub Actions 39957617755 passed

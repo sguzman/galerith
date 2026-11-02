@@ -349,7 +349,7 @@
               "id": "T205",
               "emoji": "🌐",
               "name": "User-agent and proxy transport preview",
-              "progress": 75,
+              "progress": 100,
               "checks": [
                 {
                   "title": "Accept upstream -a/--user-agent and --proxy flags",
@@ -368,7 +368,8 @@
                 },
                 {
                   "title": "Compare upstream HTTP configuration behavior",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "tests/reference_directlink.rs::pinned_and_native_clients_match_authenticated_https_proxy_connect compares HTTPS CONNECT routing, proxy Basic authentication, origin-header isolation and diagnostic redaction between native Galerith and pinned gallery-dl. GitHub Actions 41471778994 pinned upstream directlink oracle job passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback proxy only; no public origin contacted."
                 }
               ]
             },
