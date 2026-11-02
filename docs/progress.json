@@ -421,7 +421,7 @@
                 {
                   "title": "Format field interpolation and conditionals",
                   "passed": true,
-                  "evidence": "src/filename.rs::template_basics_and_padding and conditionally_wraps_nonempty_values; tests/cli.rs::filename_template_updates_json_without_network and filename_template_applies_conditional_wrappers_through_cli cover the supported field and conditional subset. tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares a conditional category/extension template against the pinned directlink client. CI 41488106362 Rust and pinned oracle jobs passed."
+                  "evidence": "src/filename.rs::template_basics_and_padding and conditionally_wraps_nonempty_values; tests/cli.rs::filename_template_updates_json_without_network, original_filename_shortcut_preserves_source_name and filename_template_applies_conditional_wrappers_through_cli cover the supported field and conditional subset. tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares conditionals, /O, source filename stem, transformations and saved paths against pinned gallery-dl. Pinned directlink oracle 41500039689 passed; synthetic loopback fixture."
                 },
                 {
                   "title": "Platform filename rules and normalization",
@@ -431,7 +431,7 @@
                 {
                   "title": "Reference-compatible filesystem tests",
                   "passed": true,
-                  "evidence": "tests/filename_filesystem.rs::rendered_template_is_the_saved_path_and_existing_output_is_skipped verifies the native saved path and existing-file behavior; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares exact relative paths and bytes from a local HTTP fixture between pinned gallery-dl and Galerith. CI 41488106362 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback only; no public origin contacted."
+                  "evidence": "tests/filename_filesystem.rs::rendered_template_is_the_saved_path_and_existing_output_is_skipped verifies the native saved path and existing-file behavior; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares exact relative paths and bytes from local HTTP fixtures between pinned gallery-dl and Galerith, including /O, extensionless filename stems and bounded transformations. Pinned upstream directlink oracle 41500039689 passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback only; no public origin contacted."
                 },
                 {
                   "title": "Verify safe named-field, escaped brace and ID-width format subset",
@@ -542,12 +542,12 @@
                 {
                   "title": "Named fields, padding and escaped braces",
                   "passed": true,
-                  "evidence": "src/filename.rs; tests/cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                  "evidence": "src/filename.rs; tests/cli.rs; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares literals, alternatives, Unicode output, string alignment/precision and common transformations; pinned oracle 41500039689 passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Local format, Clippy, offline Rust tests, roadmap check and release build pass."
                 },
                 {
                   "title": "Reject dangerous or unsupported filename templates",
                   "passed": true,
-                  "evidence": "src/filename.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded"
+                  "evidence": "src/filename.rs rejects empty literals, unsafe results, unsupported fields/conversions and invalid width/precision specifications; tests/reference_directlink.rs::pinned_and_native_clients_reject_empty_literal_filename_fields matches pinned rejection. Pinned oracle 41500039689 passed; local format, Clippy, offline Rust tests, roadmap check and release build pass."
                 },
                 {
                   "title": "Full upstream conditional and transformation language",
