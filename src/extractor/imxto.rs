@@ -150,10 +150,44 @@ fn image_from_html(
     Ok((item, meta))
 }
 
-async fn read_limited_html(
-    response: reqwest::Response,
+async fn fetch_html(
+    client: &Client,
+    request: reqwest::Request,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
-    let mut response = response.error_for_status()?;
+    crate::pacing::wait_for_request_to(request.url().as_str()).await;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url: request_url.clone(),
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled()
+            && final_url.origin() == request_url.origin()
+        {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    if final_url.origin() == request_url.origin() {
+        dump_page(&final_url, &bytes, &info).await;
+    }
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|v| v > MAX_HTML_BYTES as u64)
@@ -167,7 +201,13 @@ async fn read_limited_html(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn image_at_base(
@@ -177,13 +217,11 @@ async fn image_at_base(
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(path)?;
-    crate::pacing::wait_for_request().await;
-    let response = client
+    let request = client
         .post(endpoint)
         .form(&[("imgContinue", "Continue+to+image+...+")])
-        .send()
-        .await?;
-    let html = read_limited_html(response).await?;
+        .build()?;
+    let html = fetch_html(client, request).await?;
     image_from_html(&html, token)
 }
 
@@ -247,9 +285,8 @@ async fn gallery_at_base(
         endpoint
             .query_pairs_mut()
             .append_pair("page", &page.to_string());
-        crate::pacing::wait_for_request().await;
-        let response = client.get(endpoint).send().await?;
-        let html = read_limited_html(response).await?;
+        let request = client.get(endpoint).build()?;
+        let html = fetch_html(client, request).await?;
         if !gallery_children(&html, id, &mut seen, &mut messages) {
             break;
         }
@@ -423,10 +460,20 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let events = gallery_at_base(&Client::new(), "ozdy", 3, &base)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imxto-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            gallery_at_base(&Client::new(), "ozdy", 3, &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(events.len(), 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
