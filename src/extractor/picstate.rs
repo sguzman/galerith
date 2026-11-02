@@ -150,25 +150,16 @@ async fn at_base(
     id: &str,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(base.join(&format!("view/full/{id}"))?)
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|v| v > MAX_HTML_BYTES as u64)
-    {
-        return Err("Picstate public HTML exceeds byte limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
-            return Err("Picstate public HTML exceeds byte limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let endpoint = base.join(&format!("view/full/{id}"))?;
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML_BYTES,
+        "Picstate public HTML exceeds byte limit",
+    )
+    .await?;
     media_from_page(std::str::from_utf8(&body)?, id)
 }
 
