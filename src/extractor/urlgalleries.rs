@@ -185,12 +185,40 @@ fn trusted_external(raw: &str) -> Option<String> {
 }
 
 async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint.clone()).send().await?;
-    if response.url().origin() != endpoint.origin() || response.status().is_redirection() {
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
+    let request = client.get(endpoint.clone()).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != endpoint.origin() || response.status().is_redirection() {
         return Err("Urlgalleries public source redirected outside origin".into());
     }
-    response = response.error_for_status()?;
+    let info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(data) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &data, &info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let data = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &data, &info).await;
+    Ok(String::from_utf8(data)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -204,7 +232,13 @@ async fn read_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Err
         }
         data.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(data)?)
+    Ok(data)
+}
+
+async fn dump_page(url: &Url, data: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, data, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn at_base(
@@ -335,12 +369,26 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let events = at_base(&Client::new(), &input(), &base).await.unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-urlgalleries-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let events = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            at_base(&Client::new(), &input(), &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(events.len(), 3);
         let queued = serde_json::to_value(&events[2]).unwrap();
         assert_eq!(queued["type"], "queue");
         assert_eq!(queued["url"], "https://img.example.org/photo-two.png");
         assert_eq!(queued["metadata"]["num"], 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 3);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
