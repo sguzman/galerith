@@ -163,7 +163,7 @@ fn run_reference_filename_filesystem_fixture(
     let output = working_root.join(format!("{label}-filename-output"));
     std::fs::create_dir_all(&output).unwrap();
     let url = format!("http://{address}/asset.jpg");
-    let template = "{category}_{stem:?[/]/}.{extension}";
+    let template = "{category}_{extension:?[/]/}.{extension}";
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
@@ -1818,7 +1818,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
     std::fs::create_dir_all(&root).unwrap();
     let native = run_reference_filename_filesystem_fixture(&root, Path::new("."), "native", false);
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
-        assert_eq!(native, Path::new("directlink_[asset].jpg"));
+        assert_eq!(native, Path::new("directlink_[jpg].jpg"));
         std::fs::remove_dir_all(root).unwrap();
         return;
     }
