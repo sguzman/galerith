@@ -30,6 +30,15 @@ fn lists_only_supported_extractors() {
 }
 
 #[test]
+fn upstream_extractor_listing_short_flag_matches_long_flag() {
+    let short = run(&["-E"]);
+    let long = run(&["--list-extractors"]);
+    assert!(short.status.success());
+    assert!(long.status.success());
+    assert_eq!(short.stdout, long.stdout);
+}
+
+#[test]
 fn filters_native_extractor_listing_by_category() {
     let output = run(&["--list-extractors=danbooru,directlink"]);
     assert!(output.status.success());

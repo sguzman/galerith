@@ -12,6 +12,7 @@
 
 ```sh
 cargo run -- --list-extractors
+cargo run -- -E
 cargo run -- --list-extractors=danbooru,directlink
 cargo run -- --list-modules
 cargo run -- --list-keywords 'https://example.org/sample.jpg'

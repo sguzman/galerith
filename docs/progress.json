@@ -190,7 +190,7 @@
                 {
                   "title": "Implement all print/list/diagnostics modes",
                   "passed": false,
-                  "evidence": "src/main.rs implements bounded -G/--resolve-urls and -J/--resolve-json traversal (pinned directlink CI 41525422242 and 41526103351), -K/--list-keywords over native typed metadata keys, --list-modules for native modules, and --list-extractors category filtering. tests/message_cli.rs checks keyword output has no metadata values and rejects conflicting output modes. The complete upstream print/list/diagnostics option set and full extractor parity remain incomplete."
+                  "evidence": "src/main.rs implements bounded -G/--resolve-urls and -J/--resolve-json traversal (pinned directlink CI 41525422242 and 41526103351), -K/--list-keywords over native typed metadata keys, -E/--list-extractors category filtering, and --list-modules for native modules. tests/message_cli.rs checks keyword output has no metadata values and rejects conflicting output modes; tests/cli.rs checks -E matches --list-extractors. The complete upstream print/list/diagnostics option set and full extractor parity remain incomplete."
                 }
               ],
               "progress": 50
