@@ -185,7 +185,7 @@
                 {
                   "title": "Reproduce upstream JSON message protocol",
                   "passed": false,
-                  "evidence": "src/main.rs --dump-json now emits one JSON array of upstream-compatible Directory/Url tuples ([2, '', metadata], [3, url, metadata]); tests/cli.rs, tests/message_cli.rs and tests/fixtures/cli_golden.json cover the offline shape. tests/reference_directlink.rs adds pinned tuple comparisons; local CLI and golden tests pass, while pinned CI for that differential is pending."
+                  "evidence": "src/main.rs --dump-json emits upstream Directory/URL tuple arrays ([2, metadata], [3, url, metadata]); tests/cli.rs, tests/message_cli.rs and tests/fixtures/cli_golden.json cover the offline shape. tests/reference_directlink.rs compares complete directlink tuples and filename-override behavior with pinned gallery-dl; latest pinned CI 41522268807 exposed tuple-shape and metadata differences, now corrected locally and awaiting a rerun."
                 },
                 {
                   "title": "Implement all print/list/diagnostics modes",
@@ -215,10 +215,11 @@
                 },
                 {
                   "title": "Validate install on EndeavourOS",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "EndeavourOS staged-install smoke check: installed target/release/galerith into a temporary /tmp prefix with install -D and verified --version, --help, --list-extractors, and offline --dump-json output. The --version smoke test exposed and fixed the missing native version flag; package distribution and checksums remain incomplete."
                 }
               ],
-              "progress": 50
+              "progress": 75
             }
           ]
         }

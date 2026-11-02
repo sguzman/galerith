@@ -28,6 +28,7 @@ use std::{
 #[derive(Debug, Parser)]
 #[command(
     name = "galerith",
+    version,
     about = "Rust gallery downloader (early compatibility preview)"
 )]
 struct Cli {

@@ -112,7 +112,7 @@ pub async fn write_info_json(
     } else {
         crate::message::media_metadata(item)
     };
-    let mut metadata = metadata;
+    let mut metadata = crate::message::upstream_metadata(&metadata);
     metadata.remove("query");
     metadata.remove("fragment");
     fs::create_dir_all(destination).await?;

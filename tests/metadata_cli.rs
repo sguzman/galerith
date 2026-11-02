@@ -104,10 +104,10 @@ fn info_json_writes_redacted_directory_metadata_without_downloading_media() {
     let text = String::from_utf8(bytes.clone()).unwrap();
     let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(value["category"], "directlink");
-    assert_eq!(value["filename"], "asset.jpg");
+    assert_eq!(value["filename"], "asset");
     assert_eq!(value["domain"], "cdn.example.org");
     assert_eq!(value["path"], "galleries");
-    assert_eq!(value["stem"], "asset");
+    assert!(value.get("stem").is_none());
     assert_eq!(value["extension"], "jpg");
     assert!(!text.contains("private"));
     assert!(!text.contains("secret"));

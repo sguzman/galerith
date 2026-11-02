@@ -53,11 +53,12 @@ fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
     assert!(upstream.status.success());
     let tuples: serde_json::Value = serde_json::from_slice(&upstream.stdout).unwrap();
     assert_eq!(tuples[0][0], 2);
-    assert_eq!(tuples[0][1], "");
-    assert_eq!(tuples[0][2]["filename"], "cover art.jpe");
-    assert_eq!(tuples[0][2]["domain"], "cdn.example.org");
+    assert_eq!(tuples[0].as_array().unwrap().len(), 2);
+    assert_eq!(tuples[0][1]["filename"], "cover art");
+    assert_eq!(tuples[0][1]["domain"], "cdn.example.org");
     assert_eq!(tuples[1][0], 3);
-    assert_eq!(tuples[1][2], tuples[0][2]);
+    assert_eq!(tuples[1].as_array().unwrap().len(), 3);
+    assert_eq!(tuples[1][2], tuples[0][1]);
 }
 
 #[test]
@@ -86,12 +87,13 @@ fn dump_json_emits_upstream_directory_and_url_tuples() {
     let tuples: serde_json::Value = serde_json::from_slice(&response.stdout).unwrap();
     assert_eq!(tuples.as_array().unwrap().len(), 2);
     assert_eq!(tuples[0][0], 2);
-    assert_eq!(tuples[0][1], "");
-    assert_eq!(tuples[0][2]["category"], "directlink");
-    assert_eq!(tuples[0][2]["filename"], "photo.png");
+    assert_eq!(tuples[0].as_array().unwrap().len(), 2);
+    assert_eq!(tuples[0][1]["category"], "directlink");
+    assert_eq!(tuples[0][1]["filename"], "photo");
     assert_eq!(tuples[1][0], 3);
     assert_eq!(tuples[1][1], "https://example.org/photo.png");
-    assert_eq!(tuples[1][2], tuples[0][2]);
+    assert_eq!(tuples[1].as_array().unwrap().len(), 3);
+    assert_eq!(tuples[1][2], tuples[0][1]);
 }
 
 #[test]

@@ -2,9 +2,9 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 71%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 72%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
-## 🧱 M0 — Identity, provenance, project controls — `████████░░ 77%`
+## 🧱 M0 — Identity, provenance, project controls — `████████░░ 80%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
 
 ### 🧭 P0 — Source reference and identity — `█████████░ 92%`
@@ -26,7 +26,7 @@
   - [x] Ship Rust renderer and generated roadmap — src/bin/galerith-roadmap.rs; docs/ROADMAP.md
   - [x] CI validates rendered files — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
 
-### 🦀 P1 — CLI foundation and quality gates — `██████░░░░ 63%`
+### 🦀 P1 — CLI foundation and quality gates — `███████░░░ 69%`
 
 - ⌨️ **T101** Native Rust binary and command parsing — `████████░░ 75%`
   - [x] Commit native CLI — src/main.rs; Cargo.toml
@@ -43,11 +43,11 @@
   - [x] Test flags without networking — tests/cli.rs
   - [ ] Reproduce upstream JSON message protocol
   - [ ] Implement all print/list/diagnostics modes
-- 📦 **T104** Release-safe packaging and documentation — `█████░░░░░ 50%`
+- 📦 **T104** Release-safe packaging and documentation — `████████░░ 75%`
   - [x] Document preview limitations — README.md
   - [x] Compile Linux release in CI — GitHub Actions 39897837049: Rust format, clippy, unit/CLI tests, roadmap/matrix verification and release build passed
   - [ ] Package distribution and checksums
-  - [ ] Validate install on EndeavourOS
+  - [x] Validate install on EndeavourOS — EndeavourOS staged-install smoke check: installed target/release/galerith into a temporary /tmp prefix with install -D and verified --version, --help, --list-extractors, and offline --dump-json output. The --version smoke test exposed and fixed the missing native version flag; package distribution and checksums remain incomplete.
 
 ## 🌐 M1 — HTTP, storage and download parity — `█████████░ 88%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.

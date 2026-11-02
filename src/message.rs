@@ -41,39 +41,84 @@ impl UpstreamMessageId {
     }
 }
 
-/// Map the typed native event to the pinned upstream message tuple contract.
-/// The second Directory element is unused and must be an empty string.
-pub fn to_upstream_tuple(message: &ExtractorMessage) -> (u8, &str, &Metadata) {
+/// Adapt the typed native event to the pinned upstream tuple contract.
+/// Directory messages contain only an identifier and metadata; URL and Queue
+/// messages also contain their URL.
+pub fn to_upstream_tuple(message: &ExtractorMessage) -> Value {
     match message {
-        ExtractorMessage::Directory { metadata } => {
-            (UpstreamMessageId::Directory as u8, "", metadata)
-        }
-        ExtractorMessage::Url { url, metadata } => {
-            (UpstreamMessageId::Url as u8, url.as_str(), metadata)
-        }
-        ExtractorMessage::Queue { url, metadata } => {
-            (UpstreamMessageId::Queue as u8, url.as_str(), metadata)
-        }
+        ExtractorMessage::Directory { metadata } => Value::Array(vec![
+            Value::from(UpstreamMessageId::Directory as u8),
+            Value::Object(upstream_metadata(metadata)),
+        ]),
+        ExtractorMessage::Url { url, metadata } => Value::Array(vec![
+            Value::from(UpstreamMessageId::Url as u8),
+            Value::String(url.clone()),
+            Value::Object(upstream_metadata(metadata)),
+        ]),
+        ExtractorMessage::Queue { url, metadata } => Value::Array(vec![
+            Value::from(UpstreamMessageId::Queue as u8),
+            Value::String(url.clone()),
+            Value::Object(upstream_metadata(metadata)),
+        ]),
     }
+}
+
+/// Project the richer directlink preview fields onto gallery-dl's metadata
+/// names without changing the native typed-event representation.
+pub fn upstream_metadata(metadata: &Metadata) -> Metadata {
+    let mut result = metadata.clone();
+    if result.get("category").and_then(Value::as_str) == Some("directlink") {
+        if let Some(stem) = result.get("stem").cloned() {
+            result.insert("filename".into(), stem);
+        }
+        result.remove("extractor");
+        result.remove("stem");
+        result.entry("query").or_insert(Value::Null);
+        result.entry("fragment").or_insert(Value::Null);
+    }
+    result
 }
 
 /// Accept only the pinned active upstream tuple identifiers. Preserve
 /// upstream URL and metadata without introducing guessed fields.
-pub fn from_upstream_tuple(
-    code: u8,
-    url: String,
-    metadata: Metadata,
-) -> Result<ExtractorMessage, &'static str> {
-    match UpstreamMessageId::from_code(code) {
-        Some(UpstreamMessageId::Directory) if url.is_empty() => {
+pub fn from_upstream_tuple(tuple: &Value) -> Result<ExtractorMessage, &'static str> {
+    let tuple = tuple
+        .as_array()
+        .ok_or("upstream message must be an array")?;
+    let code = tuple
+        .first()
+        .and_then(Value::as_u64)
+        .and_then(|code| u8::try_from(code).ok())
+        .ok_or("upstream message identifier must be an unsigned byte")?;
+    let message = UpstreamMessageId::from_code(code)
+        .ok_or("unsupported or obsolete gallery-dl message identifier")?;
+    match message {
+        UpstreamMessageId::Directory if tuple.len() == 2 => {
+            let metadata = tuple[1]
+                .as_object()
+                .cloned()
+                .ok_or("upstream Directory metadata must be an object")?;
             Ok(ExtractorMessage::Directory { metadata })
         }
-        Some(UpstreamMessageId::Directory) => {
-            Err("upstream Directory second tuple member must be empty")
+        UpstreamMessageId::Url | UpstreamMessageId::Queue if tuple.len() == 3 => {
+            let url = tuple[1]
+                .as_str()
+                .ok_or("upstream URL message second member must be a string")?
+                .to_owned();
+            let metadata = tuple[2]
+                .as_object()
+                .cloned()
+                .ok_or("upstream URL message metadata must be an object")?;
+            match message {
+                UpstreamMessageId::Url => Ok(ExtractorMessage::Url { url, metadata }),
+                UpstreamMessageId::Queue => Ok(ExtractorMessage::Queue { url, metadata }),
+                UpstreamMessageId::Directory => unreachable!(),
+            }
         }
-        Some(UpstreamMessageId::Url) => Ok(ExtractorMessage::Url { url, metadata }),
-        Some(UpstreamMessageId::Queue) => Ok(ExtractorMessage::Queue { url, metadata }),
-        None => Err("unsupported or obsolete gallery-dl message identifier"),
+        UpstreamMessageId::Directory => Err("upstream Directory message must have two members"),
+        UpstreamMessageId::Url | UpstreamMessageId::Queue => {
+            Err("upstream URL message must have three members")
+        }
     }
 }
 
@@ -415,7 +460,7 @@ mod tests {
         );
         for obsolete in [0, 1, 4, 5, 7, 8, 255] {
             assert_eq!(UpstreamMessageId::from_code(obsolete), None);
-            assert!(from_upstream_tuple(obsolete, String::new(), Metadata::new()).is_err());
+            assert!(from_upstream_tuple(&json!([obsolete, {}])).is_err());
         }
         let mut metadata = Metadata::new();
         metadata.insert("test".into(), json!(42));
@@ -432,15 +477,45 @@ mod tests {
                 metadata: metadata.clone(),
             },
         ] {
-            let (code, url, values) = to_upstream_tuple(&message);
-            assert_eq!(values["test"], 42);
-            if code == 2 {
-                assert_eq!(url, "");
-            }
-            let decoded = from_upstream_tuple(code, url.to_owned(), values.clone()).unwrap();
+            let tuple = to_upstream_tuple(&message);
+            let tuple_len = tuple.as_array().unwrap().len();
+            assert_eq!(tuple[tuple_len - 1]["test"], 42);
+            let expected_len = match &message {
+                ExtractorMessage::Directory { .. } => {
+                    assert_eq!(tuple[0], UpstreamMessageId::Directory as u8);
+                    2
+                }
+                ExtractorMessage::Url { .. } => {
+                    assert_eq!(tuple[0], UpstreamMessageId::Url as u8);
+                    3
+                }
+                ExtractorMessage::Queue { .. } => {
+                    assert_eq!(tuple[0], UpstreamMessageId::Queue as u8);
+                    3
+                }
+            };
+            assert_eq!(tuple.as_array().unwrap().len(), expected_len);
+            let decoded = from_upstream_tuple(&tuple).unwrap();
             assert_eq!(decoded, message);
         }
-        assert!(from_upstream_tuple(2, "not-empty".into(), metadata).is_err());
+        assert!(from_upstream_tuple(&json!([2, "", metadata])).is_err());
+    }
+
+    #[test]
+    fn upstream_directlink_metadata_uses_reference_filename_and_null_fields() {
+        let mut metadata = Metadata::new();
+        metadata.insert("category".into(), "directlink".into());
+        metadata.insert("extractor".into(), "directlink".into());
+        metadata.insert("filename".into(), "test.jpg".into());
+        metadata.insert("stem".into(), "test".into());
+        metadata.insert("extension".into(), "jpg".into());
+        let result = upstream_metadata(&metadata);
+        assert_eq!(result["filename"], "test");
+        assert_eq!(result["extension"], "jpg");
+        assert!(result.get("extractor").is_none());
+        assert!(result.get("stem").is_none());
+        assert_eq!(result["query"], Value::Null);
+        assert_eq!(result["fragment"], Value::Null);
     }
 
     #[test]

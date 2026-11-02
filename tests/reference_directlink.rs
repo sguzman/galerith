@@ -1220,15 +1220,9 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
             }
             let reference = tuple.last().expect("pinned source metadata");
             let metadata = &native["metadata"];
-            let native_tuple = native_tuples[ordinal]
-                .as_array()
-                .expect("native upstream message tuple");
-            assert_eq!(native_tuple[0], tuple[0], "{url}: message identifier");
-            assert_eq!(native_tuple[1], tuple[1], "{url}: message URL member");
             assert_eq!(
-                native_tuple.get(2),
-                Some(metadata),
-                "{url}: tuple metadata projection"
+                &native_tuples[ordinal], upstream,
+                "{url}: complete upstream tuple output"
             );
             let sidecar = if ordinal == 1 {
                 let item = galerith::extract_direct_media(url).unwrap();
@@ -2219,7 +2213,6 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
         "domain",
         "subcategory",
         "path",
-        "stem",
         "extension",
     ] {
         assert_eq!(

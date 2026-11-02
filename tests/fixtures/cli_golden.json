@@ -14,10 +14,9 @@
         "value": [
           [
             2,
-            "",
             {
               "category": "directlink",
-              "filename": "night sky.png",
+              "filename": "night sky",
               "domain": "example.org"
             }
           ],
@@ -25,7 +24,7 @@
             3,
             "https://example.org/assets/night%20sky.png?size=original",
             {
-              "filename": "night sky.png"
+              "filename": "night sky"
             }
           ]
         ]

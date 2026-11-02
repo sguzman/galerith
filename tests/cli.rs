@@ -11,6 +11,16 @@ fn run(args: &[&str]) -> std::process::Output {
 }
 
 #[test]
+fn version_flag_prints_the_native_package_version() {
+    let output = run(&["--version"]);
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!("galerith {}\n", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+#[test]
 fn lists_only_supported_extractors() {
     let output = run(&["--list-extractors"]);
     assert!(output.status.success());
@@ -75,11 +85,12 @@ fn json_extraction_is_offline() {
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result.as_array().unwrap().len(), 2);
     assert_eq!(result[0][0], 2);
-    assert_eq!(result[0][1], "");
-    assert_eq!(result[0][2]["category"], "directlink");
-    assert_eq!(result[0][2]["filename"], "image.webp");
+    assert_eq!(result[0].as_array().unwrap().len(), 2);
+    assert_eq!(result[0][1]["category"], "directlink");
+    assert_eq!(result[0][1]["filename"], "image");
     assert_eq!(result[1][0], 3);
     assert_eq!(result[1][1], "https://example.org/image.webp");
+    assert_eq!(result[1].as_array().unwrap().len(), 3);
 }
 
 #[test]
