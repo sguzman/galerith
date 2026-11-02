@@ -221,10 +221,39 @@ fn project_queues(html: &str, firm: &str) -> Vec<ExtractorMessage> {
 
 async fn bounded_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url.clone()).send().await?.error_for_status()?;
-    if response.url().origin() != url.origin() {
+    let request = client.get(url).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    if final_url.origin() != request_url.origin() {
         return Err("Architizer source redirected outside origin".into());
     }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    Ok(String::from_utf8(body)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -238,7 +267,13 @@ async fn bounded_html(client: &Client, url: Url) -> Result<String, Box<dyn Error
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn project_at(
@@ -374,27 +409,52 @@ mod tests {
                 assert!(String::from_utf8_lossy(&request[..n])
                     .starts_with(&format!("GET {path} HTTP/1.1")));
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Architizer-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        assert_eq!(
-            project_at(&Client::new(), &base, "urban-house")
-                .await
-                .unwrap()
-                .len(),
-            2
-        );
-        assert_eq!(
-            firm_at(&Client::new(), &base, "studio-x")
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-architizer-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let counts = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async {
+                let projects = project_at(&Client::new(), &base, "urban-house")
+                    .await
+                    .unwrap()
+                    .len();
+                let firm = firm_at(&Client::new(), &base, "studio-x")
+                    .await
+                    .unwrap()
+                    .len();
+                (projects, firm)
+            },
+        )
+        .await;
+        assert_eq!(counts, (2, 1));
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let mut pages = Vec::new();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            pages.push(tokio::fs::read_to_string(entry.path()).await.unwrap());
+        }
+        pages.sort();
+        assert_eq!(pages.len(), 2);
+        assert!(pages
+            .iter()
+            .all(|page| page.contains("x-architizer-fixture: page")));
+        assert!(pages.iter().all(|page| page.contains("set-cookie: ***")));
+        assert!(pages.iter().all(|page| !page.contains("fixture-secret")));
+        assert!(pages
+            .iter()
+            .all(|page| { !page.lines().next().unwrap().contains("?requesting_merlin=") }));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
