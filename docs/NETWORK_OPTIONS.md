@@ -39,6 +39,8 @@ Architizer project and firm listing pages also capture bounded HTML bodies after
 
 Ahottie album and tag listing requests capture bounded, same-origin HTML pages with query strings omitted from diagnostic URLs.
 
+BBC programme and gallery pages use the same bounded diagnostic capture after enforcing the public-origin redirect guard.
+
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.
 
 **Verification:** [CI 41336923648](https://github.com/sguzman/galerith/actions/runs/41336923648) passed format, Clippy, all-target tests, roadmap consistency, release build and the pinned-reference job. Network fixtures use loopback endpoints; no public origin is contacted by those tests.
