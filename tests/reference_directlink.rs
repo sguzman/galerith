@@ -9,7 +9,7 @@ use std::{
     env,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -137,6 +137,7 @@ fn run_reference_filename_filesystem_fixture(
     pinned_root: &Path,
     label: &str,
     reference: bool,
+    template: &str,
 ) -> std::path::PathBuf {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -163,7 +164,6 @@ fn run_reference_filename_filesystem_fixture(
     let output = working_root.join(format!("{label}-filename-output"));
     std::fs::create_dir_all(&output).unwrap();
     let url = format!("http://{address}/asset.jpg");
-    let template = "{category}_{extension:?[/]/}.{extension}";
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
@@ -1854,21 +1854,54 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let native = run_reference_filename_filesystem_fixture(&root, Path::new("."), "native", false);
-    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
-        assert_eq!(native, Path::new("directlink_[jpg].jpg"));
-        std::fs::remove_dir_all(root).unwrap();
-        return;
+    let cases = [
+        (
+            "conditional",
+            "{category}_{extension:?[/]/}.{extension}",
+            "directlink_[jpg].jpg",
+        ),
+        (
+            "conversion-and-escaped-braces",
+            "{{proof}}_{category}_{extension!u}.{extension}",
+            "{proof}_directlink_JPG.jpg",
+        ),
+        (
+            "slice",
+            "{category}_{extension[0:2]}.{extension}",
+            "directlink_jp.jpg",
+        ),
+    ];
+    let oracle_enabled = env::var_os("GALERITH_REFERENCE_ORACLE").is_some();
+    let pinned_root = if oracle_enabled {
+        let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+            .expect("CI reference oracle must supply the pinned upstream directory");
+        let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+            .expect("CI must declare expected upstream git revision");
+        assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+        Some(PathBuf::from(root))
+    } else {
+        None
+    };
+    for (label, template, expected) in cases {
+        let native = run_reference_filename_filesystem_fixture(
+            &root,
+            Path::new("."),
+            &format!("native-{label}"),
+            false,
+            template,
+        );
+        assert_eq!(native, Path::new(expected), "native {label} filename");
+        if let Some(pinned_root) = pinned_root.as_deref() {
+            let pinned = run_reference_filename_filesystem_fixture(
+                &root,
+                pinned_root,
+                &format!("pinned-{label}"),
+                true,
+                template,
+            );
+            assert_eq!(pinned, native, "upstream/native {label} saved path differs");
+        }
     }
-    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
-        .expect("CI reference oracle must supply the pinned upstream directory");
-    let pinned_root = Path::new(&pinned_root);
-    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
-        .expect("CI must declare expected upstream git revision");
-    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
-
-    let pinned = run_reference_filename_filesystem_fixture(&root, pinned_root, "pinned", true);
-    assert_eq!(pinned, native, "upstream/native saved path differs");
     std::fs::remove_dir_all(root).unwrap();
 }
 
