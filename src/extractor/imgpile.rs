@@ -107,40 +107,61 @@ fn post_media(html: &str) -> Vec<MediaItem> {
 
 async fn read_html(client: &Client, url: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_HTML_BYTES as u64)
-    {
-        return Err("Imgpile HTML exceeds the configured safety bound".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_HTML_BYTES {
-            return Err("Imgpile HTML exceeds the configured safety bound".into());
+    let request = client.get(url).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_body(&mut response, "Imgpile HTML").await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
         }
-        bytes.extend_from_slice(&chunk);
+        return Err(status_error.into());
     }
+    let bytes = read_bounded_body(&mut response, "Imgpile HTML").await?;
+    dump_page(&final_url, &bytes, &response_info).await;
     Ok(String::from_utf8(bytes)?)
 }
 
-async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client.get(url).send().await?.error_for_status()?;
+async fn read_bounded_body(
+    response: &mut reqwest::Response,
+    label: &str,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|length| length > MAX_HTML_BYTES as u64)
     {
-        return Err("Imgpile API JSON exceeds the configured safety bound".into());
+        return Err(format!("{label} exceeds the configured safety bound").into());
     }
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
         if bytes.len().saturating_add(chunk.len()) > MAX_HTML_BYTES {
-            return Err("Imgpile API JSON exceeds the configured safety bound".into());
+            return Err(format!("{label} exceeds the configured safety bound").into());
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(serde_json::from_slice(&bytes)?)
+    Ok(bytes)
+}
+
+async fn read_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
+    crate::extractor::http_json::fetch_json_limited(client, url, MAX_HTML_BYTES).await
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 fn scoped_next_page(current: &Url, first: &Url, raw: &str, name: &str) -> Option<Url> {
@@ -363,13 +384,21 @@ mod tests {
             }
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let items = resolve_at_base(
-            &Client::new(),
-            &base,
-            Target::User {
-                name: "creator".into(),
-            },
-            2,
+        let directory =
+            std::env::temp_dir().join(format!("galerith-imgpile-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let items = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_at_base(
+                &Client::new(),
+                &base,
+                Target::User {
+                    name: "creator".into(),
+                },
+                2,
+            ),
         )
         .await
         .unwrap();
@@ -377,7 +406,39 @@ mod tests {
         assert_eq!(items[0].filename, "one.jpg");
         assert_eq!(items[0].post_id, Some(71));
         assert_eq!(items[1].filename, "two.png");
+        let pages = std::fs::read_dir(&directory)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(pages.len(), 4);
+        let contents = pages
+            .iter()
+            .map(|entry| std::fs::read_to_string(entry.path()).unwrap())
+            .collect::<Vec<_>>();
+        let api_pages = contents
+            .iter()
+            .filter(|page| {
+                page.starts_with(&format!("GET http://{address}/api/v1/posts\n"))
+                    && page.contains("Request Headers")
+                    && page.contains("Response Headers")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(api_pages.len(), 2);
+        assert!(api_pages
+            .iter()
+            .all(|page| !page.contains("username=creator")));
+        for path in ["/p/first12", "/p/second34"] {
+            assert!(
+                contents.iter().any(|page| {
+                    page.starts_with(&format!("GET http://{address}{path}\n"))
+                        && page.contains("Request Headers")
+                        && page.contains("Response Headers")
+                }),
+                "missing diagnostic for {path}"
+            );
+        }
         server.await.unwrap();
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[test]
