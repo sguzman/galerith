@@ -43,6 +43,8 @@ BBC programme and gallery pages use the same bounded diagnostic capture after en
 
 Silverpic’s bounded single-image page is also saved when response diagnostics are enabled.
 
+Fappic’s canonical image page uses the same opt-in bounded HTML response capture.
+
 **Not yet upstream parity:** pacing all extractor API requests, proxy behavior across every transport, advanced TLS options, diagnostics for transports outside the shared bounded JSON reader, browser-profile header presets and complete reference networking options remain open.
 
 **Verification:** [CI 41336923648](https://github.com/sguzman/galerith/actions/runs/41336923648) passed format, Clippy, all-target tests, roadmap consistency, release build and the pinned-reference job. Network fixtures use loopback endpoints; no public origin is contacted by those tests.

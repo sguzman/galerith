@@ -183,7 +183,36 @@ async fn at_base(
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/pic.jpg", target.token))?;
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(body) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &body, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    parse_page(std::str::from_utf8(&body)?, target)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|size| size > MAX_HTML_BYTES as u64)
@@ -197,7 +226,13 @@ async fn at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    parse_page(std::str::from_utf8(&body)?, target)
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 pub async fn resolve(
@@ -300,16 +335,36 @@ mod tests {
                 .starts_with("GET /abcde12345/pic.jpg HTTP/1.1"));
             let html = r##"<a href="#"><img src="https://img3.fappic.com/original/file.webp" alt="Picture">"##;
             let reply = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{html}",
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nX-Fappic-Fixture: page\r\nSet-Cookie: session=fixture-secret; HttpOnly\r\nConnection: close\r\n\r\n{html}",
                 html.len()
             );
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let target = match_url("https://img3.fappic.com/i/99/abcde12345_t/thumb.jpg").unwrap();
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let (file, metadata) = at_base(&Client::new(), &target, &base).await.unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-fappic-response-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (file, metadata) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            async { at_base(&Client::new(), &target, &base).await.unwrap() },
+        )
+        .await;
         assert_eq!(file.filename, "Picture.webp");
         assert_eq!(metadata["token"], "abcde12345");
         server.await.unwrap();
+        let mut entries = tokio::fs::read_dir(&directory).await.unwrap();
+        let path = entries.next_entry().await.unwrap().unwrap().path();
+        let page = tokio::fs::read_to_string(path).await.unwrap();
+        assert!(page.contains("x-fappic-fixture: page"));
+        assert!(page.contains("set-cookie: ***"));
+        assert!(!page.contains("fixture-secret"));
+        assert!(page.contains("Picture"));
+        assert!(entries.next_entry().await.unwrap().is_none());
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
