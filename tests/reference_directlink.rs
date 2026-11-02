@@ -71,6 +71,22 @@ fn pinned_dump_json(root: &Path, url: &str, options: &[&str]) -> Value {
         .expect("pinned JSON message tuple array")
 }
 
+fn pinned_resolve_urls(root: &Path, url: &str) -> String {
+    let mut command = Command::new("python3");
+    command.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "--resolve-urls",
+        url,
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    spawn(command, "pinned gallery-dl --resolve-urls")
+}
+
 fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
     let mut cmd = Command::new("python3");
     cmd.args([
@@ -2140,6 +2156,30 @@ fn pinned_and_native_dump_json_match_with_filename_override() {
     assert_eq!(
         native, pinned,
         "filename override changed tuple output differently"
+    );
+}
+
+#[test]
+fn pinned_and_native_resolve_urls_match_directlink() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for resolve-urls comparison");
+    let url = "https://cdn.example.org/galleries/photo%20one.jpg?size=large";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--resolve-urls", url])
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "native --resolve-urls failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(native.stdout).unwrap(),
+        pinned_resolve_urls(Path::new(&root), url),
+        "directlink resolve-urls output differs from pinned gallery-dl"
     );
 }
 

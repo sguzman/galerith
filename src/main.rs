@@ -10,7 +10,9 @@ use galerith::{
         resolve_messages_traversing_selected, PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
-    message::{to_upstream_tuple, JobSelection},
+    message::{
+        to_upstream_tuple, ExtractorMessage, JobSelection, MAX_QUEUE_CHILDREN, MAX_QUEUE_DEPTH,
+    },
     pacing::{with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
     postprocess::{write_info_json, write_metadata},
     privacy::{display_error, display_url},
@@ -83,6 +85,27 @@ struct Cli {
     /// Print extracted URLs instead of downloading
     #[arg(short = 'g', long)]
     get_urls: bool,
+
+    /// Print media URLs after resolving supported intermediary extractors
+    #[arg(
+        short = 'G',
+        long = "resolve-urls",
+        conflicts_with_all = [
+            "get_urls",
+            "follow_queues",
+            "list_extractors",
+            "dump_json",
+            "dump_messages",
+            "simulate",
+            "no_download",
+            "file_range",
+            "filename_template",
+            "write_metadata",
+            "write_info_json",
+            "download_archive"
+        ]
+    )]
+    resolve_urls: bool,
 
     /// Print upstream-compatible directory/URL message tuples as JSON
     #[arg(short = 'j', long)]
@@ -775,22 +798,27 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         rate_limit_delay,
         download_delay: None,
     };
-    let archive =
-        if cli.get_urls || cli.dump_json || cli.dump_messages || cli.simulate || cli.no_download {
-            None
-        } else {
-            cli.download_archive
-                .as_ref()
-                .map(|path| {
-                    Archive::open_with_reference_options(
-                        path,
-                        cli.gallery_dl_archive.as_deref(),
-                        cli.gallery_dl_archive_table.as_deref(),
-                        cli.gallery_dl_archive_prefix.as_deref(),
-                    )
-                })
-                .transpose()?
-        };
+    let archive = if cli.get_urls
+        || cli.resolve_urls
+        || cli.dump_json
+        || cli.dump_messages
+        || cli.simulate
+        || cli.no_download
+    {
+        None
+    } else {
+        cli.download_archive
+            .as_ref()
+            .map(|path| {
+                Archive::open_with_reference_options(
+                    path,
+                    cli.gallery_dl_archive.as_deref(),
+                    cli.gallery_dl_archive_table.as_deref(),
+                    cli.gallery_dl_archive_prefix.as_deref(),
+                )
+            })
+            .transpose()?
+    };
     let record_download = cli
         .archive_event
         .as_deref()
@@ -982,9 +1010,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if let Some(delay) = extractor_delay {
             tokio::time::sleep(delay.sample()).await;
         }
-        if cli.dump_messages || cli.dump_json {
+        if cli.dump_messages || cli.dump_json || cli.resolve_urls {
             let message_future = async {
-                if cli.expand_queues {
+                if cli.resolve_urls {
+                    resolve_messages_traversing_selected(
+                        &extractor_client,
+                        &url,
+                        cli.max_pages,
+                        MAX_QUEUE_CHILDREN as u8,
+                        MAX_QUEUE_DEPTH,
+                        &JobSelection::default(),
+                    )
+                    .await
+                } else if cli.expand_queues {
                     let selection = JobSelection {
                         files: cli
                             .message_file_range
@@ -1042,6 +1080,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     if cli.dump_json {
                         let tuples = events.iter().map(to_upstream_tuple).collect::<Vec<_>>();
                         println!("{}", serde_json::to_string(&tuples)?);
+                    } else if cli.resolve_urls {
+                        for event in events {
+                            if let ExtractorMessage::Url { url, .. } = event {
+                                println!("{url}");
+                            }
+                        }
                     } else {
                         for event in events {
                             println!("{}", serde_json::to_string(&event)?);
@@ -1143,7 +1187,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     if !cli.quiet {
                         println!("archived {}", item.filename);
                     }
-                    if !cli.get_urls && !cli.dump_json && !cli.simulate && !cli.no_download {
+                    if !cli.get_urls
+                        && !cli.resolve_urls
+                        && !cli.dump_json
+                        && !cli.simulate
+                        && !cli.no_download
+                    {
                         if let Some(delay) = config
                             .duration(item.extractor, "sleep-skip")
                             .map_err(std::io::Error::other)?
@@ -1154,7 +1203,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     continue;
                 }
             }
-            if cli.get_urls {
+            if cli.get_urls || cli.resolve_urls {
                 println!("{}", item.url);
             } else if cli.dump_json {
                 println!("{}", serde_json::to_string(&item)?);
@@ -1216,6 +1265,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         if input_succeeded
             && selected_items > 0
             && !cli.get_urls
+            && !cli.resolve_urls
             && !cli.dump_json
             && !cli.simulate
             && !cli.no_download

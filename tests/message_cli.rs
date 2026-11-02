@@ -1,5 +1,5 @@
 //! Independent, read-only extractor event inspection regression tests.
-use std::process::Command;
+use std::{fs, process::Command};
 
 fn run(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_galerith"))
@@ -63,7 +63,13 @@ fn directlink_message_dump_and_upstream_tuples_preserve_source_fields() {
 
 #[test]
 fn message_mode_rejects_modes_that_would_have_ambiguous_output() {
-    for forbidden in ["--dump-json", "--get-urls", "--simulate", "--no-download"] {
+    for forbidden in [
+        "--dump-json",
+        "--get-urls",
+        "--resolve-urls",
+        "--simulate",
+        "--no-download",
+    ] {
         let response = run(&[
             "--dump-messages",
             forbidden,
@@ -78,6 +84,41 @@ fn message_mode_rejects_modes_that_would_have_ambiguous_output() {
         "https://example.org/photo.png",
     ]);
     assert!(!range.status.success());
+}
+
+#[test]
+fn resolve_urls_follows_local_recursive_queues_and_prints_only_media_urls() {
+    let list_path =
+        std::env::temp_dir().join(format!("galerith-resolve-urls-{}.txt", std::process::id()));
+    fs::write(
+        &list_path,
+        "https://example.org/first.jpg\nhttps://cdn.example.org/second.webp\n",
+    )
+    .unwrap();
+    let source = url::Url::from_file_path(&list_path).unwrap();
+    let response = run(&["--resolve-urls", &format!("recursive:{source}")]);
+    let _ = fs::remove_file(&list_path);
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(response.stdout).unwrap(),
+        "https://example.org/first.jpg\nhttps://cdn.example.org/second.webp\n"
+    );
+}
+
+#[test]
+fn resolve_urls_rejects_other_modes_that_would_ignore_its_output() {
+    for conflicting in ["--follow-queues", "--list-extractors"] {
+        let response = run(&[
+            "--resolve-urls",
+            conflicting,
+            "https://example.org/photo.png",
+        ]);
+        assert!(!response.status.success(), "{conflicting} should conflict");
+    }
 }
 
 #[test]

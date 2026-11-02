@@ -1167,9 +1167,9 @@ async fn resolve_messages_bounded(
     resolve_messages(client, input, max_pages).await
 }
 
-/// Queue events delegate to known website extractors, never to arbitrary
-/// direct-file hosts or a local-network endpoint. All current producers
-/// construct first-party public child URLs rather than consuming remote URLs.
+/// Queue events delegate to known website extractors or emit a direct media
+/// URL, never to a local-network endpoint. Directlink resolution is metadata
+/// only and performs no request; all other children require a known extractor.
 fn safe_queue_child_url(input: &str) -> bool {
     let Ok(parsed) = url::Url::parse(input) else {
         return false;
@@ -1178,15 +1178,15 @@ fn safe_queue_child_url(input: &str) -> bool {
         return false;
     };
     let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-    matches!(parsed.scheme(), "http" | "https")
+    let valid_origin = matches!(parsed.scheme(), "http" | "https")
         && parsed.username().is_empty()
         && parsed.password().is_none()
         && !domain.is_empty()
         && domain != "localhost"
         && !domain.ends_with(".localhost")
         && !domain.ends_with(".local")
-        && !domain.ends_with(".internal")
-        && extractor_name(input).is_some_and(|category| category != "directlink")
+        && !domain.ends_with(".internal");
+    valid_origin && extractor_name(input).is_some()
 }
 
 /// Opt-in, bounded queue traversal for message inspection. Parent queue
@@ -1726,6 +1726,7 @@ mod tests {
         for accepted in [
             "https://wallhaven.cc/w/94x38z",
             "https://commons.wikimedia.org/wiki/File:Blue_sky.png",
+            "https://example.org/file.jpg",
         ] {
             assert!(safe_queue_child_url(accepted), "{accepted}");
         }
@@ -1736,7 +1737,7 @@ mod tests {
             "https://user:secret@example.org/file.jpg",
             "https://user@example.org/file.jpg",
             "relative/gallery/2",
-            "https://example.org/file.jpg",
+            "https://example.org/gallery/2",
             "http://127.0.0.1:1234/file.jpg",
             "http://[::1]/private.jpg",
             "https://localhost/private.jpg",
