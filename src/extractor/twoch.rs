@@ -323,28 +323,15 @@ fn board_queues(
 }
 
 async fn json_at(client: &Client, endpoint: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("2ch public API redirected outside trusted origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("2ch source JSON exceeds 2 MiB".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("2ch source JSON exceeds 2 MiB".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_JSON,
+        "2ch source JSON exceeds 2 MiB",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
@@ -543,11 +530,21 @@ mod tests {
             socket.write_all(response.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let (_, files) = thread_at(&Client::new(), &base, "a", "12345")
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-twoch-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let (_, files) = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            thread_at(&Client::new(), &base, "a", "12345"),
+        )
+        .await
+        .unwrap();
         assert_eq!(files.len(), 2);
         server.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
