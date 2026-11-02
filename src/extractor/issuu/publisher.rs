@@ -157,28 +157,15 @@ fn decode_user_page(
 }
 
 async fn page_html(client: &Client, endpoint: Url) -> Result<String, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Issuu publisher page redirected outside origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("Issuu publisher HTML exceeds configured size limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(body.len()) {
-            return Err("Issuu publisher HTML exceeds configured size limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let body = super::super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "Issuu publisher HTML exceeds configured size limit",
+    )
+    .await?;
     Ok(String::from_utf8(body)?)
 }
 
