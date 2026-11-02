@@ -112,6 +112,7 @@ fn refresh_target(html: &str, original: &Url) -> Option<Url> {
 
 async fn read_small_html(
     mut response: reqwest::Response,
+    info: &crate::http_diagnostics::ResponsePageInfo,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
@@ -126,7 +127,27 @@ async fn read_small_html(
         }
         bytes.extend_from_slice(&chunk);
     }
+    if let Err(error) =
+        crate::http_diagnostics::dump_response_page(response.url(), &bytes, Some(info)).await
+    {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
     Ok(String::from_utf8(bytes)?)
+}
+
+fn response_page_info(
+    request: &reqwest::Request,
+    response: &reqwest::Response,
+) -> crate::http_diagnostics::ResponsePageInfo {
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    crate::http_diagnostics::ResponsePageInfo {
+        method: request.method().clone(),
+        request_url: request.url().clone(),
+        request_headers,
+        status: response.status(),
+        response_headers: response.headers().clone(),
+    }
 }
 
 /// This client deliberately never follows HTTP redirects, so extracting a
@@ -136,10 +157,23 @@ async fn resolve_endpoint(
     service: &str,
 ) -> Result<Url, Box<dyn Error + Send + Sync>> {
     let client = Client::builder().redirect(Policy::none()).build()?;
-    crate::pacing::wait_for_request().await;
-    let head = client.head(endpoint.clone()).send().await?;
+    crate::pacing::wait_for_request_to(endpoint.as_str()).await;
+    let head_request = client.head(endpoint.clone()).build()?;
+    let head = client
+        .execute(
+            head_request
+                .try_clone()
+                .ok_or("Shortener HEAD request could not be copied")?,
+        )
+        .await?;
     if head.url().origin() != endpoint.origin() {
         return Err("Shortener initial request escaped its origin".into());
+    }
+    let head_info = response_page_info(&head_request, &head);
+    if let Err(error) =
+        crate::http_diagnostics::dump_response_page(head.url(), &[], Some(&head_info)).await
+    {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
     }
     if head.status().is_redirection() {
         if let Some(dest) = header_target(&head, &endpoint) {
@@ -152,21 +186,44 @@ async fn resolve_endpoint(
         || head.status().is_success()
         || (head.status().is_redirection() && head.headers().get(LOCATION).is_none())
     {
-        crate::pacing::wait_for_request().await;
-        let response = client.get(endpoint.clone()).send().await?;
+        crate::pacing::wait_for_request_to(endpoint.as_str()).await;
+        let request = client.get(endpoint.clone()).build()?;
+        let response = client
+            .execute(
+                request
+                    .try_clone()
+                    .ok_or("Shortener GET request could not be copied")?,
+            )
+            .await?;
         if response.url().origin() != endpoint.origin() {
             return Err("Shortener GET escaped its origin".into());
         }
         if response.status().is_redirection() {
+            let response_info = response_page_info(&request, &response);
+            if let Err(error) = crate::http_diagnostics::dump_response_page(
+                response.url(),
+                &[],
+                Some(&response_info),
+            )
+            .await
+            {
+                eprintln!("galerith: response page dump failed ({})", error.kind());
+            }
             if let Some(dest) = header_target(&response, &endpoint) {
                 return Ok(dest);
             }
         }
+        let response_info = response_page_info(&request, &response);
         if service == "tco" && response.status().is_success() {
-            let page = read_small_html(response).await?;
+            let page = read_small_html(response, &response_info).await?;
             if let Some(dest) = refresh_target(&page, &endpoint) {
                 return Ok(dest);
             }
+        } else if response.status().is_success()
+            && crate::http_diagnostics::response_page_dump_enabled()
+            && read_small_html(response, &response_info).await.is_err()
+        {
+            eprintln!("galerith: response page dump failed (response unavailable)");
         }
     }
     Err("Shortener source returned no safe public redirect target".into())
@@ -273,12 +330,34 @@ mod tests {
             socket.write_all(b"HTTP/1.1 302 Found\r\nLocation: https://www.wikipedia.org/wiki/History\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
         });
         let location = Url::parse(&format!("http://{address}/abc")).unwrap();
-        let destination = resolve_endpoint(location, "bitly").await.unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "galerith-shortener-head-pages-{}",
+            std::process::id()
+        ));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let destination = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_endpoint(location, "bitly"),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             destination.as_str(),
             "https://www.wikipedia.org/wiki/History"
         );
         worker.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let diagnostic = tokio::fs::read_to_string(page.path()).await.unwrap();
+        assert!(diagnostic.contains("HEAD http://"));
+        assert!(diagnostic.contains("location: ***"));
+        assert!(!diagnostic.contains("wikipedia.org/wiki/History"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
@@ -307,8 +386,20 @@ mod tests {
             }
         });
         let source = Url::parse(&format!("http://{addr}/abc")).unwrap();
-        let destination = resolve_endpoint(source, "tco").await.unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-shortener-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let destination = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            resolve_endpoint(source, "tco"),
+        )
+        .await
+        .unwrap();
         assert_eq!(destination.as_str(), "https://www.wikipedia.org/");
         worker.await.unwrap();
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 2);
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
