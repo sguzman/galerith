@@ -134,6 +134,24 @@ fn serve_retry_sequence(responses: [&'static [u8]; 4]) -> (String, std::thread::
     (url, server)
 }
 
+fn serve_two_successes() -> (String, std::thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/asset.jpg", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        for _ in 0..2 {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 1024];
+            assert!(socket.read(&mut request).unwrap() > 0);
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+                )
+                .unwrap();
+        }
+    });
+    (url, server)
+}
+
 fn contains_file_with_bytes(directory: &Path, expected: &[u8]) -> bool {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return false;
@@ -1564,6 +1582,78 @@ fn pinned_cli_and_native_match_input_mutation_after_retry_success_and_exhaustion
         [RETRYABLE, RETRYABLE, RETRYABLE, RETRYABLE],
         false,
     );
+    std::fs::remove_dir_all(case_root).unwrap();
+}
+
+#[test]
+fn pinned_cli_and_native_match_delete_input_line_after_success() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let case_root = env::temp_dir().join(format!(
+        "galerith-pinned-delete-input-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&case_root);
+    std::fs::create_dir_all(&case_root).unwrap();
+    let (url, server) = serve_two_successes();
+
+    for (label, pinned) in [("reference", true), ("native", false)] {
+        let input = case_root.join(format!("{label}.txt"));
+        let output = case_root.join(format!("{label}-output"));
+        std::fs::create_dir_all(&output).unwrap();
+        std::fs::write(&input, format!("{url}\n# keep this comment\n")).unwrap();
+
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command
+            .args(["--quiet", "-x"])
+            .arg(&input)
+            .arg("-d")
+            .arg(&output);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command.output().expect("launch input-delete CLI");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(&input).unwrap(),
+            "# keep this comment\n",
+            "{label}: successful URL should be deleted and other lines retained"
+        );
+        assert!(
+            contains_file_with_bytes(&output, b"JPEG"),
+            "{label}: CLI did not save the fixture body"
+        );
+    }
+
+    server.join().unwrap();
     std::fs::remove_dir_all(case_root).unwrap();
 }
 
