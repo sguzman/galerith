@@ -103,7 +103,9 @@ fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
     serde_json::from_str(&spawn(cmd, "pinned gallery-dl")).expect("upstream typed-message JSON")
 }
 
-fn serve_retry_sequence(responses: [&'static [u8]; 4]) -> (String, std::thread::JoinHandle<()>) {
+fn serve_retry_sequence<const N: usize>(
+    responses: [&'static [u8]; N],
+) -> (String, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let url = format!("http://{}/asset.jpg", listener.local_addr().unwrap());
@@ -2384,7 +2386,8 @@ fn pinned_and_native_filter_known_content_lengths_by_size_limits() {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let (url, server) = serve_retry_sequence([SMALL, SMALL, LARGE, LARGE]);
+    let (url, server) =
+        serve_retry_sequence([SMALL, SMALL, LARGE, LARGE, SMALL, SMALL, SMALL, SMALL]);
 
     for (label, pinned, flag, value, response_body) in [
         (
@@ -2451,6 +2454,54 @@ fn pinned_and_native_filter_known_content_lengths_by_size_limits() {
         assert!(
             !contains_file_with_bytes(&output, response_body),
             "{label}: saved a response outside the configured size bounds"
+        );
+    }
+
+    for (label, pinned, clear_global_limit) in [
+        ("reference-http-config-min", true, false),
+        ("native-http-config-min", false, false),
+        ("reference-http-config-cleared", true, true),
+        ("native-http-config-cleared", false, true),
+    ] {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command.args(["--quiet", "-o", "downloader.http.filesize-min=5"]);
+        if clear_global_limit {
+            command.args(["--filesize-min", "0"]);
+        }
+        command.args(["-d"]).arg(&output).arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command
+            .output()
+            .expect("launch size-limit config fixture client");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(
+            contains_file_with_bytes(&output, b"SMAL"),
+            clear_global_limit,
+            "{label}: unexpected behavior for the HTTP size limit configuration"
         );
     }
     server.join().unwrap();

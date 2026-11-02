@@ -224,8 +224,16 @@ impl Config {
 
     /// Optional minimum and maximum media sizes from downloader configuration.
     pub fn downloader_filesize_limits(&self) -> Result<(Option<u64>, Option<u64>), &'static str> {
-        let minimum = parse_file_size_limit(self.root.pointer("/downloader/filesize-min"))?;
-        let maximum = parse_file_size_limit(self.root.pointer("/downloader/filesize-max"))?;
+        let minimum = parse_file_size_limit(
+            self.root
+                .get("filesize-min")
+                .or_else(|| self.root.pointer("/downloader/http/filesize-min")),
+        )?;
+        let maximum = parse_file_size_limit(
+            self.root
+                .get("filesize-max")
+                .or_else(|| self.root.pointer("/downloader/http/filesize-max")),
+        )?;
         Ok((minimum, maximum))
     }
 
@@ -546,23 +554,23 @@ mod tests {
     fn downloader_file_size_limits_parse_suffixes_and_allow_independent_bounds() {
         let mut config = Config::default();
         assert_eq!(config.downloader_filesize_limits().unwrap(), (None, None));
-        config.option("downloader.filesize-min=500k").unwrap();
-        config.option("downloader.filesize-max=2.5M").unwrap();
+        config.option("downloader.http.filesize-min=500k").unwrap();
+        config.option("downloader.http.filesize-max=2.5M").unwrap();
         assert_eq!(
             config.downloader_filesize_limits().unwrap(),
             (Some(500 * 1024), Some(2_621_440))
         );
-        config.option("downloader.filesize-min=0").unwrap();
+        config.option("filesize-min=0").unwrap();
         assert_eq!(
             config.downloader_filesize_limits().unwrap(),
             (None, Some(2_621_440))
         );
-        config.option("downloader.filesize-min=3M").unwrap();
+        config.option("filesize-min=3M").unwrap();
         assert_eq!(
             config.downloader_filesize_limits().unwrap(),
             (Some(3 * 1024 * 1024), Some(2_621_440))
         );
-        config.option("downloader.filesize-min=true").unwrap();
+        config.option("filesize-min=true").unwrap();
         assert!(config.downloader_filesize_limits().is_err());
     }
 

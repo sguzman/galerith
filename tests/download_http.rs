@@ -781,7 +781,7 @@ async fn cli_file_size_limit_overrides_downloader_configuration() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
-        for _ in 0..2 {
+        for _ in 0..3 {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0_u8; 512];
             assert!(stream.read(&mut request).await.unwrap() > 0);
@@ -799,7 +799,7 @@ async fn cli_file_size_limit_overrides_downloader_configuration() {
     let output_dir = config_only_dir.clone();
     let output = tokio::task::spawn_blocking(move || {
         Command::new(env!("CARGO_BIN_EXE_galerith"))
-            .args(["-o", "downloader.filesize-min=5", "-d"])
+            .args(["-o", "downloader.http.filesize-min=5", "-d"])
             .arg(output_dir)
             .arg(config_only_url)
             .output()
@@ -821,7 +821,7 @@ async fn cli_file_size_limit_overrides_downloader_configuration() {
         Command::new(env!("CARGO_BIN_EXE_galerith"))
             .args([
                 "-o",
-                "downloader.filesize-min=5",
+                "downloader.http.filesize-min=5",
                 "--filesize-min",
                 "3",
                 "-d",
@@ -840,6 +840,35 @@ async fn cli_file_size_limit_overrides_downloader_configuration() {
     );
     assert_eq!(
         fs::read(overridden_dir.join("cli-override.jpg")).unwrap(),
+        b"DATA"
+    );
+
+    let disabled_dir = dir.join("cli-disables-config");
+    let disabled_url = format!("http://{addr}/cli-disables-config.jpg");
+    let output_dir = disabled_dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args([
+                "-o",
+                "downloader.http.filesize-min=5",
+                "--filesize-min",
+                "0",
+                "-d",
+            ])
+            .arg(output_dir)
+            .arg(disabled_url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read(disabled_dir.join("cli-disables-config.jpg")).unwrap(),
         b"DATA"
     );
 
