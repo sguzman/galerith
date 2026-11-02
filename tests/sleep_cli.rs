@@ -16,6 +16,10 @@ fn destination(label: &str) -> PathBuf {
 }
 
 fn run_download_with_setting(option: &str, setting: &str, label: &str) -> Duration {
+    run_download_with_args(&[option, setting], label)
+}
+
+fn run_download_with_args(args: &[&str], label: &str) -> Duration {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -46,7 +50,8 @@ fn run_download_with_setting(option: &str, setting: &str, label: &str) -> Durati
     let url = format!("http://{addr}/image.jpg");
     let started = Instant::now();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args([option, setting, "-d", dir.to_str().unwrap(), &url])
+        .args(args)
+        .args(["-d", dir.to_str().unwrap(), &url])
         .output()
         .unwrap();
     server.join().unwrap();
@@ -113,6 +118,24 @@ fn sleep_request_flag_delays_media_transfer() {
         run_download_with_setting("--sleep-request", "0.08", "request-flag")
             >= Duration::from_millis(70),
         "--sleep-request did not delay the media transfer"
+    );
+}
+
+#[test]
+fn sleep_request_flag_overrides_longer_configured_delay() {
+    let elapsed = run_download_with_args(
+        &[
+            "--sleep-request",
+            "0.08",
+            "--option",
+            "extractor.sleep-request=0.5",
+        ],
+        "request-cli-precedence",
+    );
+    assert!(elapsed >= Duration::from_millis(70), "{elapsed:?}");
+    assert!(
+        elapsed < Duration::from_millis(450),
+        "the CLI delay did not override the longer configured delay: {elapsed:?}"
     );
 }
 
