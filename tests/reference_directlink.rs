@@ -134,19 +134,32 @@ fn serve_retry_sequence(responses: [&'static [u8]; 4]) -> (String, std::thread::
     (url, server)
 }
 
-fn serve_two_successes() -> (String, std::thread::JoinHandle<()>) {
+fn serve_two_successes(response: &'static [u8]) -> (String, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
     let url = format!("http://{}/asset.jpg", listener.local_addr().unwrap());
     let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         for _ in 0..2 {
-            let (mut socket, _) = listener.accept().unwrap();
+            let (mut socket, _) = loop {
+                match listener.accept() {
+                    Ok(connection) => break connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "success fixture timed out"
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("accept success fixture connection: {error}"),
+                }
+            };
+            socket
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
             let mut request = [0_u8; 1024];
             assert!(socket.read(&mut request).unwrap() > 0);
-            socket
-                .write_all(
-                    b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
-                )
-                .unwrap();
+            socket.write_all(response).unwrap();
         }
     });
     (url, server)
@@ -1603,7 +1616,9 @@ fn pinned_cli_and_native_match_delete_input_line_after_success() {
     ));
     let _ = std::fs::remove_dir_all(&case_root);
     std::fs::create_dir_all(&case_root).unwrap();
-    let (url, server) = serve_two_successes();
+    let (url, server) = serve_two_successes(
+        b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nConnection: close\r\n\r\nJPEG",
+    );
 
     for (label, pinned) in [("reference", true), ("native", false)] {
         let input = case_root.join(format!("{label}.txt"));
@@ -2268,6 +2283,84 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
     grouped_command.env("PYTHONDONTWRITEBYTECODE", "1");
     let grouped_reference = spawn(grouped_command, "Python grouped numeric formatter");
     assert_eq!(grouped_reference.trim(), grouped_native.join("|"));
+}
+
+#[test]
+fn pinned_and_native_clients_match_last_modified_mtime() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-mtime-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (url, server) = serve_two_successes(
+        b"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 4\r\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\r\nConnection: close\r\n\r\nJPEG",
+    );
+
+    let mut mtimes = Vec::new();
+    for (label, pinned) in [("reference", true), ("native", false)] {
+        let output = root.join(format!("{label}-output"));
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command.args(["--quiet", "-d"]).arg(&output).arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command
+            .output()
+            .expect("launch Last-Modified fixture client");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let files = saved_paths_with_bytes(&output, b"JPEG");
+        assert_eq!(files.len(), 1, "{label}: expected one saved fixture file");
+        mtimes.push((
+            label,
+            std::fs::metadata(&files[0]).unwrap().modified().unwrap(),
+        ));
+    }
+    server.join().unwrap();
+
+    let expected = httpdate::parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT").unwrap();
+    for (label, mtime) in mtimes {
+        let delta = mtime
+            .duration_since(expected)
+            .or_else(|error| expected.duration_since(mtime).map_err(|_| error))
+            .unwrap();
+        assert!(
+            delta < std::time::Duration::from_secs(2),
+            "{label}: mtime differs from pinned Last-Modified by {delta:?}"
+        );
+    }
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
