@@ -775,3 +775,74 @@ async fn unknown_content_length_is_not_filtered_by_declared_size_limits() {
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
 }
+
+#[tokio::test]
+async fn cli_file_size_limit_overrides_downloader_configuration() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 512];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nDATA")
+                .await
+                .unwrap();
+        }
+    });
+    let dir = test_dir("filesize-config-precedence");
+    let _ = fs::remove_dir_all(&dir);
+
+    let config_only_dir = dir.join("config-only");
+    let config_only_url = format!("http://{addr}/config-only.jpg");
+    let output_dir = config_only_dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["-o", "downloader.filesize-min=5", "-d"])
+            .arg(output_dir)
+            .arg(config_only_url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!config_only_dir.join("config-only.jpg").exists());
+
+    let overridden_dir = dir.join("cli-override");
+    let overridden_url = format!("http://{addr}/cli-override.jpg");
+    let output_dir = overridden_dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args([
+                "-o",
+                "downloader.filesize-min=5",
+                "--filesize-min",
+                "3",
+                "-d",
+            ])
+            .arg(output_dir)
+            .arg(overridden_url)
+            .output()
+            .unwrap()
+    })
+    .await
+    .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read(overridden_dir.join("cli-override.jpg")).unwrap(),
+        b"DATA"
+    );
+
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
