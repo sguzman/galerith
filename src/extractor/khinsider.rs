@@ -242,10 +242,41 @@ async fn fetch_html(
     origin: &Url,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let status = response.status();
+    let response_headers = response.headers().clone();
     if response.url().origin() != origin.origin() {
         return Err("KHInsider source redirected outside trusted album origin".into());
     }
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let bytes = read_bounded_html(&mut response).await?;
+    dump_page(&final_url, &bytes, &response_info).await;
+    Ok(String::from_utf8(bytes)?)
+}
+
+async fn read_bounded_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|n| n > MAX_HTML as u64)
@@ -259,7 +290,13 @@ async fn fetch_html(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(String::from_utf8(bytes)?)
+    Ok(bytes)
+}
+
+async fn dump_page(url: &Url, bytes: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, bytes, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 /// Keep up to four read-only source-page requests in flight, paced globally.
@@ -297,16 +334,28 @@ async fn records_at_base(
         let base = base.clone();
         let album_slug = album.slug.clone();
         let album_meta = meta.clone();
+        let page_scope = crate::http_diagnostics::response_page_scope();
+        let request_headers_scope = crate::http_diagnostics::default_request_headers_scope();
         pending.spawn(async move {
-            let endpoint = if base.scheme() == "http" {
-                // Used only by a loopback fixture; production uses HTTPS.
-                base.join(track.path())?
-            } else {
-                track
+            let request_future = async {
+                let endpoint = if base.scheme() == "http" {
+                    // Used only by a loopback fixture; production uses HTTPS.
+                    base.join(track.path())?
+                } else {
+                    track
+                };
+                let html = fetch_html(&client, endpoint, &base).await?;
+                let files = decode_track(&html, &album_slug, i + 1, &album_meta)?;
+                Ok::<_, Box<dyn Error + Send + Sync>>((i, files))
             };
-            let html = fetch_html(&client, endpoint, &base).await?;
-            let files = decode_track(&html, &album_slug, i + 1, &album_meta)?;
-            Ok::<_, Box<dyn Error + Send + Sync>>((i, files))
+            let request_future =
+                crate::http_diagnostics::scope_response_pages_if(page_scope, request_future);
+            if let Some(headers) = request_headers_scope {
+                crate::http_diagnostics::scope_default_request_headers(headers, request_future)
+                    .await
+            } else {
+                request_future.await
+            }
         });
     }
     while let Some(joined) = pending.join_next().await {
@@ -525,12 +574,27 @@ mod tests {
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
         let album =
             match_url("https://downloads.khinsider.com/game-soundtracks/album/game-ost").unwrap();
-        let files = records_at_base(&Client::new(), &album, &base)
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-khinsider-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let files = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            records_at_base(&Client::new(), &album, &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].0.filename, "game-ost_001_first.mp3");
         assert_eq!(files[1].1["extension"], "flac");
         server.await.unwrap();
+        let pages = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| std::fs::read(entry.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(pages.len(), 3);
+        assert!(pages.iter().any(|page| page == album_html().as_bytes()));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }

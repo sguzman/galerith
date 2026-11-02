@@ -58,6 +58,14 @@ pub fn default_request_headers() -> HeaderMap {
         .unwrap_or_default()
 }
 
+pub fn default_request_headers_scope() -> Option<HeaderMap> {
+    DEFAULT_REQUEST_HEADERS.try_with(Clone::clone).ok()
+}
+
+pub fn response_page_scope() -> Option<(PathBuf, ResponsePageMode)> {
+    RESPONSE_PAGE_OPTIONS.try_with(Clone::clone).ok()
+}
+
 /// Save a bounded response body when the caller enabled `--write-pages`.
 /// Generated filenames contain no URL, query, or credential data.
 pub async fn dump_response_page(
