@@ -327,7 +327,7 @@ fn proxy_url_credentials_are_sent_only_to_the_proxy() {
 }
 
 #[test]
-fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
+fn https_targets_use_authenticated_proxy_connect_before_tls() {
     let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = proxy.local_addr().unwrap().port();
     let server = std::thread::spawn(move || {
@@ -342,7 +342,15 @@ fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
             line.starts_with("CONNECT example.invalid:443 HTTP/1.1\r\n"),
             "expected CONNECT tunnel request, got {line}"
         );
-        assert!(!line.to_ascii_lowercase().contains("authorization:"));
+        let lower = line.to_ascii_lowercase();
+        assert!(
+            lower.contains("\r\nproxy-authorization: basic dxnlcjpzzwnyzxq=\r\n"),
+            "HTTPS proxy credentials were not attached to CONNECT: {line}"
+        );
+        assert!(
+            !lower.contains("\r\nauthorization:"),
+            "proxy credentials leaked into an origin Authorization header: {line}"
+        );
         socket
             .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
             .unwrap();
@@ -356,7 +364,7 @@ fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
     });
     let dir = destination("https-connect");
     let _ = fs::remove_dir_all(&dir);
-    let proxy_address = format!("http://127.0.0.1:{port}");
+    let proxy_address = format!("http://user:secret@127.0.0.1:{port}");
     let proxy_option = format!(
         "proxy={}",
         serde_json::to_string(&serde_json::json!({ "https": proxy_address })).unwrap()
@@ -381,6 +389,10 @@ fn https_targets_use_a_proxy_connect_tunnel_before_tls() {
     assert!(
         !String::from_utf8_lossy(&output.stderr).contains(&proxy_address),
         "proxy endpoint leaked into diagnostics"
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains("secret"),
+        "proxy credentials leaked into diagnostics"
     );
     fs::remove_dir_all(dir).unwrap();
 }

@@ -39,7 +39,7 @@ The native preview includes resumable transfers and retries, cross-process downl
 
 ## Port tracking
 
-**Overall MVP:** `███████░░░ 70%` (160 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
+**Overall MVP:** `███████░░░ 71%` (160 acceptance-tracked tasks). This is task acceptance progress, **not** site coverage or feature parity.
 
 **Pinned extractor-source inventory:** 1 complete · 76 partial · 195 not ported (272 upstream Python files).
 

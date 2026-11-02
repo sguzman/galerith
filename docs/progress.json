@@ -334,7 +334,8 @@
                 },
                 {
                   "title": "Request headers/response diagnostics",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/extractor/http_json.rs shared bounded JSON/bytes diagnostics; src/http_diagnostics.rs redacts request and response metadata. Repository audit: production extractor requests use the bounded shared reader or explicit ResponsePageInfo capture; remaining .send() calls are test fixtures. Loopback fixtures cover body-only and all-header modes, header redaction, origin guards, POST methods, and the migrated extractor request shapes. Local fmt, Clippy, all-target tests, roadmap check, and release build passed; synthetic tests only, no live-site parity claimed."
                 },
                 {
                   "title": "Differential network tests",
@@ -342,13 +343,13 @@
                   "evidence": "tests/reference_directlink.rs::pinned_and_native_clients_match_proxy_auth_and_user_agent compares absolute-form proxy routing, synthetic proxy authentication and explicit User-Agent headers for both clients; GitHub Actions 41336646406 Rust and pinned-reference jobs passed"
                 }
               ],
-              "progress": 75
+              "progress": 100
             },
             {
               "id": "T205",
               "emoji": "🌐",
               "name": "User-agent and proxy transport preview",
-              "progress": 50,
+              "progress": 75,
               "checks": [
                 {
                   "title": "Accept upstream -a/--user-agent and --proxy flags",
@@ -362,7 +363,8 @@
                 },
                 {
                   "title": "Implement full proxy authentication, TLS and address-family selection",
-                  "passed": false
+                  "passed": true,
+                  "evidence": "src/main.rs build_http_client applies HTTP/HTTPS proxy settings, proxy Basic auth through reqwest, TLS verification/CA configuration, IPv4/IPv6 and source-address binding. tests/http_options_cli.rs::proxy_url_credentials_are_sent_only_to_the_proxy and https_targets_use_authenticated_proxy_connect_before_tls verify credentials on HTTP and HTTPS proxy requests without leaking them to origins/diagnostics; TLS certificate and IPv4/IPv6/source-address socket fixtures pass locally. Full local quality gates pass; synthetic fixtures only."
                 },
                 {
                   "title": "Compare upstream HTTP configuration behavior",

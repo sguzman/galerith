@@ -2,7 +2,7 @@
 
 **Source of truth:** [progress.json](progress.json). Percentages reflect accepted atomic checks, not production readiness. No unverified CI or live site testing is counted.
 
-**Overall:** `███████░░░ 70%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
+**Overall:** `███████░░░ 71%` across 160 atomic tasks. **Every milestone is part of the complete-port MVP.**
 
 ## 🧱 M0 — Identity, provenance, project controls — `████████░░ 77%`
 **Acceptance gate:** Pinned upstream reference, honest task ledger, CI-validated Rust core.
@@ -49,10 +49,10 @@
   - [ ] Package distribution and checksums
   - [ ] Validate install on EndeavourOS
 
-## 🌐 M1 — HTTP, storage and download parity — `███████░░░ 72%`
+## 🌐 M1 — HTTP, storage and download parity — `████████░░ 76%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
-### 📡 P2 — HTTP transfer engine — `████████░░ 79%`
+### 📡 P2 — HTTP transfer engine — `█████████░ 88%`
 
 - ⬇️ **T201** Stream media downloads — `████████░░ 75%`
   - [x] Implement chunked async HTTP writing — src/download.rs
@@ -69,15 +69,15 @@
   - [x] Implement Range-based resumes — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
   - [x] Preserve metadata/mtime, validate lengths — src/download.rs preserves validated HTTP Last-Modified as output mtime after successful atomic rename, including resumed 206 responses; tests/download_http.rs keeps_valid_http_last_modified_as_output_mtime and tests/download_resume.rs persists_verified_partial_across_invocations; body/total lengths already validated; full Linux CI 40218907724
   - [x] Pass interruption and collision tests — GitHub Actions 39947298737: local HTTP resume, collision, multi-megabyte, retry and Danbooru API tests passed
-- 🔌 **T204** HTTP configuration and proxy parity — `████████░░ 75%`
+- 🔌 **T204** HTTP configuration and proxy parity — `██████████ 100%`
   - [x] Set request timeout — src/main.rs resolves explicit --http-timeout, global timeout and downloader.http.timeout precedence; src/download.rs applies the downloader value to media requests; tests/http_options_cli.rs checks scoped and global precedence; tests/reference_directlink.rs::pinned_and_native_clients_match_downloader_http_timeout compares server-observed timeout behavior with pinned gallery-dl commit 7f226f74108501c8ac3120548370f68f19e6f9b3 on a localhost fixture (no live origin)
   - [x] Proxy, TLS, IPv4/IPv6 and user-agent — tests/http_options_cli.rs covers proxy authentication and HTTPS CONNECT, custom User-Agent routing, TLS certificate validation/opt-out, IPv4/IPv6 selection and source-address binding; GitHub Actions 41334265645 passed Rust and pinned-reference jobs
-  - [ ] Request headers/response diagnostics
+  - [x] Request headers/response diagnostics — src/extractor/http_json.rs shared bounded JSON/bytes diagnostics; src/http_diagnostics.rs redacts request and response metadata. Repository audit: production extractor requests use the bounded shared reader or explicit ResponsePageInfo capture; remaining .send() calls are test fixtures. Loopback fixtures cover body-only and all-header modes, header redaction, origin guards, POST methods, and the migrated extractor request shapes. Local fmt, Clippy, all-target tests, roadmap check, and release build passed; synthetic tests only, no live-site parity claimed.
   - [x] Differential network tests — tests/reference_directlink.rs::pinned_and_native_clients_match_proxy_auth_and_user_agent compares absolute-form proxy routing, synthetic proxy authentication and explicit User-Agent headers for both clients; GitHub Actions 41336646406 Rust and pinned-reference jobs passed
-- 🌐 **T205** User-agent and proxy transport preview — `█████░░░░░ 50%`
+- 🌐 **T205** User-agent and proxy transport preview — `████████░░ 75%`
   - [x] Accept upstream -a/--user-agent and --proxy flags — src/main.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
   - [x] Verify proxy request routing and custom User-Agent offline — tests/http_options_cli.rs; GitHub Actions 39956648701 succeeded (format, Clippy, offline tests, release build); 4chan board fixtures also passed run 39956254401
-  - [ ] Implement full proxy authentication, TLS and address-family selection
+  - [x] Implement full proxy authentication, TLS and address-family selection — src/main.rs build_http_client applies HTTP/HTTPS proxy settings, proxy Basic auth through reqwest, TLS verification/CA configuration, IPv4/IPv6 and source-address binding. tests/http_options_cli.rs::proxy_url_credentials_are_sent_only_to_the_proxy and https_targets_use_authenticated_proxy_connect_before_tls verify credentials on HTTP and HTTPS proxy requests without leaking them to origins/diagnostics; TLS certificate and IPv4/IPv6/source-address socket fixtures pass locally. Full local quality gates pass; synthetic fixtures only.
   - [ ] Compare upstream HTTP configuration behavior
 - ⏱️ **T206** Retry-After dates and constant download pacing preview — `████████░░ 75%`
   - [x] Bound numeric Retry-After and support HTTP-date values — src/download.rs; GitHub Actions 39957617755 passed
