@@ -1946,6 +1946,46 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
+fn pinned_and_native_clients_reject_empty_literal_filename_fields() {
+    let template = "{_lit[]}";
+    let url = "https://example.org/image.jpg";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--filename", template, "--simulate", url])
+        .output()
+        .unwrap();
+    assert!(!native.status.success(), "native accepted an empty literal");
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let pinned = Command::new("python3")
+        .args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--filename",
+            template,
+            "--simulate",
+            url,
+        ])
+        .env("PYTHONPATH", Path::new(&root))
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        !pinned.status.success(),
+        "pinned gallery-dl accepted an empty literal"
+    );
+}
+
+#[test]
 fn pinned_and_native_clients_match_downloader_http_verify_false() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;

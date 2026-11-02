@@ -151,6 +151,9 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             let literal = selector.ok_or_else(|| {
                 FormatError("literal filename field requires a bracketed value".into())
             })?;
+            if literal.is_empty() {
+                return Err(FormatError("literal filename field cannot be empty".into()));
+            }
             (Some(literal.to_owned()), true)
         } else {
             (
@@ -532,7 +535,7 @@ mod tests {
         assert_eq!(render("{category:.5}", &item).unwrap(), "danbo");
         assert_eq!(render("x{filename:.0}", &item).unwrap(), "x");
         assert_eq!(render("{_lit[proof]}", &item).unwrap(), "proof");
-        assert_eq!(render("pre{_lit[]}", &item).unwrap(), "pre");
+        assert!(render("{_lit[]}", &item).is_err());
         assert!(render("{_lit}", &item).is_err());
         assert!(render("{filename:03}", &item).is_err());
         assert!(render("{filename:>241}", &item).is_err());
