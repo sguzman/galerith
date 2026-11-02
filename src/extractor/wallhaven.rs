@@ -167,27 +167,12 @@ fn parse_items(
 }
 
 async fn fetch_json(client: &Client, url: Url) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(url)
+    let request = client
+        .get(url.clone())
         .header("Accept", "application/json")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|len| len > MAX_RESPONSE as u64)
-    {
-        return Err("Wallhaven JSON exceeded the response limit".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_RESPONSE {
-            return Err("Wallhaven JSON exceeded the response limit".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+        .build()?;
+    super::http_json::fetch_json_request_uncached_from_origin(client, request, url, MAX_RESPONSE)
+        .await
 }
 
 /// Every API request across a user-collection fan-out shares the same finite
@@ -560,6 +545,51 @@ pub async fn resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn response_page_scope_dumps_wallhaven_json() {
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let body = r#"{"data":[],"meta":{"current_page":1}}"#;
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 2048];
+            let count = socket.read(&mut request).await.unwrap();
+            let request = String::from_utf8_lossy(&request[..count]).to_ascii_lowercase();
+            assert!(request.contains("accept: application/json"));
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        let endpoint = Url::parse(&format!("http://{address}/api/v1/search?q=private")).unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-wallhaven-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let value = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::Body,
+            fetch_json(&Client::new(), endpoint),
+        )
+        .await
+        .unwrap();
+        assert_eq!(value["meta"]["current_page"], 1);
+        server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        assert_eq!(tokio::fs::read(page.path()).await.unwrap(), body.as_bytes());
+        tokio::fs::remove_dir_all(directory).await.unwrap();
+    }
 
     #[test]
     fn routes_only_safe_public_image_search_and_upload_urls() {
@@ -1016,7 +1046,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(error.to_string().contains("response limit"));
+        assert!(error.to_string().contains("byte limit"));
         server.await.unwrap();
     }
 
