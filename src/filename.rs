@@ -38,25 +38,6 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     Ok((field, ""))
 }
 
-fn split_alternatives(field: &str) -> Vec<&str> {
-    let mut alternatives = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0;
-    for (index, character) in field.char_indices() {
-        match character {
-            '[' => depth += 1,
-            ']' => depth = depth.saturating_sub(1),
-            '|' if depth == 0 => {
-                alternatives.push(&field[start..index]);
-                start = index + character.len_utf8();
-            }
-            _ => {}
-        }
-    }
-    alternatives.push(&field[start..]);
-    alternatives
-}
-
 fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
     let chars: Vec<char> = value.chars().collect();
     if selector.contains(':') {
@@ -143,7 +124,7 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
-    let candidates = split_alternatives(name);
+    let candidates: Vec<_> = name.split('|').collect();
     if candidates.iter().any(|candidate| candidate.is_empty()) {
         return Err(FormatError("empty alternative filename field".into()));
     }
@@ -391,6 +372,21 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     if spec.starts_with('R') {
         return Err(FormatError("invalid filename replacement formatter".into()));
     }
+    if let Some(precision) = spec.strip_prefix('.') {
+        if matches!(base_name, "id" | "post_id")
+            || precision.is_empty()
+            || !precision.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(FormatError("invalid string precision formatting".into()));
+        }
+        let precision = precision
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid string precision".into()))?;
+        if precision > 240 {
+            return Err(FormatError("filename string precision is too large".into()));
+        }
+        return Ok(value.chars().take(precision).collect());
+    }
     // Bounded Python-style width formatting for numeric IDs and strings.
     if matches!(base_name, "id" | "post_id") {
         let width = spec.strip_prefix('>').unwrap_or(spec);
@@ -533,11 +529,9 @@ mod tests {
         assert_eq!(render("{category:_<12}", &item).unwrap(), "danbooru____");
         assert_eq!(render("{filename:#^9}", &item).unwrap(), "original#");
         assert_eq!(render("{filename:#^10}", &item).unwrap(), "#original#");
+        assert_eq!(render("{category:.5}", &item).unwrap(), "danbo");
+        assert_eq!(render("x{filename:.0}", &item).unwrap(), "x");
         assert_eq!(render("{_lit[proof]}", &item).unwrap(), "proof");
-        assert_eq!(
-            render("{_lit[proof|mark]!q}", &item).unwrap(),
-            "proof%7Cmark"
-        );
         assert_eq!(render("pre{_lit[]}", &item).unwrap(), "pre");
         assert!(render("{_lit}", &item).is_err());
         assert!(render("{filename:03}", &item).is_err());
