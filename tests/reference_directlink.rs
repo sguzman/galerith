@@ -2092,6 +2092,88 @@ fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
 }
 
 #[test]
+fn pinned_and_native_info_json_match_directlink_directory_metadata() {
+    let root = env::temp_dir().join(format!(
+        "galerith-info-json-reference-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let native_dir = root.join("native");
+    std::fs::create_dir_all(&native_dir).unwrap();
+    let url = "https://cdn.example.org/galleries/asset.jpg";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--write-info-json",
+            "--simulate",
+            "-d",
+            native_dir.to_str().unwrap(),
+            url,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "native info-json failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    let native_metadata: Value = serde_json::from_slice(
+        &std::fs::read(native_dir.join("info.json")).expect("native info.json created"),
+    )
+    .unwrap();
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        std::fs::remove_dir_all(root).unwrap();
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for info-json comparison");
+    let pinned_dir = root.join("pinned");
+    std::fs::create_dir_all(&pinned_dir).unwrap();
+    let pinned = Command::new("python3")
+        .args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--write-info-json",
+            "--simulate",
+            "-D",
+            pinned_dir.to_str().unwrap(),
+            url,
+        ])
+        .env("PYTHONPATH", pinned_root)
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        pinned.status.success(),
+        "pinned info-json failed: {}",
+        String::from_utf8_lossy(&pinned.stderr)
+    );
+    let pinned_metadata: Value = serde_json::from_slice(
+        &std::fs::read(pinned_dir.join("info.json")).expect("pinned info.json created"),
+    )
+    .unwrap();
+    for key in [
+        "category",
+        "filename",
+        "domain",
+        "subcategory",
+        "path",
+        "stem",
+        "extension",
+    ] {
+        assert_eq!(
+            native_metadata.get(key),
+            pinned_metadata.get(key),
+            "directlink info.json field {key} differs"
+        );
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_reject_empty_literal_filename_fields() {
     let template = "{_lit[]}";
     let url = "https://example.org/image.jpg";

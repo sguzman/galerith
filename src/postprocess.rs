@@ -1,6 +1,10 @@
-//! Small native per-file metadata writer; gallery-dl's complete metadata
-//! vocabulary and postprocessor lifecycle are still future MVP work.
-use crate::{privacy::display_url, MediaItem};
+//! Bounded native per-file and gallery-level metadata writers; gallery-dl's
+//! complete metadata vocabulary and postprocessor lifecycle remain future MVP work.
+use crate::{
+    message::{ExtractorMessage, Metadata},
+    privacy::display_url,
+    MediaItem,
+};
 use serde_json::json;
 use std::{
     error::Error,
@@ -45,6 +49,23 @@ async fn write_atomic(output: &Path, bytes: &[u8], tmp: &Path) -> io::Result<()>
     Ok(())
 }
 
+async fn write_json_atomic(
+    output: &Path,
+    value: &serde_json::Value,
+) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+    let bytes = serde_json::to_vec_pretty(value)?;
+    let mut tmp_name = OsString::from(
+        output
+            .file_name()
+            .ok_or_else(|| io::Error::other("invalid metadata filename"))?,
+    );
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
+    let tmp = output.with_file_name(tmp_name);
+    write_atomic(output, &bytes, &tmp).await?;
+    Ok(output.to_owned())
+}
+
 /// Write a JSON sidecar atomically after the media path exists.
 /// Signed query parameters and URL credentials are intentionally excluded.
 pub async fn write_metadata(
@@ -71,17 +92,32 @@ pub async fn write_metadata(
             }
         }
     }
-    let bytes = serde_json::to_vec_pretty(&value)?;
-    let mut tmp_name = OsString::from(
-        output
-            .file_name()
-            .ok_or_else(|| io::Error::other("invalid sidecar filename"))?,
-    );
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-    tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
-    let tmp = output.with_file_name(tmp_name);
-    write_atomic(&output, &bytes, &tmp).await?;
-    Ok(output)
+    write_json_atomic(&output, &value).await
+}
+
+/// Write a bounded gallery-level info.json from the directory metadata.
+/// URL query and fragment values are excluded to avoid persisting tokens.
+pub async fn write_info_json(
+    destination: &Path,
+    item: &MediaItem,
+) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+    let metadata: Metadata = if item.extractor == "directlink" {
+        crate::extractor::directlink::resolve_messages(&item.url)?
+            .into_iter()
+            .find_map(|message| match message {
+                ExtractorMessage::Directory { metadata } => Some(metadata),
+                _ => None,
+            })
+            .unwrap_or_else(|| crate::message::media_metadata(item))
+    } else {
+        crate::message::media_metadata(item)
+    };
+    let mut metadata = metadata;
+    metadata.remove("query");
+    metadata.remove("fragment");
+    fs::create_dir_all(destination).await?;
+    let output = destination.join("info.json");
+    write_json_atomic(&output, &serde_json::Value::Object(metadata)).await
 }
 
 #[cfg(test)]

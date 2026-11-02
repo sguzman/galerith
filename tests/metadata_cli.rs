@@ -79,3 +79,38 @@ fn dry_run_with_metadata_flag_never_creates_sidecar() {
     assert!(output.status.success());
     assert!(!dir.exists());
 }
+
+#[test]
+fn info_json_writes_redacted_directory_metadata_before_simulated_download() {
+    let dir = dir().with_extension("info");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--write-info-json",
+            "--simulate",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://cdn.example.org/galleries/asset.jpg?token=private#secret",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let path = dir.join("info.json");
+    let bytes = fs::read(&path).unwrap();
+    let text = String::from_utf8(bytes.clone()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["category"], "directlink");
+    assert_eq!(value["filename"], "asset.jpg");
+    assert_eq!(value["domain"], "cdn.example.org");
+    assert_eq!(value["path"], "galleries");
+    assert_eq!(value["stem"], "asset");
+    assert_eq!(value["extension"], "jpg");
+    assert!(!text.contains("private"));
+    assert!(!text.contains("secret"));
+    assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+    fs::remove_dir_all(dir).unwrap();
+}

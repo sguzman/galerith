@@ -34,7 +34,7 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 - `src/cookies.rs`: Netscape cookie file importer; not browser account/token import
 - `src/download.rs`: validator-bound HTTP resume, transient retries including numeric and HTTP-date Retry-After, output path locks and complete-file renames
 - `src/archive.rs`: SQLite duplicate ledger using Galerith keys; incompatible with full upstream archive semantics
-- `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`), including stable directlink source fields; `--write-info-json`, text/original metadata and the full gallery-dl postprocessor lifecycle remain outstanding
+- `src/postprocess.rs`: atomic bounded gallery `info.json` (`--write-info-json`) and per-media JSON sidecars (`--write-metadata`); full upstream metadata, text/original formats and the gallery-dl postprocessor lifecycle remain outstanding
 - `src/bin/galerith-roadmap.rs`: task/acceptance and extractor inventory verification; CI checks both generated Markdown documents
 
 Tests are synthetic and offline: `tests/cli.rs`, `tests/message_cli.rs`, `tests/message_download_cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.

@@ -578,7 +578,8 @@
                 },
                 {
                   "title": "Reference golden metadata comparisons",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "Partial directlink reference: src/postprocess.rs now writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs covers simulation output and redaction, and tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl in the oracle job. Local focused tests pass; full extractor metadata and golden parity remains incomplete pending the pushed CI result."
                 }
               ]
             }

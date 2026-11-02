@@ -12,7 +12,7 @@ use galerith::{
     filename::render as render_filename,
     message::JobSelection,
     pacing::{with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
-    postprocess::write_metadata,
+    postprocess::{write_info_json, write_metadata},
     privacy::{display_error, display_url},
     range::IndexRange,
 };
@@ -102,6 +102,7 @@ struct Cli {
             "file_range",
             "filename_template",
             "write_metadata",
+            "write_info_json",
             "download_archive"
         ]
     )]
@@ -211,6 +212,10 @@ struct Cli {
     /// Write a JSON sidecar for each saved or existing media file
     #[arg(long = "write-metadata")]
     write_metadata: bool,
+
+    /// Write bounded directory metadata to info.json
+    #[arg(long = "write-info-json")]
+    write_info_json: bool,
 
     /// Write successful bounded API responses to .txt files; all includes redacted headers
     #[arg(
@@ -1085,6 +1090,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 continue;
             }
         };
+        if cli.write_info_json {
+            if let Some(item) = items.first() {
+                write_info_json(&options.destination, item).await?;
+            }
+        }
         for (index, mut item) in items.into_iter().enumerate() {
             if selected
                 .as_ref()
