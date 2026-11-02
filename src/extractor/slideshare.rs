@@ -186,28 +186,15 @@ async fn at_base(
     target: &Presentation,
 ) -> Result<Vec<(MediaItem, Metadata)>, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("{}/{}", target.user, target.slug))?;
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("Slideshare source redirected off origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_HTML as u64)
-    {
-        return Err("Slideshare source page exceeds HTML cap".into());
-    }
-    let mut html = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML.saturating_sub(html.len()) {
-            return Err("Slideshare source page exceeds HTML cap".into());
-        }
-        html.extend_from_slice(&chunk);
-    }
+    let request = client.get(endpoint.clone()).build()?;
+    let html = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_HTML,
+        "Slideshare source page exceeds HTML cap",
+    )
+    .await?;
     records(std::str::from_utf8(&html)?, target)
 }
 
