@@ -106,6 +106,17 @@ pub(crate) async fn fetch_bytes_request_uncached_from_origin(
     Ok(body)
 }
 
+pub(crate) async fn fetch_bytes_request_uncached(
+    client: &Client,
+    request: reqwest::Request,
+    max_bytes: usize,
+    limit_message: &'static str,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let (body, _) =
+        fetch_bytes_request_inner(client, request, max_bytes, None, limit_message).await?;
+    Ok(body)
+}
+
 async fn fetch_bytes_request_inner(
     client: &Client,
     request: reqwest::Request,

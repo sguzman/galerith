@@ -152,26 +152,18 @@ async fn at_base(
     target: &Target,
     base: &Url,
 ) -> Result<(MediaItem, Metadata), Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(base.join(&format!("img-{}.html", target.token))?)
+    let endpoint = base.join(&format!("img-{}.html", target.token))?;
+    let request = client
+        .get(endpoint)
         .header(reqwest::header::COOKIE, "img_i_d=1")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_HTML_BYTES as u64)
-    {
-        return Err("Imgadult public HTML exceeds response limit".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_HTML_BYTES.saturating_sub(body.len()) {
-            return Err("Imgadult public HTML exceeds response limit".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let body = super::http_json::fetch_bytes_request_uncached(
+        client,
+        request,
+        MAX_HTML_BYTES,
+        "Imgadult public HTML exceeds response limit",
+    )
+    .await?;
     parse_page(std::str::from_utf8(&body)?, target)
 }
 
