@@ -578,13 +578,20 @@ mod tests {
             std::env::temp_dir().join(format!("galerith-khinsider-pages-{}", std::process::id()));
         let _ = tokio::fs::remove_dir_all(&directory).await;
         tokio::fs::create_dir_all(&directory).await.unwrap();
-        let files = crate::http_diagnostics::scope_response_pages(
+        let mut diagnostic_headers = reqwest::header::HeaderMap::new();
+        let mut secret = reqwest::header::HeaderValue::from_static("khinsider-test-secret");
+        secret.set_sensitive(true);
+        diagnostic_headers.insert("x-api-token", secret);
+        let client = Client::new();
+        let future = crate::http_diagnostics::scope_response_pages(
             directory.clone(),
-            crate::http_diagnostics::ResponsePageMode::Body,
-            records_at_base(&Client::new(), &album, &base),
-        )
-        .await
-        .unwrap();
+            crate::http_diagnostics::ResponsePageMode::All,
+            records_at_base(&client, &album, &base),
+        );
+        let files =
+            crate::http_diagnostics::scope_default_request_headers(diagnostic_headers, future)
+                .await
+                .unwrap();
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].0.filename, "game-ost_001_first.mp3");
         assert_eq!(files[1].1["extension"], "flac");
@@ -594,7 +601,14 @@ mod tests {
             .map(|entry| std::fs::read(entry.unwrap().path()).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(pages.len(), 3);
-        assert!(pages.iter().any(|page| page == album_html().as_bytes()));
+        assert!(pages
+            .iter()
+            .any(|page| page.ends_with(album_html().as_bytes())));
+        for page in &pages {
+            let page = String::from_utf8_lossy(page);
+            assert!(page.contains("x-api-token: ***"));
+            assert!(!page.contains("khinsider-test-secret"));
+        }
         tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
