@@ -28,13 +28,13 @@ CLI ── explicit config overlay (JSON/YAML/TOML + -o overrides)
 - `src/extractor/`: independently written, limited native extractor previews; read-only typed event adapter, Wallhaven deferred collection queues and bounded multi-level inspection and optional queue-driven downloads, but no full gallery-dl recursive queue, metadata, redirect or job compatibility contract
 - `src/message.rs`: typed directory/URL/queue events, bounded iterative job traversal, metadata scope isolation and file/child/directory selection; [job filters](JOB_FILTERS.md) and [post scopes/paging](POST_SCOPES_AND_PAGING.md) and [4chan queue](FOURCHAN_QUEUE.md). [Detailed preview contract](MESSAGE_PROTOCOL.md)
 - `src/config.rs`: overlay of explicit JSON/YAML/TOML files and dotted `-o` options, not default-file discovery or full upstream option semantics
-- `src/filename.rs`: safe leaf-name formatter with common fields, padding, escaped braces; no conditional formatting or full upstream dialect
+- `src/filename.rs`: safe leaf-name formatter with common fields, conditional wrappers, padding, slices and selected transformations; the full upstream dialect remains outstanding
 - `src/range.rs`: gallery-dl-compatible index syntax parsed in Rust; applies after the current page-bounded extractors return
 - `src/privacy.rs`: URL and network-error redaction for ordinary diagnostics
 - `src/cookies.rs`: Netscape cookie file importer; not browser account/token import
 - `src/download.rs`: validator-bound HTTP resume, transient retries including numeric and HTTP-date Retry-After, output path locks and complete-file renames
 - `src/archive.rs`: SQLite duplicate ledger using Galerith keys; incompatible with full upstream archive semantics
-- `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`); the full gallery-dl postprocessor lifecycle remains outstanding
+- `src/postprocess.rs`: atomic, limited media JSON sidecars (`--write-metadata`), including stable directlink source fields; text/original metadata and the full gallery-dl postprocessor lifecycle remain outstanding
 - `src/bin/galerith-roadmap.rs`: task/acceptance and extractor inventory verification; CI checks both generated Markdown documents
 
 Tests are synthetic and offline: `tests/cli.rs`, `tests/message_cli.rs`, `tests/message_download_cli.rs`, `tests/config_cli.rs`, `tests/cookie_cli.rs`, `tests/download_http.rs`, `tests/download_resume.rs`, `tests/download_collision.rs`, `tests/download_quality.rs`, `tests/archive_cli.rs`, `tests/metadata_cli.rs`, `tests/http_options_cli.rs`, and `tests/sleep_cli.rs`.
