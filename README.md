@@ -62,6 +62,8 @@ cargo run --bin galerith-roadmap -- --check
 
 **Verified Linux CI:** [run 40040566586](https://github.com/sguzman/galerith/actions/runs/40040566586) (format, clippy, offline tests, roadmap/matrix check and release build). This verifies the bootstrap only, not upstream parity. The repository uses one native Rust crate, not a monorepo. Push CI publishes a `galerith/rust-ci` commit status for machine-readable verification.
 
+`Cargo.lock` pins application dependencies; CI and release builds use Cargo's `--locked` mode.
+
 A pushed `v<version>` tag that matches `Cargo.toml` triggers [the release workflow](.github/workflows/release.yml). It packages Linux x64/ARM64, macOS x64/ARM64 and Windows x64 binaries with the license and compatibility documents, then attaches a `SHA256SUMS` manifest to the GitHub release.
 
 ## License

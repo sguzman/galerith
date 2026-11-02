@@ -17,13 +17,13 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
       - name: Roadmap and port-matrix consistency
-        run: cargo run --bin galerith-roadmap -- --check
+        run: cargo run --locked --bin galerith-roadmap -- --check
       - name: Tests
-        run: cargo test --all-targets
+        run: cargo test --locked --all-targets
       - name: Release build
-        run: cargo build --release
+        run: cargo build --locked --release
 
   pinned-reference:
     name: Pinned upstream directlink oracle
@@ -53,14 +53,14 @@ jobs:
       - name: Verify immutable upstream source checkout
         run: test "$(git -C .oracle/pinned-gallery-dl rev-parse HEAD)" = "7f226f74108501c8ac3120548370f68f19e6f9b3"
       - name: Verify pinned extractor inventory
-        run: cargo run --bin galerith-roadmap -- --check-catalog .oracle/pinned-gallery-dl
+        run: cargo run --locked --bin galerith-roadmap -- --check-catalog .oracle/pinned-gallery-dl
       - name: Compare pinned directlink events without network
         env:
           GALERITH_REFERENCE_ORACLE: "1"
           GALERITH_PINNED_REFERENCE_ROOT: .oracle/pinned-gallery-dl
           GALERITH_PINNED_REFERENCE_SHA: 7f226f74108501c8ac3120548370f68f19e6f9b3
           GALERITH_ORACLE_REPORT_PATH: .oracle/reports/directlink.json
-        run: cargo test --test reference_directlink
+        run: cargo test --locked --test reference_directlink
       - name: Upload reproducible directlink oracle evidence
         uses: actions/upload-artifact@v4
         with:

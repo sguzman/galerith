@@ -185,11 +185,12 @@
                 {
                   "title": "Reproduce upstream JSON message protocol",
                   "passed": false,
-                  "evidence": "src/main.rs --dump-json emits upstream Directory/URL tuple arrays ([2, metadata], [3, url, metadata]); tests/cli.rs, tests/message_cli.rs and tests/fixtures/cli_golden.json cover the offline shape. tests/reference_directlink.rs compares complete directlink tuples and filename-override behavior with pinned gallery-dl; latest pinned CI 41522268807 exposed tuple-shape and metadata differences, now corrected locally and awaiting a rerun."
+                  "evidence": "src/main.rs --dump-json emits upstream Directory/URL tuple arrays ([2, metadata], [3, url, metadata]); tests/cli.rs, tests/message_cli.rs and tests/fixtures/cli_golden.json cover the offline shape. tests/reference_directlink.rs compares directlink tuples and filename-override behavior with pinned gallery-dl. The mismatches found by CI 41522268807 were corrected; pinned CI 41523997986 passed, as did resolve-urls CI 41525422242 and resolve-json CI 41526103351. This verifies directlink cases only; tuple metadata parity across the full extractor catalog remains incomplete."
                 },
                 {
                   "title": "Implement all print/list/diagnostics modes",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "src/main.rs implements bounded -G/--resolve-urls and -J/--resolve-json traversal (pinned directlink CI 41525422242 and 41526103351), --list-modules for native modules, and --list-extractors category filtering. Tests cover local recursive queues and filtering. The complete upstream print/list/diagnostics option set and full extractor parity remain incomplete."
                 }
               ],
               "progress": 50
@@ -211,7 +212,8 @@
                 },
                 {
                   "title": "Package distribution and checksums",
-                  "passed": false
+                  "passed": false,
+                  "evidence": ".github/workflows/release.yml defines Cargo.toml-matched version tags, five platform archives, SHA256SUMS and GitHub release publication. YAML parsing passed locally. No version-tag release has run yet, so packaged artifacts and published checksums remain unverified."
                 },
                 {
                   "title": "Validate install on EndeavourOS",
