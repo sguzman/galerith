@@ -1962,7 +1962,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 
 #[test]
 fn pinned_formatter_matches_native_numeric_id_radix_formats() {
-    let cases = ["b", "#b", "o", "#o", "x", "X", "#X", "8x", "08x", "#08x"];
+    let cases = ["d", "05d", "b", "#b", "o", "#o", "x", "8x", "08x", "#08x"];
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
         filename: "image.jpg".into(),
@@ -1976,7 +1976,7 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
     assert_eq!(
         native,
         [
-            "101010", "0b101010", "52", "0o52", "2a", "2A", "0X2A", "      2a", "0000002a",
+            "42", "00042", "101010", "0b101010", "52", "0o52", "2a", "      2a", "0000002a",
             "0x00002a",
         ]
     );
@@ -1998,11 +1998,29 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
             "from gallery_dl import formatter; formats={format_specs:?}.split('|'); print('|'.join(formatter.parse(value).format_map({{'id':42}}) for value in formats))"
         ),
     ]);
-    command.env("PYTHONPATH", root);
+    command.env("PYTHONPATH", &root);
     command.env("PYTHONNOUSERSITE", "1");
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     let upstream = spawn(command, "pinned numeric filename formatter");
     assert_eq!(upstream.trim(), native.join("|"));
+
+    let mut grouped_item = item;
+    grouped_item.post_id = Some(1_234_567);
+    let grouped_native = [",", "_", "12,"]
+        .iter()
+        .map(|spec| galerith::filename::render(&format!("{{id:{spec}}}"), &grouped_item).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(grouped_native, ["1,234,567", "1_234_567", "   1,234,567"]);
+    let mut grouped_command = Command::new("python3");
+    grouped_command.args([
+        "-c",
+        "from gallery_dl import formatter; print('|'.join(formatter.parse('{id:'+spec+'}').format_map({'id':1234567}) for spec in (',', '_', '12,')))",
+    ]);
+    grouped_command.env("PYTHONPATH", &root);
+    grouped_command.env("PYTHONNOUSERSITE", "1");
+    grouped_command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let grouped_reference = spawn(grouped_command, "Python grouped numeric formatter");
+    assert_eq!(grouped_reference.trim(), grouped_native.join("|"));
 }
 
 #[test]

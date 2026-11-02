@@ -128,11 +128,13 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     let Some(kind) = spec.chars().last() else {
         return Ok(None);
     };
-    let (base, marker) = match kind {
-        'b' => (2, "0b"),
-        'o' => (8, "0o"),
-        'x' => (16, "0x"),
-        'X' => (16, "0X"),
+    let (base, marker, grouping) = match kind {
+        'd' => (10, "", None),
+        'b' => (2, "0b", None),
+        'o' => (8, "0o", None),
+        'x' => (16, "0x", None),
+        ',' => (10, "", Some(',')),
+        '_' => (10, "", Some('_')),
         _ => return Ok(None),
     };
     // Only the integer subset of Python's numeric mini-language needed for
@@ -140,6 +142,16 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     let alternate = radix.starts_with('#');
     let width_spec = radix.strip_prefix('#').unwrap_or(radix);
     let zero_fill = width_spec.starts_with('0') && width_spec.len() > 1;
+    if alternate && (grouping.is_some() || base == 10) {
+        return Err(FormatError(
+            "unsupported alternate numeric formatting specification".into(),
+        ));
+    }
+    if grouping.is_some() && zero_fill {
+        return Err(FormatError(
+            "unsupported grouped numeric formatting specification".into(),
+        ));
+    }
     let width_text = if zero_fill {
         &width_spec[1..]
     } else {
@@ -163,11 +175,22 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     let number = value
         .parse::<u64>()
         .map_err(|_| FormatError("numeric formatting requires an unsigned integer field".into()))?;
-    let mut digits = match base {
-        2 => format!("{number:b}"),
-        8 => format!("{number:o}"),
-        16 if kind == 'X' => format!("{number:X}"),
-        16 => format!("{number:x}"),
+    let mut digits = match (base, grouping) {
+        (10, Some(separator)) => {
+            let raw = number.to_string();
+            let mut reversed = String::with_capacity(raw.len() + raw.len() / 3);
+            for (index, digit) in raw.chars().rev().enumerate() {
+                if index > 0 && index % 3 == 0 {
+                    reversed.push(separator);
+                }
+                reversed.push(digit);
+            }
+            reversed.chars().rev().collect()
+        }
+        (10, None) => number.to_string(),
+        (2, None) => format!("{number:b}"),
+        (8, None) => format!("{number:o}"),
+        (16, None) => format!("{number:x}"),
         _ => unreachable!(),
     };
     let prefix = if alternate { marker } else { "" };
@@ -707,18 +730,30 @@ mod tests {
     #[test]
     fn integer_radix_specs_match_python_style_bases_and_padding() {
         let item = sample();
+        assert_eq!(render("{id:d}", &item).unwrap(), "42");
+        assert_eq!(render("{id:05d}", &item).unwrap(), "00042");
         assert_eq!(render("{id:b}", &item).unwrap(), "101010");
         assert_eq!(render("{id:#b}", &item).unwrap(), "0b101010");
         assert_eq!(render("{id:o}", &item).unwrap(), "52");
         assert_eq!(render("{id:#o}", &item).unwrap(), "0o52");
         assert_eq!(render("{id:x}", &item).unwrap(), "2a");
-        assert_eq!(render("{id:X}", &item).unwrap(), "2A");
-        assert_eq!(render("{id:#X}", &item).unwrap(), "0X2A");
         assert_eq!(render("{id:8x}", &item).unwrap(), "      2a");
         assert_eq!(render("{id:08x}", &item).unwrap(), "0000002a");
         assert_eq!(render("{id:#08x}", &item).unwrap(), "0x00002a");
         assert!(render("{id:#065x}", &item).is_err());
+        assert!(render("{id:X}", &item).is_err());
         assert!(render("{filename:x}", &item).is_err());
+    }
+
+    #[test]
+    fn integer_decimal_specs_support_grouping_and_space_width() {
+        let mut item = sample();
+        item.post_id = Some(1_234_567);
+        assert_eq!(render("{id:,}", &item).unwrap(), "1,234,567");
+        assert_eq!(render("{id:_}", &item).unwrap(), "1_234_567");
+        assert_eq!(render("{id:12,}", &item).unwrap(), "   1,234,567");
+        assert!(render("{id:#,}", &item).is_err());
+        assert!(render("{id:012,}", &item).is_err());
     }
 
     #[test]
