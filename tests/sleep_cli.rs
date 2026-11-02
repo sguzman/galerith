@@ -248,6 +248,33 @@ fn sleep_extractor_flag_delays_input_handling() {
 }
 
 #[test]
+fn sleep_extractor_flag_overrides_longer_configured_delay() {
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-extractor",
+            "0.08",
+            "--option",
+            "extractor.sleep-extractor=0.5",
+            "--simulate",
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(70), "{elapsed:?}");
+    assert!(
+        elapsed < Duration::from_millis(450),
+        "the CLI delay did not override the longer configured delay: {elapsed:?}"
+    );
+}
+
+#[test]
 fn sleep_skip_flag_waits_after_existing_file_is_skipped() {
     let dir = destination("sleep-skip-flag");
     let _ = fs::remove_dir_all(&dir);
@@ -270,6 +297,40 @@ fn sleep_skip_flag_waits_after_existing_file_is_skipped() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(started.elapsed() >= Duration::from_millis(70));
+    assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"keep existing");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn sleep_skip_flag_overrides_longer_configured_delay() {
+    let dir = destination("sleep-skip-cli-precedence");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("image.jpg"), b"keep existing").unwrap();
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--sleep-skip",
+            "0.08",
+            "--option",
+            "extractor.sleep-skip=0.5",
+            "-d",
+            dir.to_str().unwrap(),
+            "https://example.org/image.jpg",
+        ])
+        .output()
+        .unwrap();
+    let elapsed = started.elapsed();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(elapsed >= Duration::from_millis(70), "{elapsed:?}");
+    assert!(
+        elapsed < Duration::from_millis(450),
+        "the CLI delay did not override the longer configured delay: {elapsed:?}"
+    );
     assert_eq!(fs::read(dir.join("image.jpg")).unwrap(), b"keep existing");
     fs::remove_dir_all(dir).unwrap();
 }
