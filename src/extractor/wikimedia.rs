@@ -168,27 +168,18 @@ async fn request_api_page(
     client: &Client,
     url: Url,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
+    let request = client
         .get(url)
         .header(USER_AGENT, USER_AGENT_VALUE)
         .header("Accept", "application/json")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response
-        .content_length()
-        .is_some_and(|size| size > MAX_RESPONSE as u64)
-    {
-        return Err("Wikimedia API response exceeded 2 MiB".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if bytes.len().saturating_add(chunk.len()) > MAX_RESPONSE {
-            return Err("Wikimedia API response exceeded 2 MiB".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached(
+        client,
+        request,
+        MAX_RESPONSE,
+        "Wikimedia API response exceeded 2 MiB",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
