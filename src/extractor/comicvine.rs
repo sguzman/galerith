@@ -232,29 +232,15 @@ async fn bounded_get(
     client: &Client,
     endpoint: Url,
 ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let mut response = client
-        .get(endpoint.clone())
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != endpoint.origin() {
-        return Err("ComicVine HTTP redirect left source origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_BODY as u64)
-    {
-        return Err("ComicVine source exceeds 2 MiB response cap".into());
-    }
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_BODY.saturating_sub(bytes.len()) {
-            return Err("ComicVine source exceeds 2 MiB response cap".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
-    Ok(bytes)
+    let request = client.get(endpoint.clone()).build()?;
+    super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        endpoint,
+        MAX_BODY,
+        "ComicVine source exceeds 2 MiB response cap",
+    )
+    .await
 }
 
 async fn at_base(
