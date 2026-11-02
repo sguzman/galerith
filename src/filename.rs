@@ -121,6 +121,65 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
         .ok_or_else(|| FormatError("filename field index out of range".into()))
 }
 
+fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
+    let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
+        return Ok(None);
+    };
+    let Some(kind) = spec.chars().last() else {
+        return Ok(None);
+    };
+    let (base, marker) = match kind {
+        'b' => (2, "0b"),
+        'o' => (8, "0o"),
+        'x' => (16, "0x"),
+        'X' => (16, "0X"),
+        _ => return Ok(None),
+    };
+    // Only the integer subset of Python's numeric mini-language needed for
+    // post IDs: optional alternate prefix, zero fill, and a bounded width.
+    let alternate = radix.starts_with('#');
+    let width_spec = radix.strip_prefix('#').unwrap_or(radix);
+    let zero_fill = width_spec.starts_with('0') && width_spec.len() > 1;
+    let width_text = if zero_fill {
+        &width_spec[1..]
+    } else {
+        width_spec
+    };
+    if !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(FormatError(
+            "unsupported numeric formatting specification".into(),
+        ));
+    }
+    let width = if width_text.is_empty() {
+        0
+    } else {
+        width_text
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid numeric width".into()))?
+    };
+    if width > 64 {
+        return Err(FormatError("filename numeric width is too large".into()));
+    }
+    let number = value
+        .parse::<u64>()
+        .map_err(|_| FormatError("numeric formatting requires an unsigned integer field".into()))?;
+    let mut digits = match base {
+        2 => format!("{number:b}"),
+        8 => format!("{number:o}"),
+        16 if kind == 'X' => format!("{number:X}"),
+        16 => format!("{number:x}"),
+        _ => unreachable!(),
+    };
+    let prefix = if alternate { marker } else { "" };
+    let padding = width.saturating_sub(prefix.len() + digits.len());
+    if zero_fill {
+        digits.insert_str(0, &"0".repeat(padding));
+        Ok(Some(format!("{prefix}{digits}")))
+    } else {
+        Ok(Some(format!("{}{prefix}{digits}", " ".repeat(padding))))
+    }
+}
+
 fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
@@ -346,6 +405,11 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
             .take(max_len - replacement_len)
             .chain(replacement.chars())
             .collect());
+    }
+    if matches!(base_name, "id" | "post_id") {
+        if let Some(formatted) = format_radix_id(&value, spec)? {
+            return Ok(formatted);
+        }
     }
     if spec.starts_with('X') || spec.starts_with('L') {
         return Err(FormatError("invalid filename length formatter".into()));
@@ -638,6 +702,23 @@ mod tests {
         let mut large = item;
         large.filename = i128::MAX.to_string();
         assert!(render("{filename:A*4/}", &large).is_err());
+    }
+
+    #[test]
+    fn integer_radix_specs_match_python_style_bases_and_padding() {
+        let item = sample();
+        assert_eq!(render("{id:b}", &item).unwrap(), "101010");
+        assert_eq!(render("{id:#b}", &item).unwrap(), "0b101010");
+        assert_eq!(render("{id:o}", &item).unwrap(), "52");
+        assert_eq!(render("{id:#o}", &item).unwrap(), "0o52");
+        assert_eq!(render("{id:x}", &item).unwrap(), "2a");
+        assert_eq!(render("{id:X}", &item).unwrap(), "2A");
+        assert_eq!(render("{id:#X}", &item).unwrap(), "0X2A");
+        assert_eq!(render("{id:8x}", &item).unwrap(), "      2a");
+        assert_eq!(render("{id:08x}", &item).unwrap(), "0000002a");
+        assert_eq!(render("{id:#08x}", &item).unwrap(), "0x00002a");
+        assert!(render("{id:#065x}", &item).is_err());
+        assert!(render("{filename:x}", &item).is_err());
     }
 
     #[test]

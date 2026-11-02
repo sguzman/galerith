@@ -1961,6 +1961,51 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
+fn pinned_formatter_matches_native_numeric_id_radix_formats() {
+    let cases = ["b", "#b", "o", "#o", "x", "X", "#X", "8x", "08x", "#08x"];
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let native = cases
+        .iter()
+        .map(|spec| galerith::filename::render(&format!("{{id:{spec}}}"), &item).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "101010", "0b101010", "52", "0o52", "2a", "2A", "0X2A", "      2a", "0000002a",
+            "0x00002a",
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for numeric formatter comparison");
+    let format_specs = cases
+        .iter()
+        .map(|spec| format!("{{id:{spec}}}"))
+        .collect::<Vec<_>>()
+        .join("|");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        &format!(
+            "from gallery_dl import formatter; formats={format_specs:?}.split('|'); print('|'.join(formatter.parse(value).format_map({{'id':42}}) for value in formats))"
+        ),
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let upstream = spawn(command, "pinned numeric filename formatter");
+    assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
 fn pinned_and_native_clients_reject_empty_literal_filename_fields() {
     let template = "{_lit[]}";
     let url = "https://example.org/image.jpg";

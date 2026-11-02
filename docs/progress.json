@@ -551,7 +551,8 @@
                 },
                 {
                   "title": "Full upstream conditional and transformation language",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "Partial implementation: src/filename.rs supports bounded binary, octal and hexadecimal formatting for numeric IDs, including alternate prefixes and width padding. src/filename.rs::integer_radix_specs_match_python_style_bases_and_padding and tests/reference_directlink.rs::pinned_formatter_matches_native_numeric_id_radix_formats cover the local behavior; the latter compares to the pinned formatter when the oracle environment is enabled. Full upstream conditional and transformation parity remains incomplete."
                 }
               ]
             },
