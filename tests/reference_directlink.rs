@@ -641,8 +641,13 @@ fn run_reference_sleep_case(
 ) -> std::time::Duration {
     let output = working_root.join(format!("{label}-sleep-output"));
     std::fs::create_dir_all(&output).unwrap();
+    let filename = if reference {
+        "example.invalid__file.jpg"
+    } else {
+        "file.jpg"
+    };
     if skip_existing {
-        std::fs::write(output.join("file.jpg"), b"existing").unwrap();
+        std::fs::write(output.join(filename), b"existing").unwrap();
     }
     let url = "https://example.invalid/file.jpg";
     let started = std::time::Instant::now();
@@ -681,7 +686,7 @@ fn run_reference_sleep_case(
         String::from_utf8_lossy(&result.stderr)
     );
     if skip_existing {
-        assert_eq!(std::fs::read(output.join("file.jpg")).unwrap(), b"existing");
+        assert_eq!(std::fs::read(output.join(filename)).unwrap(), b"existing");
     }
     std::fs::remove_dir_all(output).unwrap();
     elapsed
