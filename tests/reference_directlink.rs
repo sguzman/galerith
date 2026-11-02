@@ -636,7 +636,7 @@ fn run_reference_sleep_case(
     pinned_root: &Path,
     label: &str,
     reference: bool,
-    option: &str,
+    option: Option<&str>,
     skip_existing: bool,
 ) -> std::time::Duration {
     let output = working_root.join(format!("{label}-sleep-output"));
@@ -661,7 +661,9 @@ fn run_reference_sleep_case(
         command.args(["--quiet"]);
         command
     };
-    command.args([option, "0.12-0.18"]);
+    if let Some(option) = option {
+        command.args([option, "0.12-0.18"]);
+    }
     if !skip_existing {
         command.arg("--simulate");
     }
@@ -1511,27 +1513,45 @@ fn pinned_and_native_clients_match_extractor_and_skip_sleep_timing() {
         ("extractor", "--sleep-extractor", false),
         ("skip", "--sleep-skip", true),
     ] {
-        let pinned = run_reference_sleep_case(
+        let pinned_baseline = run_reference_sleep_case(
             &root,
             pinned_root,
-            &format!("pinned-{label}"),
+            &format!("pinned-{label}-baseline"),
             true,
-            option,
+            None,
             skip_existing,
         );
-        let native = run_reference_sleep_case(
+        let pinned_elapsed = run_reference_sleep_case(
             &root,
             pinned_root,
-            &format!("native-{label}"),
-            false,
-            option,
+            &format!("pinned-{label}-delayed"),
+            true,
+            Some(option),
             skip_existing,
         );
+        let native_baseline = run_reference_sleep_case(
+            &root,
+            pinned_root,
+            &format!("native-{label}-baseline"),
+            false,
+            None,
+            skip_existing,
+        );
+        let native_elapsed = run_reference_sleep_case(
+            &root,
+            pinned_root,
+            &format!("native-{label}-delayed"),
+            false,
+            Some(option),
+            skip_existing,
+        );
+        let pinned = pinned_elapsed.saturating_sub(pinned_baseline);
+        let native = native_elapsed.saturating_sub(native_baseline);
         for (client, elapsed) in [("pinned", pinned), ("native", native)] {
             assert!(
-                (std::time::Duration::from_millis(120)..std::time::Duration::from_secs(2))
+                (std::time::Duration::from_millis(100)..std::time::Duration::from_millis(500))
                     .contains(&elapsed),
-                "{client} {option} elapsed {elapsed:?}"
+                "{client} {option} added delay {elapsed:?}"
             );
         }
         assert!(
