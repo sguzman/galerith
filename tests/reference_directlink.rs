@@ -631,6 +631,60 @@ fn run_http_timeout_fixture(
     elapsed
 }
 
+fn run_reference_sleep_case(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+    option: &str,
+    skip_existing: bool,
+) -> std::time::Duration {
+    let output = working_root.join(format!("{label}-sleep-output"));
+    std::fs::create_dir_all(&output).unwrap();
+    if skip_existing {
+        std::fs::write(output.join("file.jpg"), b"existing").unwrap();
+    }
+    let url = "https://example.invalid/file.jpg";
+    let started = std::time::Instant::now();
+    let mut command = if reference {
+        let mut command = Command::new("python3");
+        command.args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--quiet",
+        ]);
+        command
+    } else {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        command.args(["--quiet"]);
+        command
+    };
+    command.args([option, "0.12-0.18"]);
+    if !skip_existing {
+        command.arg("--simulate");
+    }
+    command.args(["-d", output.to_str().unwrap(), url]);
+    if reference {
+        command.env("PYTHONPATH", pinned_root);
+        command.env("PYTHONNOUSERSITE", "1");
+        command.env("PYTHONDONTWRITEBYTECODE", "1");
+    }
+    let result = command.output().expect("launch reference sleep fixture");
+    let elapsed = started.elapsed();
+    assert!(
+        result.status.success(),
+        "{label}: client failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    if skip_existing {
+        assert_eq!(std::fs::read(output.join("file.jpg")).unwrap(), b"existing");
+    }
+    std::fs::remove_dir_all(output).unwrap();
+    elapsed
+}
+
 fn run_429_default_fixture(working_root: &Path, pinned_root: &Path, label: &str, reference: bool) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
@@ -1435,6 +1489,56 @@ fn pinned_and_native_clients_match_downloader_http_timeout() {
         pinned.abs_diff(native) < std::time::Duration::from_millis(150),
         "pinned/native timeout results differ: pinned={pinned:?}, native={native:?}"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_match_extractor_and_skip_sleep_timing() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let root = env::temp_dir().join(format!("galerith-sleep-oracle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    for (label, option, skip_existing) in [
+        ("extractor", "--sleep-extractor", false),
+        ("skip", "--sleep-skip", true),
+    ] {
+        let pinned = run_reference_sleep_case(
+            &root,
+            pinned_root,
+            &format!("pinned-{label}"),
+            true,
+            option,
+            skip_existing,
+        );
+        let native = run_reference_sleep_case(
+            &root,
+            pinned_root,
+            &format!("native-{label}"),
+            false,
+            option,
+            skip_existing,
+        );
+        for (client, elapsed) in [("pinned", pinned), ("native", native)] {
+            assert!(
+                (std::time::Duration::from_millis(120)..std::time::Duration::from_secs(2))
+                    .contains(&elapsed),
+                "{client} {option} elapsed {elapsed:?}"
+            );
+        }
+        assert!(
+            pinned.abs_diff(native) < std::time::Duration::from_millis(250),
+            "pinned/native {option} delays differ: pinned={pinned:?}, native={native:?}"
+        );
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 

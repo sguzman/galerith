@@ -584,6 +584,19 @@ mod tests {
         assert!(started.elapsed() >= Duration::from_millis(190));
     }
 
+    #[tokio::test]
+    async fn scoped_request_delay_paces_successive_requests_to_one_origin() {
+        let delay = DelayRange::parse("0.05").unwrap();
+        let url = "https://paced.example/api";
+        with_request_delay_for_url(url, Some(delay), async {
+            wait_for_request().await;
+            let previous = tokio::time::Instant::now();
+            wait_for_request_to(url).await;
+            assert!(previous.elapsed() >= Duration::from_millis(45));
+        })
+        .await;
+    }
+
     #[test]
     fn accepts_reference_json_duration_values() {
         for (value, expected) in [
