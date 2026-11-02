@@ -163,7 +163,39 @@ async fn resolve_album_details_at_base(
 ) -> Result<AlbumDetails, Box<dyn Error + Send + Sync>> {
     let endpoint = base.join(&format!("c/{id}"))?;
     crate::pacing::wait_for_request().await;
-    let mut response = client.get(endpoint).send().await?.error_for_status()?;
+    let request = client.get(endpoint).build()?;
+    let method = request.method().clone();
+    let request_url = request.url().clone();
+    let mut request_headers = crate::http_diagnostics::default_request_headers();
+    request_headers.extend(request.headers().clone());
+    let mut response = client.execute(request).await?;
+    let final_url = response.url().clone();
+    let status = response.status();
+    let response_headers = response.headers().clone();
+    let response_info = crate::http_diagnostics::ResponsePageInfo {
+        method,
+        request_url,
+        request_headers,
+        status,
+        response_headers,
+    };
+    if let Err(status_error) = response.error_for_status_ref() {
+        if crate::http_diagnostics::response_page_dump_enabled() {
+            if let Ok(bytes) = read_bounded_album_html(&mut response).await {
+                dump_page(&final_url, &bytes, &response_info).await;
+            }
+        }
+        return Err(status_error.into());
+    }
+    let body = read_bounded_album_html(&mut response).await?;
+    dump_page(&final_url, &body, &response_info).await;
+    let page = String::from_utf8(body)?;
+    Ok(parse_album_details(id, &page))
+}
+
+async fn read_bounded_album_html(
+    response: &mut reqwest::Response,
+) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
     if response
         .content_length()
         .is_some_and(|length| length > MAX_ALBUM_HTML_BYTES as u64)
@@ -177,8 +209,13 @@ async fn resolve_album_details_at_base(
         }
         body.extend_from_slice(&chunk);
     }
-    let page = String::from_utf8(body)?;
-    Ok(parse_album_details(id, &page))
+    Ok(body)
+}
+
+async fn dump_page(url: &Url, body: &[u8], info: &crate::http_diagnostics::ResponsePageInfo) {
+    if let Err(error) = crate::http_diagnostics::dump_response_page(url, body, Some(info)).await {
+        eprintln!("galerith: response page dump failed ({})", error.kind());
+    }
 }
 
 async fn resolve_album_at_base(
@@ -330,11 +367,29 @@ mod tests {
             socket.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{address}/")).unwrap();
-        let media = resolve_album_at_base(&Client::new(), &base, "album123")
-            .await
-            .unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-catbox-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let client = Client::new();
+        let media = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            resolve_album_at_base(&client, &base, "album123"),
+        )
+        .await
+        .unwrap();
         assert_eq!(media.len(), 1);
         assert_eq!(media[0].filename, "image.webp");
         server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let page = std::fs::read_to_string(page.path()).unwrap();
+        assert!(page.starts_with(&format!("GET http://{address}/c/album123\n")));
+        assert!(page.contains("https://files.catbox.moe/image.webp"));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 }
