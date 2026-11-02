@@ -79,32 +79,20 @@ async fn response_json(
     url: Url,
     referer: &str,
 ) -> Result<Value, Box<dyn Error + Send + Sync>> {
-    crate::pacing::wait_for_request().await;
-    let response = client
+    let request = client
         .get(url.clone())
         .header("Referer", referer)
         .header("X-Client", "newfrontend")
         .header("X-Koofr-Version", "2.1")
-        .send()
-        .await?
-        .error_for_status()?;
-    if response.url().origin() != url.origin() {
-        return Err("Koofr public JSON redirected outside the source origin".into());
-    }
-    if response
-        .content_length()
-        .is_some_and(|n| n > MAX_JSON as u64)
-    {
-        return Err("Koofr public JSON exceeded bounded response size".into());
-    }
-    let mut response = response;
-    let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > MAX_JSON.saturating_sub(bytes.len()) {
-            return Err("Koofr public JSON exceeded bounded response size".into());
-        }
-        bytes.extend_from_slice(&chunk);
-    }
+        .build()?;
+    let bytes = super::http_json::fetch_bytes_request_uncached_from_origin(
+        client,
+        request,
+        url,
+        MAX_JSON,
+        "Koofr public JSON exceeded bounded response size",
+    )
+    .await?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
@@ -410,7 +398,17 @@ mod tests {
             stream.write_all(reply.as_bytes()).await.unwrap();
         });
         let base = Url::parse(&format!("http://{addr}/")).unwrap();
-        let files = at_base(&Client::new(), &share(), &base).await.unwrap();
+        let directory =
+            std::env::temp_dir().join(format!("galerith-koofr-pages-{}", std::process::id()));
+        let _ = tokio::fs::remove_dir_all(&directory).await;
+        tokio::fs::create_dir_all(&directory).await.unwrap();
+        let files = crate::http_diagnostics::scope_response_pages(
+            directory.clone(),
+            crate::http_diagnostics::ResponsePageMode::All,
+            at_base(&Client::new(), &share(), &base),
+        )
+        .await
+        .unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].0.filename, "001_Read Me.pdf");
         assert!(files[0]
@@ -419,6 +417,16 @@ mod tests {
             .contains("/content/links/1234-abc/files/get/Read%20Me.pdf"));
         assert_eq!(files[0].1["hash"], "abc123");
         server.await.unwrap();
+        let page = std::fs::read_dir(&directory)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
+        let diagnostic = tokio::fs::read_to_string(page.path()).await.unwrap();
+        assert!(diagnostic.contains("referer: ***"));
+        assert!(diagnostic.contains("x-client: newfrontend"));
+        assert!(!diagnostic.contains("password="));
+        tokio::fs::remove_dir_all(directory).await.unwrap();
     }
 
     #[tokio::test]
