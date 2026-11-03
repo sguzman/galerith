@@ -2689,7 +2689,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     };
     let metadata: galerith::message::Metadata = serde_json::from_value(json!({
         "tags": ["zeta", "alpha", "middle"],
-        "mixed_tags": ["alpha", 2, false, null],
+        "mixed_tags": ["alpha", 2, false, null, [1, true], {"name": "one"}],
         "title": "plain",
         "display": "  Mixed Case  ",
         "display_encoded": "Mixed%20Case",
@@ -2781,7 +2781,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "one + two + three",
             "alpha, middle, zeta",
             "zeta, middle, alpha",
-            "alpha, 2, False, None",
+            "alpha, 2, False, None, [1, True], {'name': 'one'}",
             "plain",
             "plainplainplain",
             "MIXED CASE",
@@ -2844,7 +2844,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'mixed_tags':['alpha',2,False,None],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':''}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{mixed_tags!S}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{enabled!g}','{count!g}','{nullable!g}','{enabled!r}','{count!r}','{nullable!r}','{enabled!a}','{count!a}','{nullable!a}','{enabled!j}','{count!j}','{nullable!j}','{id!j}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{nullable!r:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}','{empty_list!s}','{empty_list!r}','{empty_list!a}','{empty_list!j}','{empty_map!s}','{empty_map!r}','{empty_map!a}','{empty_map!j}','file{empty_list!s:?yes/no/}','file{empty_map!s:?yes/no/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'mixed_tags':['alpha',2,False,None,[1,True],{'name':'one'}],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':''}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{mixed_tags!S}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{enabled!g}','{count!g}','{nullable!g}','{enabled!r}','{count!r}','{nullable!r}','{enabled!a}','{count!a}','{nullable!a}','{enabled!j}','{count!j}','{nullable!j}','{id!j}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{nullable!r:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}','{empty_list!s}','{empty_list!r}','{empty_list!a}','{empty_list!j}','{empty_map!s}','{empty_map!r}','{empty_map!a}','{empty_map!j}','file{empty_list!s:?yes/no/}','file{empty_map!s:?yes/no/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

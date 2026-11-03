@@ -570,16 +570,46 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
     Ok(value)
 }
 
-fn python_scalar_string(value: &Value) -> Result<String, FormatError> {
+fn python_array_repr(values: &[Value]) -> Result<String, FormatError> {
+    let values = values
+        .iter()
+        .map(python_repr_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(format!("[{}]", values.join(", ")))
+}
+
+fn python_object_repr(values: &serde_json::Map<String, Value>) -> Result<String, FormatError> {
+    let values = values
+        .iter()
+        .map(|(key, value)| {
+            Ok(format!(
+                "{}: {}",
+                python_string_repr(key, false),
+                python_repr_value(value)?
+            ))
+        })
+        .collect::<Result<Vec<_>, FormatError>>()?;
+    Ok(format!("{{{}}}", values.join(", ")))
+}
+
+fn python_repr_value(value: &Value) -> Result<String, FormatError> {
+    match value {
+        Value::String(value) => Ok(python_string_repr(value, false)),
+        Value::Array(values) => python_array_repr(values),
+        Value::Object(values) => python_object_repr(values),
+        _ => python_string_value(value),
+    }
+}
+
+fn python_string_value(value: &Value) -> Result<String, FormatError> {
     match value {
         Value::String(value) => Ok(value.clone()),
         Value::Number(value) => Ok(value.to_string()),
         Value::Bool(true) => Ok("True".into()),
         Value::Bool(false) => Ok("False".into()),
         Value::Null => Ok("None".into()),
-        Value::Array(_) | Value::Object(_) => Err(FormatError(
-            "filename list conversion requires scalar values".into(),
-        )),
+        Value::Array(values) => python_array_repr(values),
+        Value::Object(values) => python_object_repr(values),
     }
 }
 
@@ -715,7 +745,7 @@ fn metadata_field(
         Value::Bool(value) => Ok(Some(if *value { "True" } else { "False" }.into())),
         Value::Array(values) if conversion == "S" => values
             .iter()
-            .map(python_scalar_string)
+            .map(python_string_value)
             .collect::<Result<Vec<_>, _>>()
             .map(|values| Some(values.join(", "))),
         Value::Array(_) => Err(FormatError(format!(
@@ -1333,7 +1363,7 @@ mod tests {
         let item = sample();
         let metadata: Metadata = serde_json::from_value(serde_json::json!({
             "tags": ["zeta", "alpha", "middle"],
-            "mixed_tags": ["alpha", 2, false, null],
+            "mixed_tags": ["alpha", 2, false, null, [1, true], {"name": "one"}],
             "title": "plain",
             "display": "  Mixed Case  ",
             "display_encoded": "Mixed%20Case",
@@ -1386,7 +1416,7 @@ mod tests {
         );
         assert_eq!(
             render_with_metadata("{mixed_tags!S}", &item, &metadata).unwrap(),
-            "alpha, 2, False, None"
+            "alpha, 2, False, None, [1, True], {'name': 'one'}"
         );
         assert_eq!(
             render_with_metadata("{title:A*3/}", &item, &metadata).unwrap(),
