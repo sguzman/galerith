@@ -490,6 +490,7 @@ fn field_with_metadata(
             }
             None => (*candidate, None),
         };
+        let mut selector_applied_to_list = false;
         let (field_value, is_literal) = if base_name == "_lit" {
             let literal = selector.ok_or_else(|| {
                 FormatError("literal filename field requires a bracketed value".into())
@@ -525,6 +526,29 @@ fn field_with_metadata(
                     },
                     _ => match metadata.get(base_name) {
                         Some(value) => {
+                            let value = if let (Value::Array(values), Some(selector)) =
+                                (value, selector)
+                            {
+                                let index = selector.parse::<isize>().map_err(|_| {
+                                    FormatError(
+                                        "filename list selector requires an integer index".into(),
+                                    )
+                                })?;
+                                let length = isize::try_from(values.len()).map_err(|_| {
+                                    FormatError("filename list is too long to index".into())
+                                })?;
+                                let index = if index < 0 { length + index } else { index };
+                                let selected = usize::try_from(index)
+                                    .ok()
+                                    .and_then(|index| values.get(index))
+                                    .ok_or_else(|| {
+                                        FormatError("filename list index out of range".into())
+                                    })?;
+                                selector_applied_to_list = true;
+                                selected
+                            } else {
+                                value
+                            };
                             let value =
                                 metadata_field(value, base_name, conversion, &mut candidate_spec)?;
                             if value.is_none() {
@@ -557,9 +581,9 @@ fn field_with_metadata(
             }
             candidate_spec = remainder;
         }
-        let field_value = match (is_literal, selector) {
-            (true, _) | (false, None) => field_value,
-            (false, Some(selector)) => slice_field(&field_value, selector)?,
+        let field_value = match (is_literal, selector_applied_to_list, selector) {
+            (true, _, _) | (false, true, _) | (false, false, None) => field_value,
+            (false, false, Some(selector)) => slice_field(&field_value, selector)?,
         };
         if !field_value.is_empty() && value.is_none() {
             selected_base = Some(base_name);
@@ -1045,10 +1069,19 @@ mod tests {
             "zetaalphamiddle"
         );
         assert_eq!(
+            render_with_metadata("{tags[0]:J, /}", &item, &metadata).unwrap(),
+            "zeta"
+        );
+        assert_eq!(
+            render_with_metadata("{tags[-1]:J, /}", &item, &metadata).unwrap(),
+            "middle"
+        );
+        assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
             "plain"
         );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
     }
 
     #[test]
