@@ -2830,6 +2830,58 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
 }
 
 #[test]
+fn pinned_formatter_matches_native_scalar_string_conversion_errors() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata =
+        serde_json::from_value(json!({"boolean": false, "number": 2, "nullable": null})).unwrap();
+    let formats = [
+        "{boolean!q}",
+        "{number!Q}",
+        "{number!l}",
+        "{boolean!u}",
+        "{nullable!C}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| {
+            if galerith::filename::render_with_metadata(format, &item, &metadata).is_err() {
+                "error"
+            } else {
+                "ok"
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    assert_eq!(native, "error|error|error|error|error");
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for scalar conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'boolean':False,'number':2,'nullable':None}; formats=('{boolean!q}','{number!Q}','{number!l}','{boolean!u}','{nullable!C}'); output=[]\nfor value in formats:\n try: formatter.parse(value).format_map(data)\n except (TypeError, AttributeError): output.append('error')\n else: output.append('ok')\nprint('|'.join(output))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned scalar conversion errors").trim(),
+        native
+    );
+}
+
+#[test]
 fn pinned_and_native_clients_match_last_modified_mtime() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;

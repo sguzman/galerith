@@ -875,6 +875,13 @@ fn field_with_metadata(
     let native_scalar = selected_source
         .as_ref()
         .filter(|source| matches!(source, Value::Null | Value::Bool(_) | Value::Number(_)));
+    if native_scalar.is_some()
+        && matches!(conversion, "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q")
+    {
+        return Err(FormatError(
+            "filename string conversion requires a string value".into(),
+        ));
+    }
     let mut value = match conversion {
         "" | "s" | "S" => value,
         "r" if native_scalar.is_some() || matches!(base_name, "id" | "post_id") => value,
@@ -1489,6 +1496,14 @@ mod tests {
                 "file"
             );
         }
+        assert_eq!(
+            render_with_metadata("{nullable!g}", &item, &metadata).unwrap(),
+            "none"
+        );
+        assert_eq!(
+            render_with_metadata("{enabled!g}", &item, &metadata).unwrap(),
+            "false"
+        );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
     }
