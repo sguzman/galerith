@@ -71,7 +71,6 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "webp"
             | "avif"
             | "bmp"
-            | "tiff"
             | "svg"
             | "jxl"
             | "ico"

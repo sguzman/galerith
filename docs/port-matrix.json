@@ -472,10 +472,13 @@
       "module": "directlink",
       "status": "partial",
       "rust_paths": [
-        "src/lib.rs"
+        "src/lib.rs",
+        "src/extractor/directlink.rs",
+        "src/filename.rs",
+        "src/postprocess.rs"
       ],
       "evidence": [
-      "Direct media matching covers additional HEIC, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; localhost download fixtures pass. Oracle run 41660782978 found .heif is rejected by the pin; run 41662479215 found .apng is rejected and that !g removes the colon from port-bearing domains; run 41663880658 found .tif is also rejected. Galerith now rejects .heif, .apng and .tif and drops periods and colons in !g; local regressions pass. Corrected pinned suffix and negative matcher comparisons await CI. Pinned upstream parity remains open."
+      "Direct media matching covers additional HEIC, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; localhost download fixtures pass. Oracle run 41660782978 found .heif is rejected by the pin; run 41662479215 found .apng is rejected and that !g removes the colon from port-bearing domains; runs 41663880658 and 41665527743 found .tif and .tiff are also rejected. Galerith now rejects all four suffixes and drops periods and colons in !g; local regressions pass. Corrected pinned suffix and negative matcher comparisons await CI. Pinned upstream parity remains open."
       ]
     },
     {

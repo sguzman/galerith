@@ -57,7 +57,7 @@ This is an inventory of **272 upstream Python source files** within `gallery_dl/
 | `gallery_dl/extractor/dankefuerslesen.py` | 🟡 Partial | `src/extractor/dankefuerslesen.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/desktopography.py` | 🟡 Partial | `src/extractor/desktopography.rs`, `src/extractor/mod.rs` |
 | `gallery_dl/extractor/deviantart.py` | ⚪ Not ported | — |
-| `gallery_dl/extractor/directlink.py` | 🟡 Partial | `src/lib.rs` |
+| `gallery_dl/extractor/directlink.py` | 🟡 Partial | `src/lib.rs`, `src/extractor/directlink.rs`, `src/filename.rs`, `src/postprocess.rs` |
 | `gallery_dl/extractor/discord.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/dynastyscans.py` | ⚪ Not ported | — |
 | `gallery_dl/extractor/e621.py` | 🟡 Partial | `src/extractor/e621.rs`, `src/extractor/mod.rs` |
