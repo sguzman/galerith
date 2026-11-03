@@ -322,11 +322,15 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "video/3gpp" => "3gp",
         "video/3gpp2" => "3g2",
         "video/x-msvideo" => "avi",
+        "video/x-ms-asf" => "asx",
         "video/x-ms-wmv" => "wmv",
         "video/x-matroska" => "mkv",
         "audio/wav" | "audio/x-wav" => "wav",
         "audio/mpeg" => "mp3",
+        "audio/mp4" => "m4a",
         "audio/aac" | "audio/x-aac" => "aac",
+        "audio/x-aiff" => "aif",
+        "audio/basic" => "au",
         "audio/flac" | "audio/x-flac" => "flac",
         "audio/opus" => "opus",
         "audio/x-ms-wma" => "wma",
@@ -341,6 +345,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "application/x-7z-compressed" => "7z",
         "application/vnd.apple.mpegurl" | "application/x-mpegurl" => "m3u8",
         "application/dash+xml" => "mpd",
+        "application/vnd.ms-asf" => "asf",
         "application/pdf" | "application/x-pdf" => "pdf",
         "application/x-shockwave-flash" => "swf",
         "application/gzip" | "application/x-gzip" => "gz",
@@ -1359,6 +1364,14 @@ mod tests {
         );
         assert_eq!(media_extension_from_mime(Some("video/x-flv")), "flv");
         assert_eq!(media_extension_from_mime(Some("video/quicktime")), "mov");
+        assert_eq!(media_extension_from_mime(Some("video/x-ms-asf")), "asx");
+        assert_eq!(
+            media_extension_from_mime(Some("application/vnd.ms-asf")),
+            "asf"
+        );
+        assert_eq!(media_extension_from_mime(Some("audio/mp4")), "m4a");
+        assert_eq!(media_extension_from_mime(Some("audio/x-aiff")), "aif");
+        assert_eq!(media_extension_from_mime(Some("audio/basic")), "au");
         assert_eq!(
             media_extension_from_mime(Some("application/x-7z-compressed")),
             "7z"

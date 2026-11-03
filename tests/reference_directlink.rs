@@ -2782,6 +2782,11 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
     const PBM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-bitmap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
     const PNM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-anymap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
     const FLV: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: video/x-flv\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const ASX: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: video/x-ms-asf\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const ASF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.ms-asf\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const M4A: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/mp4\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const AIF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/x-aiff\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const AU: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/basic\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
     let root = env::temp_dir().join(format!(
         "galerith-pinned-mime-suffix-oracle-{}",
         std::process::id()
@@ -2800,6 +2805,11 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
         ("pbm", b"X".as_slice(), "pbm", PBM),
         ("pnm", b"X".as_slice(), "pnm", PNM),
         ("flv", b"X".as_slice(), "flv", FLV),
+        ("asx", b"X".as_slice(), "asx", ASX),
+        ("asf", b"X".as_slice(), "asf", ASF),
+        ("m4a", b"X".as_slice(), "m4a", M4A),
+        ("aif", b"X".as_slice(), "aif", AIF),
+        ("au", b"X".as_slice(), "au", AU),
     ] {
         for (label, pinned) in [("reference", true), ("native", false)] {
             let (url, server) = serve_retry_sequence_at("/asset.jpg", [response, response]);

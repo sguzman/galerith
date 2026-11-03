@@ -166,6 +166,11 @@ async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
         ("image/x-portable-bitmap", "pbm"),
         ("image/x-portable-anymap", "pnm"),
         ("video/x-flv", "flv"),
+        ("video/x-ms-asf", "asx"),
+        ("application/vnd.ms-asf", "asf"),
+        ("audio/mp4", "m4a"),
+        ("audio/x-aiff", "aif"),
+        ("audio/basic", "au"),
     ];
     let server_cases = cases;
     let server = tokio::spawn(async move {
