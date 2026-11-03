@@ -500,6 +500,62 @@ fn sort_formatter_spec(spec: &str) -> Option<(&str, &str)> {
     Some(spec.split_once('/').unwrap_or((spec, "")))
 }
 
+fn conversion_formatter_spec(spec: &str) -> Option<(&str, &str)> {
+    let spec = spec.strip_prefix('C')?;
+    Some(spec.split_once('/').unwrap_or((spec, "")))
+}
+
+fn convert_string_chain(value: &str, conversions: &str) -> Result<String, FormatError> {
+    if conversions.is_empty() {
+        return Err(FormatError(
+            "filename conversion formatter requires a conversion".into(),
+        ));
+    }
+    let mut value = value.to_owned();
+    for conversion in conversions.chars() {
+        value = match conversion {
+            'l' => value.to_lowercase(),
+            'u' => value.to_uppercase(),
+            'c' => {
+                let mut chars = value.chars();
+                match chars.next() {
+                    Some(first) => first
+                        .to_uppercase()
+                        .chain(chars.flat_map(char::to_lowercase))
+                        .collect(),
+                    None => String::new(),
+                }
+            }
+            'C' => {
+                let mut result = String::new();
+                let mut word_start = true;
+                for character in value.chars() {
+                    if character.is_alphanumeric() {
+                        if word_start {
+                            result.extend(character.to_uppercase());
+                        } else {
+                            result.extend(character.to_lowercase());
+                        }
+                        word_start = false;
+                    } else {
+                        result.push(character);
+                        word_start = true;
+                    }
+                }
+                result
+            }
+            't' => value.trim().to_owned(),
+            's' => value,
+            _ => {
+                return Err(FormatError(format!(
+                    "unsupported filename string conversion '{conversion}'"
+                )))
+            }
+        };
+    }
+    Ok(value)
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -512,6 +568,13 @@ fn metadata_field(
             let (_, remainder) = map_formatter_spec(spec).expect("map formatter starts with M");
             *spec = remainder;
             metadata_field(&Value::String(value.clone()), field_name, conversion, spec)
+        }
+        Value::String(value) if spec.starts_with('C') => {
+            let (conversions, remainder) =
+                conversion_formatter_spec(spec).expect("conversion formatter starts with C");
+            let converted = convert_string_chain(value, conversions)?;
+            *spec = remainder;
+            metadata_field(&Value::String(converted), field_name, conversion, spec)
         }
         Value::String(value) => Ok(Some(value.clone())),
         Value::Array(values) if spec.starts_with('M') => {
@@ -563,6 +626,12 @@ fn metadata_field(
                 spec,
             )
         }
+        Value::Array(_) if spec.starts_with('C') => Err(FormatError(
+            "filename string conversions require a string field".into(),
+        )),
+        Value::Number(_) | Value::Bool(_) if spec.starts_with('C') => Err(FormatError(
+            "filename string conversions require a string field".into(),
+        )),
         Value::Array(values) if spec.starts_with('J') => {
             let (separator, remainder) =
                 join_formatter_spec(spec).expect("join formatter spec starts with J");
@@ -1201,11 +1270,12 @@ mod tests {
     }
 
     #[test]
-    fn join_formatter_joins_string_lists_and_leaves_strings_unchanged() {
+    fn list_and_string_formatter_specs_compose() {
         let item = sample();
         let metadata: Metadata = serde_json::from_value(serde_json::json!({
             "tags": ["zeta", "alpha", "middle"],
             "title": "plain",
+            "display": "  Mixed Case  ",
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
@@ -1248,6 +1318,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{title:A*3/}", &item, &metadata).unwrap(),
             "plainplainplain"
+        );
+        assert_eq!(
+            render_with_metadata("{display:Ctu/}", &item, &metadata).unwrap(),
+            "MIXED CASE"
         );
         assert!(render_with_metadata("{title:A*-2/}", &item, &metadata).is_err());
         assert_eq!(
