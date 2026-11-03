@@ -240,7 +240,7 @@ async fn content_type_adds_extension_when_source_and_custom_output_are_extension
 }
 
 #[tokio::test]
-async fn common_mime_alias_still_rejects_a_conflicting_filename_extension() {
+async fn unknown_signature_with_conflicting_mime_is_saved_like_upstream() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -266,9 +266,11 @@ async fn common_mime_alias_still_rejects_a_conflicting_filename_extension() {
         ..options(dir.clone())
     };
 
-    let error = download(&client, &item, &opts).await.unwrap_err();
-    assert!(error.to_string().contains("incompatible Content-Type"));
-    assert!(!dir.join("misnamed.jpg").exists());
+    assert_eq!(
+        download(&client, &item, &opts).await.unwrap(),
+        DownloadOutcome::Saved(dir.join("misnamed.jpg"))
+    );
+    assert_eq!(fs::read(dir.join("misnamed.jpg")).unwrap(), b"ICON");
     assert!(!dir.join("misnamed.jpg.part").exists());
     server.await.unwrap();
     fs::remove_dir_all(dir).unwrap();

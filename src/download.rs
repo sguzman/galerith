@@ -177,76 +177,6 @@ fn media_error_document(item: &MediaItem, content_type: &str, validate_html: boo
     }
 }
 
-/// Reject a specific media type when the output suffix clearly identifies a
-/// different format. Unknown and generic types (especially octet-stream) stay
-/// permissive because many CDNs omit a useful type or serve vendor formats.
-fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool {
-    let extension = item
-        .filename
-        .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase());
-    let mime = content_type
-        .split(';')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_ascii_lowercase();
-    let Some(extension) = extension.as_deref() else {
-        // Custom filename templates may omit the source suffix entirely, so
-        // there is no extension claim to compare with the response type.
-        return false;
-    };
-    let expected = match mime.as_str() {
-        "image/jpeg" => Some(&["jpg", "jpeg", "jpe"][..]),
-        "image/apng" => Some(&["apng", "png"][..]),
-        "image/png" => Some(&["png"][..]),
-        "image/gif" => Some(&["gif"][..]),
-        "image/webp" => Some(&["webp"][..]),
-        "image/avif" => Some(&["avif"][..]),
-        "image/heic" => Some(&["heic"][..]),
-        "image/heif" => Some(&["heif"][..]),
-        "image/vnd.adobe.photoshop" => Some(&["psd"][..]),
-        "image/bmp" => Some(&["bmp"][..]),
-        "image/tiff" => Some(&["tif", "tiff"][..]),
-        "image/svg+xml" => Some(&["svg"][..]),
-        "image/jxl" => Some(&["jxl"][..]),
-        "image/vnd.microsoft.icon" | "image/x-icon" | "image/ico" => Some(&["ico"][..]),
-        "audio/mpeg" | "audio/mp3" | "audio/x-mp3" => Some(&["mp3"][..]),
-        "audio/mp4" | "audio/x-m4a" => Some(&["m4a"][..]),
-        "audio/aac" => Some(&["aac"][..]),
-        "audio/x-ms-wma" => Some(&["wma"][..]),
-        "audio/ogg" => Some(&["ogg", "ogv", "opus"][..]),
-        "audio/opus" => Some(&["opus"][..]),
-        "audio/webm" => Some(&["webm"][..]),
-        "audio/wav" | "audio/x-wav" => Some(&["wav"][..]),
-        "audio/flac" | "audio/x-flac" => Some(&["flac"][..]),
-        "video/mp4" | "video/x-m4v" => Some(&["mp4", "m4v"][..]),
-        "video/mpeg" => Some(&["mpeg", "mpg", "vob", "m1v", "m2v"][..]),
-        "video/3gpp" => Some(&["3gp"][..]),
-        "video/3gpp2" => Some(&["3g2"][..]),
-        "video/mp2t" => Some(&["m2ts", "mts"][..]),
-        "video/x-msvideo" => Some(&["avi"][..]),
-        "video/x-ms-wmv" => Some(&["wmv"][..]),
-        "video/webm" => Some(&["webm"][..]),
-        "video/quicktime" => Some(&["mov"][..]),
-        "video/x-matroska" => Some(&["mkv"][..]),
-        "video/ogg" => Some(&["ogm", "ogv"][..]),
-        "application/vnd.ms-asf" | "video/x-ms-asf" => Some(&["asf"][..]),
-        "application/x-shockwave-flash" => Some(&["swf"][..]),
-        "application/pdf" => Some(&["pdf"][..]),
-        "application/zip" | "application/x-zip-compressed" => Some(&["zip", "cbz"][..]),
-        "application/vnd.rar" | "application/x-rar-compressed" => Some(&["rar"][..]),
-        "application/x-7z-compressed" => Some(&["7z"][..]),
-        "application/gzip" | "application/x-gzip" => Some(&["gz", "tgz"][..]),
-        "application/x-xz" => Some(&["xz"][..]),
-        "application/x-tar" => Some(&["tar"][..]),
-        "application/x-bzip2" => Some(&["bz2"][..]),
-        "application/zstd" | "application/x-zstd" => Some(&["zst"][..]),
-        _ => None,
-    };
-    expected.is_some_and(|extensions| !extensions.contains(&extension))
-}
-
 /// Pick the filename suffix for a response when the caller's template did not
 /// provide one. This deliberately covers the stable MIME aliases used by the
 /// direct HTTP downloader; unknown media types receive the upstream binary
@@ -799,9 +729,6 @@ pub async fn download(
         // Never archive it as completed image or video content.
         let response_content_type = header(&response, CONTENT_TYPE);
         let mime_extension = media_extension_from_mime(response_content_type.as_deref());
-        let incompatible_media_type = response_content_type
-            .as_deref()
-            .is_some_and(|mime| media_type_mismatches_extension(item, mime));
         if response_content_type
             .as_deref()
             .is_some_and(|mime| media_error_document(item, mime, options.validate_html))
@@ -988,7 +915,6 @@ pub async fn download(
         }
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;
         let mut oversized_response = false;
-        let mut invalid_content_type = false;
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
@@ -1051,15 +977,6 @@ pub async fn download(
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
         }
-        if transfer_error.is_none()
-            && incompatible_media_type
-            && (detected_extension.is_none() || options.no_part)
-        {
-            transfer_error = Some(error(
-                "incompatible Content-Type instead of requested media",
-            ));
-            invalid_content_type = true;
-        }
         if transfer_error.is_none() {
             if received == 0 {
                 // A successful HTTP status is not proof that any media bytes
@@ -1092,11 +1009,7 @@ pub async fn download(
         }
         drop(file);
         if let Some(err) = transfer_error {
-            if misleading_error_body
-                || invalid_content_type
-                || oversized_response
-                || (received == 0 && !append)
-            {
+            if misleading_error_body || oversized_response || (received == 0 && !append) {
                 // Discard deceptive or oversized responses and their sidecars.
                 // Never retain an untrustworthy suffix for future resume.
                 invalidate_for_mode(&part, &metadata, options.no_part).await?;
@@ -1484,92 +1397,6 @@ mod tests {
             "application/problem+json",
             true
         ));
-    }
-
-    #[test]
-    fn known_media_mime_types_match_expected_extensions() {
-        let item = MediaItem {
-            url: "https://example.test/media.jpg".into(),
-            filename: "photo.jpg".into(),
-            extractor: "directlink",
-            post_id: None,
-        };
-        assert!(!media_type_mismatches_extension(
-            &item,
-            "image/jpeg; charset=binary"
-        ));
-        assert!(media_type_mismatches_extension(&item, "image/png"));
-        assert!(media_type_mismatches_extension(&item, "application/pdf"));
-        let templated_name = MediaItem {
-            filename: "custom-output".into(),
-            ..item.clone()
-        };
-        assert!(!media_type_mismatches_extension(
-            &templated_name,
-            "image/jpeg"
-        ));
-        assert!(!media_type_mismatches_extension(
-            &item,
-            "application/octet-stream"
-        ));
-        assert!(!media_type_mismatches_extension(
-            &item,
-            "application/vnd.site-media"
-        ));
-
-        for (filename, mime) in [
-            ("cover.jpeg", "image/jpeg"),
-            ("animation.apng", "image/apng"),
-            ("favicon.ico", "image/vnd.microsoft.icon"),
-            ("favicon.ico", "image/x-icon"),
-            ("favicon.ico", "image/ico"),
-            ("poster.tiff", "image/tiff"),
-            ("raw.heic", "image/heic"),
-            ("raw.heif", "image/heif"),
-            ("design.psd", "image/vnd.adobe.photoshop"),
-            ("sound.mp3", "audio/mpeg"),
-            ("sound.mp3", "audio/mp3"),
-            ("sound.mp3", "audio/x-mp3"),
-            ("sound.m4a", "audio/mp4"),
-            ("sound.m4a", "audio/x-m4a"),
-            ("sound.aac", "audio/aac"),
-            ("sound.wma", "audio/x-ms-wma"),
-            ("clip.m4v", "video/mp4"),
-            ("clip.m4v", "video/x-m4v"),
-            ("clip.3gp", "video/3gpp"),
-            ("clip.3g2", "video/3gpp2"),
-            ("clip.asf", "application/vnd.ms-asf"),
-            ("clip.asf", "video/x-ms-asf"),
-            ("clip.wmv", "video/x-ms-wmv"),
-            ("clip.m2ts", "video/mp2t"),
-            ("clip.mts", "video/mp2t"),
-            ("clip.avi", "video/x-msvideo"),
-            ("clip.mpeg", "video/mpeg"),
-            ("clip.mpg", "video/mpeg"),
-            ("clip.vob", "video/mpeg"),
-            ("clip.m1v", "video/mpeg"),
-            ("clip.m2v", "video/mpeg"),
-            ("clip.mkv", "video/x-matroska"),
-            ("clip.ogm", "video/ogg"),
-            ("track.opus", "audio/opus"),
-            ("archive.cbz", "application/zip"),
-            ("archive.7z", "application/x-7z-compressed"),
-            ("backup.tar", "application/x-tar"),
-            ("backup.tgz", "application/gzip"),
-            ("backup.gz", "application/gzip"),
-            ("backup.bz2", "application/x-bzip2"),
-            ("backup.xz", "application/x-xz"),
-            ("backup.zst", "application/zstd"),
-        ] {
-            let item = MediaItem {
-                filename: filename.into(),
-                ..item.clone()
-            };
-            assert!(
-                !media_type_mismatches_extension(&item, mime),
-                "{mime} should match {filename}"
-            );
-        }
     }
 
     #[test]
