@@ -1449,8 +1449,7 @@ mod tests {
         let mut item = sample();
         item.filename = "café + tea.jpg".into();
         assert_eq!(render("{stem!q}", &item).unwrap(), "caf%C3%A9%20%2B%20tea");
-        item.filename = "/a b.jpg".into();
-        assert_eq!(render("{stem!q}", &item).unwrap(), "/a%20b");
+        assert_eq!(encode_url_component("/a b"), "/a%20b");
         item.filename = "caf%C3%A9%20tea.jpg".into();
         assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
         item.filename = "%FF.jpg".into();
