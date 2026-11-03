@@ -146,6 +146,49 @@ async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
 }
 
 #[tokio::test]
+async fn recognized_html_signature_corrects_a_generic_binary_response() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        let body = b"<!DOCTYPE html><html><body>public document</body></html>";
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        stream.write_all(body).await.unwrap();
+    });
+    let dir = test_dir("html-signature-extension");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/document.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dir.join("document.html"))
+    );
+    assert_eq!(
+        fs::read(dir.join("document.html")).unwrap(),
+        b"<!DOCTYPE html><html><body>public document</body></html>"
+    );
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn zero_download_chunk_size_is_rejected_before_creating_output() {
     let dir = test_dir("zero-chunk-size");
     let _ = fs::remove_dir_all(&dir);

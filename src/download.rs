@@ -326,7 +326,7 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
     let checkable = [
         "jpg", "png", "gif", "bmp", "webp", "avif", "heic", "svg", "ico", "cur", "psd", "mp4",
         "m4v", "mov", "webm", "ogg", "wav", "mp3", "aac", "m3u8", "mpd", "zip", "rar", "7z", "pdf",
-        "swf", "blend", "obj", "clip", "bin",
+        "swf", "html", "htm", "blend", "obj", "clip", "bin",
     ];
     if !checkable.contains(&extension.as_str()) {
         return None;
@@ -405,6 +405,8 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         Some("gz")
     } else if first.starts_with(b"CWS") || first.starts_with(b"FWS") {
         Some("swf")
+    } else if upstream_html_signature(first) {
+        Some("html")
     } else if first.starts_with(b"BLENDER") {
         Some("blend")
     } else if first.starts_with(b"# Blender v") {
@@ -415,6 +417,22 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         None
     };
     detected.filter(|detected| !extension.eq_ignore_ascii_case(detected))
+}
+
+/// Match gallery-dl's bounded, case-insensitive HTML signature predicate.
+fn upstream_html_signature(first: &[u8]) -> bool {
+    let sample = first.get(..14).unwrap_or(first);
+    let Some(start) = sample.iter().position(|byte| !byte.is_ascii_whitespace()) else {
+        return false;
+    };
+    let candidate = &sample[start..];
+    let signature = b"<!doctype html";
+    !candidate.is_empty()
+        && candidate.len() <= signature.len()
+        && candidate
+            .iter()
+            .zip(signature)
+            .all(|(actual, expected)| actual.to_ascii_lowercase() == *expected)
 }
 
 /// Some servers label an HTML or JSON block page as application/octet-stream
@@ -1023,11 +1041,6 @@ pub async fn download(
                 }
             }
         }
-        let misleading_error_body =
-            looks_like_soft_error_body(item, &response_first_bytes, options.validate_html);
-        if misleading_error_body {
-            transfer_error = Some(error("block page disguised as binary media"));
-        }
         let current_extension = target
             .extension()
             .and_then(|value| value.to_str())
@@ -1037,6 +1050,11 @@ pub async fn download(
             .adjust_extensions
             .then(|| signature_extension(&first_bytes, current_extension))
             .flatten();
+        let misleading_error_body = detected_extension != Some("html")
+            && looks_like_soft_error_body(item, &response_first_bytes, options.validate_html);
+        if misleading_error_body {
+            transfer_error = Some(error("block page disguised as binary media"));
+        }
         if transfer_error.is_none()
             && incompatible_media_type
             && (detected_extension.is_none() || options.no_part)
@@ -1190,6 +1208,8 @@ mod tests {
             ("jpg", b"ID3", "mp3"),
             ("mp3", b"\xff\xf1\x50\x80", "aac"),
             ("mpd", b"#EXTM3U\n#EXT-X-VERSION:3", "m3u8"),
+            ("jpg", b"<!DOCTYPE html><html>", "html"),
+            ("htm", b"  <!doctype html>", "html"),
             (
                 "m3u8",
                 b"<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\">",
