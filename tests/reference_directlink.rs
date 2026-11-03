@@ -2940,6 +2940,61 @@ fn pinned_formatter_preserves_json_mapping_order() {
 }
 
 #[test]
+fn pinned_and_native_clients_reject_non_string_numeric_filename_conversions() {
+    let templates = ["{_lit[42]!i}", "{_lit[3.5]!f}"];
+    let oracle_enabled = env::var_os("GALERITH_REFERENCE_ORACLE").is_some();
+    let root = oracle_enabled.then(|| {
+        env::var("GALERITH_PINNED_REFERENCE_ROOT")
+            .expect("pinned source required for numeric filename conversion comparison")
+    });
+    if oracle_enabled {
+        let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+            .expect("CI must declare expected upstream git revision");
+        assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    }
+
+    for template in templates {
+        let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args([
+                "--filename",
+                template,
+                "--simulate",
+                "https://example.org/image.jpg",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            !native.status.success(),
+            "native formatter accepted non-string conversion {template}"
+        );
+
+        let Some(root) = root.as_ref() else {
+            continue;
+        };
+        let pinned = Command::new("python3")
+            .args([
+                "-m",
+                "gallery_dl",
+                "--config-ignore",
+                "--no-input",
+                "--filename",
+                template,
+                "--simulate",
+                "https://example.org/image.jpg",
+            ])
+            .env("PYTHONPATH", root)
+            .env("PYTHONNOUSERSITE", "1")
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .output()
+            .unwrap();
+        assert!(
+            !pinned.status.success(),
+            "pinned gallery-dl accepted non-string conversion {template}"
+        );
+    }
+}
+
+#[test]
 fn pinned_formatter_matches_native_scalar_string_conversion_errors() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
