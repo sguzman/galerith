@@ -847,6 +847,17 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     Ok(Some(output))
 }
 
+fn group_integer_digits(digits: &str, separator: char) -> String {
+    let mut reversed = String::with_capacity(digits.len() + digits.len() / 3);
+    for (index, digit) in digits.chars().rev().enumerate() {
+        if index > 0 && index % 3 == 0 {
+            reversed.push(separator);
+        }
+        reversed.push(digit);
+    }
+    reversed.chars().rev().collect()
+}
+
 fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
     let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
         return Ok(None);
@@ -898,16 +909,6 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     if zero_flag && !explicit_fill {
         fill = "0".to_owned();
     }
-    if alternate && (grouping.is_some() || base == 10) {
-        return Err(FormatError(
-            "unsupported alternate numeric formatting specification".into(),
-        ));
-    }
-    if grouping.is_some() && zero_fill {
-        return Err(FormatError(
-            "unsupported grouped numeric formatting specification".into(),
-        ));
-    }
     let width_text = if zero_fill {
         &width_spec[1..]
     } else {
@@ -941,30 +942,31 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         }
     };
     let magnitude = number.unsigned_abs();
-    let mut digits = match (base, grouping) {
-        (10, Some(separator)) => {
-            let raw = magnitude.to_string();
-            let mut reversed = String::with_capacity(raw.len() + raw.len() / 3);
-            for (index, digit) in raw.chars().rev().enumerate() {
-                if index > 0 && index % 3 == 0 {
-                    reversed.push(separator);
-                }
-                reversed.push(digit);
-            }
-            reversed.chars().rev().collect()
-        }
-        (10, None) => magnitude.to_string(),
-        (2, None) => format!("{magnitude:b}"),
-        (8, None) => format!("{magnitude:o}"),
-        (16, None) => format!("{magnitude:x}"),
+    let mut digits = match base {
+        10 => magnitude.to_string(),
+        2 => format!("{magnitude:b}"),
+        8 => format!("{magnitude:o}"),
+        16 => format!("{magnitude:x}"),
         _ => unreachable!(),
     };
     let prefix = if alternate { marker } else { "" };
-    let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
     if zero_fill {
-        digits.insert_str(0, &"0".repeat(padding));
+        if let Some(separator) = grouping {
+            while sign.len() + prefix.len() + group_integer_digits(&digits, separator).len() < width
+            {
+                digits.insert(0, '0');
+            }
+            digits = group_integer_digits(&digits, separator);
+        } else {
+            let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
+            digits.insert_str(0, &"0".repeat(padding));
+        }
         Ok(Some(format!("{sign}{prefix}{digits}")))
     } else {
+        if let Some(separator) = grouping {
+            digits = group_integer_digits(&digits, separator);
+        }
+        let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
         let (left, right) = match alignment {
             Some('<') => (0, padding),
             Some('^') => (padding / 2, padding - padding / 2),
