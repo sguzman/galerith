@@ -783,6 +783,70 @@ fn slugify(value: &str) -> String {
     result.trim_matches(['-', '_']).to_owned()
 }
 
+fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
+    let Some(kind @ ('f' | 'F')) = spec.chars().last() else {
+        return Ok(None);
+    };
+    let options = &spec[..spec.len() - kind.len_utf8()];
+    let (width_text, precision) = match options.split_once('.') {
+        Some((width, precision)) if precision.bytes().all(|byte| byte.is_ascii_digit()) => {
+            let precision = precision
+                .parse::<usize>()
+                .map_err(|_| FormatError("invalid numeric precision".into()))?;
+            (width, precision)
+        }
+        Some(_) => return Err(FormatError("invalid numeric precision".into())),
+        None => (options, 6),
+    };
+    let width_text = width_text.strip_prefix('0').unwrap_or(width_text);
+    if !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(FormatError(
+            "unsupported numeric format specification".into(),
+        ));
+    }
+    let width = if width_text.is_empty() {
+        usize::from(options.starts_with('0'))
+    } else {
+        width_text
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid numeric width".into()))?
+    };
+    if width > 240 || precision > 200 {
+        return Err(FormatError("numeric format exceeds filename limits".into()));
+    }
+    let Some(number) = value.as_number() else {
+        return Ok(None);
+    };
+    let decimal_zeros = if precision == 0 {
+        String::new()
+    } else {
+        format!(".{}", "0".repeat(precision))
+    };
+    let mut output = if let Some(integer) = number.as_i64() {
+        format!("{integer}{decimal_zeros}")
+    } else if let Some(integer) = number.as_u64() {
+        format!("{integer}{decimal_zeros}")
+    } else {
+        let number = number
+            .as_f64()
+            .ok_or_else(|| FormatError("invalid numeric value".into()))?;
+        format!("{number:.precision$}")
+    };
+    if output.len() < width {
+        let padding = width - output.len();
+        if options.starts_with('0') {
+            if let Some(absolute) = output.strip_prefix('-') {
+                output = format!("-{}{absolute}", "0".repeat(padding));
+            } else {
+                output.insert_str(0, &"0".repeat(padding));
+            }
+        } else {
+            output.insert_str(0, &" ".repeat(padding));
+        }
+    }
+    Ok(Some(output))
+}
+
 fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
     let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
         return Ok(None);
@@ -1434,6 +1498,13 @@ fn field_with_metadata(
     if matches!(base_name, "id" | "post_id") {
         if let Some(formatted) = format_radix_id(&value, spec)? {
             return Ok(formatted);
+        }
+    }
+    if conversion.is_empty() {
+        if let Some(source) = selected_source.as_ref() {
+            if let Some(formatted) = format_fixed_float(source, spec)? {
+                return Ok(formatted);
+            }
         }
     }
     if spec.starts_with('X') || spec.starts_with('L') {
@@ -2156,6 +2227,36 @@ mod tests {
         let mut large = item;
         large.filename = i128::MAX.to_string();
         assert!(render("{filename:A*4/}", &large).is_err());
+    }
+
+    #[test]
+    fn floating_point_standard_formatting_applies_precision_and_zero_width() {
+        let item = sample();
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
+            "rating": 3.14159,
+            "whole": 42,
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{rating:.2f}", &item, &metadata).unwrap(),
+            "3.14"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:f}", &item, &metadata).unwrap(),
+            "3.141590"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:08.2f}", &item, &metadata).unwrap(),
+            "00003.14"
+        );
+        assert_eq!(
+            render_with_metadata("{whole:.2f}", &item, &metadata).unwrap(),
+            "42.00"
+        );
+        assert_eq!(
+            render_with_metadata("{whole:.0f}", &item, &metadata).unwrap(),
+            "42"
+        );
     }
 
     #[test]

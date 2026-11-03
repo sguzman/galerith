@@ -2747,6 +2747,51 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
 }
 
 #[test]
+fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({"rating": 3.14159, "whole": 42});
+    let metadata = metadata.as_object().unwrap();
+    let formats = [
+        "{rating:.2f}",
+        "{rating:f}",
+        "{rating:08.2f}",
+        "{whole:.2f}",
+        "{whole:.0f}",
+    ];
+    let native = formats
+        .iter()
+        .map(|template| {
+            galerith::filename::render_with_metadata(template, &item, metadata).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["3.14", "3.141590", "00003.14", "42.00", "42"]);
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for numeric float format comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let source = format!(
+        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':3.14159,'whole':42}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+    );
+    let mut command = Command::new("python3");
+    command.args(["-c", &source]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let upstream = spawn(command, "pinned numeric float formatter");
+    assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
 fn pinned_formatter_matches_native_string_list_join_formatter() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
