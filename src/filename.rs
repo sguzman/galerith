@@ -799,7 +799,7 @@ fn format_scientific_float(number: f64, precision: usize, uppercase: bool) -> St
     )
 }
 
-fn format_general_float(number: f64, precision: usize, uppercase: bool) -> String {
+fn format_general_float(number: f64, precision: usize, uppercase: bool, alternate: bool) -> String {
     let precision = precision.max(1);
     if number.is_nan() {
         return if uppercase { "NAN" } else { "nan" }.to_owned();
@@ -810,10 +810,11 @@ fn format_general_float(number: f64, precision: usize, uppercase: bool) -> Strin
         return format!("{sign}{value}");
     }
     if number == 0.0 {
-        return if number.is_sign_negative() {
-            "-0".to_owned()
+        let sign = if number.is_sign_negative() { "-" } else { "" };
+        return if alternate {
+            format!("{sign}0.{}", "0".repeat(precision - 1))
         } else {
-            "0".to_owned()
+            format!("{sign}0")
         };
     }
     let scientific = format!("{number:.digits$e}", digits = precision - 1);
@@ -824,14 +825,25 @@ fn format_general_float(number: f64, precision: usize, uppercase: bool) -> Strin
         .parse::<i32>()
         .expect("Rust scientific exponent is a signed integer");
     if exponent < -4 || exponent >= precision as i32 {
-        let mantissa = mantissa.trim_end_matches('0').trim_end_matches('.');
+        let mantissa = if alternate {
+            if mantissa.contains('.') {
+                mantissa.to_owned()
+            } else {
+                format!("{mantissa}.")
+            }
+        } else {
+            mantissa
+                .trim_end_matches('0')
+                .trim_end_matches('.')
+                .to_owned()
+        };
         let marker = if uppercase { 'E' } else { 'e' };
         let sign = if exponent < 0 { '-' } else { '+' };
         return format!("{mantissa}{marker}{sign}{:02}", exponent.unsigned_abs());
     }
     let decimals = (precision as i32 - exponent - 1).max(0) as usize;
     let fixed = format!("{number:.decimals$}");
-    if fixed.contains('.') {
+    if fixed.contains('.') && !alternate {
         fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
     } else {
         fixed
@@ -879,6 +891,12 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
     let (sign_option, width_spec) = match width_spec.chars().next() {
         Some(sign @ ('+' | '-' | ' ')) => (Some(sign), &width_spec[sign.len_utf8()..]),
         _ => (None, width_spec),
+    };
+    let alternate = width_spec.starts_with('#');
+    let width_spec = if alternate {
+        &width_spec[1..]
+    } else {
+        width_spec
     };
     let zero_flag = width_spec.starts_with('0') && width_spec.len() > 1;
     let zero_fill = alignment.is_none() && zero_flag;
@@ -953,7 +971,7 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
         let number = number
             .as_f64()
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
-        format_general_float(number, precision, kind == 'G')
+        format_general_float(number, precision, kind == 'G', alternate)
     } else if let Some(integer) = number.as_i64() {
         format!("{integer}{decimal_zeros}")
     } else if let Some(integer) = number.as_u64() {
@@ -964,6 +982,10 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
         format!("{number:.precision$}")
     };
+    if alternate && !output.contains('.') {
+        let insertion = output.find(['e', 'E', '%']).unwrap_or(output.len());
+        output.insert(insertion, '.');
+    }
     if !sign.is_empty() && !output.starts_with('-') {
         output.insert_str(0, sign);
     }

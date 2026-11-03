@@ -2790,6 +2790,10 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "{whole:.3g}",
         "{negative:.3G}",
         "{zero:.3g}",
+        "{whole:#.0f}",
+        "{whole:#.3g}",
+        "{whole:#.0e}",
+        "{zero:#.3g}",
     ];
     let native = formats
         .iter()
@@ -2824,7 +2828,11 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             "1.2e-05",
             "42",
             "-1.25",
-            "0"
+            "0",
+            "42.",
+            "42.0",
+            "4.e+01",
+            "0.00"
         ]
     );
 
