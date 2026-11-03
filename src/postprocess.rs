@@ -211,8 +211,13 @@ pub async fn write_info_json(
         crate::message::media_metadata(item)
     };
     let mut metadata = crate::message::upstream_metadata(&metadata);
-    metadata.remove("query");
-    metadata.remove("fragment");
+    if item.extractor == "directlink" {
+        metadata.insert("query".into(), Value::Null);
+        metadata.insert("fragment".into(), Value::Null);
+    } else {
+        metadata.remove("query");
+        metadata.remove("fragment");
+    }
     fs::create_dir_all(destination).await?;
     let output = destination.join("info.json");
     write_json_atomic(&output, &serde_json::Value::Object(metadata)).await

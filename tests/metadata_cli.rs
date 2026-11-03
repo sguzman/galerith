@@ -140,6 +140,8 @@ fn info_json_writes_redacted_directory_metadata_without_downloading_media() {
     assert_eq!(value["path"], "galleries");
     assert!(value.get("stem").is_none());
     assert_eq!(value["extension"], "jpg");
+    assert_eq!(value["query"], serde_json::Value::Null);
+    assert_eq!(value["fragment"], serde_json::Value::Null);
     assert!(!text.contains("private"));
     assert!(!text.contains("secret"));
     assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);

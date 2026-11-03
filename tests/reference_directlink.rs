@@ -3685,20 +3685,10 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
         &std::fs::read(pinned_dir.join("info.json")).expect("pinned info.json created"),
     )
     .unwrap();
-    for key in [
-        "category",
-        "filename",
-        "domain",
-        "subcategory",
-        "path",
-        "extension",
-    ] {
-        assert_eq!(
-            native_metadata.get(key),
-            pinned_metadata.get(key),
-            "directlink info.json field {key} differs"
-        );
-    }
+    assert_eq!(
+        native_metadata, pinned_metadata,
+        "directlink info.json differs from pinned gallery-dl"
+    );
     std::fs::remove_dir_all(root).unwrap();
 }
 
