@@ -927,7 +927,11 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         digits.insert_str(0, &"0".repeat(padding));
         Ok(Some(format!("{sign}{prefix}{digits}")))
     } else {
-        Ok(Some(format!("{}{}{prefix}{digits}", " ".repeat(padding), sign)))
+        Ok(Some(format!(
+            "{}{}{prefix}{digits}",
+            " ".repeat(padding),
+            sign
+        )))
     }
 }
 
@@ -1499,9 +1503,16 @@ fn field_with_metadata(
     }
     if matches!(base_name, "id" | "post_id")
         || (conversion.is_empty()
-            && selected_source.as_ref().is_some_and(Value::is_number))
+            && selected_source
+                .as_ref()
+                .is_some_and(|source| source.is_number() || source.is_boolean()))
     {
-        if let Some(formatted) = format_radix_id(&value, spec)? {
+        let integer_value = match selected_source.as_ref() {
+            Some(Value::Bool(true)) => "1",
+            Some(Value::Bool(false)) => "0",
+            _ => &value,
+        };
+        if let Some(formatted) = format_radix_id(integer_value, spec)? {
             return Ok(formatted);
         }
     }
