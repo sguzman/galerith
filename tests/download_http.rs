@@ -517,7 +517,7 @@ async fn no_part_mode_corrects_a_completed_signature_after_direct_write() {
 }
 
 #[tokio::test]
-async fn direct_heif_media_matches_its_response_mime() {
+async fn direct_heic_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -525,13 +525,13 @@ async fn direct_heif_media_matches_its_response_mime() {
         let mut request = [0_u8; 512];
         assert!(stream.read(&mut request).await.unwrap() > 0);
         stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/heif\r\nContent-Length: 4\r\nConnection: close\r\n\r\nHEIF")
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/heic\r\nContent-Length: 4\r\nConnection: close\r\n\r\nHEIC")
             .await
             .unwrap();
     });
-    let dir = test_dir("heif");
+    let dir = test_dir("heic");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/photo.heif")).unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/photo.heic")).unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -540,9 +540,9 @@ async fn direct_heif_media_matches_its_response_mime() {
         download(&client, &item, &options(dir.clone()))
             .await
             .unwrap(),
-        DownloadOutcome::Saved(dir.join("photo.heif"))
+        DownloadOutcome::Saved(dir.join("photo.heic"))
     );
-    assert_eq!(fs::read(dir.join("photo.heif")).unwrap(), b"HEIF");
+    assert_eq!(fs::read(dir.join("photo.heic")).unwrap(), b"HEIC");
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
 }

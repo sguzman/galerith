@@ -30,11 +30,11 @@ const URLS: &[&str] = &[
     "https://assets.example.org/galleries/%E9%9F%B3%E6%A5%BD.jpg?lang=ja",
 ];
 const DIRECTLINK_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "jpe", "heic", "heif", "psd", "png", "apng", "gif", "webp", "avif", "bmp",
-    "tif", "tiff", "svg", "jxl", "ico", "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v",
-    "3gp", "3g2", "m2ts", "mts", "asf", "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma",
-    "ogg", "ogm", "ogv", "opus", "flac", "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz",
-    "gz", "bz2", "xz", "zst", "swf",
+    "jpg", "jpeg", "jpe", "heic", "psd", "png", "apng", "gif", "webp", "avif", "bmp", "tif",
+    "tiff", "svg", "jxl", "ico", "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp",
+    "3g2", "m2ts", "mts", "asf", "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma", "ogg",
+    "ogm", "ogv", "opus", "flac", "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz", "gz",
+    "bz2", "xz", "zst", "swf",
 ];
 
 fn spawn(mut command: Command, label: &str) -> String {
@@ -2283,7 +2283,7 @@ fn pinned_and_native_format_source_event_metadata_in_normal_cli_mode() {
     let cases = [
         (
             "https://assets.example.org/media/asset.jpg",
-            Some("assets-example-org"),
+            Some("assetsexampleorg"),
         ),
         ("http://assets.example.org:8443/media/asset.jpg", None),
     ];

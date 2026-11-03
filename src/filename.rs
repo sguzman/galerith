@@ -289,6 +289,9 @@ fn slugify_ascii(value: &str) -> Result<String, FormatError> {
             }
             result.push(byte.to_ascii_lowercase() as char);
             separator = false;
+        } else if byte == b'.' {
+            // gallery-dl's !g slugifier drops periods (notably in domains)
+            // instead of treating them as word separators.
         } else {
             separator = true;
         }
@@ -1024,6 +1027,10 @@ mod tests {
     fn slug_conversion_normalizes_basic_ascii_values_and_rejects_unicode() {
         let item = sample();
         assert_eq!(field("_lit[Hello, World]!g", &item).unwrap(), "hello-world");
+        assert_eq!(
+            field("_lit[Assets.Example.org]!g", &item).unwrap(),
+            "assetsexampleorg"
+        );
         assert_eq!(
             field("_lit[  Foo__BAR--baz  ]!g", &item).unwrap(),
             "foo-bar-baz"
