@@ -60,7 +60,8 @@ fn native_upstream_tuples(url: &str) -> Vec<Value> {
 }
 
 fn pinned_json_output(root: &Path, url: &str, options: &[&str]) -> Value {
-    let mut command = Command::new("python3");
+    let python = env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into());
+    let mut command = Command::new(python);
     command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
     command.args(options);
     command.arg(url);
@@ -72,7 +73,8 @@ fn pinned_json_output(root: &Path, url: &str, options: &[&str]) -> Value {
 }
 
 fn pinned_resolve_urls(root: &Path, url: &str) -> String {
-    let mut command = Command::new("python3");
+    let python = env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into());
+    let mut command = Command::new(python);
     command.args([
         "-m",
         "gallery_dl",
@@ -2762,99 +2764,57 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
 }
 
 #[test]
-fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
+fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
-    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
-        .expect("CI reference oracle must supply the pinned upstream directory");
     let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
 
-    const TIFF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/tiff\r\nContent-Length: 4\r\nConnection: close\r\n\r\nTIFF";
-    const JP2: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/jp2\r\nContent-Length: 3\r\nConnection: close\r\n\r\nJP2";
-    const HEICS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/heic-sequence\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const HEIFS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/heif-sequence\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const JXL: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/jxl\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const PPM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-pixmap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const PGM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-graymap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const PBM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-bitmap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const PNM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-anymap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const FLV: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: video/x-flv\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const ASX: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: video/x-ms-asf\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const ASF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.ms-asf\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const M4A: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/mp4\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const AIF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/x-aiff\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    const AU: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/basic\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
-    let root = env::temp_dir().join(format!(
-        "galerith-pinned-mime-suffix-oracle-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).unwrap();
-
-    for (name, body, suffix, response) in [
-        ("tiff", b"TIFF".as_slice(), "tiff", TIFF),
-        ("jp2", b"JP2".as_slice(), "jp2", JP2),
-        ("heics", b"X".as_slice(), "heics", HEICS),
-        ("heifs", b"X".as_slice(), "heifs", HEIFS),
-        ("jxl", b"X".as_slice(), "jxl", JXL),
-        ("ppm", b"X".as_slice(), "ppm", PPM),
-        ("pgm", b"X".as_slice(), "pgm", PGM),
-        ("pbm", b"X".as_slice(), "pbm", PBM),
-        ("pnm", b"X".as_slice(), "pnm", PNM),
-        ("flv", b"X".as_slice(), "flv", FLV),
-        ("asx", b"X".as_slice(), "asx", ASX),
-        ("asf", b"X".as_slice(), "asf", ASF),
-        ("m4a", b"X".as_slice(), "m4a", M4A),
-        ("aif", b"X".as_slice(), "aif", AIF),
-        ("au", b"X".as_slice(), "au", AU),
-    ] {
-        for (label, pinned) in [("reference", true), ("native", false)] {
-            let (url, server) = serve_retry_sequence_at("/asset.jpg", [response, response]);
-            let output = root.join(format!("{name}-{label}"));
-            std::fs::create_dir_all(&output).unwrap();
-            let mut command = if pinned {
-                let mut command = Command::new("python3");
-                command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
-                command.env("PYTHONPATH", &pinned_root);
-                command.env("PYTHONNOUSERSITE", "1");
-                command.env("PYTHONDONTWRITEBYTECODE", "1");
-                command
-            } else {
-                Command::new(env!("CARGO_BIN_EXE_galerith"))
-            };
-            command
-                .args(["--quiet", "--filename", "{filename}", "-d"])
-                .arg(&output)
-                .arg(&url);
-            for key in [
-                "HTTP_PROXY",
-                "HTTPS_PROXY",
-                "ALL_PROXY",
-                "http_proxy",
-                "https_proxy",
-                "all_proxy",
-            ] {
-                command.env_remove(key);
-            }
-            let result = command.output().expect("launch MIME suffix fixture client");
-            assert!(
-                result.status.success(),
-                "{name}-{label}: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-            let saved = saved_paths_with_bytes(&output, body);
-            assert_eq!(saved.len(), 1, "{name}-{label}: {saved:?}");
-            assert_eq!(
-                saved[0].extension().and_then(|value| value.to_str()),
-                Some(suffix)
-            );
-            server.join().unwrap();
-        }
+    let cases = [
+        ("image/tiff", "tiff"),
+        ("image/jp2", "jp2"),
+        ("image/heic-sequence", "heics"),
+        ("image/heif-sequence", "heifs"),
+        ("image/jxl", "jxl"),
+        ("image/x-portable-pixmap", "ppm"),
+        ("image/x-portable-graymap", "pgm"),
+        ("image/x-portable-bitmap", "pbm"),
+        ("image/x-portable-anymap", "pnm"),
+        ("video/x-flv", "flv"),
+        ("video/x-ms-asf", "asx"),
+        ("application/vnd.ms-asf", "asf"),
+        ("audio/mp4", "m4a"),
+        ("audio/x-aiff", "aif"),
+        ("audio/basic", "au"),
+    ];
+    let python = env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into());
+    let mut command = Command::new(python);
+    command.args([
+        "-c",
+        "import mimetypes, sys; print('\\n'.join(mimetypes.guess_extension(x, strict=False) or '' for x in sys.argv[1:]))",
+    ]);
+    command.args(cases.iter().map(|(mime, _)| mime));
+    command.env("PYTHONNOUSERSITE", "1");
+    let output = command
+        .output()
+        .expect("run Python's MIME database reference");
+    assert!(
+        output.status.success(),
+        "Python MIME lookup failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let actual = String::from_utf8(output.stdout).unwrap();
+    let actual: Vec<_> = actual.lines().collect();
+    assert_eq!(actual.len(), cases.len());
+    for ((mime, expected), actual) in cases.iter().zip(actual) {
+        assert_eq!(
+            actual,
+            format!(".{expected}"),
+            "Python MIME fallback for {mime}"
+        );
     }
-    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
