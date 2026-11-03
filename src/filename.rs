@@ -1752,7 +1752,7 @@ mod tests {
             extractor: "directlink",
             post_id: Some(42),
         };
-        let metadata: Metadata = serde_json::from_value(json!({
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
             "labels": {"nested": {"name": "nested"}, "short": "safe"},
             "artists": [{"name": "one"}, {"name": "two"}]
         }))
