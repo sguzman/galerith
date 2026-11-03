@@ -2791,7 +2791,7 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
         ("video/x-flv", "flv"),
         ("video/x-sgi-movie", "movie"),
         ("video/x-ms-asf", "bin"),
-        ("application/vnd.ms-asf", "bin"),
+        ("application/vnd.ms-asf", "asf"),
         ("audio/mp4", "m4a"),
         ("audio/3gpp", "3gp"),
         ("audio/3gpp2", "3g2"),

@@ -354,6 +354,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "application/x-7z-compressed" => "7z",
         "application/vnd.apple.mpegurl" | "application/x-mpegurl" => "m3u8",
         "application/dash+xml" => "mpd",
+        "application/vnd.ms-asf" => "asf",
         "application/pdf" | "application/x-pdf" => "pdf",
         "application/x-shockwave-flash" => "swf",
         "application/gzip" | "application/x-gzip" => "gz",
@@ -1375,7 +1376,7 @@ mod tests {
         assert_eq!(media_extension_from_mime(Some("video/x-ms-asf")), "bin");
         assert_eq!(
             media_extension_from_mime(Some("application/vnd.ms-asf")),
-            "bin"
+            "asf"
         );
         assert_eq!(media_extension_from_mime(Some("audio/mp4")), "m4a");
         assert_eq!(media_extension_from_mime(Some("audio/x-aiff")), "aif");
