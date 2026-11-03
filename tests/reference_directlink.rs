@@ -2509,6 +2509,71 @@ fn pinned_and_native_filter_known_content_lengths_by_size_limits() {
 }
 
 #[test]
+fn pinned_and_native_html_validation_config_allow_html_payloads() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    const HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 15\r\nConnection: close\r\n\r\n<html>ok</html>";
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-html-validation-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (url, server) = serve_retry_sequence([HTML, HTML]);
+
+    for (label, pinned) in [("reference", true), ("native", false)] {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command
+            .args(["--quiet", "-o", "downloader.http.validate-html=false", "-d"])
+            .arg(&output)
+            .arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command
+            .output()
+            .expect("launch HTML-validation fixture client");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            contains_file_with_bytes(&output, b"<html>ok</html>"),
+            "{label}: disabled HTML validation should permit the fixture payload"
+        );
+    }
+    server.join().unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
     let template = "{_lit[é猫]!n}";
     let url = "https://example.org/image.jpg";

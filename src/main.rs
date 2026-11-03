@@ -915,6 +915,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .downloader_http_chunk_size()
             .map_err(std::io::Error::other)?
             .unwrap_or(32 * 1024),
+        validate_html: config
+            .downloader_http_validate_html()
+            .map_err(std::io::Error::other)?
+            .unwrap_or(true),
         filesize_min,
         filesize_max,
         headers: config

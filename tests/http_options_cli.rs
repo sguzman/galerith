@@ -585,6 +585,47 @@ fn configured_downloader_headers_reach_media_requests() {
 }
 
 #[test]
+fn downloader_html_validation_can_be_disabled_per_http_scope() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0_u8; 4096];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 15\r\nConnection: close\r\n\r\n<html>ok</html>",
+            )
+            .unwrap();
+    });
+    let dir = destination("html-validation-disabled");
+    let _ = fs::remove_dir_all(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args([
+            "--source-address",
+            "127.0.0.1",
+            "-o",
+            "downloader.http.validate-html=false",
+            "-d",
+            dir.to_str().unwrap(),
+        ])
+        .arg(format!("http://{address}/asset.jpg"))
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("asset.jpg")).unwrap(), b"<html>ok</html>");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn force_ip_families_are_mutually_exclusive() {
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args([

@@ -33,6 +33,8 @@ pub struct DownloadOptions {
     pub limit_rate: Option<RateRange>,
     /// Maximum number of response bytes written and paced in one iteration.
     pub chunk_size: usize,
+    /// Whether HTML responses with non-HTML output names are rejected.
+    pub validate_html: bool,
     /// Minimum response size; responses with a known smaller size are filtered.
     pub filesize_min: Option<u64>,
     /// Maximum response size; responses with a known larger size are filtered.
@@ -137,7 +139,7 @@ fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Op
 /// A synthetic success response containing an HTML/JSON error document
 /// cannot complete an unrelated media, PDF, archive or other direct file.
 /// Legitimate HTML/JSON downloads with corresponding extensions are allowed.
-fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
+fn media_error_document(item: &MediaItem, content_type: &str, validate_html: bool) -> bool {
     let extension = item
         .filename
         .rsplit_once('.')
@@ -149,8 +151,8 @@ fn media_error_document(item: &MediaItem, content_type: &str) -> bool {
         .trim()
         .to_ascii_lowercase();
     match mime.as_str() {
-        "text/html" => !matches!(extension.as_deref(), Some("html" | "htm")),
-        "application/xhtml+xml" => extension.as_deref() != Some("xhtml"),
+        "text/html" => validate_html && !matches!(extension.as_deref(), Some("html" | "htm")),
+        "application/xhtml+xml" => validate_html && extension.as_deref() != Some("xhtml"),
         "application/json" => !matches!(extension.as_deref(), Some("json" | "jsonl")),
         "application/problem+json" => true,
         _ => false,
@@ -230,7 +232,7 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
 /// Some servers label an HTML or JSON block page as application/octet-stream
 /// or omit Content-Type entirely. Inspect only a bounded initial body prefix
 /// for established binary/document outputs, never the full download.
-fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
+fn looks_like_soft_error_body(item: &MediaItem, first: &[u8], validate_html: bool) -> bool {
     let extension = item
         .filename
         .rsplit_once('.')
@@ -256,10 +258,11 @@ fn looks_like_soft_error_body(item: &MediaItem, first: &[u8]) -> bool {
         .take(160)
         .map(|byte| byte.to_ascii_lowercase())
         .collect::<Vec<_>>();
-    trimmed.starts_with(b"<!doctype html")
-        || trimmed.starts_with(b"<html")
-        || trimmed.starts_with(b"<head")
-        || trimmed.starts_with(b"<body")
+    (validate_html
+        && (trimmed.starts_with(b"<!doctype html")
+            || trimmed.starts_with(b"<html")
+            || trimmed.starts_with(b"<head")
+            || trimmed.starts_with(b"<body")))
         || (trimmed.starts_with(b"{")
             && (trimmed.windows(7).any(|part| part == b"\"error\"")
                 || trimmed.windows(8).any(|part| part == b"\"errors\"")))
@@ -595,7 +598,8 @@ pub async fn download(
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
         if header(&response, CONTENT_TYPE).is_some_and(|mime| {
-            media_error_document(item, &mime) || media_type_mismatches_extension(item, &mime)
+            media_error_document(item, &mime, options.validate_html)
+                || media_type_mismatches_extension(item, &mime)
         }) {
             // Neither a 206 error suffix nor a 200 block page replacing a
             // Range request can satisfy the media transfer. A stale partial
@@ -818,7 +822,8 @@ pub async fn download(
                 }
             }
         }
-        let misleading_error_body = looks_like_soft_error_body(item, &first_bytes);
+        let misleading_error_body =
+            looks_like_soft_error_body(item, &first_bytes, options.validate_html);
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
         }
@@ -976,35 +981,60 @@ mod tests {
         };
         assert!(looks_like_soft_error_body(
             &item,
-            b"\xef\xbb\xbf  <!DOCTYPE HTML><html>blocked</html>"
-        ));
-        assert!(looks_like_soft_error_body(&item, b"<HTML>Forbidden</HTML>"));
-        assert!(looks_like_soft_error_body(
-            &item,
-            b"{ \"error\": \"forbidden\" }"
+            b"\xef\xbb\xbf  <!DOCTYPE HTML><html>blocked</html>",
+            true
         ));
         assert!(looks_like_soft_error_body(
             &item,
-            b"{\"errors\":[\"denied\"]}"
+            b"<HTML>Forbidden</HTML>",
+            true
         ));
-        assert!(!looks_like_soft_error_body(&item, b"\xff\xd8\xff\xe0JPEG"));
+        assert!(!looks_like_soft_error_body(
+            &item,
+            b"<HTML>Allowed</HTML>",
+            false
+        ));
+        assert!(looks_like_soft_error_body(
+            &item,
+            b"{ \"error\": \"forbidden\" }",
+            true
+        ));
+        assert!(looks_like_soft_error_body(
+            &item,
+            b"{\"errors\":[\"denied\"]}",
+            false
+        ));
+        assert!(!looks_like_soft_error_body(
+            &item,
+            b"\xff\xd8\xff\xe0JPEG",
+            true
+        ));
         let pdf = MediaItem {
             filename: "manual.pdf".into(),
             ..item.clone()
         };
-        assert!(looks_like_soft_error_body(&pdf, b"<html>PDF not found"));
+        assert!(looks_like_soft_error_body(
+            &pdf,
+            b"<html>PDF not found",
+            true
+        ));
         let html = MediaItem {
             filename: "index.html".into(),
             ..item.clone()
         };
-        assert!(!looks_like_soft_error_body(&html, b"<html>Valid</html>"));
+        assert!(!looks_like_soft_error_body(
+            &html,
+            b"<html>Valid</html>",
+            true
+        ));
         let json = MediaItem {
             filename: "data.json".into(),
             ..item
         };
         assert!(!looks_like_soft_error_body(
             &json,
-            b"{\"error\":\"actual JSON\"}"
+            b"{\"error\":\"actual JSON\"}",
+            true
         ));
     }
 
@@ -1037,36 +1067,64 @@ mod tests {
             extractor: "directlink",
             post_id: None,
         };
-        assert!(media_error_document(&item, "text/html; charset=UTF-8"));
-        assert!(media_error_document(&item, "APPLICATION/JSON"));
-        assert!(media_error_document(&item, "application/problem+json"));
-        assert!(!media_error_document(&item, "image/jpeg"));
-        assert!(!media_error_document(&item, "application/octet-stream"));
+        assert!(media_error_document(
+            &item,
+            "text/html; charset=UTF-8",
+            true
+        ));
+        assert!(!media_error_document(
+            &item,
+            "text/html; charset=UTF-8",
+            false
+        ));
+        assert!(media_error_document(&item, "APPLICATION/JSON", true));
+        assert!(media_error_document(&item, "APPLICATION/JSON", false));
+        assert!(media_error_document(
+            &item,
+            "application/problem+json",
+            true
+        ));
+        assert!(!media_error_document(&item, "image/jpeg", true));
+        assert!(!media_error_document(
+            &item,
+            "application/octet-stream",
+            true
+        ));
         let html = MediaItem {
             filename: "document.html".into(),
             ..item
         };
-        assert!(!media_error_document(&html, "text/html"));
-        assert!(media_error_document(&html, "application/problem+json"));
+        assert!(!media_error_document(&html, "text/html", true));
+        assert!(!media_error_document(&html, "text/html", false));
+        assert!(media_error_document(
+            &html,
+            "application/problem+json",
+            true
+        ));
         let pdf = MediaItem {
             filename: "documents.pdf".into(),
             ..html.clone()
         };
-        assert!(media_error_document(&pdf, "text/html"));
-        assert!(media_error_document(&pdf, "application/json"));
-        assert!(!media_error_document(&pdf, "application/pdf"));
+        assert!(media_error_document(&pdf, "text/html", true));
+        assert!(!media_error_document(&pdf, "text/html", false));
+        assert!(media_error_document(&pdf, "application/json", true));
+        assert!(!media_error_document(&pdf, "application/pdf", true));
         let archive = MediaItem {
             filename: "media.7z".into(),
             ..html.clone()
         };
-        assert!(media_error_document(&archive, "text/html"));
+        assert!(media_error_document(&archive, "text/html", true));
         let json = MediaItem {
             filename: "data.json".into(),
             ..html
         };
-        assert!(!media_error_document(&json, "application/json"));
-        assert!(media_error_document(&json, "text/html"));
-        assert!(media_error_document(&json, "application/problem+json"));
+        assert!(!media_error_document(&json, "application/json", true));
+        assert!(media_error_document(&json, "text/html", true));
+        assert!(media_error_document(
+            &json,
+            "application/problem+json",
+            true
+        ));
     }
 
     #[test]
@@ -1168,7 +1226,7 @@ mod tests {
                 post_id: None,
             };
             assert!(
-                looks_like_soft_error_body(&item, b"<html>Blocked</html>"),
+                looks_like_soft_error_body(&item, b"<html>Blocked</html>", true),
                 "HTML block page should not be accepted as {extension}"
             );
         }

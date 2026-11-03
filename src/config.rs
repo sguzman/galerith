@@ -255,6 +255,20 @@ impl Config {
             .map_err(|_| "downloader.http.chunk-size is out of range")
     }
 
+    /// Optional HTTP HTML response validation toggle.
+    pub fn downloader_http_validate_html(&self) -> Result<Option<bool>, &'static str> {
+        self.root
+            .pointer("/downloader/http/validate-html")
+            .map(|value| {
+                value
+                    .as_bool()
+                    .map(Some)
+                    .ok_or("downloader.http.validate-html must be a boolean")
+            })
+            .transpose()
+            .map(Option::flatten)
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -609,6 +623,20 @@ mod tests {
         assert!(config.downloader_http_chunk_size().is_err());
         config.option("downloader.http.chunk-size=true").unwrap();
         assert!(config.downloader_http_chunk_size().is_err());
+    }
+
+    #[test]
+    fn downloader_http_validate_html_is_optional_boolean() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_validate_html().unwrap(), None);
+        config
+            .option("downloader.http.validate-html=false")
+            .unwrap();
+        assert_eq!(config.downloader_http_validate_html().unwrap(), Some(false));
+        config.option("downloader.http.validate-html=true").unwrap();
+        assert_eq!(config.downloader_http_validate_html().unwrap(), Some(true));
+        config.option("downloader.http.validate-html=1").unwrap();
+        assert!(config.downloader_http_validate_html().is_err());
     }
 
     #[test]
