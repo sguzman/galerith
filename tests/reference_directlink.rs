@@ -2754,7 +2754,7 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         extractor: "directlink",
         post_id: None,
     };
-    let metadata = json!({"rating": 1.2345, "whole": 42});
+    let metadata = json!({"rating": 1.2345, "whole": 42, "ratio": 0.125});
     let metadata = metadata.as_object().unwrap();
     let formats = [
         "{rating:.2f}",
@@ -2762,6 +2762,11 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "{rating:08.2f}",
         "{whole:.2f}",
         "{whole:.0f}",
+        "{ratio:.1%}",
+        "{ratio:%}",
+        "{ratio:010.1%}",
+        "{whole:.0%}",
+        "{whole:.1%}",
     ];
     let native = formats
         .iter()
@@ -2769,7 +2774,21 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             galerith::filename::render_with_metadata(template, &item, metadata).unwrap()
         })
         .collect::<Vec<_>>();
-    assert_eq!(native, ["1.23", "1.234500", "00001.23", "42.00", "42"]);
+    assert_eq!(
+        native,
+        [
+            "1.23",
+            "1.234500",
+            "00001.23",
+            "42.00",
+            "42",
+            "12.5%",
+            "12.500000%",
+            "0000012.5%",
+            "4200%",
+            "4200.0%"
+        ]
+    );
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -2780,7 +2799,7 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42,'ratio':0.125}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);

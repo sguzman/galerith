@@ -784,9 +784,10 @@ fn slugify(value: &str) -> String {
 }
 
 fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
-    let Some(kind @ ('f' | 'F')) = spec.chars().last() else {
+    let Some(kind @ ('f' | 'F' | '%')) = spec.chars().last() else {
         return Ok(None);
     };
+    let percent = kind == '%';
     let options = &spec[..spec.len() - kind.len_utf8()];
     let (width_text, precision) = match options.split_once('.') {
         Some((width, precision)) if precision.bytes().all(|byte| byte.is_ascii_digit()) => {
@@ -822,7 +823,26 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     } else {
         format!(".{}", "0".repeat(precision))
     };
-    let mut output = if let Some(integer) = number.as_i64() {
+    let mut output = if percent {
+        let suffix = "%";
+        if let Some(integer) = number.as_i64() {
+            let scaled = integer
+                .checked_mul(100)
+                .ok_or_else(|| FormatError("percentage formatting overflow".into()))?;
+            format!("{scaled}{decimal_zeros}{suffix}")
+        } else if let Some(integer) = number.as_u64() {
+            let scaled = integer
+                .checked_mul(100)
+                .ok_or_else(|| FormatError("percentage formatting overflow".into()))?;
+            format!("{scaled}{decimal_zeros}{suffix}")
+        } else {
+            let number = number
+                .as_f64()
+                .ok_or_else(|| FormatError("invalid numeric value".into()))?
+                * 100.0;
+            format!("{number:.precision$}%")
+        }
+    } else if let Some(integer) = number.as_i64() {
         format!("{integer}{decimal_zeros}")
     } else if let Some(integer) = number.as_u64() {
         format!("{integer}{decimal_zeros}")
