@@ -789,7 +789,7 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     };
     let percent = kind == '%';
     let options = &spec[..spec.len() - kind.len_utf8()];
-    let (width_text, precision) = match options.split_once('.') {
+    let (raw_width, precision) = match options.split_once('.') {
         Some((width, precision)) if precision.bytes().all(|byte| byte.is_ascii_digit()) => {
             let precision = precision
                 .parse::<usize>()
@@ -799,14 +799,49 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
         Some(_) => return Err(FormatError("invalid numeric precision".into())),
         None => (options, 6),
     };
-    let width_text = width_text.strip_prefix('0').unwrap_or(width_text);
+    let mut width_chars = raw_width.char_indices();
+    let first = width_chars.next();
+    let second = width_chars.next();
+    let (alignment, mut fill, explicit_fill, width_spec) = match (first, second) {
+        (Some((_, fill)), Some((end, alignment @ ('<' | '>' | '^' | '='))))
+            if !matches!(fill, '{' | '}') =>
+        {
+            (
+                Some(alignment),
+                fill.to_string(),
+                true,
+                &raw_width[end + alignment.len_utf8()..],
+            )
+        }
+        (Some((0, alignment @ ('<' | '>' | '^' | '='))), _) => (
+            Some(alignment),
+            " ".to_owned(),
+            false,
+            &raw_width[alignment.len_utf8()..],
+        ),
+        _ => (None, " ".to_owned(), false, raw_width),
+    };
+    let (sign_option, width_spec) = match width_spec.chars().next() {
+        Some(sign @ ('+' | '-' | ' ')) => (Some(sign), &width_spec[sign.len_utf8()..]),
+        _ => (None, width_spec),
+    };
+    let zero_flag = width_spec.starts_with('0') && width_spec.len() > 1;
+    let zero_fill = alignment.is_none() && zero_flag;
+    if zero_flag && !explicit_fill {
+        fill = "0".to_owned();
+    }
+    let width_text = if zero_fill {
+        &width_spec[1..]
+    } else {
+        width_spec
+    };
     if !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(FormatError(
             "unsupported numeric format specification".into(),
         ));
     }
     let width = if width_text.is_empty() {
-        usize::from(options.starts_with('0'))
+        0
     } else {
         width_text
             .parse::<usize>()
@@ -817,6 +852,18 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     }
     let Some(number) = value.as_number() else {
         return Ok(None);
+    };
+    let sign = match (
+        number.as_i64().is_some_and(|number| number < 0)
+            || number
+                .as_f64()
+                .is_some_and(|number| number.is_sign_negative()),
+        sign_option,
+    ) {
+        (true, _) => "-",
+        (false, Some('+')) => "+",
+        (false, Some(' ')) => " ",
+        _ => "",
     };
     let decimal_zeros = if precision == 0 {
         String::new()
@@ -852,16 +899,34 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
         format!("{number:.precision$}")
     };
+    if !sign.is_empty() && !output.starts_with('-') {
+        output.insert_str(0, sign);
+    }
     if output.len() < width {
         let padding = width - output.len();
-        if options.starts_with('0') {
-            if let Some(absolute) = output.strip_prefix('-') {
-                output = format!("-{}{absolute}", "0".repeat(padding));
+        if zero_fill {
+            let first = output.chars().next().unwrap_or_default();
+            if matches!(first, '-' | '+' | ' ') {
+                output.insert_str(first.len_utf8(), &"0".repeat(padding));
             } else {
                 output.insert_str(0, &"0".repeat(padding));
             }
+        } else if alignment == Some('=') {
+            let first = output.chars().next().unwrap_or_default();
+            if matches!(first, '-' | '+' | ' ') {
+                let split = first.len_utf8();
+                output.insert_str(split, &fill.repeat(padding));
+            } else {
+                output.insert_str(0, &fill.repeat(padding));
+            }
         } else {
-            output.insert_str(0, &" ".repeat(padding));
+            let (left, right) = match alignment {
+                Some('<') => (0, padding),
+                Some('^') => (padding / 2, padding - padding / 2),
+                _ => (padding, 0),
+            };
+            output.insert_str(0, &fill.repeat(left));
+            output.push_str(&fill.repeat(right));
         }
     }
     Ok(Some(output))
