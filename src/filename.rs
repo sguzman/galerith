@@ -783,7 +783,7 @@ fn slugify(value: &str) -> String {
     result.trim_matches(['-', '_']).to_owned()
 }
 
-fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
+fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
     let Some(kind @ ('f' | 'F' | '%')) = spec.chars().last() else {
         return Ok(None);
     };
@@ -941,6 +941,79 @@ fn group_integer_digits(digits: &str, separator: char, group_size: usize) -> Str
         reversed.push(digit);
     }
     reversed.chars().rev().collect()
+}
+
+fn format_integer_character(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
+    if spec.chars().last() != Some('c') {
+        return Ok(None);
+    }
+    let options = &spec[..spec.len() - 1];
+    let mut spec_chars = options.char_indices();
+    let first = spec_chars.next();
+    let second = spec_chars.next();
+    let (alignment, mut fill, explicit_fill, width_spec) = match (first, second) {
+        (Some((_, fill)), Some((end, alignment @ ('<' | '>' | '^' | '='))))
+            if !matches!(fill, '{' | '}') =>
+        {
+            (
+                Some(alignment),
+                fill.to_string(),
+                true,
+                &options[end + alignment.len_utf8()..],
+            )
+        }
+        (Some((0, alignment @ ('<' | '>' | '^' | '='))), _) => (
+            Some(alignment),
+            " ".to_owned(),
+            false,
+            &options[alignment.len_utf8()..],
+        ),
+        _ => (None, " ".to_owned(), false, options),
+    };
+    let zero_fill = alignment.is_none() && width_spec.starts_with('0') && width_spec.len() > 1;
+    if zero_fill && !explicit_fill {
+        fill = "0".to_owned();
+    }
+    let width_text = if zero_fill {
+        &width_spec[1..]
+    } else {
+        width_spec
+    };
+    if !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(FormatError(
+            "unsupported integer character format specification".into(),
+        ));
+    }
+    let width = if width_text.is_empty() {
+        0
+    } else {
+        width_text
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid numeric width".into()))?
+    };
+    if width > 240 {
+        return Err(FormatError("filename numeric width is too large".into()));
+    }
+    let codepoint = value
+        .parse::<u32>()
+        .map_err(|_| FormatError("integer character format requires a valid code point".into()))?;
+    let character = char::from_u32(codepoint).ok_or_else(|| {
+        FormatError("integer character format requires a valid code point".into())
+    })?;
+    let mut output = character.to_string();
+    let padding = width.saturating_sub(output.chars().count());
+    if zero_fill {
+        output.insert_str(0, &"0".repeat(padding));
+    } else {
+        let (left, right) = match alignment {
+            Some('<') => (0, padding),
+            Some('^') => (padding / 2, padding - padding / 2),
+            _ => (padding, 0),
+        };
+        output.insert_str(0, &fill.repeat(left));
+        output.push_str(&fill.repeat(right));
+    }
+    Ok(Some(output))
 }
 
 fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
@@ -1657,13 +1730,18 @@ fn field_with_metadata(
             Some(Value::Bool(false)) => "0",
             _ => &value,
         };
+        if conversion.is_empty() {
+            if let Some(formatted) = format_integer_character(integer_value, spec)? {
+                return Ok(formatted);
+            }
+        }
         if let Some(formatted) = format_integer(integer_value, spec)? {
             return Ok(formatted);
         }
     }
     if conversion.is_empty() {
         if let Some(source) = selected_source.as_ref() {
-            if let Some(formatted) = format_fixed_float(source, spec)? {
+            if let Some(formatted) = format_fixed_numeric(source, spec)? {
                 return Ok(formatted);
             }
         }
@@ -1919,6 +1997,22 @@ mod tests {
             field_with_metadata("negative:x=6d", &item, metadata).unwrap(),
             "-xxx42"
         );
+    }
+
+    #[test]
+    fn integer_character_formats_support_width_fill_and_alignment() {
+        let item = sample();
+        let metadata = serde_json::json!({"letter": 65});
+        let metadata = metadata.as_object().unwrap();
+        for (format, expected) in [
+            ("letter:c", "A"),
+            ("letter:04c", "000A"),
+            ("letter:<4c", "A   "),
+            ("letter:>4c", "   A"),
+            ("letter:x^4c", "xAxx"),
+        ] {
+            assert_eq!(field_with_metadata(format, &item, metadata).unwrap(), expected);
+        }
     }
 
     #[test]

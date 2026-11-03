@@ -2838,7 +2838,8 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         "large": 1_234_567,
         "negative": -42,
         "flag": true,
-        "wide": 305_419_896
+        "wide": 305_419_896,
+        "letter": 65
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
@@ -2873,6 +2874,10 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         "{wide:_x}",
         "{wide:#_x}",
         "{count:016_b}",
+        "{letter:c}",
+        "{letter:04c}",
+        "{letter:x>4c}",
+        "{letter:x^4c}",
     ];
     let native = formats
         .iter()
@@ -2913,7 +2918,11 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
             "22_1505_3170",
             "1234_5678",
             "0x1234_5678",
-            "0_0000_0010_1010"
+            "0_0000_0010_1010",
+            "A",
+            "000A",
+            "xxxA",
+            "xAxx"
         ]
     );
 
@@ -2926,7 +2935,7 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'count':42,'large':1234567,'negative':-42,'flag':True,'wide':305419896}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'count':42,'large':1234567,'negative':-42,'flag':True,'wide':305419896,'letter':65}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);
