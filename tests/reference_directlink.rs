@@ -2908,7 +2908,7 @@ fn pinned_formatter_preserves_json_mapping_order() {
         "ordered": {"second": 2, "first": 1}
     }))
     .unwrap();
-    let template = r#"{ordered!j:R"/_/R:_/}"#;
+    let template = r#"{ordered!j:R"/_/R:/_/}"#;
     let native = galerith::filename::render_with_metadata(template, &item, &metadata).unwrap();
     assert_eq!(native, "{_second__2,_first__1}");
 
@@ -2923,7 +2923,7 @@ fn pinned_formatter_preserves_json_mapping_order() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        r#"from gallery_dl import formatter; data={'ordered':{'second':2,'first':1}}; print(formatter.parse('{ordered!j:R"/_/R:_/}').format_map(data))"#,
+        r#"from gallery_dl import formatter; data={'ordered':{'second':2,'first':1}}; print(formatter.parse('{ordered!j:R"/_/R:/_/}').format_map(data))"#,
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

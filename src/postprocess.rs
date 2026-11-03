@@ -68,7 +68,9 @@ async fn write_json_atomic(
     output: &Path,
     value: &serde_json::Value,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
-    let bytes = serde_json::to_vec_pretty(value)?;
+    let mut sorted = value.clone();
+    sorted.sort_all_objects();
+    let bytes = serde_json::to_vec_pretty(&sorted)?;
     let tmp = temporary_path(output)?;
     write_atomic(output, &bytes, &tmp).await?;
     Ok(output.to_owned())

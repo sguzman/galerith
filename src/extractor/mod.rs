@@ -1369,6 +1369,8 @@ fn media_request_from_metadata(
             serde_json::Value::String(value) => Ok(value.as_bytes().to_vec()),
             serde_json::Value::Object(fields) => {
                 let mut form = url::form_urlencoded::Serializer::new(String::new());
+                let mut fields = fields.iter().collect::<Vec<_>>();
+                fields.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
                 for (key, value) in fields {
                     let values = value
                         .as_array()
