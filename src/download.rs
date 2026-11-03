@@ -383,7 +383,12 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         Some("aac")
     } else if first.starts_with(b"#EXTM3U") {
         Some("m3u8")
-    } else if first.windows(4).any(|window| window == b"<MPD") {
+    } else if first
+        .get(..16)
+        .unwrap_or(first)
+        .windows(4)
+        .any(|window| window == b"<MPD")
+    {
         Some("mpd")
     } else if first.starts_with(b"II*\0") || first.starts_with(b"MM\0*") {
         Some("tif")
@@ -1196,6 +1201,11 @@ mod tests {
         ] {
             assert_eq!(signature_extension(prefix, Some(current)), Some(corrected));
         }
+        assert_eq!(
+            signature_extension(b"                <MPD></MPD>", Some("mp4")),
+            None,
+            "DASH marker beyond upstream's 16-byte probe must not change the suffix"
+        );
         assert_eq!(signature_extension(b"\x89PNG\r\n\x1a\n", Some("txt")), None);
     }
 

@@ -2775,10 +2775,12 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
     const AAC: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/aac\r\nContent-Length: 5\r\nConnection: close\r\n\r\n\xff\xf1AAC";
     const HLS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: 25\r\nConnection: close\r\n\r\n#EXTM3U\n#EXT-X-VERSION:3\n";
     const DASH: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 11\r\nConnection: close\r\n\r\n<MPD></MPD>";
+    const DASH_LATE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 27\r\nConnection: close\r\n\r\n                <MPD></MPD>";
     let cases = [
         ("/asset.mp3", AAC, "mp3", "aac"),
         ("/asset.mp4", HLS, "mp4", "m3u8"),
         ("/asset.mp4", DASH, "mp4", "mpd"),
+        ("/asset.mp4", DASH_LATE, "mp4", "mp4"),
     ];
     let root = env::temp_dir().join(format!(
         "galerith-pinned-media-signatures-oracle-{}",
@@ -2844,12 +2846,14 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
                     .any(|filename| filename.ends_with(&format!(".{expected_extension}"))),
                 "{label}: expected .{expected_extension} output, found {filenames:?}"
             );
-            assert!(
-                filenames
-                    .iter()
-                    .all(|filename| !filename.ends_with(&format!(".{original_extension}"))),
-                "{label}: original suffix remained after correction: {filenames:?}"
-            );
+            if expected_extension != original_extension {
+                assert!(
+                    filenames
+                        .iter()
+                        .all(|filename| !filename.ends_with(&format!(".{original_extension}"))),
+                    "{label}: original suffix remained after correction: {filenames:?}"
+                );
+            }
         }
         server.join().unwrap();
     }
