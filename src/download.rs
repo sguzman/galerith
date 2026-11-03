@@ -390,8 +390,6 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         .any(|window| window == b"<MPD")
     {
         Some("mpd")
-    } else if first.starts_with(b"II*\0") || first.starts_with(b"MM\0*") {
-        Some("tif")
     } else if first.starts_with(b"PK\x03\x04")
         || first.starts_with(b"PK\x05\x06")
         || first.starts_with(b"PK\x07\x08")
@@ -401,8 +399,6 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         Some("7z")
     } else if first.starts_with(b"Rar!\x1a\x07") {
         Some("rar")
-    } else if first.starts_with(b"\x1f\x8b") {
-        Some("gz")
     } else if first.starts_with(b"CWS") || first.starts_with(b"FWS") {
         Some("swf")
     } else if upstream_html_signature(first) {
@@ -1225,6 +1221,16 @@ mod tests {
             signature_extension(b"                <MPD></MPD>", Some("mp4")),
             None,
             "DASH marker beyond upstream's 16-byte probe must not change the suffix"
+        );
+        assert_eq!(
+            signature_extension(b"II*\0synthetic TIFF", Some("jpg")),
+            None,
+            "TIFF is not in the pinned signature table"
+        );
+        assert_eq!(
+            signature_extension(b"\x1f\x8b\x08\0synthetic gzip", Some("jpg")),
+            None,
+            "gzip is not in the pinned signature table"
         );
         assert_eq!(signature_extension(b"\x89PNG\r\n\x1a\n", Some("txt")), None);
     }

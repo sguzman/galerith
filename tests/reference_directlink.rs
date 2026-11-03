@@ -2776,11 +2776,15 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
     const HLS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: 25\r\nConnection: close\r\n\r\n#EXTM3U\n#EXT-X-VERSION:3\n";
     const DASH: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 11\r\nConnection: close\r\n\r\n<MPD></MPD>";
     const DASH_LATE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 27\r\nConnection: close\r\n\r\n                <MPD></MPD>";
+    const TIFF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 18\r\nConnection: close\r\n\r\nII*\0synthetic TIFF";
+    const GZIP: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 18\r\nConnection: close\r\n\r\n\x1f\x8b\x08\0synthetic gzip";
     let cases = [
         ("/asset.mp3", AAC, "mp3", "aac"),
         ("/asset.mp4", HLS, "mp4", "m3u8"),
         ("/asset.mp4", DASH, "mp4", "mpd"),
         ("/asset.mp4", DASH_LATE, "mp4", "mp4"),
+        ("/asset.jpg", TIFF, "jpg", "jpg"),
+        ("/asset.jpg", GZIP, "jpg", "jpg"),
     ];
     let root = env::temp_dir().join(format!(
         "galerith-pinned-media-signatures-oracle-{}",
