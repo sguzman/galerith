@@ -911,6 +911,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .map(RateRange::parse)
             .transpose()
             .map_err(std::io::Error::other)?,
+        chunk_size: config
+            .downloader_http_chunk_size()
+            .map_err(std::io::Error::other)?
+            .unwrap_or(32 * 1024),
         filesize_min,
         filesize_max,
         headers: config

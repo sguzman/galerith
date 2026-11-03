@@ -27,6 +27,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         no_mtime: false,
         no_part: false,
         limit_rate: None,
+        chunk_size: 32 * 1024,
         filesize_min: None,
         filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),

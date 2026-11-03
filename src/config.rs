@@ -237,6 +237,24 @@ impl Config {
         Ok((minimum, maximum))
     }
 
+    /// Optional HTTP response chunk size, expressed as a positive byte count.
+    pub fn downloader_http_chunk_size(&self) -> Result<Option<usize>, &'static str> {
+        let Some(value) = self.root.pointer("/downloader/http/chunk-size") else {
+            return Ok(None);
+        };
+        let size = match value {
+            Value::Number(number) => parse_byte_size(&number.to_string())?,
+            Value::String(size) => parse_byte_size(size)?,
+            _ => return Err("downloader.http.chunk-size must be a positive byte size"),
+        };
+        if size == 0 {
+            return Err("downloader.http.chunk-size must be a positive byte size");
+        }
+        usize::try_from(size)
+            .map(Some)
+            .map_err(|_| "downloader.http.chunk-size is out of range")
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -572,6 +590,25 @@ mod tests {
         );
         config.option("filesize-min=true").unwrap();
         assert!(config.downloader_filesize_limits().is_err());
+    }
+
+    #[test]
+    fn downloader_http_chunk_size_parses_suffixes_and_rejects_invalid_values() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_chunk_size().unwrap(), None);
+        config.option("downloader.http.chunk-size=64k").unwrap();
+        assert_eq!(
+            config.downloader_http_chunk_size().unwrap(),
+            Some(64 * 1024)
+        );
+        config.option("downloader.http.chunk-size=0").unwrap();
+        assert!(config.downloader_http_chunk_size().is_err());
+        config.option("downloader.http.chunk-size=1.5").unwrap();
+        assert_eq!(config.downloader_http_chunk_size().unwrap(), Some(2));
+        config.option("downloader.http.chunk-size=64q").unwrap();
+        assert!(config.downloader_http_chunk_size().is_err());
+        config.option("downloader.http.chunk-size=true").unwrap();
+        assert!(config.downloader_http_chunk_size().is_err());
     }
 
     #[test]

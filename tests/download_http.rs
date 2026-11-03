@@ -26,6 +26,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         no_mtime: false,
         no_part: false,
         limit_rate: None,
+        chunk_size: 32 * 1024,
         filesize_min: None,
         filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),
@@ -57,7 +58,8 @@ async fn downloads_atomically_and_skips_existing_files() {
         .timeout(Duration::from_secs(5))
         .build()
         .unwrap();
-    let opts = options(dir.clone());
+    let mut opts = options(dir.clone());
+    opts.chunk_size = 3;
     let result = download(&client, &item, &opts).await.unwrap();
     assert_eq!(result, DownloadOutcome::Saved(dir.join("file.png")));
     assert_eq!(fs::read(dir.join("file.png")).unwrap(), b"12345678");
@@ -68,6 +70,21 @@ async fn downloads_atomically_and_skips_existing_files() {
     );
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn zero_download_chunk_size_is_rejected_before_creating_output() {
+    let dir = test_dir("zero-chunk-size");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media("http://127.0.0.1:1/file.png").unwrap();
+    let mut opts = options(dir.clone());
+    opts.chunk_size = 0;
+
+    let error = download(&reqwest::Client::new(), &item, &opts)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("chunk size must be positive"));
+    assert!(!dir.exists());
 }
 
 #[tokio::test]

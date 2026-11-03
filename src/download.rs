@@ -31,6 +31,8 @@ pub struct DownloadOptions {
     pub no_part: bool,
     /// Optional maximum number of response bytes per second.
     pub limit_rate: Option<RateRange>,
+    /// Maximum number of response bytes written and paced in one iteration.
+    pub chunk_size: usize,
     /// Minimum response size; responses with a known smaller size are filtered.
     pub filesize_min: Option<u64>,
     /// Maximum response size; responses with a known larger size are filtered.
@@ -453,6 +455,9 @@ pub async fn download(
     {
         return Err(error("unsafe output filename"));
     }
+    if options.chunk_size == 0 {
+        return Err(error("download chunk size must be positive"));
+    }
 
     fs::create_dir_all(&options.destination).await?;
     // Hold this OS advisory lock through the existence check, transfer and
@@ -772,33 +777,38 @@ pub async fn download(
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
-                    if expected_body
-                        .is_some_and(|max| received.saturating_add(chunk.len() as u64) > max)
-                    {
-                        // Never append an overlong chunk or retain any
-                        // previously appended bytes from this response.
-                        oversized_response = true;
-                        transfer_error = Some(error("response exceeds declared body length"));
-                        break;
-                    }
-                    if first_bytes.len() < 160 {
-                        let count = (160 - first_bytes.len()).min(chunk.len());
-                        first_bytes.extend_from_slice(&chunk[..count]);
-                    }
-                    if let Err(err) = file.write_all(&chunk).await {
-                        transfer_error = Some(err.into());
-                        break;
-                    }
-                    received = received.saturating_add(chunk.len() as u64);
-                    if let Some(bytes_per_second) = limit_rate {
-                        let target_nanos =
-                            (u128::from(received) * 1_000_000_000) / u128::from(bytes_per_second);
-                        let elapsed_nanos = transfer_started.elapsed().as_nanos();
-                        if target_nanos > elapsed_nanos {
-                            let wait_nanos =
-                                (target_nanos - elapsed_nanos).min(u128::from(u64::MAX));
-                            tokio::time::sleep(Duration::from_nanos(wait_nanos as u64)).await;
+                    for chunk in chunk.chunks(options.chunk_size) {
+                        if expected_body
+                            .is_some_and(|max| received.saturating_add(chunk.len() as u64) > max)
+                        {
+                            // Never append an overlong chunk or retain any
+                            // previously appended bytes from this response.
+                            oversized_response = true;
+                            transfer_error = Some(error("response exceeds declared body length"));
+                            break;
                         }
+                        if first_bytes.len() < 160 {
+                            let count = (160 - first_bytes.len()).min(chunk.len());
+                            first_bytes.extend_from_slice(&chunk[..count]);
+                        }
+                        if let Err(err) = file.write_all(chunk).await {
+                            transfer_error = Some(err.into());
+                            break;
+                        }
+                        received = received.saturating_add(chunk.len() as u64);
+                        if let Some(bytes_per_second) = limit_rate {
+                            let target_nanos = (u128::from(received) * 1_000_000_000)
+                                / u128::from(bytes_per_second);
+                            let elapsed_nanos = transfer_started.elapsed().as_nanos();
+                            if target_nanos > elapsed_nanos {
+                                let wait_nanos =
+                                    (target_nanos - elapsed_nanos).min(u128::from(u64::MAX));
+                                tokio::time::sleep(Duration::from_nanos(wait_nanos as u64)).await;
+                            }
+                        }
+                    }
+                    if transfer_error.is_some() {
+                        break;
                     }
                 }
                 Ok(None) => break,
