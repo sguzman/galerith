@@ -239,7 +239,11 @@ impl Config {
 
     /// Optional HTTP response chunk size, expressed as a positive byte count.
     pub fn downloader_http_chunk_size(&self) -> Result<Option<usize>, &'static str> {
-        let Some(value) = self.root.pointer("/downloader/http/chunk-size") else {
+        let Some(value) = self
+            .root
+            .get("chunk-size")
+            .or_else(|| self.root.pointer("/downloader/http/chunk-size"))
+        else {
             return Ok(None);
         };
         let size = match value {
@@ -258,7 +262,8 @@ impl Config {
     /// Optional HTTP HTML response validation toggle.
     pub fn downloader_http_validate_html(&self) -> Result<Option<bool>, &'static str> {
         self.root
-            .pointer("/downloader/http/validate-html")
+            .get("validate-html")
+            .or_else(|| self.root.pointer("/downloader/http/validate-html"))
             .map(|value| {
                 value
                     .as_bool()
@@ -623,6 +628,16 @@ mod tests {
         assert!(config.downloader_http_chunk_size().is_err());
         config.option("downloader.http.chunk-size=true").unwrap();
         assert!(config.downloader_http_chunk_size().is_err());
+        config.option("chunk-size=128k").unwrap();
+        assert_eq!(
+            config.downloader_http_chunk_size().unwrap(),
+            Some(128 * 1024)
+        );
+        config.option("downloader.http.chunk-size=64q").unwrap();
+        assert_eq!(
+            config.downloader_http_chunk_size().unwrap(),
+            Some(128 * 1024)
+        );
     }
 
     #[test]
@@ -637,6 +652,11 @@ mod tests {
         assert_eq!(config.downloader_http_validate_html().unwrap(), Some(true));
         config.option("downloader.http.validate-html=1").unwrap();
         assert!(config.downloader_http_validate_html().is_err());
+        config.option("downloader.http.validate-html=true").unwrap();
+        config.option("validate-html=false").unwrap();
+        assert_eq!(config.downloader_http_validate_html().unwrap(), Some(false));
+        config.option("downloader.http.validate-html=1").unwrap();
+        assert_eq!(config.downloader_http_validate_html().unwrap(), Some(false));
     }
 
     #[test]

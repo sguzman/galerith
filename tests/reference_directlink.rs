@@ -2527,9 +2527,14 @@ fn pinned_and_native_html_validation_config_allow_html_payloads() {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let (url, server) = serve_retry_sequence([HTML, HTML]);
+    let (url, server) = serve_retry_sequence([HTML, HTML, HTML, HTML]);
 
-    for (label, pinned) in [("reference", true), ("native", false)] {
+    for (label, pinned, global_override) in [
+        ("reference-nested", true, false),
+        ("native-nested", false, false),
+        ("reference-global", true, true),
+        ("native-global", false, true),
+    ] {
         let output = root.join(label);
         std::fs::create_dir_all(&output).unwrap();
         let mut command = if pinned {
@@ -2542,10 +2547,13 @@ fn pinned_and_native_html_validation_config_allow_html_payloads() {
         } else {
             Command::new(env!("CARGO_BIN_EXE_galerith"))
         };
-        command
-            .args(["--quiet", "-o", "downloader.http.validate-html=false", "-d"])
-            .arg(&output)
-            .arg(&url);
+        command.args(["--quiet", "-o", "downloader.http.validate-html=true"]);
+        if global_override {
+            command.args(["-o", "validate-html=false"]);
+        } else {
+            command.args(["-o", "downloader.http.validate-html=false"]);
+        }
+        command.args(["-d"]).arg(&output).arg(&url);
         for key in [
             "HTTP_PROXY",
             "HTTPS_PROXY",
