@@ -578,6 +578,18 @@ fn metadata_field(
 ) -> Result<Option<String>, FormatError> {
     match value {
         Value::Null => Ok(None),
+        Value::Bool(false) if conversion.is_empty() && spec.starts_with('?') => {
+            Ok(Some(String::new()))
+        }
+        Value::Number(number)
+            if conversion.is_empty()
+                && spec.starts_with('?')
+                && (number.as_i64() == Some(0)
+                    || number.as_u64() == Some(0)
+                    || number.as_f64() == Some(0.0)) =>
+        {
+            Ok(Some(String::new()))
+        }
         Value::String(value) if spec.starts_with('M') => {
             let (_, remainder) = map_formatter_spec(spec).expect("map formatter starts with M");
             *spec = remainder;
@@ -1271,6 +1283,9 @@ mod tests {
             "display": "  Mixed Case  ",
             "display_encoded": "Mixed%20Case",
             "display_ws": "one\t  TWO\nthree",
+            "enabled": false,
+            "count": 0,
+            "positive": 2,
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
@@ -1364,8 +1379,28 @@ mod tests {
             "plain"
         );
         assert_eq!(
+            render_with_metadata("{title:Iignored}", &item, &metadata).unwrap(),
+            "plain"
+        );
+        assert_eq!(
+            render_with_metadata("{title!u:I}", &item, &metadata).unwrap(),
+            "PLAIN"
+        );
+        assert_eq!(
             render_with_metadata("{id:I}", &item, &metadata).unwrap(),
             "42"
+        );
+        assert_eq!(
+            render_with_metadata("file{enabled:?yes/no/}", &item, &metadata).unwrap(),
+            "file"
+        );
+        assert_eq!(
+            render_with_metadata("file{count:?n-/times/}", &item, &metadata).unwrap(),
+            "file"
+        );
+        assert_eq!(
+            render_with_metadata("file{positive:?n-/times/}", &item, &metadata).unwrap(),
+            "filen-2times"
         );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
