@@ -17,7 +17,7 @@ pub fn resolve_messages(input: &str) -> Result<Vec<ExtractorMessage>, ExtractErr
     let domain = parsed
         .port()
         .map_or_else(|| host.to_owned(), |port| format!("{host}:{port}"));
-    let subdomain: Vec<_> = host.rsplit('.').take(2).collect();
+    let subdomain: Vec<_> = domain.rsplit('.').take(2).collect();
     let subcategory = subdomain.into_iter().rev().collect::<Vec<_>>().join(".");
     let directory = parsed
         .path()
@@ -104,10 +104,10 @@ mod tests {
     }
 
     #[test]
-    fn non_default_port_is_in_domain_but_not_subcategory() {
+    fn non_default_port_is_in_domain_and_subcategory() {
         let events = resolve_messages("http://assets.example.org:8443/media/image.jpg").unwrap();
         let value = serde_json::to_value(&events[0]).unwrap();
         assert_eq!(value["metadata"]["domain"], "assets.example.org:8443");
-        assert_eq!(value["metadata"]["subcategory"], "example.org");
+        assert_eq!(value["metadata"]["subcategory"], "example.org:8443");
     }
 }

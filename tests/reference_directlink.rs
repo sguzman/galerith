@@ -29,6 +29,13 @@ const URLS: &[&str] = &[
     "https://media.example.org/print/photo.JPE",
     "https://assets.example.org/galleries/%E9%9F%B3%E6%A5%BD.jpg?lang=ja",
 ];
+const DIRECTLINK_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "jpe", "heic", "heif", "psd", "png", "apng", "gif", "webp", "avif", "bmp",
+    "tif", "tiff", "svg", "jxl", "ico", "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v",
+    "3gp", "3g2", "m2ts", "mts", "asf", "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma",
+    "ogg", "ogm", "ogv", "opus", "flac", "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz",
+    "gz", "bz2", "xz", "zst", "swf",
+];
 
 fn spawn(mut command: Command, label: &str) -> String {
     let output = command
@@ -1365,7 +1372,16 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
-    let mut verified_cases = Vec::with_capacity(URLS.len());
+    let urls = URLS
+        .iter()
+        .map(|url| (*url).to_owned())
+        .chain(
+            DIRECTLINK_EXTENSIONS
+                .iter()
+                .map(|extension| format!("https://suffix-matrix.example.org/file.{extension}")),
+        )
+        .collect::<Vec<_>>();
+    let mut verified_cases = Vec::with_capacity(urls.len());
     let db_dir = env::temp_dir().join(format!(
         "galerith-pinned-archive-oracle-{}",
         std::process::id()
@@ -1373,7 +1389,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     let _ = std::fs::remove_dir_all(&db_dir);
     std::fs::create_dir_all(&db_dir).unwrap();
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    for (case_index, url) in URLS.iter().enumerate() {
+    for (case_index, url) in urls.iter().enumerate() {
         let rust = native_events(url);
         let native_tuples = native_upstream_tuples(url);
         let source = pinned_events(root, url);
@@ -2264,49 +2280,73 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 #[test]
 fn pinned_and_native_format_source_event_metadata_in_normal_cli_mode() {
     let template = "{domain!g}";
-    let url = "http://assets.example.org:8443/media/asset.jpg";
-    let expected = "assets-example-org-8443";
-    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
-        .args(["--filename", template, "--simulate", url])
-        .output()
-        .unwrap();
-    assert!(
-        native.status.success(),
-        "native directlink metadata template failed: {}",
-        String::from_utf8_lossy(&native.stderr)
-    );
-    assert!(String::from_utf8_lossy(&native.stdout).contains(expected));
+    let cases = [
+        (
+            "https://assets.example.org/media/asset.jpg",
+            Some("assets-example-org"),
+        ),
+        ("http://assets.example.org:8443/media/asset.jpg", None),
+    ];
+    let oracle_enabled = env::var_os("GALERITH_REFERENCE_ORACLE").is_some();
+    let root = oracle_enabled.then(|| {
+        let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+            .expect("CI reference oracle must supply the pinned upstream directory");
+        let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+            .expect("CI must declare expected upstream git revision");
+        assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+        PathBuf::from(root)
+    });
+    for (url, expected) in cases {
+        let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--filename", template, "--simulate", url])
+            .output()
+            .unwrap();
+        assert!(
+            native.status.success(),
+            "native directlink metadata template failed: {}",
+            String::from_utf8_lossy(&native.stderr)
+        );
+        let native_stdout = String::from_utf8_lossy(&native.stdout);
+        if let Some(expected) = expected {
+            assert!(
+                native_stdout.contains(expected),
+                "native output: {native_stdout}"
+            );
+        }
 
-    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
-        return;
+        if let Some(root) = root.as_deref() {
+            let pinned = Command::new("python3")
+                .args([
+                    "-m",
+                    "gallery_dl",
+                    "--config-ignore",
+                    "--no-input",
+                    "--filename",
+                    template,
+                    "--simulate",
+                    url,
+                ])
+                .env("PYTHONPATH", root)
+                .env("PYTHONNOUSERSITE", "1")
+                .env("PYTHONDONTWRITEBYTECODE", "1")
+                .output()
+                .unwrap();
+            assert!(
+                pinned.status.success(),
+                "pinned directlink metadata template failed: {}",
+                String::from_utf8_lossy(&pinned.stderr)
+            );
+            let pinned_stdout = String::from_utf8_lossy(&pinned.stdout);
+            let native_filename = native_stdout
+                .split_once("[simulate] ")
+                .map(|(_, filename)| filename.trim())
+                .expect("native simulation output includes filename");
+            assert!(
+                pinned_stdout.contains(native_filename),
+                "pinned output {pinned_stdout:?} does not contain native filename {native_filename:?}"
+            );
+        }
     }
-    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
-        .expect("CI reference oracle must supply the pinned upstream directory");
-    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
-        .expect("CI must declare expected upstream git revision");
-    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
-    let pinned = Command::new("python3")
-        .args([
-            "-m",
-            "gallery_dl",
-            "--config-ignore",
-            "--no-input",
-            "--filename",
-            template,
-            "--simulate",
-            url,
-        ])
-        .env("PYTHONPATH", Path::new(&root))
-        .env("PYTHONNOUSERSITE", "1")
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .output()
-        .unwrap();
-    assert!(
-        pinned.status.success(),
-        "pinned directlink metadata template failed: {}",
-        String::from_utf8_lossy(&pinned.stderr)
-    );
-    assert!(String::from_utf8_lossy(&pinned.stdout).contains(expected));
 }
 
 #[test]
