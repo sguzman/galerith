@@ -1447,8 +1447,12 @@ mod tests {
             "zeta, middle, alpha"
         );
         assert_eq!(
-            render_with_metadata("{mixed_tags!S}", &item, &metadata).unwrap(),
+            field_with_metadata("mixed_tags!S", &item, &metadata).unwrap(),
             "alpha, 2, False, None, [1, True], {'name': 'one'}"
+        );
+        assert_eq!(
+            render_with_metadata("{mixed_tags!S:R:/-/}", &item, &metadata).unwrap(),
+            "alpha, 2, False, None, [1, True], {'name'- 'one'}"
         );
         assert_eq!(
             render_with_metadata("{json_values!j}", &item, &metadata).unwrap(),
