@@ -1400,7 +1400,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         .or_else(|| config.filename(item.extractor))
                 };
                 if let Some(template) = template {
-                    match render_filename(template, &item, &metadata) {
+                    let mut filename_metadata = metadata.clone();
+                    if item.extractor == "directlink" {
+                        if let Some(ExtractorMessage::Url {
+                            metadata: directlink_metadata,
+                            ..
+                        }) = galerith::extractor::directlink::resolve_messages(&item.url)?
+                            .into_iter()
+                            .find(|message| matches!(message, ExtractorMessage::Url { .. }))
+                        {
+                            filename_metadata.extend(directlink_metadata);
+                        }
+                    }
+                    match render_filename(template, &item, &filename_metadata) {
                         Ok(name) => item.filename = name,
                         Err(error) => {
                             eprintln!("galerith: invalid filename template: {error}");

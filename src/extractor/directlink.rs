@@ -13,8 +13,11 @@ use url::Url;
 pub fn resolve_messages(input: &str) -> Result<Vec<ExtractorMessage>, ExtractError> {
     let media = extract_direct_media(input)?;
     let parsed = Url::parse(&media.url).map_err(|_| ExtractError::InvalidUrl)?;
-    let domain = parsed.host_str().ok_or(ExtractError::UnsupportedUrl)?;
-    let subdomain: Vec<_> = domain.rsplit('.').take(2).collect();
+    let host = parsed.host_str().ok_or(ExtractError::UnsupportedUrl)?;
+    let domain = parsed
+        .port()
+        .map_or_else(|| host.to_owned(), |port| format!("{host}:{port}"));
+    let subdomain: Vec<_> = host.rsplit('.').take(2).collect();
     let subcategory = subdomain.into_iter().rev().collect::<Vec<_>>().join(".");
     let directory = parsed
         .path()
@@ -98,5 +101,13 @@ mod tests {
         assert_eq!(value["metadata"]["filename"], ".._secret.jpg");
         assert_eq!(value["metadata"]["subcategory"], "example.org");
         assert!(value["metadata"].get("query").is_none());
+    }
+
+    #[test]
+    fn non_default_port_is_in_domain_but_not_subcategory() {
+        let events = resolve_messages("http://assets.example.org:8443/media/image.jpg").unwrap();
+        let value = serde_json::to_value(&events[0]).unwrap();
+        assert_eq!(value["metadata"]["domain"], "assets.example.org:8443");
+        assert_eq!(value["metadata"]["subcategory"], "example.org");
     }
 }

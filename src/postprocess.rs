@@ -139,7 +139,11 @@ pub async fn write_metadata(
         _ => unreachable!("metadata root is an object"),
     };
     if item.extractor == "directlink" {
+        let stem = value.get("stem").cloned();
         value = crate::message::upstream_metadata(&value);
+        if let Some(stem) = stem {
+            value.insert("stem".into(), stem);
+        }
         value.remove("query");
         value.remove("fragment");
     }
@@ -287,7 +291,7 @@ mod tests {
         assert_eq!(output["author"]["name"], "Public artist");
         assert_eq!(output["filename"], "picture");
         assert_eq!(output["extension"], "jpg");
-        assert!(output.get("stem").is_none());
+        assert_eq!(output["stem"], "picture");
         assert_eq!(output["url"], "https://example.org/picture.jpg");
         assert!(output.get("api_token").is_none());
         assert!(output.get("_http_headers").is_none());
