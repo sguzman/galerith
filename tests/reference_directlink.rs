@@ -30,11 +30,11 @@ const URLS: &[&str] = &[
     "https://assets.example.org/galleries/%E9%9F%B3%E6%A5%BD.jpg?lang=ja",
 ];
 const DIRECTLINK_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "jpe", "heic", "psd", "png", "apng", "gif", "webp", "avif", "bmp", "tif",
-    "tiff", "svg", "jxl", "ico", "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp",
-    "3g2", "m2ts", "mts", "asf", "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma", "ogg",
-    "ogm", "ogv", "opus", "flac", "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz", "gz",
-    "bz2", "xz", "zst", "swf",
+    "jpg", "jpeg", "jpe", "heic", "psd", "png", "gif", "webp", "avif", "bmp", "tif", "tiff", "svg",
+    "jxl", "ico", "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp", "3g2", "m2ts",
+    "mts", "asf", "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma", "ogg", "ogm", "ogv",
+    "opus", "flac", "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz",
+    "zst", "swf",
 ];
 
 fn spawn(mut command: Command, label: &str) -> String {
@@ -2275,6 +2275,51 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         }
     }
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_reject_unsupported_heif_directlink_suffix() {
+    let url = "https://suffix-matrix.example.org/file.heif";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--dump-messages", url])
+        .output()
+        .unwrap();
+    assert!(
+        !native.status.success(),
+        "native directlink matcher accepted {url}"
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for directlink rejection comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let pinned = Command::new("python3")
+        .args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--dump-json",
+            url,
+        ])
+        .env("PYTHONPATH", root)
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        !pinned.status.success(),
+        "pinned gallery-dl accepted unsupported directlink URL {url}"
+    );
+    assert!(
+        String::from_utf8_lossy(&pinned.stderr).contains("Unsupported URL"),
+        "pinned rejection did not identify an unsupported URL: {}",
+        String::from_utf8_lossy(&pinned.stderr)
+    );
 }
 
 #[test]

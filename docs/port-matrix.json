@@ -475,7 +475,7 @@
         "src/lib.rs"
       ],
       "evidence": [
-      "Direct media matching covers additional HEIF, APNG, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; unit and localhost download fixtures pass in this session. Pinned upstream parity remains open."
+      "Direct media matching covers additional HEIC, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; localhost download fixtures pass. Oracle run 41660782978 found .heif is rejected by the pin; run 41662479215 additionally found .apng is rejected and that !g removes the colon from port-bearing domains. Galerith now rejects .heif and .apng and drops periods and colons in !g; local regressions pass. Corrected pinned suffix, slug and negative matcher comparisons await CI. Pinned upstream parity remains open."
       ]
     },
     {

@@ -548,7 +548,7 @@ async fn direct_heic_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_apng_media_matches_its_response_mime() {
+async fn direct_png_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -556,13 +556,13 @@ async fn direct_apng_media_matches_its_response_mime() {
         let mut request = [0_u8; 512];
         assert!(stream.read(&mut request).await.unwrap() > 0);
         stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/apng\r\nContent-Length: 4\r\nConnection: close\r\n\r\nAPNG")
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 4\r\nConnection: close\r\n\r\nPNG!")
             .await
             .unwrap();
     });
-    let dir = test_dir("apng");
+    let dir = test_dir("png");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/animation.apng")).unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/image.png")).unwrap();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -571,9 +571,9 @@ async fn direct_apng_media_matches_its_response_mime() {
         download(&client, &item, &options(dir.clone()))
             .await
             .unwrap(),
-        DownloadOutcome::Saved(dir.join("animation.apng"))
+        DownloadOutcome::Saved(dir.join("image.png"))
     );
-    assert_eq!(fs::read(dir.join("animation.apng")).unwrap(), b"APNG");
+    assert_eq!(fs::read(dir.join("image.png")).unwrap(), b"PNG!");
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
 }

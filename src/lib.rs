@@ -67,7 +67,6 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "heic"
             | "psd"
             | "png"
-            | "apng"
             | "gif"
             | "webp"
             | "avif"
@@ -180,9 +179,9 @@ mod tests {
     #[test]
     fn recognizes_additional_pinned_directlink_media_extensions() {
         for extension in [
-            "jpe", "heic", "apng", "psd", "ico", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v",
-            "3gp", "3g2", "ogm", "ogv", "m4a", "aac", "wma", "m2ts", "mts", "asf", "wmv", "rar",
-            "7z", "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
+            "jpe", "heic", "psd", "ico", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp",
+            "3g2", "ogm", "ogv", "m4a", "aac", "wma", "m2ts", "mts", "asf", "wmv", "rar", "7z",
+            "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
         ] {
             let url = format!("https://assets.example.org/downloads/file.{extension}");
             let item = extract_direct_media(&url).unwrap();
@@ -190,6 +189,10 @@ mod tests {
         }
         assert_eq!(
             extract_direct_media("https://assets.example.org/downloads/file.heif").unwrap_err(),
+            ExtractError::UnsupportedUrl
+        );
+        assert_eq!(
+            extract_direct_media("https://assets.example.org/downloads/file.apng").unwrap_err(),
             ExtractError::UnsupportedUrl
         );
     }

@@ -289,9 +289,9 @@ fn slugify_ascii(value: &str) -> Result<String, FormatError> {
             }
             result.push(byte.to_ascii_lowercase() as char);
             separator = false;
-        } else if byte == b'.' {
-            // gallery-dl's !g slugifier drops periods (notably in domains)
-            // instead of treating them as word separators.
+        } else if matches!(byte, b'.' | b':') {
+            // gallery-dl's !g slugifier drops dots and colons (notably in
+            // domains and ports) instead of treating them as separators.
         } else {
             separator = true;
         }
@@ -1030,6 +1030,10 @@ mod tests {
         assert_eq!(
             field("_lit[Assets.Example.org]!g", &item).unwrap(),
             "assetsexampleorg"
+        );
+        assert_eq!(
+            field("_lit[Assets.Example.org:8443]!g", &item).unwrap(),
+            "assetsexampleorg8443"
         );
         assert_eq!(
             field("_lit[  Foo__BAR--baz  ]!g", &item).unwrap(),
