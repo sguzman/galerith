@@ -1812,7 +1812,7 @@ mod tests {
         assert_eq!(field("id:>06d", &item).unwrap(), "000042");
         assert_eq!(field("id:^06d", &item).unwrap(), "004200");
         assert_eq!(field("id:=06d", &item).unwrap(), "000042");
-        assert_eq!(field("id:x=6d", &item).unwrap(), "xx42");
+        assert_eq!(field("id:x=6d", &item).unwrap(), "xxxx42");
         assert_eq!(field("id:x>6d", &item).unwrap(), "xxxx42");
         assert_eq!(field("id:x<06d", &item).unwrap(), "42xxxx");
         let metadata = serde_json::json!({"negative": -42});
