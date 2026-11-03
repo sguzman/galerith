@@ -490,6 +490,11 @@ fn join_formatter_spec(spec: &str) -> Option<(&str, &str)> {
     Some(spec.split_once('/').unwrap_or((spec, "")))
 }
 
+fn map_formatter_spec(spec: &str) -> Option<(&str, &str)> {
+    let spec = spec.strip_prefix('M')?;
+    Some(spec.split_once('/').unwrap_or((spec, "")))
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -498,7 +503,37 @@ fn metadata_field(
 ) -> Result<Option<String>, FormatError> {
     match value {
         Value::Null => Ok(None),
+        Value::String(value) if spec.starts_with('M') => {
+            let (_, remainder) = map_formatter_spec(spec).expect("map formatter starts with M");
+            *spec = remainder;
+            metadata_field(&Value::String(value.clone()), field_name, conversion, spec)
+        }
         Value::String(value) => Ok(Some(value.clone())),
+        Value::Array(values) if spec.starts_with('M') => {
+            let (key, remainder) = map_formatter_spec(spec).expect("map formatter starts with M");
+            if key.is_empty() {
+                return Err(FormatError("filename map formatter requires a key".into()));
+            }
+            let mapped = values
+                .iter()
+                .map(|value| match value {
+                    Value::Object(fields) => match fields.get(key) {
+                        Some(Value::String(value)) => Ok(Value::String(value.clone())),
+                        Some(_) => Err(FormatError(format!(
+                            "filename map field '{field_name}.{key}' must be a string"
+                        ))),
+                        None => Err(FormatError(format!(
+                            "filename map field '{field_name}.{key}' is missing"
+                        ))),
+                    },
+                    _ => Err(FormatError(format!(
+                        "filename map field '{field_name}' must contain objects"
+                    ))),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            *spec = remainder;
+            metadata_field(&Value::Array(mapped), field_name, conversion, spec)
+        }
         Value::Array(values) if spec.starts_with('J') => {
             let (separator, remainder) =
                 join_formatter_spec(spec).expect("join formatter spec starts with J");
@@ -1122,7 +1157,8 @@ mod tests {
         let item = sample();
         let metadata: Metadata = serde_json::from_value(serde_json::json!({
             "tags": ["zeta", "alpha", "middle"],
-            "title": "plain"
+            "title": "plain",
+            "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
         assert_eq!(
@@ -1148,6 +1184,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{tags[::-1]:J, /}", &item, &metadata).unwrap(),
             "middle, alpha, zeta"
+        );
+        assert_eq!(
+            render_with_metadata("{artists:Mname/J + /}", &item, &metadata).unwrap(),
+            "one + two + three"
         );
         assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),

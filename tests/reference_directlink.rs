@@ -2689,7 +2689,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     };
     let metadata: galerith::message::Metadata = serde_json::from_value(json!({
         "tags": ["zeta", "alpha", "middle"],
-        "title": "plain"
+        "title": "plain",
+        "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
     }))
     .unwrap();
     let formats = [
@@ -2699,6 +2700,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{tags[-1]:J, /}",
         "{tags[0:2]:J, /}",
         "{tags[::-1]:J, /}",
+        "{artists:Mname/J + /}",
         "{title:J, /}",
     ];
     let native = formats
@@ -2714,6 +2716,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "middle",
             "zeta, alpha",
             "middle, alpha, zeta",
+            "one + two + three",
             "plain"
         ]
     );
@@ -2729,7 +2732,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain'}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{title:J, /}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','artists':[{'name':'one'},{'name':'two'},{'name':'three'}]}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{title:J, /}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
