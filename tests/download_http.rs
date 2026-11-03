@@ -155,6 +155,7 @@ async fn extensionless_outputs_use_upstream_mime_aliases() {
         ("application/vnd.apple.mpegurl", "m3u"),
         ("application/x-mpegurl", "bin"),
         ("application/dash+xml", "mpd"),
+        ("application/x-7z-compressed", "7z"),
         ("audio/x-aac", "bin"),
         ("audio/flac", "flac"),
         ("audio/webm", "bin"),
