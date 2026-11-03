@@ -2723,7 +2723,9 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{title!u:I}",
         "{id:I}",
         "file{enabled:?yes/no/}",
+        "file{enabled!s:?yes/no/}",
         "file{count:?n-/times/}",
+        "file{count!s:?n-/times/}",
         "file{positive:?n-/times/}",
     ];
     let native = formats
@@ -2756,7 +2758,9 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "PLAIN",
             "42",
             "file",
+            "fileyesFalseno",
             "file",
+            "filen-0times",
             "filen-2times"
         ]
     );
@@ -2772,7 +2776,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{id:I}','file{enabled:?yes/no/}','file{count:?n-/times/}','file{positive:?n-/times/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

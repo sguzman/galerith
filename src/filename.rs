@@ -1395,8 +1395,16 @@ mod tests {
             "file"
         );
         assert_eq!(
+            render_with_metadata("file{enabled!s:?yes/no/}", &item, &metadata).unwrap(),
+            "fileyesFalseno"
+        );
+        assert_eq!(
             render_with_metadata("file{count:?n-/times/}", &item, &metadata).unwrap(),
             "file"
+        );
+        assert_eq!(
+            render_with_metadata("file{count!s:?n-/times/}", &item, &metadata).unwrap(),
+            "filen-0times"
         );
         assert_eq!(
             render_with_metadata("file{positive:?n-/times/}", &item, &metadata).unwrap(),
