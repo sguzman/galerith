@@ -577,6 +577,8 @@ fn metadata_field(
     spec: &mut &str,
 ) -> Result<Option<String>, FormatError> {
     match value {
+        Value::Null if conversion == "s" => Ok(Some("None".into())),
+        Value::Null if conversion.is_empty() && spec.starts_with('?') => Ok(Some(String::new())),
         Value::Null => Ok(None),
         Value::Bool(false) if conversion.is_empty() && spec.starts_with('?') => {
             Ok(Some(String::new()))
@@ -587,6 +589,16 @@ fn metadata_field(
                 && (number.as_i64() == Some(0)
                     || number.as_u64() == Some(0)
                     || number.as_f64() == Some(0.0)) =>
+        {
+            Ok(Some(String::new()))
+        }
+        Value::Array(values)
+            if values.is_empty() && conversion.is_empty() && spec.starts_with('?') =>
+        {
+            Ok(Some(String::new()))
+        }
+        Value::Object(fields)
+            if fields.is_empty() && conversion.is_empty() && spec.starts_with('?') =>
         {
             Ok(Some(String::new()))
         }
@@ -1283,6 +1295,10 @@ mod tests {
             "enabled": false,
             "count": 0,
             "positive": 2,
+            "nullable": null,
+            "empty_list": [],
+            "empty_map": {},
+            "empty_string": "",
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
@@ -1407,6 +1423,21 @@ mod tests {
             render_with_metadata("file{positive:?n-/times/}", &item, &metadata).unwrap(),
             "filen-2times"
         );
+        assert_eq!(
+            render_with_metadata("file{nullable:?yes/no/}", &item, &metadata).unwrap(),
+            "file"
+        );
+        assert_eq!(
+            render_with_metadata("file{nullable!s:?yes/no/}", &item, &metadata).unwrap(),
+            "fileyesNoneno"
+        );
+        for field in ["empty_list", "empty_map", "empty_string"] {
+            assert_eq!(
+                render_with_metadata(&format!("file{{{field}:?yes/no/}}"), &item, &metadata)
+                    .unwrap(),
+                "file"
+            );
+        }
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
     }
