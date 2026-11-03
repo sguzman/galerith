@@ -106,9 +106,16 @@ fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
 fn serve_retry_sequence<const N: usize>(
     responses: [&'static [u8]; N],
 ) -> (String, std::thread::JoinHandle<()>) {
+    serve_retry_sequence_at("/asset.jpg", responses)
+}
+
+fn serve_retry_sequence_at<const N: usize>(
+    path: &'static str,
+    responses: [&'static [u8]; N],
+) -> (String, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
-    let url = format!("http://{}/asset.jpg", listener.local_addr().unwrap());
+    let url = format!("http://{}{}", listener.local_addr().unwrap(), path);
     let server = std::thread::spawn(move || {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         for response in responses {
@@ -2751,6 +2758,101 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
         );
     }
     server.join().unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    const AAC: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: audio/aac\r\nContent-Length: 5\r\nConnection: close\r\n\r\n\xff\xf1AAC";
+    const HLS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: 25\r\nConnection: close\r\n\r\n#EXTM3U\n#EXT-X-VERSION:3\n";
+    const DASH: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 11\r\nConnection: close\r\n\r\n<MPD></MPD>";
+    let cases = [
+        ("/asset.mp3", AAC, "mp3", "aac"),
+        ("/asset.mp4", HLS, "mp4", "m3u8"),
+        ("/asset.mp4", DASH, "mp4", "mpd"),
+    ];
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-media-signatures-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+
+    for (index, (path, response, original_extension, expected_extension)) in
+        cases.into_iter().enumerate()
+    {
+        let (url, server) = serve_retry_sequence_at(path, [response, response]);
+        for (label, pinned) in [("reference", true), ("native", false)] {
+            let output = root.join(format!("{label}-{index}"));
+            std::fs::create_dir_all(&output).unwrap();
+            let mut command = if pinned {
+                let mut command = Command::new("python3");
+                command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+                command.env("PYTHONPATH", &pinned_root);
+                command.env("PYTHONNOUSERSITE", "1");
+                command.env("PYTHONDONTWRITEBYTECODE", "1");
+                command
+            } else {
+                Command::new(env!("CARGO_BIN_EXE_galerith"))
+            };
+            command
+                .args([
+                    "--quiet",
+                    "-o",
+                    "downloader.http.adjust-extensions=true",
+                    "-d",
+                ])
+                .arg(&output)
+                .arg(&url);
+            for key in [
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            ] {
+                command.env_remove(key);
+            }
+            let result = command
+                .output()
+                .expect("launch media-signature fixture client");
+            assert!(
+                result.status.success(),
+                "{label}: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            let filenames = saved_paths(&output)
+                .into_iter()
+                .filter_map(|path| {
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                })
+                .collect::<Vec<_>>();
+            assert!(
+                filenames
+                    .iter()
+                    .any(|filename| filename.ends_with(&format!(".{expected_extension}"))),
+                "{label}: expected .{expected_extension} output, found {filenames:?}"
+            );
+            assert!(
+                filenames
+                    .iter()
+                    .all(|filename| !filename.ends_with(&format!(".{original_extension}"))),
+                "{label}: original suffix remained after correction: {filenames:?}"
+            );
+        }
+        server.join().unwrap();
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 
