@@ -55,6 +55,13 @@ fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<&str>), FormatErr
 
     let base = &candidate[..cursor];
     let mut selectors = Vec::new();
+    if base == "_lit" {
+        let literal = candidate[cursor + 1..]
+            .strip_suffix(']')
+            .ok_or_else(|| FormatError("invalid filename field selector".into()))?;
+        selectors.push(literal);
+        return Ok((base, selectors));
+    }
     while cursor < candidate.len() {
         if candidate.as_bytes().get(cursor) != Some(&b'[') {
             return Err(FormatError("invalid filename field selector".into()));
