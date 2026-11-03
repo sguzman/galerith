@@ -152,10 +152,20 @@ async fn extensionless_outputs_use_upstream_mime_aliases() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let cases = [
-        ("application/vnd.apple.mpegurl", "m3u8"),
-        ("application/x-mpegurl", "m3u8"),
+        ("application/vnd.apple.mpegurl", "m3u"),
+        ("application/x-mpegurl", "bin"),
         ("application/dash+xml", "mpd"),
-        ("audio/x-aac", "aac"),
+        ("audio/x-aac", "bin"),
+        ("audio/webm", "bin"),
+        ("video/ogg", "ogv"),
+        ("audio/ogg", "oga"),
+        ("application/ogg", "ogx"),
+        ("video/m4v", "bin"),
+        ("video/x-m4v", "bin"),
+        ("audio/wav", "bin"),
+        ("image/x-icon", "bin"),
+        ("image/vnd.microsoft.icon", "ico"),
+        ("application/xml", "xsl"),
         ("image/tiff", "tiff"),
         ("image/jp2", "jp2"),
         ("image/ief", "ief"),

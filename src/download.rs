@@ -309,19 +309,19 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "image/x-xbitmap" => "xbm",
         "image/x-xpixmap" => "xpm",
         "image/x-xwindowdump" => "xwd",
-        "image/bmp" | "image/x-bmp" | "image/x-ms-bmp" => "bmp",
+        "image/bmp" => "bmp",
         "image/webp" => "webp",
         "image/avif" => "avif",
         "image/heic" => "heic",
         "image/heif" => "heif",
         "image/svg+xml" => "svg",
-        "image/ico" | "image/icon" | "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
-        "image/x-photoshop" | "application/x-photoshop" | "image/vnd.adobe.photoshop" => "psd",
-        "video/webm" | "audio/webm" => "webm",
-        "video/ogg" | "audio/ogg" | "application/ogg" => "ogg",
+        "image/vnd.microsoft.icon" => "ico",
+        "image/vnd.adobe.photoshop" => "psd",
+        "video/webm" => "webm",
+        "video/ogg" => "ogv",
+        "audio/ogg" => "oga",
+        "application/ogg" => "ogx",
         "video/mp4" => "mp4",
-        "video/m4v" => "m4v",
-        "video/x-m4v" => "m4v",
         "video/x-flv" => "flv",
         "video/quicktime" => "mov",
         "video/mpeg" => "mpeg",
@@ -331,37 +331,36 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "video/x-msvideo" => "avi",
         "video/x-ms-wmv" => "wmv",
         "video/x-matroska" => "mkv",
-        "audio/wav" | "audio/x-wav" => "wav",
+        "audio/x-wav" => "wav",
         "audio/mpeg" => "mp3",
         "audio/mp4" => "m4a",
-        "audio/aac" | "audio/x-aac" => "aac",
+        "audio/aac" => "aac",
         "audio/3gpp" => "3gp",
         "audio/3gpp2" => "3g2",
         "audio/x-aiff" => "aif",
         "audio/basic" => "au",
         "audio/x-pn-realaudio" => "ra",
-        "audio/flac" | "audio/x-flac" => "flac",
+        "audio/x-flac" => "flac",
         "audio/opus" => "opus",
         "audio/x-ms-wma" => "wma",
         "text/html" => "html",
         "application/xhtml+xml" => "xhtml",
-        "application/json" | "application/problem+json" => "json",
+        "application/json" => "json",
         "text/plain" => "txt",
         "text/css" => "css",
-        "text/xml" | "application/xml" => "xml",
-        "application/zip" | "application/x-zip" | "application/x-zip-compressed" => "zip",
-        "application/rar" | "application/x-rar" | "application/x-rar-compressed" => "rar",
-        "application/x-7z-compressed" => "7z",
-        "application/vnd.apple.mpegurl" | "application/x-mpegurl" => "m3u8",
+        "text/xml" => "xml",
+        "application/xml" => "xsl",
+        "application/zip" => "zip",
+        "application/vnd.apple.mpegurl" => "m3u",
         "application/dash+xml" => "mpd",
         "application/vnd.ms-asf" => "asf",
-        "application/pdf" | "application/x-pdf" => "pdf",
+        "application/pdf" => "pdf",
         "application/x-shockwave-flash" => "swf",
-        "application/gzip" | "application/x-gzip" => "gz",
+        "application/gzip" => "gz",
         "application/x-xz" => "xz",
         "application/x-tar" => "tar",
         "application/x-bzip2" => "bz2",
-        "application/zstd" | "application/x-zstd" => "zst",
+        "application/zstd" => "zst",
         "model/obj" => "obj",
         "application/octet-stream" => "bin",
         _ => "bin",
@@ -1343,7 +1342,15 @@ mod tests {
             media_extension_from_mime(Some("image/jpeg; charset=binary")),
             "jpg"
         );
-        assert_eq!(media_extension_from_mime(Some("image/x-icon")), "ico");
+        assert_eq!(media_extension_from_mime(Some("image/x-icon")), "bin");
+        assert_eq!(
+            media_extension_from_mime(Some("image/vnd.microsoft.icon")),
+            "ico"
+        );
+        assert_eq!(media_extension_from_mime(Some("video/ogg")), "ogv");
+        assert_eq!(media_extension_from_mime(Some("audio/ogg")), "oga");
+        assert_eq!(media_extension_from_mime(Some("application/ogg")), "ogx");
+        assert_eq!(media_extension_from_mime(Some("application/xml")), "xsl");
         assert_eq!(media_extension_from_mime(Some("image/tiff")), "tiff");
         assert_eq!(media_extension_from_mime(Some("image/jp2")), "jp2");
         assert_eq!(
@@ -1383,7 +1390,7 @@ mod tests {
         assert_eq!(media_extension_from_mime(Some("audio/basic")), "au");
         assert_eq!(
             media_extension_from_mime(Some("application/x-7z-compressed")),
-            "7z"
+            "bin"
         );
         assert_eq!(
             media_extension_from_mime(Some("application/octet-stream")),
@@ -1402,14 +1409,14 @@ mod tests {
             ("audio/3gpp2", "3g2"),
             ("audio/x-pn-realaudio", "ra"),
             ("video/x-sgi-movie", "movie"),
-            ("audio/x-aac", "aac"),
-            ("application/vnd.apple.mpegurl", "m3u8"),
-            ("application/x-mpegurl", "m3u8"),
+            ("audio/x-aac", "bin"),
+            ("application/vnd.apple.mpegurl", "m3u"),
+            ("application/x-mpegurl", "bin"),
             ("application/dash+xml", "mpd"),
-            ("application/x-zip", "zip"),
-            ("application/x-zip-compressed", "zip"),
-            ("application/x-rar", "rar"),
-            ("application/x-rar-compressed", "rar"),
+            ("application/x-zip", "bin"),
+            ("application/x-zip-compressed", "bin"),
+            ("application/x-rar", "bin"),
+            ("application/x-rar-compressed", "bin"),
         ] {
             assert_eq!(
                 media_extension_from_mime(Some(mime)),
