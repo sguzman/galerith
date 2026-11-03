@@ -2697,6 +2697,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{tags:J/}",
         "{tags[0]:J, /}",
         "{tags[-1]:J, /}",
+        "{tags[0:2]:J, /}",
+        "{tags[::-1]:J, /}",
         "{title:J, /}",
     ];
     let native = formats
@@ -2710,6 +2712,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "zetaalphamiddle",
             "zeta",
             "middle",
+            "zeta, alpha",
+            "middle, alpha, zeta",
             "plain"
         ]
     );
@@ -2725,7 +2729,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain'}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{title:J, /}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain'}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{title:J, /}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

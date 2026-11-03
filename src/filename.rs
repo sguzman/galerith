@@ -195,6 +195,86 @@ fn slice_field_bytes(value: &str, selector: &str) -> Result<String, FormatError>
     Ok(decode_utf8_ignoring_invalid(&bytes))
 }
 
+fn select_array(values: &[Value], selector: &str) -> Result<Value, FormatError> {
+    let length = isize::try_from(values.len())
+        .map_err(|_| FormatError("filename list is too long to select".into()))?;
+    let parse_index = |raw: &str| -> Result<Option<isize>, FormatError> {
+        if raw.is_empty() {
+            Ok(None)
+        } else {
+            raw.parse::<isize>()
+                .map(Some)
+                .map_err(|_| FormatError("invalid filename list selector".into()))
+        }
+    };
+    if !selector.contains(':') {
+        let index = parse_index(selector)?
+            .ok_or_else(|| FormatError("filename list selector requires an index".into()))?;
+        let index = if index < 0 { length + index } else { index };
+        return usize::try_from(index)
+            .ok()
+            .and_then(|index| values.get(index))
+            .cloned()
+            .ok_or_else(|| FormatError("filename list index out of range".into()));
+    }
+
+    let parts: Vec<_> = selector.split(':').collect();
+    if !(2..=3).contains(&parts.len()) {
+        return Err(FormatError("unsupported filename list slice".into()));
+    }
+    let step = if parts.len() == 3 {
+        parse_index(parts[2])?.unwrap_or(1)
+    } else {
+        1
+    };
+    if step == 0 {
+        return Err(FormatError(
+            "filename list slice step cannot be zero".into(),
+        ));
+    }
+    let negative_step = step < 0;
+    let normalize = |value: isize| {
+        let value = if value < 0 {
+            value.saturating_add(length)
+        } else {
+            value
+        };
+        if negative_step {
+            value.clamp(-1, length.saturating_sub(1))
+        } else {
+            value.clamp(0, length)
+        }
+    };
+    let mut cursor = match parse_index(parts[0])? {
+        Some(value) => normalize(value),
+        None if negative_step => length.saturating_sub(1),
+        None => 0,
+    };
+    let end = match parse_index(parts[1])? {
+        Some(value) => normalize(value),
+        None if negative_step => -1,
+        None => length,
+    };
+    let mut selected = Vec::new();
+    while if negative_step {
+        cursor > end
+    } else {
+        cursor < end
+    } {
+        if let Some(value) = usize::try_from(cursor)
+            .ok()
+            .and_then(|index| values.get(index))
+        {
+            selected.push(value.clone());
+        }
+        let Some(next) = cursor.checked_add(step) else {
+            break;
+        };
+        cursor = next;
+    }
+    Ok(Value::Array(selected))
+}
+
 fn decode_utf8_ignoring_invalid(bytes: &[u8]) -> String {
     let mut result = String::with_capacity(bytes.len());
     let mut remaining = bytes;
@@ -526,29 +606,14 @@ fn field_with_metadata(
                     },
                     _ => match metadata.get(base_name) {
                         Some(value) => {
-                            let value = if let (Value::Array(values), Some(selector)) =
-                                (value, selector)
-                            {
-                                let index = selector.parse::<isize>().map_err(|_| {
-                                    FormatError(
-                                        "filename list selector requires an integer index".into(),
-                                    )
-                                })?;
-                                let length = isize::try_from(values.len()).map_err(|_| {
-                                    FormatError("filename list is too long to index".into())
-                                })?;
-                                let index = if index < 0 { length + index } else { index };
-                                let selected = usize::try_from(index)
-                                    .ok()
-                                    .and_then(|index| values.get(index))
-                                    .ok_or_else(|| {
-                                        FormatError("filename list index out of range".into())
-                                    })?;
-                                selector_applied_to_list = true;
-                                selected
-                            } else {
-                                value
+                            let selected = match (value, selector) {
+                                (Value::Array(values), Some(selector)) => {
+                                    Some(select_array(values, selector)?)
+                                }
+                                _ => None,
                             };
+                            selector_applied_to_list = selected.is_some();
+                            let value = selected.as_ref().unwrap_or(value);
                             let value =
                                 metadata_field(value, base_name, conversion, &mut candidate_spec)?;
                             if value.is_none() {
@@ -1075,6 +1140,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{tags[-1]:J, /}", &item, &metadata).unwrap(),
             "middle"
+        );
+        assert_eq!(
+            render_with_metadata("{tags[0:2]:J, /}", &item, &metadata).unwrap(),
+            "zeta, alpha"
+        );
+        assert_eq!(
+            render_with_metadata("{tags[::-1]:J, /}", &item, &metadata).unwrap(),
+            "middle, alpha, zeta"
         );
         assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
