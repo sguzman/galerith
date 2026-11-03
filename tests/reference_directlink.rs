@@ -2783,6 +2783,7 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
         ("/asset.mp4", HLS, "mp4", "m3u8"),
         ("/asset.mp4", DASH, "mp4", "mpd"),
         ("/asset.mp4", DASH_LATE, "mp4", "mp4"),
+        ("/asset.mp4", b"HTTP/1.1 200 OK\r\nContent-Type: video/quicktime\r\nContent-Length: 12\r\nConnection: close\r\n\r\n\0\0\0\x18ftypqt ", "mp4", "mp4"),
         ("/asset.jpg", TIFF, "jpg", "jpg"),
         ("/asset.jpg", GZIP, "jpg", "jpg"),
     ];

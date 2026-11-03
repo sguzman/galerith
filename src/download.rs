@@ -1232,6 +1232,11 @@ mod tests {
             None,
             "gzip is not in the pinned signature table"
         );
+        assert_eq!(
+            signature_extension(b"\0\0\0\x18ftypqt ", Some("mp4")),
+            None,
+            "the pinned QuickTime predicate compares an 8-byte slice to a 7-byte marker"
+        );
         assert_eq!(signature_extension(b"\x89PNG\r\n\x1a\n", Some("txt")), None);
     }
 
