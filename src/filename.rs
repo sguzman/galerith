@@ -18,7 +18,7 @@ impl Error for FormatError {}
 fn encode_url_component(value: &str) -> String {
     let mut encoded = String::with_capacity(value.len());
     for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'/') {
             encoded.push(char::from(byte));
         } else {
             encoded.push_str(&format!("%{byte:02X}"));
@@ -1449,6 +1449,8 @@ mod tests {
         let mut item = sample();
         item.filename = "café + tea.jpg".into();
         assert_eq!(render("{stem!q}", &item).unwrap(), "caf%C3%A9%20%2B%20tea");
+        item.filename = "/a b.jpg".into();
+        assert_eq!(render("{stem!q}", &item).unwrap(), "/a%20b");
         item.filename = "caf%C3%A9%20tea.jpg".into();
         assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
         item.filename = "%FF.jpg".into();
