@@ -847,7 +847,7 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     Ok(Some(output))
 }
 
-fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
+fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
     let Some((radix, _suffix)) = spec.split_at_checked(spec.len().saturating_sub(1)) else {
         return Ok(None);
     };
@@ -863,17 +863,37 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         '_' => (10, "", Some('_')),
         _ => return Ok(None),
     };
-    // Integer subset of Python's numeric mini-language: optional alternate
-    // prefix, zero fill, and a bounded width.
-    let (alignment, radix) = match radix.chars().next() {
-        Some('<') => (Some('<'), &radix[1..]),
-        Some('>') => (Some('>'), &radix[1..]),
-        Some('^') => (Some('^'), &radix[1..]),
-        _ => (None, radix),
+    // Integer subset of Python's numeric mini-language with bounded width,
+    // optional alternate prefixes, and explicit text alignment.
+    let mut spec_chars = radix.char_indices();
+    let first = spec_chars.next();
+    let second = spec_chars.next();
+    let (alignment, mut fill, explicit_fill, radix) = match (first, second) {
+        (Some((_, fill)), Some((end, alignment @ ('<' | '>' | '^'))))
+            if !matches!(fill, '{' | '}') =>
+        {
+            (
+                Some(alignment),
+                fill.to_string(),
+                true,
+                &radix[end + alignment.len_utf8()..],
+            )
+        }
+        (Some((0, alignment @ ('<' | '>' | '^'))), _) => (
+            Some(alignment),
+            " ".to_owned(),
+            false,
+            &radix[alignment.len_utf8()..],
+        ),
+        _ => (None, " ".to_owned(), false, radix),
     };
     let alternate = radix.starts_with('#');
     let width_spec = radix.strip_prefix('#').unwrap_or(radix);
-    let zero_fill = width_spec.starts_with('0') && width_spec.len() > 1;
+    let zero_flag = width_spec.starts_with('0') && width_spec.len() > 1;
+    let zero_fill = alignment.is_none() && zero_flag;
+    if zero_flag && !explicit_fill {
+        fill = "0".to_owned();
+    }
     if alternate && (grouping.is_some() || base == 10) {
         return Err(FormatError(
             "unsupported alternate numeric formatting specification".into(),
@@ -940,8 +960,8 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         };
         Ok(Some(format!(
             "{}{sign}{prefix}{digits}{}",
-            " ".repeat(left),
-            " ".repeat(right)
+            fill.repeat(left),
+            fill.repeat(right)
         )))
     }
 }
@@ -1523,7 +1543,7 @@ fn field_with_metadata(
             Some(Value::Bool(false)) => "0",
             _ => &value,
         };
-        if let Some(formatted) = format_radix_id(integer_value, spec)? {
+        if let Some(formatted) = format_integer(integer_value, spec)? {
             return Ok(formatted);
         }
     }
@@ -1761,6 +1781,18 @@ mod tests {
         assert!(render("{_lit}", &item).is_err());
         assert!(render("{filename:03}", &item).is_err());
         assert!(render("{filename:>241}", &item).is_err());
+    }
+
+    #[test]
+    fn integer_format_alignment_supports_space_and_custom_fill() {
+        let item = sample();
+        assert_eq!(field("id:>6d", &item).unwrap(), "    42");
+        assert_eq!(field("id:<6d", &item).unwrap(), "42    ");
+        assert_eq!(field("id:^6d", &item).unwrap(), "  42  ");
+        assert_eq!(field("id:>06d", &item).unwrap(), "000042");
+        assert_eq!(field("id:^06d", &item).unwrap(), "004200");
+        assert_eq!(field("id:x>6d", &item).unwrap(), "xxxx42");
+        assert_eq!(field("id:x<06d", &item).unwrap(), "42xxxx");
     }
 
     #[test]
