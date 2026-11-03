@@ -75,13 +75,15 @@ async fn write_json_atomic(
 }
 
 /// Write the URL event's tags as newline-separated text next to the media.
-/// Missing tags produce an empty sidecar, matching the metadata postprocessor.
+/// Missing tags do not produce a sidecar. Present tags are newline-terminated,
+/// including an empty tag list, matching gallery-dl's tags postprocessor.
 pub async fn write_tags(
     target: &Path,
     metadata: &Metadata,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+    let output = sidecar_path_with_extension(target, "txt")?;
     let values = match metadata.get("tags") {
-        None => &[][..],
+        None => return Ok(output),
         Some(serde_json::Value::Array(values)) => values.as_slice(),
         Some(_) => {
             return Err(io::Error::new(
@@ -106,8 +108,7 @@ pub async fn write_tags(
             Ok(tag)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let output = sidecar_path_with_extension(target, "txt")?;
-    let bytes = tags.join("\n");
+    let bytes = format!("{}\n", tags.join("\n"));
     let tmp = temporary_path(&output)?;
     write_atomic(&output, bytes.as_bytes(), &tmp).await?;
     Ok(output)
@@ -216,7 +217,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tag_sidecar_is_newline_separated_and_empty_tags_create_empty_file() {
+    async fn tag_sidecar_is_newline_terminated_and_missing_tags_create_no_file() {
         let root = std::env::temp_dir().join(format!("galerith-tags-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root).await;
         fs::create_dir_all(&root).await.unwrap();
@@ -230,13 +231,21 @@ mod tests {
         assert_eq!(sidecar, root.join("picture.jpg.txt"));
         assert_eq!(
             fs::read_to_string(&sidecar).await.unwrap(),
-            "landscape\nnight sky"
+            "landscape\nnight sky\n"
         );
 
-        let empty = write_tags(&root.join("untagged.png"), &Metadata::new())
+        let missing = write_tags(&root.join("untagged.png"), &Metadata::new())
             .await
             .unwrap();
-        assert_eq!(fs::read(&empty).await.unwrap(), b"");
+        assert!(!missing.exists());
+
+        let empty = write_tags(
+            &root.join("empty-tags.png"),
+            &serde_json::from_value::<Metadata>(serde_json::json!({ "tags": [] })).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(fs::read(&empty).await.unwrap(), b"\n");
         fs::remove_dir_all(root).await.unwrap();
     }
 

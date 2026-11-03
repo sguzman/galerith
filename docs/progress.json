@@ -493,7 +493,8 @@
                 },
                 {
                   "title": "Sidecar JSON/text/original metadata",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "Partial: src/postprocess.rs implements atomic per-media tag sidecars, omits the file when tags are absent, and newline-terminates present tags; local unit and CLI tests pass. tests/reference_directlink.rs now compares the missing-tags case with the pinned client, but CI run 41574377683 failed because the earlier differential expected an empty file; rerun pinned oracle required. Full JSON/text/original metadata parity remains unverified."
                 },
                 {
                   "title": "Media extensions and MIME matching",

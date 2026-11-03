@@ -2764,7 +2764,7 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
 }
 
 #[test]
-fn pinned_and_native_clients_write_matching_empty_tag_sidecars() {
+fn pinned_and_native_clients_skip_tag_sidecars_when_tags_are_missing() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
@@ -2806,10 +2806,10 @@ fn pinned_and_native_clients_write_matching_empty_tag_sidecars() {
     spawn(native, "native Galerith --write-tags");
     native_server.join().unwrap();
 
-    let pinned_tags = std::fs::read(output_root.join("pinned/asset.jpg.txt")).unwrap();
-    let native_tags = std::fs::read(output_root.join("native/asset.jpg.txt")).unwrap();
-    assert_eq!(native_tags, pinned_tags);
-    assert!(native_tags.is_empty(), "directlink has no tag metadata");
+    let pinned_tags = output_root.join("pinned/asset.jpg.txt");
+    let native_tags = output_root.join("native/asset.jpg.txt");
+    assert_eq!(native_tags.exists(), pinned_tags.exists());
+    assert!(!native_tags.exists(), "directlink has no tag metadata");
     std::fs::remove_dir_all(output_root).unwrap();
 }
 

@@ -63,7 +63,7 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
 }
 
 #[test]
-fn writes_empty_tag_sidecar_for_a_media_item_without_tags() {
+fn skips_tag_sidecar_for_a_media_item_without_tags() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let server = std::thread::spawn(move || {
@@ -87,7 +87,7 @@ fn writes_empty_tag_sidecar_for_a_media_item_without_tags() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fs::read(dir.join("image.jpg.txt")).unwrap(), b"");
+    assert!(!dir.join("image.jpg.txt").exists());
     fs::remove_dir_all(dir).unwrap();
 }
 
