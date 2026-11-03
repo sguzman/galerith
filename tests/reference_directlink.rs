@@ -2824,6 +2824,78 @@ fn pinned_and_native_clients_skip_tag_sidecars_when_tags_are_missing() {
 }
 
 #[test]
+fn pinned_and_native_write_matching_directlink_metadata_core() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for per-media metadata differential");
+    let output_root = env::temp_dir().join(format!(
+        "galerith-metadata-reference-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&output_root);
+    std::fs::create_dir_all(&output_root).unwrap();
+
+    let (pinned_url, pinned_server) = serve_retry_sequence([
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
+    ]);
+    let mut pinned =
+        Command::new(env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into()));
+    pinned.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "--write-metadata",
+        "-d",
+    ]);
+    pinned.arg(output_root.join("pinned"));
+    pinned.arg(pinned_url);
+    pinned.env("PYTHONPATH", pinned_root);
+    pinned.env("PYTHONNOUSERSITE", "1");
+    pinned.env("PYTHONDONTWRITEBYTECODE", "1");
+    spawn(pinned, "pinned gallery-dl --write-metadata");
+    pinned_server.join().unwrap();
+
+    let (native_url, native_server) = serve_retry_sequence([
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
+    ]);
+    let mut native = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    native.args(["--write-metadata", "-d"]);
+    native.arg(output_root.join("native"));
+    native.arg(native_url);
+    spawn(native, "native Galerith --write-metadata");
+    native_server.join().unwrap();
+
+    let pinned_metadata: Value = serde_json::from_slice(
+        &std::fs::read(output_root.join("pinned/asset.jpg.json"))
+            .expect("pinned per-media JSON sidecar created"),
+    )
+    .unwrap();
+    let native_metadata: Value = serde_json::from_slice(
+        &std::fs::read(output_root.join("native/asset.jpg.json"))
+            .expect("native per-media JSON sidecar created"),
+    )
+    .unwrap();
+    for key in [
+        "category",
+        "filename",
+        "extension",
+        "domain",
+        "subcategory",
+        "path",
+    ] {
+        assert_eq!(
+            native_metadata.get(key),
+            pinned_metadata.get(key),
+            "directlink per-media metadata field {key} differs"
+        );
+    }
+    std::fs::remove_dir_all(output_root).unwrap();
+}
+
+#[test]
 fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
