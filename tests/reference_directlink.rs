@@ -2357,16 +2357,17 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
-fn pinned_and_native_reject_invalid_utf8_filename_byte_slices() {
-    let template = "{filename[b0:1]}";
+fn pinned_and_native_ignore_invalid_utf8_filename_byte_slices() {
+    let template = "{filename[b0:1]}.{extension}";
     let url = "https://example.org/%C3%A9%E7%8C%AB.jpg";
     let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args(["--filename", template, "--simulate", url])
         .output()
         .unwrap();
     assert!(
-        !native.status.success(),
-        "native accepted a filename slice ending inside a UTF-8 character"
+        native.status.success(),
+        "native rejected a filename slice ending inside a UTF-8 character: {}",
+        String::from_utf8_lossy(&native.stderr)
     );
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
@@ -2395,8 +2396,21 @@ fn pinned_and_native_reject_invalid_utf8_filename_byte_slices() {
             .output()
             .unwrap();
     assert!(
-        !pinned.status.success(),
-        "pinned gallery-dl accepted a filename slice ending inside a UTF-8 character"
+        pinned.status.success(),
+        "pinned gallery-dl rejected a filename slice ending inside a UTF-8 character: {}",
+        String::from_utf8_lossy(&pinned.stderr)
+    );
+    let native_name = native
+        .stdout
+        .strip_prefix(b"[simulate] ")
+        .expect("native simulation prints its filename");
+    let pinned_name = pinned
+        .stdout
+        .strip_prefix(b"# ")
+        .expect("pinned simulation prints its filename");
+    assert_eq!(
+        native_name, pinned_name,
+        "native and pinned output differ for an invalid UTF-8 byte slice"
     );
 }
 

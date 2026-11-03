@@ -192,8 +192,28 @@ fn slice_field_bytes(value: &str, selector: &str) -> Result<String, FormatError>
         };
         cursor = next;
     }
-    String::from_utf8(bytes)
-        .map_err(|_| FormatError("filename byte slice is not valid UTF-8".into()))
+    let mut result = String::with_capacity(bytes.len());
+    let mut remaining = bytes.as_slice();
+    while !remaining.is_empty() {
+        match std::str::from_utf8(remaining) {
+            Ok(valid) => {
+                result.push_str(valid);
+                break;
+            }
+            Err(error) => {
+                let valid_up_to = error.valid_up_to();
+                // gallery-dl decodes byte slices with UTF-8's "ignore" error
+                // policy: retain valid text and discard malformed byte runs.
+                result.push_str(
+                    std::str::from_utf8(&remaining[..valid_up_to])
+                        .expect("valid_up_to marks a valid UTF-8 prefix"),
+                );
+                let invalid_len = error.error_len().unwrap_or(remaining.len() - valid_up_to);
+                remaining = &remaining[valid_up_to + invalid_len..];
+            }
+        }
+    }
+    Ok(result)
 }
 
 fn python_string_repr(value: &str, ascii_only: bool) -> String {
@@ -966,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn byte_slices_match_utf8_byte_offsets_and_reject_invalid_boundaries() {
+    fn byte_slices_match_utf8_byte_offsets_and_ignore_invalid_boundaries() {
         let mut item = sample();
         item.filename = "asset.jpg".into();
         assert_eq!(render("{filename[b0:3]}", &item).unwrap(), "ass");
@@ -974,7 +994,8 @@ mod tests {
         assert_eq!(render("{filename[b::-1]}", &item).unwrap(), "tessa");
         item.filename = "猫x.jpg".into();
         assert_eq!(render("{stem[b0:3]}", &item).unwrap(), "猫");
-        assert!(render("{stem[b1:3]}", &item).is_err());
+        assert_eq!(slice_field_bytes("猫x", "1:4").unwrap(), "x");
+        assert_eq!(render("{stem[b1:4]}_suffix", &item).unwrap(), "x_suffix");
         assert!(render("{stem[b0:2:0]}", &item).is_err());
     }
 
