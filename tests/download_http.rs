@@ -90,7 +90,7 @@ async fn zero_download_chunk_size_is_rejected_before_creating_output() {
 }
 
 #[tokio::test]
-async fn known_content_type_does_not_reject_extensionless_custom_output() {
+async fn content_type_adds_extension_when_source_and_custom_output_are_extensionless() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -107,12 +107,13 @@ async fn known_content_type_does_not_reject_extensionless_custom_output() {
     let dir = test_dir("extensionless-output");
     let _ = fs::remove_dir_all(&dir);
     let mut item = extract_direct_media(&format!("http://{addr}/source.jpg")).unwrap();
+    item.url = format!("http://{addr}/source");
     item.filename = "custom-output".into();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
         .unwrap();
-    let destination = dir.join("custom-output");
+    let destination = dir.join("custom-output.jpg");
     assert_eq!(
         download(&client, &item, &options(dir.clone()))
             .await

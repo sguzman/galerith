@@ -200,6 +200,23 @@ fn saved_paths_with_bytes(directory: &Path, expected: &[u8]) -> Vec<std::path::P
         .collect()
 }
 
+fn saved_paths(directory: &Path) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .flat_map(|entry| {
+            let path = entry.path();
+            if path.is_dir() {
+                saved_paths(&path)
+            } else {
+                vec![path]
+            }
+        })
+        .collect()
+}
+
 fn run_reference_filename_filesystem_fixture(
     working_root: &Path,
     pinned_root: &Path,
@@ -2717,9 +2734,12 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
             "{label}: {}",
             String::from_utf8_lossy(&result.stderr)
         );
-        let filenames = std::fs::read_dir(&output)
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        let filenames = saved_paths(&output)
+            .into_iter()
+            .filter_map(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+            })
             .collect::<Vec<_>>();
         assert!(
             filenames.iter().any(|filename| filename.ends_with(".png")),

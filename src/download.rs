@@ -141,14 +141,27 @@ fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Op
         .map(str::to_owned)
 }
 
+fn source_extension(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    Path::new(parsed.path())
+        .extension()?
+        .to_str()
+        .map(str::to_ascii_lowercase)
+}
+
+fn media_extension(item: &MediaItem) -> Option<String> {
+    Path::new(&item.filename)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .or_else(|| source_extension(&item.url))
+}
+
 /// A synthetic success response containing an HTML/JSON error document
 /// cannot complete an unrelated media, PDF, archive or other direct file.
 /// Legitimate HTML/JSON downloads with corresponding extensions are allowed.
 fn media_error_document(item: &MediaItem, content_type: &str, validate_html: bool) -> bool {
-    let extension = item
-        .filename
-        .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let extension = media_extension(item);
     let mime = content_type
         .split(';')
         .next()
@@ -234,6 +247,75 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
     expected.is_some_and(|extensions| !extensions.contains(&extension))
 }
 
+/// Pick the filename suffix for a response when the caller's template did not
+/// provide one. This deliberately covers the stable MIME aliases used by the
+/// direct HTTP downloader; unknown media types receive the upstream binary
+/// fallback suffix.
+fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
+    let mime = content_type
+        .unwrap_or("image/jpeg")
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let mime = if mime.contains('/') {
+        mime
+    } else {
+        format!("image/{mime}")
+    };
+    match mime.as_str() {
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/bmp" | "image/x-bmp" | "image/x-ms-bmp" => "bmp",
+        "image/webp" => "webp",
+        "image/avif" => "avif",
+        "image/heic" => "heic",
+        "image/heif" => "heif",
+        "image/svg+xml" => "svg",
+        "image/ico" | "image/icon" | "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
+        "image/x-photoshop" | "application/x-photoshop" | "image/vnd.adobe.photoshop" => "psd",
+        "video/webm" | "audio/webm" => "webm",
+        "video/ogg" | "audio/ogg" | "application/ogg" => "ogg",
+        "video/mp4" => "mp4",
+        "video/m4v" => "m4v",
+        "video/x-m4v" => "m4v",
+        "video/quicktime" => "mov",
+        "video/mpeg" => "mpeg",
+        "video/3gpp" => "3gp",
+        "video/3gpp2" => "3g2",
+        "video/x-msvideo" => "avi",
+        "video/x-ms-wmv" => "wmv",
+        "video/x-matroska" => "mkv",
+        "audio/wav" | "audio/x-wav" => "wav",
+        "audio/mpeg" => "mp3",
+        "audio/aac" => "aac",
+        "audio/flac" | "audio/x-flac" => "flac",
+        "audio/opus" => "opus",
+        "audio/x-ms-wma" => "wma",
+        "text/html" => "html",
+        "application/xhtml+xml" => "xhtml",
+        "application/json" | "application/problem+json" => "json",
+        "text/plain" => "txt",
+        "text/css" => "css",
+        "text/xml" | "application/xml" => "xml",
+        "application/zip" | "application/x-zip" | "application/x-zip-compressed" => "zip",
+        "application/rar" | "application/x-rar" | "application/x-rar-compressed" => "rar",
+        "application/x-7z-compressed" => "7z",
+        "application/pdf" | "application/x-pdf" => "pdf",
+        "application/x-shockwave-flash" => "swf",
+        "application/gzip" | "application/x-gzip" => "gz",
+        "application/x-xz" => "xz",
+        "application/x-tar" => "tar",
+        "application/x-bzip2" => "bz2",
+        "application/zstd" | "application/x-zstd" => "zst",
+        "model/obj" => "obj",
+        "application/octet-stream" => "bin",
+        _ => "bin",
+    }
+}
+
 /// Return a conservative extension correction for common, unambiguous file
 /// signatures. The prefix is bounded by the downloader and is never trusted
 /// for formats whose signatures overlap substantially.
@@ -247,7 +329,7 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
     if !checkable.contains(&extension.as_str()) {
         return None;
     }
-    if first.starts_with(b"\x89PNG\r\n\x1a\n") {
+    let detected = if first.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("png")
     } else if first.starts_with(b"\xff\xd8\xff") {
         Some("jpg")
@@ -318,17 +400,15 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
         Some("clip")
     } else {
         None
-    }
+    };
+    detected.filter(|detected| !extension.eq_ignore_ascii_case(detected))
 }
 
 /// Some servers label an HTML or JSON block page as application/octet-stream
 /// or omit Content-Type entirely. Inspect only a bounded initial body prefix
 /// for established binary/document outputs, never the full download.
 fn looks_like_soft_error_body(item: &MediaItem, first: &[u8], validate_html: bool) -> bool {
-    let extension = item
-        .filename
-        .rsplit_once('.')
-        .map(|(_, ext)| ext.to_ascii_lowercase());
+    let extension = media_extension(item);
     let binary_extensions = [
         "jpg", "jpeg", "jpe", "png", "apng", "gif", "webp", "avif", "bmp", "tif", "tiff", "jxl",
         "ico", "heic", "heif", "psd", "svg", "mp4", "webm", "mov", "mkv", "avi", "mpeg", "mpg",
@@ -559,6 +639,7 @@ pub async fn download(
     // rename. Parallel Galerith workers cannot clobber the same .part file.
     let output_lock = lock_output(&options.destination, &item.filename).await?;
     let mut target = options.destination.join(&item.filename);
+    let url_extension = source_extension(&item.url);
     let part = if options.no_part {
         target.clone()
     } else {
@@ -689,10 +770,14 @@ pub async fn download(
         }
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
-        let incompatible_media_type = header(&response, CONTENT_TYPE)
-            .is_some_and(|mime| media_type_mismatches_extension(item, &mime));
-        if header(&response, CONTENT_TYPE)
-            .is_some_and(|mime| media_error_document(item, &mime, options.validate_html))
+        let response_content_type = header(&response, CONTENT_TYPE);
+        let mime_extension = media_extension_from_mime(response_content_type.as_deref());
+        let incompatible_media_type = response_content_type
+            .as_deref()
+            .is_some_and(|mime| media_type_mismatches_extension(item, mime));
+        if response_content_type
+            .as_deref()
+            .is_some_and(|mime| media_error_document(item, mime, options.validate_html))
         {
             // Neither a 206 error suffix nor a 200 block page replacing a
             // Range request can satisfy the media transfer. A stale partial
@@ -930,14 +1015,14 @@ pub async fn download(
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
         }
+        let current_extension = target
+            .extension()
+            .and_then(|value| value.to_str())
+            .or(url_extension.as_deref())
+            .or_else(|| url_extension.is_none().then_some(mime_extension));
         let detected_extension = options
             .adjust_extensions
-            .then(|| {
-                signature_extension(
-                    &first_bytes,
-                    target.extension().and_then(|value| value.to_str()),
-                )
-            })
+            .then(|| signature_extension(&first_bytes, current_extension))
             .flatten();
         if transfer_error.is_none()
             && incompatible_media_type
@@ -1013,9 +1098,12 @@ pub async fn download(
                 return Err(error("resumed chunk saved; more bytes remain"));
             }
         }
-        if let Some(extension) = detected_extension {
+        let output_extension = detected_extension.or_else(|| {
+            (target.extension().is_none() && url_extension.is_none()).then_some(mime_extension)
+        });
+        if let Some(extension) = output_extension {
             let old_extension = target.extension().and_then(|value| value.to_str());
-            if old_extension.is_some_and(|old| !old.eq_ignore_ascii_case(extension)) {
+            if !old_extension.is_some_and(|old| old.eq_ignore_ascii_case(extension)) {
                 let corrected_target = target.with_extension(extension);
                 drop(output_lock);
                 let _corrected_output_lock = lock_output(
@@ -1094,6 +1182,26 @@ mod tests {
             assert_eq!(signature_extension(prefix, Some(current)), Some(corrected));
         }
         assert_eq!(signature_extension(b"\x89PNG\r\n\x1a\n", Some("txt")), None);
+    }
+
+    #[test]
+    fn mime_suffix_inference_uses_image_default_and_known_aliases() {
+        assert_eq!(media_extension_from_mime(None), "jpg");
+        assert_eq!(
+            media_extension_from_mime(Some("image/jpeg; charset=binary")),
+            "jpg"
+        );
+        assert_eq!(media_extension_from_mime(Some("image/x-icon")), "ico");
+        assert_eq!(media_extension_from_mime(Some("video/quicktime")), "mov");
+        assert_eq!(
+            media_extension_from_mime(Some("application/x-7z-compressed")),
+            "7z"
+        );
+        assert_eq!(
+            media_extension_from_mime(Some("application/octet-stream")),
+            "bin"
+        );
+        assert_eq!(media_extension_from_mime(Some("unknown/type")), "bin");
     }
 
     #[test]
