@@ -2262,6 +2262,54 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
+fn pinned_and_native_format_source_event_metadata_in_normal_cli_mode() {
+    let template = "{domain!g}";
+    let url = "http://assets.example.org:8443/media/asset.jpg";
+    let expected = "assets-example-org-8443";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--filename", template, "--simulate", url])
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "native directlink metadata template failed: {}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    assert!(String::from_utf8_lossy(&native.stdout).contains(expected));
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let pinned = Command::new("python3")
+        .args([
+            "-m",
+            "gallery_dl",
+            "--config-ignore",
+            "--no-input",
+            "--filename",
+            template,
+            "--simulate",
+            url,
+        ])
+        .env("PYTHONPATH", Path::new(&root))
+        .env("PYTHONNOUSERSITE", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .output()
+        .unwrap();
+    assert!(
+        pinned.status.success(),
+        "pinned directlink metadata template failed: {}",
+        String::from_utf8_lossy(&pinned.stderr)
+    );
+    assert!(String::from_utf8_lossy(&pinned.stdout).contains(expected));
+}
+
+#[test]
 fn pinned_formatter_matches_native_numeric_id_radix_formats() {
     let cases = ["d", "05d", "b", "#b", "o", "#o", "x", "8x", "08x", "#08x"];
     let item = galerith::MediaItem {
@@ -2838,7 +2886,8 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
     let _ = std::fs::remove_dir_all(&output_root);
     std::fs::create_dir_all(&output_root).unwrap();
 
-    let (pinned_url, pinned_server) = serve_retry_sequence([
+    let (url, server) = serve_retry_sequence([
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
     ]);
     let mut pinned =
@@ -2852,22 +2901,18 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
         "-D",
     ]);
     pinned.arg(output_root.join("pinned"));
-    pinned.arg(pinned_url);
+    pinned.arg(&url);
     pinned.env("PYTHONPATH", pinned_root);
     pinned.env("PYTHONNOUSERSITE", "1");
     pinned.env("PYTHONDONTWRITEBYTECODE", "1");
     spawn(pinned, "pinned gallery-dl --write-metadata");
-    pinned_server.join().unwrap();
 
-    let (native_url, native_server) = serve_retry_sequence([
-        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
-    ]);
     let mut native = Command::new(env!("CARGO_BIN_EXE_galerith"));
     native.args(["--write-metadata", "-d"]);
     native.arg(output_root.join("native"));
-    native.arg(native_url);
+    native.arg(&url);
     spawn(native, "native Galerith --write-metadata");
-    native_server.join().unwrap();
+    server.join().unwrap();
 
     let pinned_sidecar = saved_paths(&output_root.join("pinned"))
         .into_iter()
