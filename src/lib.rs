@@ -178,14 +178,22 @@ mod tests {
 
     #[test]
     fn rejects_gallery_and_unsafe_scheme() {
-        assert_eq!(
-            extract_direct_media("https://example.org/album/42").unwrap_err(),
-            ExtractError::UnsupportedUrl
-        );
-        assert_eq!(
-            extract_direct_media("file:///tmp/local.png").unwrap_err(),
-            ExtractError::UnsupportedUrl
-        );
+        for url in [
+            "https://example.org/album/42",
+            "https://example.org/file.jpg.exe",
+            "https://example.org/folder/",
+            "https://example.org/file",
+            "https://example.org/file.jpg/",
+            "https://example.org/download?name=file.jpg",
+            "ftp://example.org/file.jpg",
+            "file:///tmp/local.png",
+        ] {
+            assert_eq!(
+                extract_direct_media(url).unwrap_err(),
+                ExtractError::UnsupportedUrl,
+                "{url}"
+            );
+        }
     }
 
     #[test]

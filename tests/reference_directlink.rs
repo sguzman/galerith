@@ -2357,6 +2357,56 @@ fn pinned_and_native_reject_unsupported_directlink_suffixes() {
 }
 
 #[test]
+fn pinned_and_native_match_directlink_url_shape_dispatch() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for directlink URL-shape comparison");
+    let root = Path::new(&root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let urls = [
+        "https://suffix-matrix.example.org/file.jpg.exe",
+        "https://suffix-matrix.example.org/folder/",
+        "https://suffix-matrix.example.org/file",
+        "https://suffix-matrix.example.org/file.jpg/",
+        "https://suffix-matrix.example.org/download?name=file.jpg",
+        "ftp://suffix-matrix.example.org/file.jpg",
+        "file:///tmp/file.jpg",
+    ];
+    for url in urls {
+        let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args(["--dump-json", url])
+            .output()
+            .unwrap();
+        let pinned = pinned_event_output(root, url);
+        assert_eq!(
+            native.status.success(),
+            pinned.status.success(),
+            "native/pinned directlink dispatch differs for {url}; native stderr: {}; pinned stderr: {}",
+            String::from_utf8_lossy(&native.stderr),
+            String::from_utf8_lossy(&pinned.stderr)
+        );
+        if native.status.success() {
+            let native_events: Vec<Value> =
+                serde_json::from_slice(&native.stdout).expect("native upstream tuple JSON");
+            let pinned_events: Vec<Value> =
+                serde_json::from_slice(&pinned.stdout).expect("pinned upstream tuple JSON");
+            assert_eq!(native_events, pinned_events, "{url}: typed source events");
+        } else {
+            assert!(
+                String::from_utf8_lossy(&pinned.stderr).contains("Unsupported URL"),
+                "pinned rejection did not identify an unsupported URL: {}",
+                String::from_utf8_lossy(&pinned.stderr)
+            );
+        }
+    }
+}
+
+#[test]
 fn pinned_and_native_format_source_event_metadata_in_normal_cli_mode() {
     let template = "{domain!g}";
     let cases = [
