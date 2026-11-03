@@ -2867,12 +2867,17 @@ fn pinned_formatter_selects_mapping_keys() {
         post_id: Some(42),
     };
     let metadata: galerith::message::Metadata = serde_json::from_value(json!({
-        "labels": {"short": "safe", "display": "indigo"}
+        "labels": {
+            "short": "safe",
+            "display": "indigo",
+            "nested": {"name": "nested"}
+        },
+        "artists": [{"name": "one"}, {"name": "two"}]
     }))
     .unwrap();
-    let template = "{labels['short']}_{labels[short]}_{labels[display]!u}";
+    let template = "{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{artists[1][name]}";
     let native = galerith::filename::render_with_metadata(template, &item, &metadata).unwrap();
-    assert_eq!(native, "safe_safe_INDIGO");
+    assert_eq!(native, "safe_safe_INDIGO_nested_two");
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -2885,7 +2890,7 @@ fn pinned_formatter_selects_mapping_keys() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        r#"from gallery_dl import formatter; data={'labels':{'short':'safe','display':'indigo'}}; print(formatter.parse("{labels['short']}_{labels[short]}_{labels[display]!u}").format_map(data))"#,
+        r#"from gallery_dl import formatter; data={'labels':{'short':'safe','display':'indigo','nested':{'name':'nested'}},'artists':[{'name':'one'},{'name':'two'}]}; print(formatter.parse("{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{artists[1][name]}").format_map(data))"#,
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

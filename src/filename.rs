@@ -45,6 +45,87 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     Ok((field, ""))
 }
 
+fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<&str>), FormatError> {
+    let Some(mut cursor) = candidate.find('[') else {
+        if candidate.contains(']') {
+            return Err(FormatError("invalid filename field selector".into()));
+        }
+        return Ok((candidate, Vec::new()));
+    };
+
+    let base = &candidate[..cursor];
+    let mut selectors = Vec::new();
+    while cursor < candidate.len() {
+        if candidate.as_bytes().get(cursor) != Some(&b'[') {
+            return Err(FormatError("invalid filename field selector".into()));
+        }
+        let start = cursor + 1;
+        let mut quote = None;
+        let mut escaped = false;
+        let mut closing = None;
+        for (offset, character) in candidate[start..].char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if character == '\\' && quote.is_some() {
+                escaped = true;
+                continue;
+            }
+            if let Some(delimiter) = quote {
+                if character == delimiter {
+                    quote = None;
+                }
+                continue;
+            }
+            match character {
+                '\'' | '"' => quote = Some(character),
+                ']' => {
+                    closing = Some(start + offset);
+                    break;
+                }
+                '[' => return Err(FormatError("invalid filename field selector".into())),
+                _ => {}
+            }
+        }
+        let closing =
+            closing.ok_or_else(|| FormatError("invalid filename field selector".into()))?;
+        selectors.push(&candidate[start..closing]);
+        cursor = closing + 1;
+    }
+    Ok((base, selectors))
+}
+
+fn select_mapping_key(selector: &str) -> &str {
+    selector
+        .strip_prefix('\'')
+        .and_then(|key| key.strip_suffix('\''))
+        .or_else(|| {
+            selector
+                .strip_prefix('"')
+                .and_then(|key| key.strip_suffix('"'))
+        })
+        .unwrap_or(selector)
+}
+
+fn select_value(value: &Value, selector: &str, field: &str) -> Result<Value, FormatError> {
+    match value {
+        Value::Array(values) => select_array(values, selector),
+        Value::Object(fields) => fields
+            .get(select_mapping_key(selector))
+            .cloned()
+            .ok_or_else(|| {
+                FormatError(format!(
+                    "filename mapping field '{field}[{selector}]' is missing"
+                ))
+            }),
+        Value::String(value) => slice_field(value, selector).map(Value::String),
+        _ => Err(FormatError(format!(
+            "filename field '{field}' does not support element selection"
+        ))),
+    }
+}
+
 fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
     if let Some(selector) = selector.strip_prefix('b') {
         return slice_field_bytes(value, selector);
@@ -806,26 +887,19 @@ fn field_with_metadata(
     let mut missing_field = None;
     for candidate in &candidates {
         let mut candidate_spec = spec;
-        let (base_name, selector) = match candidate.split_once('[') {
-            Some((base, suffix)) => (
-                base,
-                Some(
-                    suffix
-                        .strip_suffix(']')
-                        .ok_or_else(|| FormatError("invalid filename field selector".into()))?,
-                ),
-            ),
-            None if candidate.contains(']') => {
-                return Err(FormatError("invalid filename field selector".into()))
-            }
-            None => (*candidate, None),
-        };
+        let (base_name, selectors) = split_field_selectors(candidate)?;
+        let selector = selectors.first().copied();
         let mut selector_applied_to_container = false;
         let mut candidate_source = None;
         let (field_value, is_literal) = if base_name == "_lit" {
             let literal = selector.ok_or_else(|| {
                 FormatError("literal filename field requires a bracketed value".into())
             })?;
+            if selectors.len() != 1 {
+                return Err(FormatError(
+                    "literal filename field accepts one bracketed value".into(),
+                ));
+            }
             if literal.is_empty() {
                 return Err(FormatError("literal filename field cannot be empty".into()));
             }
@@ -860,30 +934,16 @@ fn field_with_metadata(
                     },
                     _ => match metadata.get(base_name) {
                         Some(value) => {
-                            let selected = match (value, selector) {
-                                (Value::Array(values), Some(selector)) => {
-                                    Some(select_array(values, selector)?)
-                                }
-                                (Value::Object(fields), Some(selector)) => {
-                                    let key = selector
-                                        .strip_prefix('\'')
-                                        .and_then(|key| key.strip_suffix('\''))
-                                        .or_else(|| {
-                                            selector
-                                                .strip_prefix('"')
-                                                .and_then(|key| key.strip_suffix('"'))
-                                        })
-                                        .unwrap_or(selector);
-                                    Some(fields.get(key).cloned().ok_or_else(|| {
-                                        FormatError(format!(
-                                            "filename mapping field '{base_name}[{selector}]' is missing"
-                                        ))
-                                    })?)
-                                }
-                                _ => None,
+                            let mut selected = value.clone();
+                            for selector in &selectors {
+                                selected = select_value(&selected, selector, base_name)?;
+                            }
+                            selector_applied_to_container = !selectors.is_empty();
+                            let value = if selector_applied_to_container {
+                                &selected
+                            } else {
+                                value
                             };
-                            selector_applied_to_container = selected.is_some();
-                            let value = selected.as_ref().unwrap_or(value);
                             candidate_source = Some(value.clone());
                             let value =
                                 metadata_field(value, base_name, conversion, &mut candidate_spec)?;
@@ -919,7 +979,13 @@ fn field_with_metadata(
         }
         let field_value = match (is_literal, selector_applied_to_container, selector) {
             (true, _, _) | (false, true, _) | (false, false, None) => field_value,
-            (false, false, Some(selector)) => slice_field(&field_value, selector)?,
+            (false, false, Some(selector)) => {
+                let mut selected = slice_field(&field_value, selector)?;
+                for selector in selectors.iter().skip(1) {
+                    selected = slice_field(&selected, selector)?;
+                }
+                selected
+            }
         };
         if !field_value.is_empty() && value.is_none() {
             selected_base = Some(base_name);
@@ -1676,6 +1742,31 @@ mod tests {
             "safe_safe_INDIGO"
         );
         assert!(render_with_metadata("{labels[missing]}", &item, &metadata).is_err());
+    }
+
+    #[test]
+    fn named_fields_chain_mapping_and_array_selectors() {
+        let item = MediaItem {
+            url: "https://example.org/image.jpg".into(),
+            filename: "image.jpg".into(),
+            extractor: "directlink",
+            post_id: Some(42),
+        };
+        let metadata: Metadata = serde_json::from_value(json!({
+            "labels": {"nested": {"name": "nested"}, "short": "safe"},
+            "artists": [{"name": "one"}, {"name": "two"}]
+        }))
+        .unwrap();
+
+        assert_eq!(
+            render_with_metadata(
+                "{labels[nested][name]}_{artists[1][name]}_{labels[short][1]}",
+                &item,
+                &metadata
+            )
+            .unwrap(),
+            "nested_two_a"
+        );
     }
 
     #[test]
