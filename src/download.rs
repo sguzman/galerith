@@ -294,6 +294,8 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "image/jpeg" | "image/jpg" => "jpg",
         "image/png" => "png",
         "image/gif" => "gif",
+        "image/tiff" => "tiff",
+        "image/jp2" => "jp2",
         "image/bmp" | "image/x-bmp" | "image/x-ms-bmp" => "bmp",
         "image/webp" => "webp",
         "image/avif" => "avif",
@@ -1320,6 +1322,8 @@ mod tests {
             "jpg"
         );
         assert_eq!(media_extension_from_mime(Some("image/x-icon")), "ico");
+        assert_eq!(media_extension_from_mime(Some("image/tiff")), "tiff");
+        assert_eq!(media_extension_from_mime(Some("image/jp2")), "jp2");
         assert_eq!(media_extension_from_mime(Some("video/quicktime")), "mov");
         assert_eq!(
             media_extension_from_mime(Some("application/x-7z-compressed")),

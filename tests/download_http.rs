@@ -156,6 +156,8 @@ async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
         ("application/x-mpegurl", "m3u8"),
         ("application/dash+xml", "mpd"),
         ("audio/x-aac", "aac"),
+        ("image/tiff", "tiff"),
+        ("image/jp2", "jp2"),
     ];
     let server_cases = cases;
     let server = tokio::spawn(async move {
