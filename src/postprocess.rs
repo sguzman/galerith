@@ -139,23 +139,19 @@ pub async fn write_metadata(
         _ => unreachable!("metadata root is an object"),
     };
     if item.extractor == "directlink" {
-        let stem = value.get("stem").cloned();
         value = crate::message::upstream_metadata(&value);
-        if let Some(stem) = stem {
-            value.insert("stem".into(), stem);
-        }
-        value.remove("query");
-        value.remove("fragment");
     }
     value.remove("extractor");
     value.insert("category".into(), Value::String(item.extractor.to_owned()));
     value
         .entry("filename")
         .or_insert_with(|| Value::String(item.filename.clone()));
-    value
-        .entry("post_id")
-        .or_insert_with(|| item.post_id.map_or(Value::Null, Value::from));
-    value.insert("source_url".into(), Value::String(display_url(&item.url)));
+    if item.extractor != "directlink" {
+        value
+            .entry("post_id")
+            .or_insert_with(|| item.post_id.map_or(Value::Null, Value::from));
+        value.insert("source_url".into(), Value::String(display_url(&item.url)));
+    }
     write_json_atomic(&output, &Value::Object(value)).await
 }
 
@@ -253,7 +249,9 @@ mod tests {
         assert_eq!(sidecar, root.join("picture.jpg.json"));
         let bytes = fs::read(sidecar).await.unwrap();
         let content = String::from_utf8(bytes).unwrap();
-        assert!(content.contains("https://example.org/picture.jpg"));
+        assert!(content.contains("\"query\": null"));
+        assert!(content.contains("\"fragment\": null"));
+        assert!(!content.contains("source_url"));
         assert!(!content.contains("private"));
         assert!(!content.contains("secret"));
         let entries = std::fs::read_dir(&root).unwrap().count();
@@ -291,7 +289,9 @@ mod tests {
         assert_eq!(output["author"]["name"], "Public artist");
         assert_eq!(output["filename"], "picture");
         assert_eq!(output["extension"], "jpg");
-        assert_eq!(output["stem"], "picture");
+        assert!(output.get("stem").is_none());
+        assert_eq!(output["query"], Value::Null);
+        assert_eq!(output["fragment"], Value::Null);
         assert_eq!(output["url"], "https://example.org/picture.jpg");
         assert!(output.get("api_token").is_none());
         assert!(output.get("_http_headers").is_none());
@@ -300,7 +300,6 @@ mod tests {
         for private in [
             "private",
             "signed",
-            "fragment",
             "secret-token",
             "private-header",
             "nested-secret",

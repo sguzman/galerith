@@ -1463,18 +1463,26 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
                 same_field(metadata, reference, key, url);
             }
             if let Some(sidecar) = sidecar {
-                for key in ["category", "domain", "subcategory", "path", "extension"] {
+                for key in [
+                    "category",
+                    "filename",
+                    "domain",
+                    "subcategory",
+                    "path",
+                    "extension",
+                ] {
                     same_field(&sidecar, reference, key, url);
                 }
-                assert_eq!(
-                    sidecar["stem"], reference["filename"],
-                    "{url}: sidecar stem"
-                );
+                assert!(sidecar.get("stem").is_none(), "{url}: no native stem field");
                 assert!(
-                    sidecar["source_url"]
-                        .as_str()
-                        .is_some_and(|source| !source.contains('?') && !source.contains('#')),
-                    "{url}: sidecar must omit query and fragment"
+                    sidecar.get("source_url").is_none(),
+                    "{url}: no native-only source_url field"
+                );
+                assert_eq!(sidecar["query"], Value::Null, "{url}: query redaction");
+                assert_eq!(
+                    sidecar["fragment"],
+                    Value::Null,
+                    "{url}: fragment redaction"
                 );
             }
             assert_eq!(

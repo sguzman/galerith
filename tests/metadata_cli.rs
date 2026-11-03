@@ -44,9 +44,11 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
     assert_eq!(value["category"], "directlink");
     assert_eq!(value["domain"], format!("127.0.0.1:{}", addr.port()));
     assert_eq!(value["extension"], "jpg");
-    assert_eq!(value["stem"], "image");
+    assert!(value.get("stem").is_none());
     assert_eq!(value["path"], "");
-    assert!(!value["source_url"].as_str().unwrap().contains("top-secret"));
+    assert!(value.get("source_url").is_none());
+    assert_eq!(value["query"], serde_json::Value::Null);
+    assert_eq!(value["fragment"], serde_json::Value::Null);
 
     fs::remove_file(&sidecar).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_galerith"))

@@ -3,9 +3,8 @@
   "domain": "example.org",
   "extension": "jpg",
   "filename": "picture",
+  "fragment": null,
   "path": "",
-  "post_id": null,
-  "source_url": "https://example.org/picture.jpg",
-  "stem": "picture",
+  "query": null,
   "subcategory": "example.org"
 }
