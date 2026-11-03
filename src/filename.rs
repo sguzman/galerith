@@ -32,6 +32,48 @@ fn decode_url_component(value: &str) -> String {
     String::from_utf8_lossy(&decoded).into_owned()
 }
 
+fn language_name(code: &str) -> Option<&'static str> {
+    match code.to_ascii_lowercase().as_str() {
+        "ar" => Some("Arabic"),
+        "bg" => Some("Bulgarian"),
+        "bn" => Some("Bengali"),
+        "ca" => Some("Catalan"),
+        "cs" => Some("Czech"),
+        "da" => Some("Danish"),
+        "de" => Some("German"),
+        "el" => Some("Greek"),
+        "en" => Some("English"),
+        "es" => Some("Spanish"),
+        "fa" => Some("Persian"),
+        "fi" => Some("Finnish"),
+        "fr" => Some("French"),
+        "he" => Some("Hebrew"),
+        "hi" => Some("Hindi"),
+        "hu" => Some("Hungarian"),
+        "id" => Some("Indonesian"),
+        "it" => Some("Italian"),
+        "ja" => Some("Japanese"),
+        "ko" => Some("Korean"),
+        "ms" => Some("Malay"),
+        "nl" => Some("Dutch"),
+        "no" => Some("Norwegian"),
+        "pl" => Some("Polish"),
+        "pt" => Some("Portuguese"),
+        "ro" => Some("Romanian"),
+        "ru" => Some("Russian"),
+        "sk" => Some("Slovak"),
+        "sl" => Some("Slovenian"),
+        "sr" => Some("Serbian"),
+        "sv" => Some("Swedish"),
+        "th" => Some("Thai"),
+        "tr" => Some("Turkish"),
+        "uk" => Some("Ukrainian"),
+        "vi" => Some("Vietnamese"),
+        "zh" => Some("Chinese"),
+        _ => None,
+    }
+}
+
 fn decode_html_entities(value: &str) -> String {
     const LEGACY_NAMES: &str = r"
         AElig AMP Aacute Acirc Agrave Aring Atilde Auml COPY Ccedil ETH Eacute Ecirc Egrave Euml
@@ -1259,7 +1301,7 @@ fn field_with_metadata(
     if native_scalar.is_some()
         && matches!(
             conversion,
-            "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q" | "U" | "H"
+            "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q" | "U" | "H" | "L"
         )
     {
         return Err(FormatError(
@@ -1279,6 +1321,9 @@ fn field_with_metadata(
         "Q" => decode_url_component(&value),
         "U" => decode_html_entities(&value),
         "H" => html_to_text(&value),
+        "L" => language_name(&value).map(str::to_owned).ok_or_else(|| {
+            FormatError("language conversion produces a non-string filename value".into())
+        })?,
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -2234,6 +2279,53 @@ mod tests {
         );
         assert_eq!(html_to_text("<a title=\"1 > 0\">link</a>"), "link");
         assert_eq!(html_to_text("plain text"), "plain text");
+    }
+
+    #[test]
+    fn language_conversion_maps_reference_codes_case_insensitively() {
+        for (code, name) in [
+            ("ar", "Arabic"),
+            ("bg", "Bulgarian"),
+            ("bn", "Bengali"),
+            ("ca", "Catalan"),
+            ("cs", "Czech"),
+            ("da", "Danish"),
+            ("de", "German"),
+            ("el", "Greek"),
+            ("en", "English"),
+            ("es", "Spanish"),
+            ("fa", "Persian"),
+            ("fi", "Finnish"),
+            ("fr", "French"),
+            ("he", "Hebrew"),
+            ("hi", "Hindi"),
+            ("hu", "Hungarian"),
+            ("id", "Indonesian"),
+            ("it", "Italian"),
+            ("ja", "Japanese"),
+            ("ko", "Korean"),
+            ("ms", "Malay"),
+            ("nl", "Dutch"),
+            ("no", "Norwegian"),
+            ("pl", "Polish"),
+            ("pt", "Portuguese"),
+            ("ro", "Romanian"),
+            ("ru", "Russian"),
+            ("sk", "Slovak"),
+            ("sl", "Slovenian"),
+            ("sr", "Serbian"),
+            ("sv", "Swedish"),
+            ("th", "Thai"),
+            ("tr", "Turkish"),
+            ("uk", "Ukrainian"),
+            ("vi", "Vietnamese"),
+            ("zh", "Chinese"),
+        ] {
+            assert_eq!(language_name(code), Some(name));
+            assert_eq!(language_name(&code.to_ascii_uppercase()), Some(name));
+        }
+        assert_eq!(language_name("xx"), None);
+        assert!(render("{_lit[xx]!L}", &sample()).is_err());
     }
 
     #[test]

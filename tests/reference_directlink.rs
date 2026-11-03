@@ -2259,6 +2259,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{_lit[<p>a &amp; <b>b</b></p>]!H}",
             "a & b",
         ),
+        ("language-conversion", "{_lit[en]!L}", "English"),
         (
             "html-legacy-entity-conversion",
             "{_lit[a &amp b]!U}",
@@ -2408,6 +2409,48 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         }
     }
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_language_conversion_matches_all_reference_codes() {
+    let codes = [
+        "ar", "bg", "bn", "ca", "cs", "da", "de", "el", "en", "es", "fa", "fi", "fr", "he", "hi",
+        "hu", "id", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr",
+        "sv", "th", "tr", "uk", "vi", "zh",
+    ];
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let templates = codes
+        .iter()
+        .map(|code| format!("{{_lit[{code}]!L}}"))
+        .collect::<Vec<_>>();
+    let native = templates
+        .iter()
+        .map(|template| galerith::filename::render(template, &item).unwrap())
+        .collect::<Vec<_>>();
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for language conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let source = format!(
+        "from gallery_dl import formatter; templates={templates:?}; print('|'.join(formatter.parse(template).format_map({{}}) for template in templates))"
+    );
+    let mut command = Command::new("python3");
+    command.args(["-c", &source]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let upstream = spawn(command, "pinned language filename formatter");
+    assert_eq!(upstream.trim(), native.join("|"));
 }
 
 #[test]
