@@ -2803,7 +2803,7 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
         ("application/x-pdf", "bin"),
         ("application/x-gzip", "bin"),
         ("application/x-zstd", "bin"),
-        ("application/x-7z-compressed", "bin"),
+        ("application/x-7z-compressed", "7z"),
         ("image/tiff", "tiff"),
         ("image/jp2", "jp2"),
         ("image/ief", "ief"),
@@ -3767,6 +3767,31 @@ fn pinned_fourchan_archive_format_is_board_thread_media_tim() {
 }
 
 #[test]
+fn pinned_archived_fourchan_formats_are_board_thread_post_number() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for archived 4chan differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://4archive.org/board/g/thread/1002','https://4chanarchives.com/board/a/thread/2002'); print('|'.join((lambda ex: ex.category+ex.archive_fmt.format(board=board,thread=thread,no=no))(extractor.find(url)) for url,board,thread,no in zip(urls,('g','a'),('1002','2002'),('1003','2003'))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(
+            command,
+            "pinned archived 4chan board/thread/post archive templates"
+        )
+        .trim(),
+        "4archiveg_1002_1003|4chanarchivesa_2002_2003"
+    );
+}
+
+#[test]
 fn pinned_twochan_archive_format_is_board_thread_file_tim() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -3784,6 +3809,27 @@ fn pinned_twochan_archive_format_is_board_thread_file_tim() {
     assert_eq!(
         spawn(command, "pinned 2chan board/thread/tim archive template").trim(),
         "2chan12_12345_178000001|2chanb_54321_178000001"
+    );
+}
+
+#[test]
+fn pinned_twoch_archive_format_is_board_thread_file_tim() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for 2ch archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://2ch.hk/a/res/12345.html','https://2ch.su/b/res/54321.html'); print('|'.join((lambda ex: ex.category+ex.archive_fmt.format(board=board,thread=thread,tim=157000001))(extractor.find(url)) for url,board,thread in zip(urls,('a','b'),('12345','54321'))))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned 2ch board/thread/tim archive template").trim(),
+        "2cha_12345_157000001|2chb_54321_157000001"
     );
 }
 

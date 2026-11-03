@@ -353,6 +353,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "application/zip" => "zip",
         "application/vnd.apple.mpegurl" => "m3u",
         "application/dash+xml" => "mpd",
+        "application/x-7z-compressed" => "7z",
         "application/vnd.ms-asf" => "asf",
         "application/pdf" => "pdf",
         "application/x-shockwave-flash" => "swf",
@@ -1390,7 +1391,7 @@ mod tests {
         assert_eq!(media_extension_from_mime(Some("audio/basic")), "au");
         assert_eq!(
             media_extension_from_mime(Some("application/x-7z-compressed")),
-            "bin"
+            "7z"
         );
         assert_eq!(
             media_extension_from_mime(Some("application/octet-stream")),
