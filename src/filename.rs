@@ -402,6 +402,33 @@ fn python_json_string(value: &str) -> String {
     result
 }
 
+fn python_json_value(value: &Value) -> String {
+    match value {
+        Value::Null => "null".into(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::String(value) => python_json_string(value),
+        Value::Array(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(python_json_value)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        Value::Object(values) => format!(
+            "{{{}}}",
+            values
+                .iter()
+                .map(|(key, value)| {
+                    format!("{}:{}", python_json_string(key), python_json_value(value))
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
+}
+
 fn slugify_ascii(value: &str) -> Result<String, FormatError> {
     if !value.is_ascii() {
         return Err(FormatError(
@@ -654,6 +681,9 @@ fn metadata_field(
             if fields.is_empty() && conversion.is_empty() && spec.starts_with('?') =>
         {
             Ok(Some(String::new()))
+        }
+        Value::Array(_) | Value::Object(_) if conversion == "j" => {
+            Ok(Some(python_json_value(value)))
         }
         Value::String(value) if spec.starts_with('M') => {
             let (_, remainder) = map_formatter_spec(spec).expect("map formatter starts with M");
@@ -931,7 +961,7 @@ fn field_with_metadata(
         "r" => python_string_repr(&value, false),
         "a" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
         "a" => python_string_repr(&value, true),
-        "j" if native_non_string.is_some() => native_non_string.unwrap().to_string(),
+        "j" if native_non_string.is_some() => python_json_value(native_non_string.unwrap()),
         "j" => python_json_string(&value),
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
@@ -1364,6 +1394,8 @@ mod tests {
         let metadata: Metadata = serde_json::from_value(serde_json::json!({
             "tags": ["zeta", "alpha", "middle"],
             "mixed_tags": ["alpha", 2, false, null, [1, true], {"name": "one"}],
+            "json_values": [1, true, null],
+            "json_object": {"name": "é"},
             "title": "plain",
             "display": "  Mixed Case  ",
             "display_encoded": "Mixed%20Case",
@@ -1417,6 +1449,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{mixed_tags!S}", &item, &metadata).unwrap(),
             "alpha, 2, False, None, [1, True], {'name': 'one'}"
+        );
+        assert_eq!(
+            render_with_metadata("{json_values!j}", &item, &metadata).unwrap(),
+            "[1,true,null]"
+        );
+        assert_eq!(
+            field_with_metadata("json_object!j", &item, &metadata).unwrap(),
+            "{\"name\":\"\\u00e9\"}"
         );
         assert_eq!(
             render_with_metadata("{title:A*3/}", &item, &metadata).unwrap(),
