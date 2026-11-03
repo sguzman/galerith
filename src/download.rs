@@ -296,6 +296,13 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "image/gif" => "gif",
         "image/tiff" => "tiff",
         "image/jp2" => "jp2",
+        "image/heic-sequence" => "heics",
+        "image/heif-sequence" => "heifs",
+        "image/jxl" => "jxl",
+        "image/x-portable-pixmap" => "ppm",
+        "image/x-portable-graymap" => "pgm",
+        "image/x-portable-bitmap" => "pbm",
+        "image/x-portable-anymap" => "pnm",
         "image/bmp" | "image/x-bmp" | "image/x-ms-bmp" => "bmp",
         "image/webp" => "webp",
         "image/avif" => "avif",
@@ -309,6 +316,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "video/mp4" => "mp4",
         "video/m4v" => "m4v",
         "video/x-m4v" => "m4v",
+        "video/x-flv" => "flv",
         "video/quicktime" => "mov",
         "video/mpeg" => "mpeg",
         "video/3gpp" => "3gp",
@@ -1324,6 +1332,32 @@ mod tests {
         assert_eq!(media_extension_from_mime(Some("image/x-icon")), "ico");
         assert_eq!(media_extension_from_mime(Some("image/tiff")), "tiff");
         assert_eq!(media_extension_from_mime(Some("image/jp2")), "jp2");
+        assert_eq!(
+            media_extension_from_mime(Some("image/heic-sequence")),
+            "heics"
+        );
+        assert_eq!(
+            media_extension_from_mime(Some("image/heif-sequence")),
+            "heifs"
+        );
+        assert_eq!(media_extension_from_mime(Some("image/jxl")), "jxl");
+        assert_eq!(
+            media_extension_from_mime(Some("image/x-portable-pixmap")),
+            "ppm"
+        );
+        assert_eq!(
+            media_extension_from_mime(Some("image/x-portable-graymap")),
+            "pgm"
+        );
+        assert_eq!(
+            media_extension_from_mime(Some("image/x-portable-bitmap")),
+            "pbm"
+        );
+        assert_eq!(
+            media_extension_from_mime(Some("image/x-portable-anymap")),
+            "pnm"
+        );
+        assert_eq!(media_extension_from_mime(Some("video/x-flv")), "flv");
         assert_eq!(media_extension_from_mime(Some("video/quicktime")), "mov");
         assert_eq!(
             media_extension_from_mime(Some("application/x-7z-compressed")),

@@ -2774,6 +2774,14 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
 
     const TIFF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/tiff\r\nContent-Length: 4\r\nConnection: close\r\n\r\nTIFF";
     const JP2: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/jp2\r\nContent-Length: 3\r\nConnection: close\r\n\r\nJP2";
+    const HEICS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/heic-sequence\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const HEIFS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/heif-sequence\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const JXL: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/jxl\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const PPM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-pixmap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const PGM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-graymap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const PBM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-bitmap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const PNM: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/x-portable-anymap\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
+    const FLV: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: video/x-flv\r\nContent-Length: 1\r\nConnection: close\r\n\r\nX";
     let root = env::temp_dir().join(format!(
         "galerith-pinned-mime-suffix-oracle-{}",
         std::process::id()
@@ -2784,6 +2792,14 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
     for (name, body, suffix, response) in [
         ("tiff", b"TIFF".as_slice(), "tiff", TIFF),
         ("jp2", b"JP2".as_slice(), "jp2", JP2),
+        ("heics", b"X".as_slice(), "heics", HEICS),
+        ("heifs", b"X".as_slice(), "heifs", HEIFS),
+        ("jxl", b"X".as_slice(), "jxl", JXL),
+        ("ppm", b"X".as_slice(), "ppm", PPM),
+        ("pgm", b"X".as_slice(), "pgm", PGM),
+        ("pbm", b"X".as_slice(), "pbm", PBM),
+        ("pnm", b"X".as_slice(), "pnm", PNM),
+        ("flv", b"X".as_slice(), "flv", FLV),
     ] {
         for (label, pinned) in [("reference", true), ("native", false)] {
             let (url, server) = serve_retry_sequence_at("/asset", [response, response]);
