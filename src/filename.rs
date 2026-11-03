@@ -345,6 +345,25 @@ fn python_string_repr(value: &str, ascii_only: bool) -> String {
     result
 }
 
+fn python_capitalize(value: &str) -> String {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) => first
+            .to_uppercase()
+            .chain(chars.flat_map(char::to_lowercase))
+            .collect(),
+        None => String::new(),
+    }
+}
+
+fn python_capwords(value: &str) -> String {
+    value
+        .split_whitespace()
+        .map(python_capitalize)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn python_json_string(value: &str) -> String {
     let mut result = String::with_capacity(value.len() + 2);
     result.push('"');
@@ -526,24 +545,7 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
                     None => String::new(),
                 }
             }
-            'C' => {
-                let mut result = String::new();
-                let mut word_start = true;
-                for character in value.chars() {
-                    if character.is_alphanumeric() {
-                        if word_start {
-                            result.extend(character.to_uppercase());
-                        } else {
-                            result.extend(character.to_lowercase());
-                        }
-                        word_start = false;
-                    } else {
-                        result.push(character);
-                        word_start = true;
-                    }
-                }
-                result
-            }
+            'C' => python_capwords(&value),
             't' => value.trim().to_owned(),
             's' => value,
             'g' => slugify_ascii(&value)?,
@@ -840,34 +842,8 @@ fn field_with_metadata(
             .into_owned(),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
-        "c" => {
-            let mut chars = value.chars();
-            match chars.next() {
-                Some(first) => first
-                    .to_uppercase()
-                    .chain(chars.flat_map(char::to_lowercase))
-                    .collect(),
-                None => String::new(),
-            }
-        }
-        "C" => {
-            let mut result = String::new();
-            let mut word_start = true;
-            for character in value.chars() {
-                if character.is_alphanumeric() {
-                    if word_start {
-                        result.extend(character.to_uppercase());
-                    } else {
-                        result.extend(character.to_lowercase());
-                    }
-                    word_start = false;
-                } else {
-                    result.push(character);
-                    word_start = true;
-                }
-            }
-            result
-        }
+        "c" => python_capitalize(&value),
+        "C" => python_capwords(&value),
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
         "n" => {
@@ -881,6 +857,11 @@ fn field_with_metadata(
             )))
         }
     };
+    // gallery-dl's identity formatter returns its input directly, ignoring
+    // any remaining specifier text.
+    if spec.starts_with('I') {
+        return Ok(value);
+    }
     while let Some(operation) = spec.strip_prefix('R') {
         let (old, remainder) = operation
             .split_once('/')
@@ -1289,6 +1270,7 @@ mod tests {
             "title": "plain",
             "display": "  Mixed Case  ",
             "display_encoded": "Mixed%20Case",
+            "display_ws": "one\t  TWO\nthree",
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
@@ -1345,6 +1327,14 @@ mod tests {
             "Mixed Case"
         );
         assert_eq!(
+            render_with_metadata("{display_ws:CC/}", &item, &metadata).unwrap(),
+            "One Two Three"
+        );
+        assert_eq!(
+            render_with_metadata("{display_ws!C}", &item, &metadata).unwrap(),
+            "One Two Three"
+        );
+        assert_eq!(
             convert_string_chain("  Mixed Case  ", "j").unwrap(),
             "\"  Mixed Case  \""
         );
@@ -1368,6 +1358,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
             "plain"
+        );
+        assert_eq!(
+            render_with_metadata("{title:I}", &item, &metadata).unwrap(),
+            "plain"
+        );
+        assert_eq!(
+            render_with_metadata("{id:I}", &item, &metadata).unwrap(),
+            "42"
         );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
