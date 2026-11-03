@@ -2253,6 +2253,12 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("string-precision", "{category:.5}", "direc"),
         ("url-encode-conversion", "{_lit[a b]!q}", "a%20b"),
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
+        ("html-entity-conversion", "{_lit[a &amp; b]!U}", "a & b"),
+        (
+            "html-legacy-entity-conversion",
+            "{_lit[a &amp b]!U}",
+            "a & b",
+        ),
         (
             "json-conversion",
             "{_lit[élan]!j:R\"/_/R\\/_/}",

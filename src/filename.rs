@@ -32,6 +32,42 @@ fn decode_url_component(value: &str) -> String {
     String::from_utf8_lossy(&decoded).into_owned()
 }
 
+fn decode_html_entities(value: &str) -> String {
+    const LEGACY: [(&str, &str); 4] = [("amp", "&"), ("lt", "<"), ("gt", ">"), ("quot", "\"")];
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0;
+    while cursor < value.len() {
+        if value.as_bytes()[cursor] == b'&' {
+            if let Some(relative_end) = value[cursor..].find(';') {
+                let end = cursor + relative_end + 1;
+                if end - cursor <= 64 {
+                    let candidate = &value[cursor..end];
+                    let decoded = html_escape::decode_html_entities(candidate);
+                    if decoded.as_ref() != candidate {
+                        output.push_str(&decoded);
+                        cursor = end;
+                        continue;
+                    }
+                }
+            }
+            let suffix = &value[cursor + 1..];
+            if let Some((name, replacement)) = LEGACY.iter().find(|(name, _)| {
+                suffix
+                    .get(..name.len())
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case(name))
+            }) {
+                output.push_str(replacement);
+                cursor += name.len() + 1;
+                continue;
+            }
+        }
+        let character = value[cursor..].chars().next().expect("cursor is in bounds");
+        output.push(character);
+        cursor += character.len_utf8();
+    }
+    output
+}
+
 fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     let mut depth = 0usize;
     for (index, character) in field.char_indices() {
@@ -1084,7 +1120,10 @@ fn field_with_metadata(
         .as_ref()
         .filter(|source| !matches!(source, Value::String(_)));
     if native_scalar.is_some()
-        && matches!(conversion, "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q")
+        && matches!(
+            conversion,
+            "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q" | "U"
+        )
     {
         return Err(FormatError(
             "filename string conversion requires a string value".into(),
@@ -1101,6 +1140,7 @@ fn field_with_metadata(
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
         "Q" => decode_url_component(&value),
+        "U" => decode_html_entities(&value),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -2030,6 +2070,19 @@ mod tests {
         let mut item = sample();
         item.filename = "  spring\t\n  rain.webp  ".into();
         assert_eq!(field("filename!W", &item).unwrap(), "spring rain");
+    }
+
+    #[test]
+    fn html_conversion_decodes_named_and_numeric_entities() {
+        assert_eq!(
+            render("{_lit[&lt;p&gt;foo &amp; &#x62;ar&lt;/p&gt;]!U}", &sample()).unwrap(),
+            "<p>foo & bar</p>"
+        );
+        assert_eq!(
+            render("{_lit[unmatched &amp text]!U}", &sample()).unwrap(),
+            "unmatched & text"
+        );
+        assert_eq!(render("{_lit[&amp;amp;]!U}", &sample()).unwrap(), "&amp;");
     }
 
     #[test]
