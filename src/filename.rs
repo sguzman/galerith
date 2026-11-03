@@ -908,12 +908,31 @@ fn field_with_metadata(
         let (operator, operand) = operation
             .split_at_checked(1)
             .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
-        let left = value
-            .parse::<i128>()
-            .map_err(|_| FormatError("filename arithmetic requires an integer field".into()))?;
         let right = operand
             .parse::<i128>()
             .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+        let left = match value.parse::<i128>() {
+            Ok(left) => left,
+            Err(_) if operator == "*" => {
+                let count = usize::try_from(right.max(0))
+                    .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+                let output_len = value
+                    .len()
+                    .checked_mul(count)
+                    .filter(|length| *length <= 240)
+                    .ok_or_else(|| FormatError("filename repetition exceeds 240 bytes".into()))?;
+                let mut repeated = String::with_capacity(output_len);
+                for _ in 0..count {
+                    repeated.push_str(&value);
+                }
+                return Ok(repeated);
+            }
+            Err(_) => {
+                return Err(FormatError(
+                    "filename arithmetic requires an integer field".into(),
+                ))
+            }
+        };
         let result = match operator {
             "+" => left.checked_add(right),
             "-" => left.checked_sub(right),
@@ -1226,6 +1245,11 @@ mod tests {
             render_with_metadata("{tags:Sr/J, /}", &item, &metadata).unwrap(),
             "zeta, middle, alpha"
         );
+        assert_eq!(
+            render_with_metadata("{title:A*3/}", &item, &metadata).unwrap(),
+            "plainplainplain"
+        );
+        assert!(render_with_metadata("{title:A*-2/}", &item, &metadata).is_err());
         assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
             "plain"
