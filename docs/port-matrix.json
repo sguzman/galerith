@@ -478,7 +478,7 @@
         "src/postprocess.rs"
       ],
       "evidence": [
-      "Direct media matching covers additional HEIC, ASF, icon, AAC, 3GPP, MPEG-TS and MPEG stream suffixes with MIME validation and bounded block-page sniffing; localhost download fixtures pass. Oracle run 41660782978 found .heif is rejected by the pin; run 41662479215 found .apng is rejected and that !g removes the colon from port-bearing domains; runs 41663880658 and 41665527743 found .tif and .tiff are also rejected. Galerith now rejects all four suffixes and drops periods and colons in !g; local regressions pass. Corrected pinned suffix and negative matcher comparisons await CI. Pinned upstream parity remains open."
+      "Direct media matching uses the pinned suffix subset with bounded block-page sniffing; localhost downloader MIME fixtures pass independently of extractor matching. Oracle run 41667393568 found 29 suffixes outside the pinned match set: heif, apng, tif, tiff, jxl, ico, avi, mpeg, mpg, vob, m1v, m2v, 3gp, 3g2, m2ts, mts, asf, wmv, m4a, aac, wma, flac, cbz, tar, tgz, gz, bz2, xz and zst. Galerith now rejects them; local unit and CLI regressions verify the same. Earlier pinned formatter comparisons established !g drops periods and port colons. Rechecking the complete supported and unsupported suffix matrix is pending CI. Pinned upstream parity remains open."
       ]
     },
     {

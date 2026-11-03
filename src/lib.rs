@@ -72,46 +72,21 @@ pub fn extract_direct_media(input: &str) -> Result<MediaItem, ExtractError> {
             | "avif"
             | "bmp"
             | "svg"
-            | "jxl"
-            | "ico"
             | "mp4"
             | "mkv"
-            | "avi"
-            | "mpeg"
-            | "mpg"
-            | "vob"
-            | "m1v"
-            | "m2v"
-            | "3gp"
-            | "3g2"
-            | "m2ts"
-            | "mts"
-            | "asf"
-            | "wmv"
             | "webm"
             | "mov"
             | "m4v"
             | "mp3"
-            | "m4a"
-            | "aac"
-            | "wma"
             | "ogg"
             | "ogm"
             | "ogv"
             | "opus"
-            | "flac"
             | "wav"
             | "pdf"
-            | "cbz"
             | "zip"
             | "rar"
             | "7z"
-            | "tar"
-            | "tgz"
-            | "gz"
-            | "bz2"
-            | "xz"
-            | "zst"
             | "swf"
     ) {
         return Err(ExtractError::UnsupportedUrl);
@@ -177,22 +152,28 @@ mod tests {
     #[test]
     fn recognizes_additional_pinned_directlink_media_extensions() {
         for extension in [
-            "jpe", "heic", "psd", "ico", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp",
-            "3g2", "ogm", "ogv", "m4a", "aac", "wma", "m2ts", "mts", "asf", "wmv", "rar", "7z",
-            "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
+            "jpe", "heic", "psd", "mkv", "ogm", "ogv", "rar", "7z", "swf",
         ] {
             let url = format!("https://assets.example.org/downloads/file.{extension}");
             let item = extract_direct_media(&url).unwrap();
             assert_eq!(item.filename, format!("file.{extension}"));
         }
-        assert_eq!(
-            extract_direct_media("https://assets.example.org/downloads/file.heif").unwrap_err(),
-            ExtractError::UnsupportedUrl
-        );
-        assert_eq!(
-            extract_direct_media("https://assets.example.org/downloads/file.apng").unwrap_err(),
-            ExtractError::UnsupportedUrl
-        );
+    }
+
+    #[test]
+    fn rejects_extensions_not_matched_by_pinned_directlink() {
+        for extension in [
+            "heif", "apng", "tif", "tiff", "jxl", "ico", "avi", "mpeg", "mpg", "vob", "m1v", "m2v",
+            "3gp", "3g2", "m2ts", "mts", "asf", "wmv", "m4a", "aac", "wma", "flac", "cbz", "tar",
+            "tgz", "gz", "bz2", "xz", "zst",
+        ] {
+            let url = format!("https://assets.example.org/downloads/file.{extension}");
+            assert_eq!(
+                extract_direct_media(&url).unwrap_err(),
+                ExtractError::UnsupportedUrl,
+                "{extension}"
+            );
+        }
     }
 
     #[test]

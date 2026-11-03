@@ -40,6 +40,15 @@ fn options(destination: PathBuf) -> DownloadOptions {
     }
 }
 
+fn fixture_item(address: std::net::SocketAddr, filename: &str) -> MediaItem {
+    MediaItem {
+        url: format!("http://{address}/{filename}"),
+        filename: filename.into(),
+        extractor: "fixture",
+        post_id: None,
+    }
+}
+
 #[tokio::test]
 async fn downloads_atomically_and_skips_existing_files() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -579,7 +588,7 @@ async fn direct_png_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_mpeg_transport_stream_matches_its_response_mime() {
+async fn mpeg_transport_stream_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -593,7 +602,7 @@ async fn direct_mpeg_transport_stream_matches_its_response_mime() {
     });
     let dir = test_dir("mpeg-ts");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/recording.m2ts")).unwrap();
+    let item = fixture_item(addr, "recording.m2ts");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -610,7 +619,7 @@ async fn direct_mpeg_transport_stream_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_icon_media_matches_its_response_mime() {
+async fn icon_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -624,7 +633,7 @@ async fn direct_icon_media_matches_its_response_mime() {
     });
     let dir = test_dir("icon");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/favicon.ico")).unwrap();
+    let item = fixture_item(addr, "favicon.ico");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -641,7 +650,7 @@ async fn direct_icon_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_asf_media_matches_its_response_mime() {
+async fn asf_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -655,7 +664,7 @@ async fn direct_asf_media_matches_its_response_mime() {
     });
     let dir = test_dir("asf");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/recording.asf")).unwrap();
+    let item = fixture_item(addr, "recording.asf");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -672,7 +681,7 @@ async fn direct_asf_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_wmv_media_matches_its_response_mime() {
+async fn wmv_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -686,7 +695,7 @@ async fn direct_wmv_media_matches_its_response_mime() {
     });
     let dir = test_dir("wmv");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/recording.wmv")).unwrap();
+    let item = fixture_item(addr, "recording.wmv");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -703,7 +712,7 @@ async fn direct_wmv_media_matches_its_response_mime() {
 }
 
 #[tokio::test]
-async fn direct_wma_media_matches_its_response_mime() {
+async fn wma_media_matches_its_response_mime() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -717,7 +726,7 @@ async fn direct_wma_media_matches_its_response_mime() {
     });
     let dir = test_dir("wma");
     let _ = fs::remove_dir_all(&dir);
-    let item = extract_direct_media(&format!("http://{addr}/recording.wma")).unwrap();
+    let item = fixture_item(addr, "recording.wma");
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()

@@ -30,10 +30,14 @@ const URLS: &[&str] = &[
     "https://assets.example.org/galleries/%E9%9F%B3%E6%A5%BD.jpg?lang=ja",
 ];
 const DIRECTLINK_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "jpe", "heic", "psd", "png", "gif", "webp", "avif", "bmp", "svg", "jxl", "ico",
-    "mp4", "mkv", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp", "3g2", "m2ts", "mts", "asf",
-    "wmv", "webm", "mov", "m4v", "mp3", "m4a", "aac", "wma", "ogg", "ogm", "ogv", "opus", "flac",
-    "wav", "pdf", "cbz", "zip", "rar", "7z", "tar", "tgz", "gz", "bz2", "xz", "zst", "swf",
+    "jpg", "jpeg", "jpe", "heic", "psd", "png", "gif", "webp", "avif", "bmp", "svg", "mp4", "mkv",
+    "webm", "mov", "m4v", "mp3", "ogg", "ogm", "ogv", "opus", "wav", "pdf", "zip", "rar", "7z",
+    "swf",
+];
+const UNSUPPORTED_DIRECTLINK_EXTENSIONS: &[&str] = &[
+    "heif", "apng", "tif", "tiff", "jxl", "ico", "avi", "mpeg", "mpg", "vob", "m1v", "m2v", "3gp",
+    "3g2", "m2ts", "mts", "asf", "wmv", "m4a", "aac", "wma", "flac", "cbz", "tar", "tgz", "gz",
+    "bz2", "xz", "zst",
 ];
 
 fn spawn(mut command: Command, label: &str) -> String {
@@ -2307,15 +2311,10 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 
 #[test]
 fn pinned_and_native_reject_unsupported_directlink_suffixes() {
-    let urls = [
-        "https://suffix-matrix.example.org/file.heif",
-        "https://suffix-matrix.example.org/file.apng",
-        "https://suffix-matrix.example.org/file.tif",
-        "https://suffix-matrix.example.org/file.tiff",
-    ];
-    for url in urls {
+    for extension in UNSUPPORTED_DIRECTLINK_EXTENSIONS {
+        let url = format!("https://suffix-matrix.example.org/file.{extension}");
         let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
-            .args(["--dump-messages", url])
+            .args(["--dump-messages", &url])
             .output()
             .unwrap();
         assert!(
@@ -2338,7 +2337,7 @@ fn pinned_and_native_reject_unsupported_directlink_suffixes() {
                 "--config-ignore",
                 "--no-input",
                 "--dump-json",
-                url,
+                &url,
             ])
             .env("PYTHONPATH", root)
             .env("PYTHONNOUSERSITE", "1")
