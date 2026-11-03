@@ -783,8 +783,24 @@ fn slugify(value: &str) -> String {
     result.trim_matches(['-', '_']).to_owned()
 }
 
+fn format_scientific_float(number: f64, precision: usize, uppercase: bool) -> String {
+    let raw = format!("{number:.precision$e}");
+    let (mantissa, exponent) = raw
+        .split_once('e')
+        .expect("Rust scientific formatting includes an exponent");
+    let exponent = exponent
+        .parse::<i32>()
+        .expect("Rust scientific exponent is a signed integer");
+    let exponent_sign = if exponent < 0 { '-' } else { '+' };
+    let marker = if uppercase { 'E' } else { 'e' };
+    format!(
+        "{mantissa}{marker}{exponent_sign}{:02}",
+        exponent.unsigned_abs()
+    )
+}
+
 fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
-    let Some(kind @ ('f' | 'F' | '%')) = spec.chars().last() else {
+    let Some(kind @ ('f' | 'F' | 'e' | 'E' | '%')) = spec.chars().last() else {
         return Ok(None);
     };
     let percent = kind == '%';
@@ -889,6 +905,11 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
                 * 100.0;
             format!("{number:.precision$}%")
         }
+    } else if matches!(kind, 'e' | 'E') {
+        let number = number
+            .as_f64()
+            .ok_or_else(|| FormatError("invalid numeric value".into()))?;
+        format_scientific_float(number, precision, kind == 'E')
     } else if let Some(integer) = number.as_i64() {
         format!("{integer}{decimal_zeros}")
     } else if let Some(integer) = number.as_u64() {
@@ -2011,7 +2032,10 @@ mod tests {
             ("letter:>4c", "   A"),
             ("letter:x^4c", "xAxx"),
         ] {
-            assert_eq!(field_with_metadata(format, &item, metadata).unwrap(), expected);
+            assert_eq!(
+                field_with_metadata(format, &item, metadata).unwrap(),
+                expected
+            );
         }
     }
 
