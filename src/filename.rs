@@ -864,13 +864,22 @@ fn field_with_metadata(
                                 (Value::Array(values), Some(selector)) => {
                                     Some(select_array(values, selector)?)
                                 }
-                                (Value::Object(fields), Some(selector)) => Some(
-                                    fields.get(selector).cloned().ok_or_else(|| {
+                                (Value::Object(fields), Some(selector)) => {
+                                    let key = selector
+                                        .strip_prefix('\'')
+                                        .and_then(|key| key.strip_suffix('\''))
+                                        .or_else(|| {
+                                            selector
+                                                .strip_prefix('"')
+                                                .and_then(|key| key.strip_suffix('"'))
+                                        })
+                                        .unwrap_or(selector);
+                                    Some(fields.get(key).cloned().ok_or_else(|| {
                                         FormatError(format!(
                                             "filename mapping field '{base_name}[{selector}]' is missing"
                                         ))
-                                    })?,
-                                ),
+                                    })?)
+                                }
                                 _ => None,
                             };
                             selector_applied_to_container = selected.is_some();
@@ -1658,8 +1667,13 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            render_with_metadata("{labels[short]}_{labels[display]!u}", &item, &metadata).unwrap(),
-            "safe_INDIGO"
+            render_with_metadata(
+                "{labels['short']}_{labels[short]}_{labels[display]!u}",
+                &item,
+                &metadata
+            )
+            .unwrap(),
+            "safe_safe_INDIGO"
         );
         assert!(render_with_metadata("{labels[missing]}", &item, &metadata).is_err());
     }
