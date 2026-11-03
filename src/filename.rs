@@ -27,6 +27,11 @@ fn encode_url_component(value: &str) -> String {
     encoded
 }
 
+fn decode_url_component(value: &str) -> String {
+    let decoded = percent_encoding::percent_decode_str(value).collect::<Vec<_>>();
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
 fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     let mut depth = 0usize;
     for (index, character) in field.char_indices() {
@@ -553,12 +558,7 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             'r' => python_string_repr(&value, false),
             'a' => python_string_repr(&value, true),
             'q' => encode_url_component(&value),
-            'Q' => percent_encoding::percent_decode_str(&value)
-                .decode_utf8()
-                .map_err(|_| {
-                    FormatError("URL-decoded filename conversion is not valid UTF-8".into())
-                })?
-                .into_owned(),
+            'Q' => decode_url_component(&value),
             'W' => value.split_whitespace().collect::<Vec<_>>().join(" "),
             _ => {
                 return Err(FormatError(format!(
@@ -848,10 +848,7 @@ fn field_with_metadata(
         "j" => python_json_string(&value),
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
-        "Q" => percent_encoding::percent_decode_str(&value)
-            .decode_utf8()
-            .map_err(|_| FormatError("URL-decoded filename field is not valid UTF-8".into()))?
-            .into_owned(),
+        "Q" => decode_url_component(&value),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -1455,7 +1452,8 @@ mod tests {
         item.filename = "caf%C3%A9%20tea.jpg".into();
         assert_eq!(render("{stem!Q}", &item).unwrap(), "café tea");
         item.filename = "%FF.jpg".into();
-        assert!(render("{stem!Q}", &item).is_err());
+        assert_eq!(render("{stem!Q}", &item).unwrap(), "�");
+        assert_eq!(convert_string_chain("%FF", "Q").unwrap(), "�");
     }
 
     #[test]
