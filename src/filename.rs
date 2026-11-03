@@ -546,6 +546,18 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             }
             't' => value.trim().to_owned(),
             's' => value,
+            'g' => slugify_ascii(&value)?,
+            'j' => python_json_string(&value),
+            'r' => python_string_repr(&value, false),
+            'a' => python_string_repr(&value, true),
+            'q' => encode_url_component(&value),
+            'Q' => percent_encoding::percent_decode_str(&value)
+                .decode_utf8()
+                .map_err(|_| {
+                    FormatError("URL-decoded filename conversion is not valid UTF-8".into())
+                })?
+                .into_owned(),
+            'W' => value.split_whitespace().collect::<Vec<_>>().join(" "),
             _ => {
                 return Err(FormatError(format!(
                     "unsupported filename string conversion '{conversion}'"
@@ -1322,6 +1334,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{display:Ctu/}", &item, &metadata).unwrap(),
             "MIXED CASE"
+        );
+        assert_eq!(
+            render_with_metadata("{display:Cg/}", &item, &metadata).unwrap(),
+            "mixed-case"
+        );
+        assert_eq!(
+            render_with_metadata("{display:CW/}", &item, &metadata).unwrap(),
+            "Mixed Case"
         );
         assert!(render_with_metadata("{title:A*-2/}", &item, &metadata).is_err());
         assert_eq!(
