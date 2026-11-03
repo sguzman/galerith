@@ -2233,21 +2233,21 @@ mod tests {
     fn floating_point_standard_formatting_applies_precision_and_zero_width() {
         let item = sample();
         let metadata: Metadata = serde_json::from_value(serde_json::json!({
-            "rating": 3.14159,
+            "rating": 1.2345,
             "whole": 42,
         }))
         .unwrap();
         assert_eq!(
             render_with_metadata("{rating:.2f}", &item, &metadata).unwrap(),
-            "3.14"
+            "1.23"
         );
         assert_eq!(
             render_with_metadata("{rating:f}", &item, &metadata).unwrap(),
-            "3.141590"
+            "1.234500"
         );
         assert_eq!(
             render_with_metadata("{rating:08.2f}", &item, &metadata).unwrap(),
-            "00003.14"
+            "00001.23"
         );
         assert_eq!(
             render_with_metadata("{whole:.2f}", &item, &metadata).unwrap(),
