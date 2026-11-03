@@ -19,13 +19,28 @@ use tokio::{
 };
 
 fn sidecar_path(target: &Path) -> Result<PathBuf, io::Error> {
+    sidecar_path_with_extension(target, "json")
+}
+
+fn sidecar_path_with_extension(target: &Path, extension: &str) -> Result<PathBuf, io::Error> {
     let mut filename = OsString::from(
         target
             .file_name()
             .ok_or_else(|| io::Error::other("missing downloaded filename"))?,
     );
-    filename.push(".json");
+    filename.push(format!(".{extension}"));
     Ok(target.with_file_name(filename))
+}
+
+fn temporary_path(output: &Path) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+    let mut tmp_name = OsString::from(
+        output
+            .file_name()
+            .ok_or_else(|| io::Error::other("invalid metadata filename"))?,
+    );
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
+    Ok(output.with_file_name(tmp_name))
 }
 
 async fn write_atomic(output: &Path, bytes: &[u8], tmp: &Path) -> io::Result<()> {
@@ -54,16 +69,48 @@ async fn write_json_atomic(
     value: &serde_json::Value,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
     let bytes = serde_json::to_vec_pretty(value)?;
-    let mut tmp_name = OsString::from(
-        output
-            .file_name()
-            .ok_or_else(|| io::Error::other("invalid metadata filename"))?,
-    );
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-    tmp_name.push(format!(".tmp.{}.{nanos}", std::process::id()));
-    let tmp = output.with_file_name(tmp_name);
+    let tmp = temporary_path(output)?;
     write_atomic(output, &bytes, &tmp).await?;
     Ok(output.to_owned())
+}
+
+/// Write the URL event's tags as newline-separated text next to the media.
+/// Missing tags produce an empty sidecar, matching the metadata postprocessor.
+pub async fn write_tags(
+    target: &Path,
+    metadata: &Metadata,
+) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+    let values = match metadata.get("tags") {
+        None => &[][..],
+        Some(serde_json::Value::Array(values)) => values.as_slice(),
+        Some(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "metadata tags must be an array",
+            )
+            .into());
+        }
+    };
+    let tags = values
+        .iter()
+        .map(|value| {
+            let tag = value.as_str().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "metadata tags must be strings")
+            })?;
+            if tag.chars().any(char::is_control) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "metadata tags cannot contain control characters",
+                ));
+            }
+            Ok(tag)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let output = sidecar_path_with_extension(target, "txt")?;
+    let bytes = tags.join("\n");
+    let tmp = temporary_path(&output)?;
+    write_atomic(&output, bytes.as_bytes(), &tmp).await?;
+    Ok(output)
 }
 
 /// Write a JSON sidecar atomically after the media path exists.
@@ -165,6 +212,51 @@ mod tests {
         let expected = include_str!("../tests/fixtures/metadata/directlink.json").trim_end();
         assert_eq!(actual, expected);
 
+        fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn tag_sidecar_is_newline_separated_and_empty_tags_create_empty_file() {
+        let root = std::env::temp_dir().join(format!("galerith-tags-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root).await;
+        fs::create_dir_all(&root).await.unwrap();
+        let target = root.join("picture.jpg");
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "tags": ["landscape", "night sky"]
+        }))
+        .unwrap();
+
+        let sidecar = write_tags(&target, &metadata).await.unwrap();
+        assert_eq!(sidecar, root.join("picture.jpg.txt"));
+        assert_eq!(
+            fs::read_to_string(&sidecar).await.unwrap(),
+            "landscape\nnight sky"
+        );
+
+        let empty = write_tags(&root.join("untagged.png"), &Metadata::new())
+            .await
+            .unwrap();
+        assert_eq!(fs::read(&empty).await.unwrap(), b"");
+        fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn tag_sidecar_rejects_non_string_and_multiline_tags() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-invalid-tags-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root).await;
+        fs::create_dir_all(&root).await.unwrap();
+        let target = root.join("picture.jpg");
+        for tags in [
+            serde_json::json!("not an array"),
+            serde_json::json!([1]),
+            serde_json::json!(["safe\nforged"]),
+        ] {
+            let metadata =
+                serde_json::from_value::<Metadata>(serde_json::json!({ "tags": tags })).unwrap();
+            assert!(write_tags(&target, &metadata).await.is_err());
+            assert!(!root.join("picture.jpg.txt").exists());
+        }
         fs::remove_dir_all(root).await.unwrap();
     }
 

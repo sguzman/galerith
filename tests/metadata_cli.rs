@@ -63,6 +63,35 @@ fn writes_json_after_download_and_for_existing_file_without_exposing_query_token
 }
 
 #[test]
+fn writes_empty_tag_sidecar_for_a_media_item_without_tags() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        let mut request = [0_u8; 2048];
+        assert!(socket.read(&mut request).unwrap() > 0);
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG")
+            .unwrap();
+    });
+    let dir = dir().with_extension("tags");
+    let _ = fs::remove_dir_all(&dir);
+    let url = format!("http://{addr}/image.jpg");
+    let output = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--write-tags", "-d", dir.to_str().unwrap(), &url])
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(dir.join("image.jpg.txt")).unwrap(), b"");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn dry_run_with_metadata_flag_never_creates_sidecar() {
     let dir = dir().with_extension("dry");
     let _ = fs::remove_dir_all(&dir);

@@ -1255,10 +1255,12 @@ pub async fn resolve_messages_expanding(
 }
 
 /// One URL event projected onto the media contract plus its HTTP request data.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MediaDownload {
     pub item: MediaItem,
     pub request: Option<MediaRequest>,
+    /// Original URL-event fields retained for postprocessors and archive rules.
+    pub metadata: Metadata,
 }
 
 /// Compatibility adapter for consumers that only need MediaItem fields.
@@ -1330,7 +1332,11 @@ pub fn media_downloads_from_messages(
             post_id,
         };
         let request = media_request_from_metadata(&metadata)?;
-        media.push(MediaDownload { item, request });
+        media.push(MediaDownload {
+            item,
+            request,
+            metadata,
+        });
     }
     Ok(media)
 }
@@ -1449,7 +1455,8 @@ mod tests {
             "filename": "file.jpg",
             "_http_method": "POST",
             "_http_data": {"token": "safe value", "page": 2, "tag": ["a", "b"], "empty": null},
-            "_http_headers": {"X-Media-Mode": "private fixture"}
+            "_http_headers": {"X-Media-Mode": "private fixture"},
+            "tags": ["synthetic", "fixture"]
         }))
         .unwrap();
         let mut downloads = media_downloads_from_messages(vec![ExtractorMessage::Url {
@@ -1459,6 +1466,10 @@ mod tests {
         .unwrap();
         let download = downloads.pop().unwrap();
         assert_eq!(download.item.filename, "file.jpg");
+        assert_eq!(
+            download.metadata["tags"],
+            serde_json::json!(["synthetic", "fixture"])
+        );
         let request = download.request.unwrap();
         assert_eq!(request.method, Method::POST);
         assert_eq!(

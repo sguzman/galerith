@@ -2764,6 +2764,56 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
 }
 
 #[test]
+fn pinned_and_native_clients_write_matching_empty_tag_sidecars() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for tag-sidecar differential");
+    let output_root =
+        env::temp_dir().join(format!("galerith-tags-reference-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&output_root);
+    std::fs::create_dir_all(&output_root).unwrap();
+
+    let (pinned_url, pinned_server) = serve_retry_sequence([
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
+    ]);
+    let mut pinned =
+        Command::new(env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into()));
+    pinned.args([
+        "-m",
+        "gallery_dl",
+        "--config-ignore",
+        "--no-input",
+        "--write-tags",
+        "-d",
+    ]);
+    pinned.arg(output_root.join("pinned"));
+    pinned.arg(pinned_url);
+    pinned.env("PYTHONPATH", pinned_root);
+    pinned.env("PYTHONNOUSERSITE", "1");
+    pinned.env("PYTHONDONTWRITEBYTECODE", "1");
+    spawn(pinned, "pinned gallery-dl --write-tags");
+    pinned_server.join().unwrap();
+
+    let (native_url, native_server) = serve_retry_sequence([
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nIMG",
+    ]);
+    let mut native = Command::new(env!("CARGO_BIN_EXE_galerith"));
+    native.args(["--write-tags", "-d"]);
+    native.arg(output_root.join("native"));
+    native.arg(native_url);
+    spawn(native, "native Galerith --write-tags");
+    native_server.join().unwrap();
+
+    let pinned_tags = std::fs::read(output_root.join("pinned/asset.jpg.txt")).unwrap();
+    let native_tags = std::fs::read(output_root.join("native/asset.jpg.txt")).unwrap();
+    assert_eq!(native_tags, pinned_tags);
+    assert!(native_tags.is_empty(), "directlink has no tag metadata");
+    std::fs::remove_dir_all(output_root).unwrap();
+}
+
+#[test]
 fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;

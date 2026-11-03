@@ -17,7 +17,7 @@ use galerith::{
         to_upstream_tuple, ExtractorMessage, JobSelection, MAX_QUEUE_CHILDREN, MAX_QUEUE_DEPTH,
     },
     pacing::{parse_byte_size, with_request_delay_for_url, DelayRange, RateRange, RetryDelay},
-    postprocess::{write_info_json, write_metadata},
+    postprocess::{write_info_json, write_metadata, write_tags},
     privacy::{display_error, display_url},
     range::IndexRange,
 };
@@ -124,7 +124,11 @@ struct Cli {
     error_file: Option<PathBuf>,
 
     /// Print extracted URLs instead of downloading
-    #[arg(short = 'g', long)]
+    #[arg(
+        short = 'g',
+        long,
+        conflicts_with_all = ["write_metadata", "write_tags", "write_info_json"]
+    )]
     get_urls: bool,
 
     /// Print media URLs after resolving supported intermediary extractors
@@ -144,6 +148,7 @@ struct Cli {
             "file_range",
             "filename_template",
             "write_metadata",
+            "write_tags",
             "write_info_json",
             "download_archive"
         ]
@@ -167,6 +172,7 @@ struct Cli {
             "file_range",
             "filename_template",
             "write_metadata",
+            "write_tags",
             "write_info_json",
             "download_archive"
         ]
@@ -180,7 +186,7 @@ struct Cli {
         conflicts_with_all = [
             "get_urls", "resolve_urls", "resolve_json", "dump_json", "dump_messages",
             "list_keywords", "list_extractors", "list_modules", "follow_queues", "simulate",
-            "no_download", "file_range", "write_metadata", "write_info_json",
+            "no_download", "file_range", "write_metadata", "write_tags", "write_info_json",
             "write_pages", "destination", "error_file", "download_archive", "archive_event",
             "gallery_dl_archive", "gallery_dl_archive_table", "gallery_dl_archive_prefix",
             "archive_import", "cache_db", "cache_ttl", "no_skip", "no_mtime", "no_part",
@@ -199,14 +205,18 @@ struct Cli {
         conflicts_with_all = [
             "get_urls", "resolve_urls", "resolve_json", "dump_json", "dump_messages",
             "follow_queues", "list_extractors", "list_modules", "simulate", "no_download",
-            "file_range", "filename_template", "write_metadata", "write_info_json",
+            "file_range", "filename_template", "write_metadata", "write_tags", "write_info_json",
             "download_archive"
         ]
     )]
     list_keywords: bool,
 
     /// Print upstream-compatible directory/URL message tuples as JSON
-    #[arg(short = 'j', long)]
+    #[arg(
+        short = 'j',
+        long,
+        conflicts_with_all = ["write_metadata", "write_tags", "write_info_json"]
+    )]
     dump_json: bool,
 
     /// Simulate extraction without downloading
@@ -224,6 +234,7 @@ struct Cli {
             "file_range",
             "filename_template",
             "write_metadata",
+            "write_tags",
             "write_info_json",
             "download_archive"
         ]
@@ -338,6 +349,10 @@ struct Cli {
     /// Write a JSON sidecar for each saved or existing media file
     #[arg(long = "write-metadata")]
     write_metadata: bool,
+
+    /// Write newline-separated metadata tags beside each saved or existing media file
+    #[arg(long = "write-tags")]
+    write_tags: bool,
 
     /// Write bounded directory metadata to info.json
     #[arg(long = "write-info-json", alias = "write-infojson")]
@@ -1317,6 +1332,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         items
                             .into_iter()
                             .map(|item| MediaDownload {
+                                metadata: galerith::message::media_metadata(&item),
                                 item,
                                 request: None,
                             })
@@ -1358,7 +1374,15 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 write_info_json(&options.destination, item).await?;
             }
         }
-        for (index, MediaDownload { mut item, request }) in items.into_iter().enumerate() {
+        for (
+            index,
+            MediaDownload {
+                mut item,
+                request,
+                metadata,
+            },
+        ) in items.into_iter().enumerate()
+        {
             if selected
                 .as_ref()
                 .is_some_and(|range| !range.contains(index + 1))
@@ -1445,6 +1469,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
                         }
+                        if cli.write_tags {
+                            write_tags(&path, &metadata).await?;
+                        }
                         if record_download {
                             if let Some(ref archive) = archive {
                                 archive_record_item(archive, archive_item, &url, request_specific)?;
@@ -1457,6 +1484,9 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     Ok(DownloadOutcome::Skipped(path)) => {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
+                        }
+                        if cli.write_tags {
+                            write_tags(&path, &metadata).await?;
                         }
                         if record_skip {
                             if let Some(ref archive) = archive {

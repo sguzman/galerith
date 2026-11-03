@@ -137,6 +137,25 @@ fn url_extraction_is_offline() {
 }
 
 #[test]
+fn tag_sidecar_option_conflicts_with_url_only_output_modes() {
+    for args in [
+        vec![
+            "--get-urls",
+            "--write-tags",
+            "https://example.org/image.jpg",
+        ],
+        vec![
+            "--dump-json",
+            "--write-tags",
+            "https://example.org/image.jpg",
+        ],
+    ] {
+        let output = run(&args);
+        assert!(!output.status.success());
+    }
+}
+
+#[test]
 fn input_file_stdin_ignores_blank_and_comment_lines() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_galerith"))
         .args(["--input-file", "-", "--get-urls"])
