@@ -2075,14 +2075,14 @@ mod tests {
     #[test]
     fn html_conversion_decodes_named_and_numeric_entities() {
         assert_eq!(
-            render("{_lit[&lt;p&gt;foo &amp; &#x62;ar&lt;/p&gt;]!U}", &sample()).unwrap(),
+            decode_html_entities("&lt;p&gt;foo &amp; &#x62;ar&lt;/p&gt;"),
             "<p>foo & bar</p>"
         );
         assert_eq!(
-            render("{_lit[unmatched &amp text]!U}", &sample()).unwrap(),
+            decode_html_entities("unmatched &amp text"),
             "unmatched & text"
         );
-        assert_eq!(render("{_lit[&amp;amp;]!U}", &sample()).unwrap(), "&amp;");
+        assert_eq!(decode_html_entities("&amp;amp;"), "&amp;");
     }
 
     #[test]
