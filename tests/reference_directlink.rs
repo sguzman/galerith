@@ -2353,6 +2353,39 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         );
         assert_eq!(pinned, native, "upstream/native Unicode byte slice differs");
     }
+    for (label, template, expected) in [
+        (
+            "unicode-byte-truncate",
+            "{filename:Xb4/_/}.{extension}",
+            "é_.jpg",
+        ),
+        (
+            "unicode-byte-replace",
+            "{filename:Lb4/_/}.{extension}",
+            "_.jpg",
+        ),
+    ] {
+        let native = run_reference_filename_filesystem_fixture_for_path(
+            &root,
+            Path::new("."),
+            &format!("{label}-native"),
+            false,
+            template,
+            "%C3%A9%E7%8C%AB.jpg",
+        );
+        assert_eq!(native, Path::new(expected), "native {label} filename");
+        if let Some(pinned_root) = pinned_root.as_deref() {
+            let pinned = run_reference_filename_filesystem_fixture_for_path(
+                &root,
+                pinned_root,
+                &format!("{label}-pinned"),
+                true,
+                template,
+                "%C3%A9%E7%8C%AB.jpg",
+            );
+            assert_eq!(pinned, native, "upstream/native {label} filename differs");
+        }
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 

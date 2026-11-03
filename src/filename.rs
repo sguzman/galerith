@@ -192,8 +192,12 @@ fn slice_field_bytes(value: &str, selector: &str) -> Result<String, FormatError>
         };
         cursor = next;
     }
+    Ok(decode_utf8_ignoring_invalid(&bytes))
+}
+
+fn decode_utf8_ignoring_invalid(bytes: &[u8]) -> String {
     let mut result = String::with_capacity(bytes.len());
-    let mut remaining = bytes.as_slice();
+    let mut remaining = bytes;
     while !remaining.is_empty() {
         match std::str::from_utf8(remaining) {
             Ok(valid) => {
@@ -213,7 +217,7 @@ fn slice_field_bytes(value: &str, selector: &str) -> Result<String, FormatError>
             }
         }
     }
-    Ok(result)
+    result
 }
 
 fn python_string_repr(value: &str, ascii_only: bool) -> String {
@@ -645,11 +649,9 @@ fn field_with_metadata(
             Ok(format!("{prefix}{value}{suffix}"))
         };
     }
-    // Bounded character-count formatters used to keep output names portable.
-    // `Xn/suffix/` truncates and appends a suffix; `Ln/replacement/` replaces
-    // values whose length is greater than n. Byte-oriented variants are not
-    // implemented because their behavior depends on the host filesystem
-    // encoding.
+    // Bounded character-count and UTF-8 byte-count formatters used to keep
+    // output names portable. Byte-oriented truncation ignores an incomplete
+    // final code point, matching the formatter's UTF-8 decoding behavior.
     if let Some((max_len, replacement)) = spec
         .strip_prefix('X')
         .or_else(|| spec.strip_prefix('L'))
@@ -659,23 +661,39 @@ fn field_with_metadata(
         })
     {
         let truncate = spec.starts_with('X');
+        let byte_len = max_len.starts_with('b');
         let max_len = max_len
+            .strip_prefix('b')
+            .unwrap_or(max_len)
             .parse::<usize>()
             .ok()
             .filter(|length| (1..=240).contains(length))
             .ok_or_else(|| FormatError("invalid filename length limit".into()))?;
-        let length = value.chars().count();
+        let length = if byte_len {
+            value.len()
+        } else {
+            value.chars().count()
+        };
         if length <= max_len {
             return Ok(value);
         }
         if !truncate {
             return Ok(replacement.to_owned());
         }
-        let replacement_len = replacement.chars().count();
+        let replacement_len = if byte_len {
+            replacement.len()
+        } else {
+            replacement.chars().count()
+        };
         if replacement_len > max_len {
             return Err(FormatError(
                 "filename length suffix exceeds its configured limit".into(),
             ));
+        }
+        if byte_len {
+            let prefix =
+                decode_utf8_ignoring_invalid(&value.as_bytes()[..max_len - replacement_len]);
+            return Ok(format!("{prefix}{replacement}"));
         }
         return Ok(value
             .chars()
@@ -919,6 +937,11 @@ mod tests {
         assert_eq!(render("{stem:L20/long/}", &item).unwrap(), "猫猫猫猫猫");
         assert!(render("{stem:X3/long/}", &item).is_err());
         assert!(render("{stem:X0/../}", &item).is_err());
+
+        item.filename = "é猫x.jpg".into();
+        assert_eq!(render("{stem:Xb4/_/}", &item).unwrap(), "é_");
+        assert_eq!(render("{stem:Lb4/_/}", &item).unwrap(), "_");
+        assert_eq!(render("{stem:Xb6/_/}", &item).unwrap(), "é猫x");
     }
 
     #[test]
