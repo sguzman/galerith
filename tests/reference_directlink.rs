@@ -3101,20 +3101,10 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
         .expect("pinned per-media JSON is valid");
     let native_metadata: Value = serde_json::from_slice(&std::fs::read(native_sidecar).unwrap())
         .expect("native per-media JSON is valid");
-    for key in [
-        "category",
-        "filename",
-        "extension",
-        "domain",
-        "subcategory",
-        "path",
-    ] {
-        assert_eq!(
-            native_metadata.get(key),
-            pinned_metadata.get(key),
-            "directlink per-media metadata field {key} differs"
-        );
-    }
+    assert_eq!(
+        native_metadata, pinned_metadata,
+        "directlink per-media JSON sidecar differs from pinned gallery-dl"
+    );
     std::fs::remove_dir_all(output_root).unwrap();
 }
 

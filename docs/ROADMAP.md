@@ -255,9 +255,9 @@
   - [ ] Nested albums/media handling
   - [ ] Pagination and rate rules
   - [ ] Compatibility fixtures
-- 🌍 **T504** Generic and direct URL behavior — `███░░░░░░░ 25%`
+- 🌍 **T504** Generic and direct URL behavior — `█████░░░░░ 50%`
   - [x] Recognize direct HTTP media URL — src/lib.rs
-  - [ ] Match upstream directlink URL matching
+  - [x] Match upstream directlink URL matching — src/lib.rs and tests/reference_directlink.rs match the pinned directlink URL matcher. GitHub Actions 41670258182 pinned oracle passed the complete supported and rejected suffix matrix, plus pinned_and_native_match_directlink_url_shape_dispatch for seven negative path/query/scheme shapes; the existing directlink resolution, metadata, and filename comparisons also passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. This accepts direct URL dispatch only; generic gallery discovery/crawling is tracked separately.
   - [ ] Generic gallery discovery and crawling
   - [ ] Full reference fixtures
 - 🖌️ **T505** First Danbooru API-backed post and tag extractor — `█████████░ 92%`

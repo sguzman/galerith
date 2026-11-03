@@ -589,7 +589,7 @@
                 {
                   "title": "Reference golden metadata comparisons",
                   "passed": false,
-                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Per-media JSON has a synthetic exact-byte golden and source-metadata preservation/redaction regression. CI run 41654963191 confirmed recursive sidecar discovery; run 41656887475 showed pinned sidecars retain stem and include non-default ports in domain. src/postprocess.rs maps filename to the pinned stem while retaining stem, and src/extractor/directlink.rs includes the port in domain and subcategory. Run 41658329037 exposed that the differential fixture used separate ephemeral ports for each client; it now runs both clients against one URL. Run 41659305011 confirmed the port-bearing subcategory behavior. Run 41665527743 passed the pinned directory info.json comparison; its oracle failure was confined to the directlink suffix matrix. Local format, Clippy, all-target tests, roadmap check and release build pass after the latest changes. Full pinned per-media golden coverage and extractor metadata parity remain incomplete."
+                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Per-media JSON has a synthetic exact-byte golden and source-metadata preservation/redaction regression. CI run 41654963191 confirmed recursive sidecar discovery; run 41656887475 showed pinned sidecars retain stem and include non-default ports in domain. src/postprocess.rs maps filename to the pinned stem while retaining stem, and src/extractor/directlink.rs includes the port in domain and subcategory. Run 41658329037 exposed that the differential fixture used separate ephemeral ports for each client; it now runs both clients against one URL. Run 41659305011 confirmed the port-bearing subcategory behavior. Run 41665527743 passed the pinned directory info.json comparison; its oracle failure was confined to the directlink suffix matrix. The directlink per-media comparison now checks complete native and pinned JSON objects rather than six selected keys; local format, Clippy, all-target tests and roadmap check pass, but local execution skips pinned comparisons without the CI oracle. Retest is pending CI. Full pinned per-media golden coverage and extractor metadata parity remain incomplete."
                 }
               ]
             }
@@ -1291,8 +1291,8 @@
                 },
                 {
                   "title": "Match upstream directlink URL matching",
-                  "passed": false,
-                  "evidence": "src/lib.rs recognizes the pinned direct-media suffix subset. Oracle run 41667393568 compared the complete candidate list and found 29 suffixes accepted natively but rejected by the pin: heif, apng, tif, tiff, jxl, ico, avi, mpeg, mpg, vob, m1v, m2v, 3gp, 3g2, m2ts, mts, asf, wmv, m4a, aac, wma, flac, cbz, tar, tgz, gz, bz2, xz and zst. These are now removed from the native matcher; unit tests assert rejection and tests/reference_directlink.rs::pinned_and_native_reject_unsupported_directlink_suffixes checks all 29 native and pinned rejections. The suffix differential now scans the full candidate matrix and reports all pin rejections together. Retest is pending CI. URL-shape negatives beyond suffix rejection and generic gallery discovery/crawling remain incomplete."
+                  "passed": true,
+                  "evidence": "src/lib.rs and tests/reference_directlink.rs match the pinned directlink URL matcher. GitHub Actions 41670258182 pinned oracle passed the complete supported and rejected suffix matrix, plus pinned_and_native_match_directlink_url_shape_dispatch for seven negative path/query/scheme shapes; the existing directlink resolution, metadata, and filename comparisons also passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. This accepts direct URL dispatch only; generic gallery discovery/crawling is tracked separately."
                 },
                 {
                   "title": "Generic gallery discovery and crawling",
@@ -1303,7 +1303,7 @@
                   "passed": false
                 }
               ],
-              "progress": 25
+              "progress": 50
             },
             {
               "id": "T505",
