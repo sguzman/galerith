@@ -865,6 +865,12 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     };
     // Integer subset of Python's numeric mini-language: optional alternate
     // prefix, zero fill, and a bounded width.
+    let (alignment, radix) = match radix.chars().next() {
+        Some('<') => (Some('<'), &radix[1..]),
+        Some('>') => (Some('>'), &radix[1..]),
+        Some('^') => (Some('^'), &radix[1..]),
+        _ => (None, radix),
+    };
     let alternate = radix.starts_with('#');
     let width_spec = radix.strip_prefix('#').unwrap_or(radix);
     let zero_fill = width_spec.starts_with('0') && width_spec.len() > 1;
@@ -927,10 +933,15 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         digits.insert_str(0, &"0".repeat(padding));
         Ok(Some(format!("{sign}{prefix}{digits}")))
     } else {
+        let (left, right) = match alignment {
+            Some('<') => (0, padding),
+            Some('^') => (padding / 2, padding - padding / 2),
+            _ => (padding, 0),
+        };
         Ok(Some(format!(
-            "{}{}{prefix}{digits}",
-            " ".repeat(padding),
-            sign
+            "{}{sign}{prefix}{digits}{}",
+            " ".repeat(left),
+            " ".repeat(right)
         )))
     }
 }
