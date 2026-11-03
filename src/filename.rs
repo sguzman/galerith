@@ -52,7 +52,7 @@ enum FieldSelector<'a> {
 }
 
 fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<FieldSelector<'_>>), FormatError> {
-    let Some(mut cursor) = candidate.find(|character| matches!(character, '[' | '.')) else {
+    let Some(mut cursor) = candidate.find(['[', '.']) else {
         if candidate.contains(']') {
             return Err(FormatError("invalid filename field selector".into()));
         }
@@ -72,7 +72,7 @@ fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<FieldSelector<'_>
         if candidate.as_bytes().get(cursor) == Some(&b'.') {
             let start = cursor + 1;
             let end = candidate[start..]
-                .find(|character| matches!(character, '[' | '.'))
+                .find(['[', '.'])
                 .map_or(candidate.len(), |offset| start + offset);
             if start == end {
                 return Err(FormatError("invalid filename attribute selector".into()));
