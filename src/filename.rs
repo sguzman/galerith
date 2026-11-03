@@ -1956,6 +1956,21 @@ fn field_with_metadata(
             Ok(format!("{value:>parsed$}"))
         };
     }
+    // Python's string mini-language accepts a zero fill flag without an
+    // explicit alignment while retaining the string default (left alignment).
+    if spec.starts_with('0')
+        && spec.len() > 1
+        && spec[1..].bytes().all(|byte| byte.is_ascii_digit())
+    {
+        let width = spec[1..]
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid string width formatting".into()))?;
+        if width > 240 {
+            return Err(FormatError("filename string width is too large".into()));
+        }
+        let padding = width.saturating_sub(value.chars().count());
+        return Ok(format!("{value}{}", "0".repeat(padding)));
+    }
     let chars: Vec<char> = spec.chars().collect();
     let (fill, align, width_start) = match chars.as_slice() {
         [align, ..] if matches!(align, '<' | '>' | '^') => (' ', *align, 1),
@@ -2098,7 +2113,7 @@ mod tests {
         assert_eq!(render("{_lit[proof]}", &item).unwrap(), "proof");
         assert!(render("{_lit[]}", &item).is_err());
         assert!(render("{_lit}", &item).is_err());
-        assert!(render("{filename:03}", &item).is_err());
+        assert_eq!(render("{filename:03}", &item).unwrap(), "original");
         assert!(render("{filename:>241}", &item).is_err());
     }
 
@@ -2241,6 +2256,10 @@ mod tests {
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
+        assert_eq!(
+            render_with_metadata("{title:08}", &item, &metadata).unwrap(),
+            "plain000"
+        );
         assert_eq!(
             render_with_metadata("{tags:J, /}", &item, &metadata).unwrap(),
             "zeta, alpha, middle"
@@ -2853,7 +2872,7 @@ mod tests {
             .unwrap_err()
             .0
             .contains("unsupported"));
-        assert!(render("{filename:02}", &item).is_err());
+        assert_eq!(render("{filename:02}", &item).unwrap(), "original");
         assert!(render("{id", &item).is_err());
         assert!(render("{id:{extension}}", &item).is_err());
         assert!(render("extra}.jpg", &item).is_err());

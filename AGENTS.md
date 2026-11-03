@@ -9,6 +9,7 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 - Keep the pinned upstream baseline fixed until an explicitly approved migration. Use independently written Rust implementations and reference behavior. **Never translate/copy GPL-2.0 upstream implementations into the MIT repository without resolving the license and attribution requirements in `docs/PROVENANCE.md`.** Protect secrets and private user data.
 - Work on `main` by default; do not create a feature branch unless specifically requested. Respect unrelated local changes, never overwrite a dirty worktree, and never force-push.
 - Prefer Rust for app code and project automation; do not add a Python or npm runtime/tooling dependency.
+- **MBX is mandatory for every Rust build, test, lint, format, and run command.** Invoke Cargo through the installed MBX shim (for example, `mbx +1.99.1 test ...`). Never bypass MBX with a direct toolchain binary or by overriding `CARGO_TARGET_DIR`, `RUSTC`, `RUSTC_WRAPPER`, or `PATH`; never create an isolated temporary Cargo target. If an MBX build reports a managed target artifact is not writable, check that no build is active, inspect `mbx doctor --json` and `mbx explain --last`, and use only a documented MBX recovery command when its scope is understood (for example, `mbx clean` for this workspace). If MBX still cannot run the gate, report the exact error and stop build operations; do not fall back to direct Cargo or an alternate target.
 
 ## Autonomous iteration
 
@@ -21,7 +22,7 @@ When the user says **continue**, begin a **sustained autonomous work session tar
 3. Implement a meaningful vertical slice: behavior, regression tests, and documentation/fixture updates as applicable. A registered CLI option, placeholder adapter, or synthetic smoke test does **not** establish live-site/upstream parity.
 4. Validate locally, fix problems where possible, and commit/push independently once verified and authorized by the existing user instructions. Preserve task IDs, check semantics, scopes and prior evidence; don't relabel or split checks just to increase the score.
 5. Update accepted checks **only with evidence matching that check**. Local test results do not satisfy a check specifically requiring GitHub CI or live-site validation. Never invent CI runs, site test results, completion, or percentages. If blocked, explain the blocker and switch to a useful independent task when feasible.
-6. Rebuild generated roadmap/matrix from the machine ledgers using `cargo run --bin galerith-roadmap`; check with `cargo run --bin galerith-roadmap -- --check`. Do not hand-edit generated Markdown.
+6. Rebuild generated roadmap/matrix from the machine ledgers using `mbx +1.99.1 run --locked --bin galerith-roadmap`; check with `mbx +1.99.1 run --locked --bin galerith-roadmap -- --check`. Do not hand-edit generated Markdown.
 7. **Keep going after a successful commit**: choose the next ledger check and implement another substantive slice. This is a loop, not a one-task-per-`continue` workflow. Prefer several independently verifiable changes over an oversized untested patch. Check remaining execution budget periodically, and reserve enough room to leave the worktree consistent and summarize accurately.
 8. Only end early for an actual obstacle that prevents **all** other suitable work, a user stop, verified completion, or a real runtime/tool limit. A green test suite, a completed task, a ready next-task recommendation, or a nice-looking progress delta are **not** sufficient reasons to stop.
 
@@ -30,11 +31,11 @@ When the user says **continue**, begin a **sustained autonomous work session tar
 Run before claiming a verified local change:
 
 ```sh
-cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test --all-targets
-cargo run --bin galerith-roadmap -- --check
-cargo build --release
+mbx +1.99.1 fmt --all -- --check
+mbx +1.99.1 clippy --locked --all-targets -- -D warnings
+mbx +1.99.1 test --locked --all-targets
+mbx +1.99.1 run --locked --bin galerith-roadmap -- --check
+mbx +1.99.1 build --locked --release
 ```
 
 Report honestly if a gate cannot run or fails. Do not claim remote CI green until the actual corresponding commit's run is verified.
