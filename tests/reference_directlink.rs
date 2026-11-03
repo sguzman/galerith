@@ -2820,6 +2820,10 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         "{count:x<06d}",
         "{count:>06d}",
         "{count:^06d}",
+        "{count:+d}",
+        "{count: d}",
+        "{count:+06d}",
+        "{negative:+d}",
     ];
     let native = formats
         .iter()
@@ -2842,7 +2846,11 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
             "xx42xx",
             "42xxxx",
             "000042",
-            "004200"
+            "004200",
+            "+42",
+            " 42",
+            "+00042",
+            "-42"
         ]
     );
 

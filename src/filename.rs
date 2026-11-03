@@ -887,6 +887,10 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         ),
         _ => (None, " ".to_owned(), false, radix),
     };
+    let (sign_option, radix) = match radix.chars().next() {
+        Some(sign @ ('+' | '-' | ' ')) => (Some(sign), &radix[sign.len_utf8()..]),
+        _ => (None, radix),
+    };
     let alternate = radix.starts_with('#');
     let width_spec = radix.strip_prefix('#').unwrap_or(radix);
     let zero_flag = width_spec.starts_with('0') && width_spec.len() > 1;
@@ -927,7 +931,15 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let number = value
         .parse::<i128>()
         .map_err(|_| FormatError("numeric formatting requires an integer field".into()))?;
-    let sign = if number < 0 { "-" } else { "" };
+    let sign = if number < 0 {
+        "-"
+    } else {
+        match sign_option {
+            Some('+') => "+",
+            Some(' ') => " ",
+            _ => "",
+        }
+    };
     let magnitude = number.unsigned_abs();
     let mut digits = match (base, grouping) {
         (10, Some(separator)) => {
