@@ -1403,6 +1403,7 @@ mod tests {
             "mixed_tags": ["alpha", 2, false, null, [1, true], {"name": "one"}],
             "json_values": [1, true, null],
             "json_object": {"name": "é"},
+            "ordered_object": {"second": 2, "first": 1},
             "title": "plain",
             "display": "  Mixed Case  ",
             "display_encoded": "Mixed%20Case",
@@ -1468,6 +1469,10 @@ mod tests {
         assert_eq!(
             field_with_metadata("json_object!j", &item, &metadata).unwrap(),
             "{\"name\":\"\\u00e9\"}"
+        );
+        assert_eq!(
+            field_with_metadata("ordered_object!j", &item, &metadata).unwrap(),
+            "{\"second\":2,\"first\":1}"
         );
         assert_eq!(
             render_with_metadata("{title:A*3/}", &item, &metadata).unwrap(),
