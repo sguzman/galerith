@@ -495,6 +495,11 @@ fn map_formatter_spec(spec: &str) -> Option<(&str, &str)> {
     Some(spec.split_once('/').unwrap_or((spec, "")))
 }
 
+fn sort_formatter_spec(spec: &str) -> Option<(&str, &str)> {
+    let spec = spec.strip_prefix('S')?;
+    Some(spec.split_once('/').unwrap_or((spec, "")))
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -533,6 +538,30 @@ fn metadata_field(
                 .collect::<Result<Vec<_>, _>>()?;
             *spec = remainder;
             metadata_field(&Value::Array(mapped), field_name, conversion, spec)
+        }
+        Value::Array(values) if spec.starts_with('S') => {
+            let (options, remainder) =
+                sort_formatter_spec(spec).expect("sort formatter starts with S");
+            let mut sorted = values
+                .iter()
+                .map(|value| match value {
+                    Value::String(value) => Ok(value.clone()),
+                    _ => Err(FormatError(format!(
+                        "filename sort field '{field_name}' must contain only strings"
+                    ))),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            sorted.sort();
+            if options.contains('d') || options.contains('r') {
+                sorted.reverse();
+            }
+            *spec = remainder;
+            metadata_field(
+                &Value::Array(sorted.into_iter().map(Value::String).collect()),
+                field_name,
+                conversion,
+                spec,
+            )
         }
         Value::Array(values) if spec.starts_with('J') => {
             let (separator, remainder) =
@@ -1188,6 +1217,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{artists:Mname/J + /}", &item, &metadata).unwrap(),
             "one + two + three"
+        );
+        assert_eq!(
+            render_with_metadata("{tags:S/J, /}", &item, &metadata).unwrap(),
+            "alpha, middle, zeta"
+        );
+        assert_eq!(
+            render_with_metadata("{tags:Sr/J, /}", &item, &metadata).unwrap(),
+            "zeta, middle, alpha"
         );
         assert_eq!(
             render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
