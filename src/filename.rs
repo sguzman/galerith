@@ -965,7 +965,7 @@ fn group_integer_digits(digits: &str, separator: char, group_size: usize) -> Str
 }
 
 fn format_integer_character(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
-    if spec.chars().last() != Some('c') {
+    if !spec.ends_with('c') {
         return Ok(None);
     }
     let options = &spec[..spec.len() - 1];
