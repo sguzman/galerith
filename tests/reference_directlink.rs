@@ -243,6 +243,24 @@ fn run_reference_filename_filesystem_fixture(
     reference: bool,
     template: &str,
 ) -> std::path::PathBuf {
+    run_reference_filename_filesystem_fixture_for_path(
+        working_root,
+        pinned_root,
+        label,
+        reference,
+        template,
+        "asset.jpg",
+    )
+}
+
+fn run_reference_filename_filesystem_fixture_for_path(
+    working_root: &Path,
+    pinned_root: &Path,
+    label: &str,
+    reference: bool,
+    template: &str,
+    source_path: &str,
+) -> std::path::PathBuf {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = std::thread::spawn(move || {
@@ -267,7 +285,7 @@ fn run_reference_filename_filesystem_fixture(
 
     let output = working_root.join(format!("{label}-filename-output"));
     std::fs::create_dir_all(&output).unwrap();
-    let url = format!("http://{address}/asset.jpg");
+    let url = format!("http://{address}/{source_path}");
     let mut command = if reference {
         let mut command = Command::new("python3");
         command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
@@ -2314,7 +2332,72 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             assert_eq!(pinned, native, "upstream/native {label} saved path differs");
         }
     }
+    let unicode_byte_slice = "{filename[b0:5]}.{extension}";
+    let native = run_reference_filename_filesystem_fixture_for_path(
+        &root,
+        Path::new("."),
+        "unicode-byte-slice-native",
+        false,
+        unicode_byte_slice,
+        "%C3%A9%E7%8C%AB.jpg",
+    );
+    assert_eq!(native, Path::new("é猫.jpg"));
+    if let Some(pinned_root) = pinned_root.as_deref() {
+        let pinned = run_reference_filename_filesystem_fixture_for_path(
+            &root,
+            pinned_root,
+            "unicode-byte-slice-pinned",
+            true,
+            unicode_byte_slice,
+            "%C3%A9%E7%8C%AB.jpg",
+        );
+        assert_eq!(pinned, native, "upstream/native Unicode byte slice differs");
+    }
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn pinned_and_native_reject_invalid_utf8_filename_byte_slices() {
+    let template = "{filename[b0:1]}";
+    let url = "https://example.org/%C3%A9%E7%8C%AB.jpg";
+    let native = Command::new(env!("CARGO_BIN_EXE_galerith"))
+        .args(["--filename", template, "--simulate", url])
+        .output()
+        .unwrap();
+    assert!(
+        !native.status.success(),
+        "native accepted a filename slice ending inside a UTF-8 character"
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for filename byte-slice comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let pinned =
+        Command::new(env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into()))
+            .args([
+                "-m",
+                "gallery_dl",
+                "--config-ignore",
+                "--no-input",
+                "--filename",
+                template,
+                "--simulate",
+                url,
+            ])
+            .env("PYTHONPATH", root)
+            .env("PYTHONNOUSERSITE", "1")
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .output()
+            .unwrap();
+    assert!(
+        !pinned.status.success(),
+        "pinned gallery-dl accepted a filename slice ending inside a UTF-8 character"
+    );
 }
 
 #[test]
