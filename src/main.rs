@@ -1268,8 +1268,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     resolve_messages(&extractor_client, &url, cli.max_pages).await
                 }
             };
-            let message_future =
-                with_request_delay_for_url(&url, api_request_delay, message_future);
+            let message_future = with_request_delay_for_url(
+                &url,
+                request_delay_for_extractor(&url, api_request_delay),
+                message_future,
+            );
             let message_future = galerith::http_diagnostics::scope_default_request_headers(
                 diagnostic_request_headers.clone(),
                 message_future,
@@ -1340,8 +1343,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     })
             }
         };
-        let extraction_future =
-            with_request_delay_for_url(&url, api_request_delay, extraction_future);
+        let extraction_future = with_request_delay_for_url(
+            &url,
+            request_delay_for_extractor(&url, api_request_delay),
+            extraction_future,
+        );
         let extraction_future = galerith::http_diagnostics::scope_default_request_headers(
             diagnostic_request_headers,
             extraction_future,
@@ -1576,6 +1582,14 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Err(format!("{failed} URL(s) failed").into());
     }
     Ok(())
+}
+
+fn request_delay_for_extractor(url: &str, delay: Option<DelayRange>) -> Option<DelayRange> {
+    if extractor_name(url) == Some("directlink") {
+        None
+    } else {
+        delay
+    }
 }
 
 fn print_message_keywords(events: &[ExtractorMessage]) {
