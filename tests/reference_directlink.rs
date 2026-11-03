@@ -2859,6 +2859,44 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
 }
 
 #[test]
+fn pinned_formatter_selects_mapping_keys() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "labels": {"short": "safe", "display": "indigo"}
+    }))
+    .unwrap();
+    let template = "{labels[short]}_{labels[display]!u}";
+    let native = galerith::filename::render_with_metadata(template, &item, &metadata).unwrap();
+    assert_eq!(native, "safe_INDIGO");
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for mapping formatter comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'labels':{'short':'safe','display':'indigo'}}; print(formatter.parse('{labels[short]}_{labels[display]!u}').format_map(data))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned mapping key formatter").trim(),
+        native
+    );
+}
+
+#[test]
 fn pinned_formatter_matches_native_scalar_string_conversion_errors() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),

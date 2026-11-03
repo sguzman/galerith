@@ -820,7 +820,7 @@ fn field_with_metadata(
             }
             None => (*candidate, None),
         };
-        let mut selector_applied_to_list = false;
+        let mut selector_applied_to_container = false;
         let mut candidate_source = None;
         let (field_value, is_literal) = if base_name == "_lit" {
             let literal = selector.ok_or_else(|| {
@@ -864,9 +864,16 @@ fn field_with_metadata(
                                 (Value::Array(values), Some(selector)) => {
                                     Some(select_array(values, selector)?)
                                 }
+                                (Value::Object(fields), Some(selector)) => Some(
+                                    fields.get(selector).cloned().ok_or_else(|| {
+                                        FormatError(format!(
+                                            "filename mapping field '{base_name}[{selector}]' is missing"
+                                        ))
+                                    })?,
+                                ),
                                 _ => None,
                             };
-                            selector_applied_to_list = selected.is_some();
+                            selector_applied_to_container = selected.is_some();
                             let value = selected.as_ref().unwrap_or(value);
                             candidate_source = Some(value.clone());
                             let value =
@@ -901,7 +908,7 @@ fn field_with_metadata(
             }
             candidate_spec = remainder;
         }
-        let field_value = match (is_literal, selector_applied_to_list, selector) {
+        let field_value = match (is_literal, selector_applied_to_container, selector) {
             (true, _, _) | (false, true, _) | (false, false, None) => field_value,
             (false, false, Some(selector)) => slice_field(&field_value, selector)?,
         };
@@ -1635,6 +1642,21 @@ mod tests {
         assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
         assert!(render("{filename[99]}", &item).is_err());
         assert!(render("{filename[::0]}", &item).is_err());
+    }
+
+    #[test]
+    fn named_fields_select_mapping_keys() {
+        let item = sample();
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
+            "labels": {"short": "safe", "display": "indigo"}
+        }))
+        .unwrap();
+
+        assert_eq!(
+            render_with_metadata("{labels[short]}_{labels[display]!u}", &item, &metadata).unwrap(),
+            "safe_INDIGO"
+        );
+        assert!(render_with_metadata("{labels[missing]}", &item, &metadata).is_err());
     }
 
     #[test]
