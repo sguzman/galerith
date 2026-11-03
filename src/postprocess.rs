@@ -138,6 +138,11 @@ pub async fn write_metadata(
         Value::Object(value) => value,
         _ => unreachable!("metadata root is an object"),
     };
+    if item.extractor == "directlink" {
+        value = crate::message::upstream_metadata(&value);
+        value.remove("query");
+        value.remove("fragment");
+    }
     value.remove("extractor");
     value.insert("category".into(), Value::String(item.extractor.to_owned()));
     value
@@ -280,6 +285,9 @@ mod tests {
         assert_eq!(output["title"], "Source title");
         assert_eq!(output["tags"], serde_json::json!(["landscape", "night"]));
         assert_eq!(output["author"]["name"], "Public artist");
+        assert_eq!(output["filename"], "picture");
+        assert_eq!(output["extension"], "jpg");
+        assert!(output.get("stem").is_none());
         assert_eq!(output["url"], "https://example.org/picture.jpg");
         assert!(output.get("api_token").is_none());
         assert!(output.get("_http_headers").is_none());

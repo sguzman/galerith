@@ -12,7 +12,7 @@ use galerith::{
         extractor_name, resolve, resolve_media_job_downloads_selected, resolve_messages,
         resolve_messages_traversing_selected, MediaDownload, PREVIEW_EXTRACTORS,
     },
-    filename::render as render_filename,
+    filename::render_with_metadata as render_filename,
     message::{
         to_upstream_tuple, ExtractorMessage, JobSelection, MAX_QUEUE_CHILDREN, MAX_QUEUE_DEPTH,
     },
@@ -1400,7 +1400,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         .or_else(|| config.filename(item.extractor))
                 };
                 if let Some(template) = template {
-                    match render_filename(template, &item) {
+                    match render_filename(template, &item, &metadata) {
                         Ok(name) => item.filename = name,
                         Err(error) => {
                             eprintln!("galerith: invalid filename template: {error}");

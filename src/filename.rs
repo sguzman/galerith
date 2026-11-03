@@ -1,6 +1,8 @@
 //! Restricted, safe subset of gallery-dl's filename formatter.
 //! Unknown fields and format codes fail instead of silently claiming parity.
+use crate::message::Metadata;
 use crate::{safe_filename, MediaItem};
+use serde_json::Value;
 use std::{error::Error, fmt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -376,7 +378,40 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     }
 }
 
-fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
+fn metadata_field(
+    value: &Value,
+    field_name: &str,
+    conversion: &str,
+) -> Result<Option<String>, FormatError> {
+    match value {
+        Value::Null => Ok(None),
+        Value::String(value) => Ok(Some(value.clone())),
+        Value::Number(value) => Ok(Some(value.to_string())),
+        Value::Bool(value) => Ok(Some(if *value { "True" } else { "False" }.into())),
+        Value::Array(values) if conversion == "S" => values
+            .iter()
+            .map(|value| match value {
+                Value::String(value) => Ok(value.as_str()),
+                _ => Err(FormatError(format!(
+                    "filename list field '{field_name}' must contain only strings"
+                ))),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|values| Some(values.join(", "))),
+        Value::Array(_) => Err(FormatError(format!(
+            "filename list field '{field_name}' requires the !S conversion"
+        ))),
+        Value::Object(_) => Err(FormatError(format!(
+            "nested filename field '{field_name}' is unsupported"
+        ))),
+    }
+}
+
+fn field_with_metadata(
+    field: &str,
+    item: &MediaItem,
+    metadata: &Metadata,
+) -> Result<String, FormatError> {
     let (field_name, spec) = split_field_spec(field)?;
     let (name, conversion) = field_name.split_once('!').unwrap_or((field_name, ""));
     let candidates: Vec<_> = name.split('|').collect();
@@ -435,11 +470,24 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
                             None
                         }
                     },
-                    _ => {
-                        return Err(FormatError(format!(
-                            "unsupported filename field '{base_name}'"
-                        )))
-                    }
+                    _ => match metadata.get(base_name) {
+                        Some(value) => {
+                            let value = metadata_field(value, base_name, conversion)?;
+                            if value.is_none() {
+                                missing_field.get_or_insert(base_name);
+                            }
+                            value
+                        }
+                        None => {
+                            if metadata.is_empty() {
+                                return Err(FormatError(format!(
+                                    "unsupported filename field '{base_name}'"
+                                )));
+                            }
+                            missing_field.get_or_insert(base_name);
+                            None
+                        }
+                    },
                 },
                 false,
             )
@@ -478,7 +526,7 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
     };
     let mut spec = spec;
     let mut value = match conversion {
-        "" | "s" => value,
+        "" | "s" | "S" => value,
         "r" if matches!(base_name, "id" | "post_id") => value,
         "r" => python_string_repr(&value, false),
         "a" if matches!(base_name, "id" | "post_id") => value,
@@ -715,9 +763,24 @@ fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
         .collect())
 }
 
+#[cfg(test)]
+fn field(field: &str, item: &MediaItem) -> Result<String, FormatError> {
+    field_with_metadata(field, item, &Metadata::new())
+}
+
 /// Render escaped braces, simple named fields, and a bounded ID-width format.
 /// Never allow template text or its values to create directory components.
 pub fn render(template: &str, item: &MediaItem) -> Result<String, FormatError> {
+    render_with_metadata(template, item, &Metadata::new())
+}
+
+/// Render a filename template using source URL-event metadata for additional
+/// scalar fields and string lists with the !S human-readable conversion.
+pub fn render_with_metadata(
+    template: &str,
+    item: &MediaItem,
+    metadata: &Metadata,
+) -> Result<String, FormatError> {
     let mut result = String::new();
     let mut chars = template.chars().peekable();
     while let Some(ch) = chars.next() {
@@ -741,7 +804,7 @@ pub fn render(template: &str, item: &MediaItem) -> Result<String, FormatError> {
                 if key.is_empty() {
                     return Err(FormatError("empty filename field".into()));
                 }
-                result.push_str(&field(&key, item)?);
+                result.push_str(&field_with_metadata(&key, item, metadata)?);
             }
             '}' => {
                 if chars.peek() == Some(&'}') {
@@ -852,6 +915,32 @@ mod tests {
         let item = sample();
         assert_eq!(render("{filename!s}", &item).unwrap(), "original");
         assert_eq!(render("{id!s}", &item).unwrap(), "42");
+    }
+
+    #[test]
+    fn source_metadata_fields_and_string_lists_are_available_to_templates() {
+        let item = sample();
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "title": "Autumn Night",
+            "tags": ["autumn", "night sky"],
+            "count": 12,
+            "private": null
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{title!u}_{tags!S}_{count}", &item, &metadata).unwrap(),
+            "AUTUMN NIGHT_autumn, night sky_12"
+        );
+        assert_eq!(
+            render_with_metadata("{private|title}", &item, &metadata).unwrap(),
+            "Autumn Night"
+        );
+        assert_eq!(
+            render_with_metadata("{missing|title}", &item, &metadata).unwrap(),
+            "Autumn Night"
+        );
+        assert!(render_with_metadata("{tags}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{author}", &item, &metadata).is_err());
     }
 
     #[test]
