@@ -606,9 +606,19 @@ fn metadata_field(
             Ok(Some(String::new()))
         }
         Value::Array(values)
+            if values.is_empty() && matches!(conversion, "s" | "r" | "a" | "j" | "g") =>
+        {
+            Ok(Some("[]".into()))
+        }
+        Value::Array(values)
             if values.is_empty() && conversion.is_empty() && spec.starts_with('?') =>
         {
             Ok(Some(String::new()))
+        }
+        Value::Object(fields)
+            if fields.is_empty() && matches!(conversion, "s" | "r" | "a" | "j" | "g") =>
+        {
+            Ok(Some("{}".into()))
         }
         Value::Object(fields)
             if fields.is_empty() && conversion.is_empty() && spec.starts_with('?') =>
@@ -875,6 +885,9 @@ fn field_with_metadata(
     let native_scalar = selected_source
         .as_ref()
         .filter(|source| matches!(source, Value::Null | Value::Bool(_) | Value::Number(_)));
+    let native_non_string = selected_source
+        .as_ref()
+        .filter(|source| !matches!(source, Value::String(_)));
     if native_scalar.is_some()
         && matches!(conversion, "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q")
     {
@@ -884,11 +897,11 @@ fn field_with_metadata(
     }
     let mut value = match conversion {
         "" | "s" | "S" => value,
-        "r" if native_scalar.is_some() || matches!(base_name, "id" | "post_id") => value,
+        "r" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
         "r" => python_string_repr(&value, false),
-        "a" if native_scalar.is_some() || matches!(base_name, "id" | "post_id") => value,
+        "a" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
         "a" => python_string_repr(&value, true),
-        "j" if native_scalar.is_some() => native_scalar.unwrap().to_string(),
+        "j" if native_non_string.is_some() => native_non_string.unwrap().to_string(),
         "j" => python_json_string(&value),
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
@@ -1503,6 +1516,29 @@ mod tests {
         assert_eq!(
             render_with_metadata("{enabled!g}", &item, &metadata).unwrap(),
             "false"
+        );
+        for (field, expected) in [
+            ("empty_list!s", "[]"),
+            ("empty_list!r", "[]"),
+            ("empty_list!a", "[]"),
+            ("empty_list!j", "[]"),
+            ("empty_map!s", "{}"),
+            ("empty_map!r", "{}"),
+            ("empty_map!a", "{}"),
+            ("empty_map!j", "{}"),
+        ] {
+            assert_eq!(
+                field_with_metadata(field, &item, &metadata).unwrap(),
+                expected
+            );
+        }
+        assert_eq!(
+            render_with_metadata("file{empty_list!s:?yes/no/}", &item, &metadata).unwrap(),
+            "fileyes[]no"
+        );
+        assert_eq!(
+            render_with_metadata("file{empty_map!s:?yes/no/}", &item, &metadata).unwrap(),
+            "fileyes{}no"
         );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
