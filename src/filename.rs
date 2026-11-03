@@ -863,8 +863,8 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         '_' => (10, "", Some('_')),
         _ => return Ok(None),
     };
-    // Only the integer subset of Python's numeric mini-language needed for
-    // post IDs: optional alternate prefix, zero fill, and a bounded width.
+    // Integer subset of Python's numeric mini-language: optional alternate
+    // prefix, zero fill, and a bounded width.
     let alternate = radix.starts_with('#');
     let width_spec = radix.strip_prefix('#').unwrap_or(radix);
     let zero_fill = width_spec.starts_with('0') && width_spec.len() > 1;
@@ -1495,7 +1495,9 @@ fn field_with_metadata(
             .chain(replacement.chars())
             .collect());
     }
-    if matches!(base_name, "id" | "post_id") {
+    if matches!(base_name, "id" | "post_id")
+        || selected_source.as_ref().is_some_and(Value::is_number)
+    {
         if let Some(formatted) = format_radix_id(&value, spec)? {
             return Ok(formatted);
         }
