@@ -33,11 +33,24 @@ fn decode_url_component(value: &str) -> String {
 }
 
 fn decode_html_entities(value: &str) -> String {
-    const LEGACY: [(&str, &str); 4] = [("amp", "&"), ("lt", "<"), ("gt", ">"), ("quot", "\"")];
+    const LEGACY_NAMES: &str = r"
+        AElig AMP Aacute Acirc Agrave Aring Atilde Auml COPY Ccedil ETH Eacute Ecirc Egrave Euml
+        GT Iacute Icirc Igrave Iuml LT Ntilde Oacute Ocirc Ograve Oslash Otilde Ouml QUOT REG
+        THORN Uacute Ucirc Ugrave Uuml Yacute aacute acirc acute aelig agrave amp aring atilde auml
+        brvbar ccedil cedil cent copy curren deg divide eacute ecirc egrave eth euml frac12 frac14
+        frac34 gt iacute icirc iexcl igrave iquest iuml laquo lt macr micro middot nbsp not ntilde
+        oacute ocirc ograve ordf ordm oslash otilde ouml para plusmn pound quot raquo reg sect shy
+        sup1 sup2 sup3 szlig thorn times uacute ucirc ugrave uml uuml yacute yen yuml
+    ";
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0;
     while cursor < value.len() {
         if value.as_bytes()[cursor] == b'&' {
+            if let Some((decoded, end)) = decode_numeric_html_reference(value, cursor) {
+                output.push_str(&decoded);
+                cursor = end;
+                continue;
+            }
             if let Some(relative_end) = value[cursor..].find(';') {
                 let end = cursor + relative_end + 1;
                 if end - cursor <= 64 {
@@ -51,12 +64,13 @@ fn decode_html_entities(value: &str) -> String {
                 }
             }
             let suffix = &value[cursor + 1..];
-            if let Some((name, replacement)) = LEGACY.iter().find(|(name, _)| {
-                suffix
-                    .get(..name.len())
-                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case(name))
-            }) {
-                output.push_str(replacement);
+            if let Some(name) = LEGACY_NAMES
+                .split_ascii_whitespace()
+                .filter(|name| suffix.starts_with(name))
+                .max_by_key(|name| name.len())
+            {
+                let entity = format!("&{name};");
+                output.push_str(&html_escape::decode_html_entities(&entity));
                 cursor += name.len() + 1;
                 continue;
             }
@@ -66,6 +80,91 @@ fn decode_html_entities(value: &str) -> String {
         cursor += character.len_utf8();
     }
     output
+}
+
+fn decode_numeric_html_reference(value: &str, cursor: usize) -> Option<(String, usize)> {
+    let bytes = value.as_bytes();
+    if bytes.get(cursor..cursor + 2)? != b"&#" {
+        return None;
+    }
+    let mut digits = cursor + 2;
+    let radix = if bytes
+        .get(digits)
+        .is_some_and(|byte| matches!(*byte, b'x' | b'X'))
+    {
+        digits += 1;
+        16u32
+    } else {
+        10u32
+    };
+    let first_digit = digits;
+    let mut codepoint = 0u32;
+    let mut overflow = false;
+    while let Some(&byte) = bytes.get(digits) {
+        let digit = match byte {
+            b'0'..=b'9' => u32::from(byte - b'0'),
+            b'a'..=b'f' if radix == 16 => u32::from(byte - b'a' + 10),
+            b'A'..=b'F' if radix == 16 => u32::from(byte - b'A' + 10),
+            _ => break,
+        };
+        overflow |= codepoint
+            .checked_mul(radix)
+            .and_then(|number| number.checked_add(digit))
+            .is_none();
+        codepoint = codepoint.saturating_mul(radix).saturating_add(digit);
+        digits += 1;
+    }
+    if digits == first_digit {
+        return None;
+    }
+    if bytes.get(digits) == Some(&b';') {
+        digits += 1;
+    }
+    let codepoint = if overflow || codepoint == 0 || codepoint > 0x10_FFFF {
+        0xFFFD
+    } else {
+        match codepoint {
+            0x80 => 0x20AC,
+            0x82 => 0x201A,
+            0x83 => 0x0192,
+            0x84 => 0x201E,
+            0x85 => 0x2026,
+            0x86 => 0x2020,
+            0x87 => 0x2021,
+            0x88 => 0x02C6,
+            0x89 => 0x2030,
+            0x8A => 0x0160,
+            0x8B => 0x2039,
+            0x8C => 0x0152,
+            0x8E => 0x017D,
+            0x91 => 0x2018,
+            0x92 => 0x2019,
+            0x93 => 0x201C,
+            0x94 => 0x201D,
+            0x95 => 0x2022,
+            0x96 => 0x2013,
+            0x97 => 0x2014,
+            0x98 => 0x02DC,
+            0x99 => 0x2122,
+            0x9A => 0x0161,
+            0x9B => 0x203A,
+            0x9C => 0x0153,
+            0x9E => 0x017E,
+            0x9F => 0x0178,
+            value => value,
+        }
+    };
+    let text = if matches!(
+        codepoint,
+        0x01..=0x08 | 0x0B | 0x0E..=0x1F | 0x7F
+    ) || (0xFDD0..=0xFDEF).contains(&codepoint)
+        || codepoint & 0xFFFE == 0xFFFE
+    {
+        String::new()
+    } else {
+        char::from_u32(codepoint).unwrap_or('\u{FFFD}').to_string()
+    };
+    Some((text, digits))
 }
 
 fn html_to_text(value: &str) -> String {
@@ -2122,6 +2221,9 @@ mod tests {
             "unmatched & text"
         );
         assert_eq!(decode_html_entities("&amp;amp;"), "&amp;");
+        assert_eq!(decode_html_entities("&copy &notin &CoPy"), "© ¬in &CoPy");
+        assert_eq!(decode_html_entities("&#128 &#x80; &#0;"), "€ € �");
+        assert_eq!(decode_html_entities("&#1;|&#xFDD0;|&#xD800;"), "||�");
     }
 
     #[test]

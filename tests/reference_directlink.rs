@@ -2265,6 +2265,16 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "a & b",
         ),
         (
+            "html-legacy-copyright-conversion",
+            "{_lit[a &copy b]!U}",
+            "a © b",
+        ),
+        (
+            "html-numeric-entity-conversion",
+            "{_lit[a &#128 b]!U}",
+            "a € b",
+        ),
+        (
             "json-conversion",
             "{_lit[élan]!j:R\"/_/R\\/_/}",
             "__u00e9lan_",
