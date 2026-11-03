@@ -405,14 +405,38 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
     }
 }
 
+fn join_formatter_spec(spec: &str) -> Option<(&str, &str)> {
+    let spec = spec.strip_prefix('J')?;
+    Some(spec.split_once('/').unwrap_or((spec, "")))
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
     conversion: &str,
+    spec: &mut &str,
 ) -> Result<Option<String>, FormatError> {
     match value {
         Value::Null => Ok(None),
         Value::String(value) => Ok(Some(value.clone())),
+        Value::Array(values) if spec.starts_with('J') => {
+            let (separator, remainder) =
+                join_formatter_spec(spec).expect("join formatter spec starts with J");
+            let values = values
+                .iter()
+                .map(|value| match value {
+                    Value::String(value) => Ok(value.as_str()),
+                    _ => Err(FormatError(format!(
+                        "filename list field '{field_name}' must contain only strings"
+                    ))),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            *spec = remainder;
+            Ok(Some(values.join(separator)))
+        }
+        Value::Number(_) | Value::Bool(_) if spec.starts_with('J') => Err(FormatError(
+            "filename join formatter requires a string or string list".into(),
+        )),
         Value::Number(value) => Ok(Some(value.to_string())),
         Value::Bool(value) => Ok(Some(if *value { "True" } else { "False" }.into())),
         Value::Array(values) if conversion == "S" => values
@@ -448,8 +472,10 @@ fn field_with_metadata(
     let mut value = None;
     let mut selected_base = None;
     let mut empty_fallback = None;
+    let mut selected_spec = None;
     let mut missing_field = None;
     for candidate in &candidates {
+        let mut candidate_spec = spec;
         let (base_name, selector) = match candidate.split_once('[') {
             Some((base, suffix)) => (
                 base,
@@ -499,7 +525,8 @@ fn field_with_metadata(
                     },
                     _ => match metadata.get(base_name) {
                         Some(value) => {
-                            let value = metadata_field(value, base_name, conversion)?;
+                            let value =
+                                metadata_field(value, base_name, conversion, &mut candidate_spec)?;
                             if value.is_none() {
                                 missing_field.get_or_insert(base_name);
                             }
@@ -522,20 +549,32 @@ fn field_with_metadata(
         let Some(field_value) = field_value else {
             continue;
         };
+        if let Some((_, remainder)) = join_formatter_spec(candidate_spec) {
+            if matches!(base_name, "id" | "post_id") {
+                return Err(FormatError(
+                    "filename join formatter requires a string or string list".into(),
+                ));
+            }
+            candidate_spec = remainder;
+        }
         let field_value = match (is_literal, selector) {
             (true, _) | (false, None) => field_value,
             (false, Some(selector)) => slice_field(&field_value, selector)?,
         };
         if !field_value.is_empty() && value.is_none() {
             selected_base = Some(base_name);
+            selected_spec = Some(candidate_spec);
             value = Some(field_value);
         } else if field_value.is_empty() && value.is_none() {
-            empty_fallback.get_or_insert((base_name, field_value));
+            empty_fallback.get_or_insert((base_name, field_value, candidate_spec));
         }
     }
     let (base_name, value) = match (selected_base, value, empty_fallback) {
         (Some(base), Some(value), _) => (base, value),
-        (None, None, Some((base, value))) => (base, value),
+        (None, None, Some((base, value, spec))) => {
+            selected_spec = Some(spec);
+            (base, value)
+        }
         (None, None, None) if candidates.len() == 1 => {
             if let Some(missing) = missing_field {
                 return Err(FormatError(format!("missing metadata field '{missing}'")));
@@ -551,7 +590,7 @@ fn field_with_metadata(
         ),
         _ => unreachable!("selected filename field must have a value"),
     };
-    let mut spec = spec;
+    let mut spec = selected_spec.unwrap_or(spec);
     let mut value = match conversion {
         "" | "s" | "S" => value,
         "r" if matches!(base_name, "id" | "post_id") => value,
@@ -987,6 +1026,29 @@ mod tests {
         );
         assert!(render_with_metadata("{tags}", &item, &metadata).is_err());
         assert!(render_with_metadata("{author}", &item, &metadata).is_err());
+    }
+
+    #[test]
+    fn join_formatter_joins_string_lists_and_leaves_strings_unchanged() {
+        let item = sample();
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
+            "tags": ["zeta", "alpha", "middle"],
+            "title": "plain"
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{tags:J, /}", &item, &metadata).unwrap(),
+            "zeta, alpha, middle"
+        );
+        assert_eq!(
+            render_with_metadata("{tags:J/}", &item, &metadata).unwrap(),
+            "zetaalphamiddle"
+        );
+        assert_eq!(
+            render_with_metadata("{title:J, /}", &item, &metadata).unwrap(),
+            "plain"
+        );
+        assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
     }
 
     #[test]

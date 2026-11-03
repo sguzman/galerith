@@ -2680,6 +2680,48 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
 }
 
 #[test]
+fn pinned_formatter_matches_native_string_list_join_formatter() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "tags": ["zeta", "alpha", "middle"],
+        "title": "plain"
+    }))
+    .unwrap();
+    let formats = ["{tags:J, /}", "{tags:J/}", "{title:J, /}"];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, &metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["zeta, alpha, middle", "zetaalphamiddle", "plain"]);
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for join formatter comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain'}; formats=('{tags:J, /}','{tags:J/}','{title:J, /}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned string-list join formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_and_native_clients_match_last_modified_mtime() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
