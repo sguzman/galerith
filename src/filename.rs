@@ -880,7 +880,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let first = spec_chars.next();
     let second = spec_chars.next();
     let (alignment, mut fill, explicit_fill, radix) = match (first, second) {
-        (Some((_, fill)), Some((end, alignment @ ('<' | '>' | '^'))))
+        (Some((_, fill)), Some((end, alignment @ ('<' | '>' | '^' | '='))))
             if !matches!(fill, '{' | '}') =>
         {
             (
@@ -890,7 +890,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
                 &radix[end + alignment.len_utf8()..],
             )
         }
-        (Some((0, alignment @ ('<' | '>' | '^'))), _) => (
+        (Some((0, alignment @ ('<' | '>' | '^' | '='))), _) => (
             Some(alignment),
             " ".to_owned(),
             false,
@@ -967,6 +967,12 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
             digits = group_integer_digits(&digits, separator);
         }
         let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
+        if alignment == Some('=') {
+            return Ok(Some(format!(
+                "{sign}{prefix}{}{digits}",
+                fill.repeat(padding)
+            )));
+        }
         let (left, right) = match alignment {
             Some('<') => (0, padding),
             Some('^') => (padding / 2, padding - padding / 2),
@@ -1805,8 +1811,20 @@ mod tests {
         assert_eq!(field("id:^6d", &item).unwrap(), "  42  ");
         assert_eq!(field("id:>06d", &item).unwrap(), "000042");
         assert_eq!(field("id:^06d", &item).unwrap(), "004200");
+        assert_eq!(field("id:=06d", &item).unwrap(), "000042");
+        assert_eq!(field("id:x=6d", &item).unwrap(), "xx42");
         assert_eq!(field("id:x>6d", &item).unwrap(), "xxxx42");
         assert_eq!(field("id:x<06d", &item).unwrap(), "42xxxx");
+        let metadata = serde_json::json!({"negative": -42});
+        let metadata = metadata.as_object().unwrap();
+        assert_eq!(
+            field_with_metadata("negative:=06d", &item, metadata).unwrap(),
+            "-00042"
+        );
+        assert_eq!(
+            field_with_metadata("negative:x=6d", &item, metadata).unwrap(),
+            "-xxx42"
+        );
     }
 
     #[test]
@@ -2357,8 +2375,8 @@ mod tests {
         assert_eq!(render("{id:,}", &item).unwrap(), "1,234,567");
         assert_eq!(render("{id:_}", &item).unwrap(), "1_234_567");
         assert_eq!(render("{id:12,}", &item).unwrap(), "   1,234,567");
-        assert!(render("{id:#,}", &item).is_err());
-        assert!(render("{id:012,}", &item).is_err());
+        assert_eq!(render("{id:#,}", &item).unwrap(), "1,234,567");
+        assert_eq!(render("{id:012,}", &item).unwrap(), "0,001,234,567");
     }
 
     #[test]
