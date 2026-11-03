@@ -66,7 +66,7 @@ fn decode_html_entities(value: &str) -> String {
             let suffix = &value[cursor + 1..];
             if let Some(name) = LEGACY_NAMES
                 .split_ascii_whitespace()
-                .filter(|name| suffix.starts_with(name))
+                .filter(|name| suffix.starts_with(*name))
                 .max_by_key(|name| name.len())
             {
                 let entity = format!("&{name};");
