@@ -2761,7 +2761,9 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "negative": -1.25,
         "tiny": 0.00000012345,
         "small": 0.000012345,
-        "zero": 0.0
+        "zero": 0.0,
+        "large": 1_234_567,
+        "medium": 1_234
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
@@ -2790,10 +2792,13 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "{whole:.3g}",
         "{negative:.3G}",
         "{zero:.3g}",
-        "{whole:#.0f}",
+        "{whole:#.0f}x",
         "{whole:#.3g}",
         "{whole:#.0e}",
         "{zero:#.3g}",
+        "{large:,.2f}",
+        "{medium:_.5g}",
+        "{large:15,.2f}",
     ];
     let native = formats
         .iter()
@@ -2829,10 +2834,13 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             "42",
             "-1.25",
             "0",
-            "42.",
+            "42.x",
             "42.0",
             "4.e+01",
-            "0.00"
+            "0.00",
+            "1,234,567.00",
+            "1_234",
+            "   1,234,567.00"
         ]
     );
 
@@ -2845,7 +2853,7 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42,'ratio':0.125,'negative':-1.25,'tiny':0.00000012345,'small':0.000012345,'zero':0.0}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42,'ratio':0.125,'negative':-1.25,'tiny':0.00000012345,'small':0.000012345,'zero':0.0,'large':1234567,'medium':1234}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);

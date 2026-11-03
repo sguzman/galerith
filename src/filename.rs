@@ -908,15 +908,26 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
     } else {
         width_spec
     };
-    if !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+    let (width_digits, grouping) = match width_text.find([',', '_']) {
+        Some(index) if width_text[index + 1..].is_empty() => {
+            (&width_text[..index], width_text[index..].chars().next())
+        }
+        Some(_) => {
+            return Err(FormatError(
+                "unsupported numeric format specification".into(),
+            ));
+        }
+        None => (width_text, None),
+    };
+    if !width_digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(FormatError(
             "unsupported numeric format specification".into(),
         ));
     }
-    let width = if width_text.is_empty() {
+    let width = if width_digits.is_empty() {
         0
     } else {
-        width_text
+        width_digits
             .parse::<usize>()
             .map_err(|_| FormatError("invalid numeric width".into()))?
     };
@@ -985,6 +996,17 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
     if alternate && !output.contains('.') {
         let insertion = output.find(['e', 'E', '%']).unwrap_or(output.len());
         output.insert(insertion, '.');
+    }
+    if let Some(separator) = grouping {
+        let suffix_start = output.find(['e', 'E', '%']).unwrap_or(output.len());
+        let decimal_start = output[..suffix_start].find('.').unwrap_or(suffix_start);
+        let integer_start = usize::from(output.starts_with('-'));
+        let grouped = group_integer_digits(&output[integer_start..decimal_start], separator, 3);
+        output = format!(
+            "{}{grouped}{}",
+            &output[..integer_start],
+            &output[decimal_start..]
+        );
     }
     if !sign.is_empty() && !output.starts_with('-') {
         output.insert_str(0, sign);
