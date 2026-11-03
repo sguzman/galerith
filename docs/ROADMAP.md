@@ -102,7 +102,7 @@
 - 📋 **T303** Metadata sidecars and extension handling — `████████░░ 80%`
   - [x] Metadata model for extractors — src/lib.rs
   - [ ] Sidecar JSON/text/original metadata
-  - [x] Media extensions and MIME matching — src/download.rs::known_media_mime_types_match_expected_extensions covers image, audio, video and archive MIME aliases, rejects conflicting/clearly different types, and permits extensionless templates and unknown generic types; tests/download_http.rs covers representative response MIME/extension downloads. Full Rust CI 41488106362 passed. Synthetic fixtures only.
+  - [x] Media extensions and MIME matching — src/download.rs::media_extension_from_mime infers upstream suffixes for extensionless outputs; tests/download_http.rs::extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases covers HLS/DASH/AAC aliases; tests/reference_directlink.rs::pinned_and_native_clients_correct_aac_hls_and_dash_signatures covers the pinned MIME-mismatch behavior. Synthetic loopback fixtures only.
   - [x] Golden sidecar comparison tests — src/postprocess.rs redacted_sidecar_matches_stable_synthetic_golden compares exact serialized bytes with tests/fixtures/metadata/directlink.json; offline unit test passed
   - [x] Verify atomic per-media redacted JSON metadata preview — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418
 - 🗄️ **T304** Download history and collision semantics — `██████████ 100%`

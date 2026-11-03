@@ -2778,6 +2778,11 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
     const DASH_LATE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/dash+xml\r\nContent-Length: 27\r\nConnection: close\r\n\r\n                <MPD></MPD>";
     const TIFF: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 18\r\nConnection: close\r\n\r\nII*\0synthetic TIFF";
     const GZIP: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 18\r\nConnection: close\r\n\r\n\x1f\x8b\x08\0synthetic gzip";
+    const UNTYPED_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 20\r\nConnection: close\r\n\r\n<html>Blocked</html>";
+    const JSON: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"error\":\"denied\"}";
+    const PROBLEM_JSON: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: application/problem+json\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"error\":\"denied\"}";
+    const UNTYPED_JSON: &[u8] =
+        b"HTTP/1.1 200 OK\r\nContent-Length: 18\r\nConnection: close\r\n\r\n{\"error\":\"denied\"}";
     let cases = [
         ("/asset.mp3", AAC, "mp3", "aac"),
         ("/asset.mp4", HLS, "mp4", "m3u8"),
@@ -2787,6 +2792,10 @@ fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
         ("/asset.jpg", TIFF, "jpg", "jpg"),
         ("/asset.jpg", GZIP, "jpg", "jpg"),
         ("/asset.jpg", b"HTTP/1.1 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: 4\r\nConnection: close\r\n\r\nICON", "jpg", "jpg"),
+        ("/asset.jpg", UNTYPED_HTML, "jpg", "jpg"),
+        ("/asset.jpg", JSON, "jpg", "jpg"),
+        ("/asset.jpg", PROBLEM_JSON, "jpg", "jpg"),
+        ("/asset.jpg", UNTYPED_JSON, "jpg", "jpg"),
     ];
     let root = env::temp_dir().join(format!(
         "galerith-pinned-media-signatures-oracle-{}",

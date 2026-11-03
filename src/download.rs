@@ -157,9 +157,8 @@ fn media_extension(item: &MediaItem) -> Option<String> {
         .or_else(|| source_extension(&item.url))
 }
 
-/// A synthetic success response containing an HTML/JSON error document
-/// cannot complete an unrelated media, PDF, archive or other direct file.
-/// Legitimate HTML/JSON downloads with corresponding extensions are allowed.
+/// Match the upstream check for declared HTML responses when the output
+/// suffix is not HTML.
 fn media_error_document(item: &MediaItem, content_type: &str, validate_html: bool) -> bool {
     let extension = media_extension(item);
     let mime = content_type
@@ -170,9 +169,6 @@ fn media_error_document(item: &MediaItem, content_type: &str, validate_html: boo
         .to_ascii_lowercase();
     match mime.as_str() {
         "text/html" => validate_html && !matches!(extension.as_deref(), Some("html" | "htm")),
-        "application/xhtml+xml" => validate_html && extension.as_deref() != Some("xhtml"),
-        "application/json" => !matches!(extension.as_deref(), Some("json" | "jsonl")),
-        "application/problem+json" => true,
         _ => false,
     }
 }
@@ -725,8 +721,7 @@ pub async fn download(
         if !matches!(status, StatusCode::OK | StatusCode::PARTIAL_CONTENT) {
             return Err(error("unexpected HTTP status for completed media"));
         }
-        // Some image hosts return a branded HTML/JSON block page with 200.
-        // Never archive it as completed image or video content.
+        // Match the pinned validation rule for explicitly declared HTML.
         let response_content_type = header(&response, CONTENT_TYPE);
         let mime_extension = media_extension_from_mime(response_content_type.as_deref());
         if response_content_type
@@ -972,7 +967,12 @@ pub async fn download(
             .adjust_extensions
             .then(|| signature_extension(&first_bytes, current_extension))
             .flatten();
-        let misleading_error_body = detected_extension != Some("html")
+        // A host can replace a resumed suffix with a block page while still
+        // returning 206. Keep that conservative recovery guard scoped to a
+        // request that already had a validated partial; fresh downloads
+        // follow the pinned downloader's signature and MIME behavior.
+        let misleading_error_body = offset > 0
+            && detected_extension != Some("html")
             && looks_like_soft_error_body(item, &response_first_bytes, options.validate_html);
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
@@ -1332,7 +1332,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_mismatched_soft_error_documents_for_direct_files() {
+    fn reject_only_declared_html_for_non_html_outputs() {
         let item = MediaItem {
             url: "https://example.test/media.jpg".into(),
             filename: "photo.jpg".into(),
@@ -1349,13 +1349,14 @@ mod tests {
             "text/html; charset=UTF-8",
             false
         ));
-        assert!(media_error_document(&item, "APPLICATION/JSON", true));
-        assert!(media_error_document(&item, "APPLICATION/JSON", false));
-        assert!(media_error_document(
+        assert!(!media_error_document(&item, "APPLICATION/JSON", true));
+        assert!(!media_error_document(&item, "APPLICATION/JSON", false));
+        assert!(!media_error_document(
             &item,
             "application/problem+json",
             true
         ));
+        assert!(!media_error_document(&item, "application/xhtml+xml", true));
         assert!(!media_error_document(&item, "image/jpeg", true));
         assert!(!media_error_document(
             &item,
@@ -1368,7 +1369,7 @@ mod tests {
         };
         assert!(!media_error_document(&html, "text/html", true));
         assert!(!media_error_document(&html, "text/html", false));
-        assert!(media_error_document(
+        assert!(!media_error_document(
             &html,
             "application/problem+json",
             true
@@ -1379,7 +1380,7 @@ mod tests {
         };
         assert!(media_error_document(&pdf, "text/html", true));
         assert!(!media_error_document(&pdf, "text/html", false));
-        assert!(media_error_document(&pdf, "application/json", true));
+        assert!(!media_error_document(&pdf, "application/json", true));
         assert!(!media_error_document(&pdf, "application/pdf", true));
         let archive = MediaItem {
             filename: "media.7z".into(),
@@ -1392,7 +1393,7 @@ mod tests {
         };
         assert!(!media_error_document(&json, "application/json", true));
         assert!(media_error_document(&json, "text/html", true));
-        assert!(media_error_document(
+        assert!(!media_error_document(
             &json,
             "application/problem+json",
             true
