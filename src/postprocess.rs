@@ -5,7 +5,7 @@ use crate::{
     privacy::display_url,
     MediaItem,
 };
-use serde_json::json;
+use serde_json::{Map, Value};
 use std::{
     error::Error,
     ffi::OsString,
@@ -119,28 +119,73 @@ pub async fn write_tags(
 pub async fn write_metadata(
     target: &Path,
     item: &MediaItem,
+    metadata: &Metadata,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
     let output = sidecar_path(target)?;
-    let mut value = json!({
-        "category": item.extractor,
-        "filename": item.filename,
-        "post_id": item.post_id,
-        "source_url": display_url(&item.url),
-    });
+    let mut source_metadata = metadata.clone();
     if item.extractor == "directlink" {
-        if let Some(crate::message::ExtractorMessage::Url { metadata, .. }) =
-            crate::extractor::directlink::resolve_messages(&item.url)?
-                .into_iter()
-                .last()
+        if let Some(ExtractorMessage::Url {
+            metadata: directlink_metadata,
+            ..
+        }) = crate::extractor::directlink::resolve_messages(&item.url)?
+            .into_iter()
+            .find(|message| matches!(message, ExtractorMessage::Url { .. }))
         {
-            for field in ["domain", "subcategory", "path", "stem", "extension"] {
-                if let Some(source_value) = metadata.get(field) {
-                    value[field] = source_value.clone();
-                }
-            }
+            source_metadata.extend(directlink_metadata);
         }
     }
-    write_json_atomic(&output, &value).await
+    let mut value = match sanitize_metadata(&Value::Object(source_metadata)) {
+        Value::Object(value) => value,
+        _ => unreachable!("metadata root is an object"),
+    };
+    value.remove("extractor");
+    value.insert("category".into(), Value::String(item.extractor.to_owned()));
+    value
+        .entry("filename")
+        .or_insert_with(|| Value::String(item.filename.clone()));
+    value
+        .entry("post_id")
+        .or_insert_with(|| item.post_id.map_or(Value::Null, Value::from));
+    value.insert("source_url".into(), Value::String(display_url(&item.url)));
+    write_json_atomic(&output, &Value::Object(value)).await
+}
+
+fn sensitive_metadata_key(key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    key.starts_with('_')
+        || matches!(key.as_str(), "query" | "fragment")
+        || [
+            "token",
+            "secret",
+            "password",
+            "authorization",
+            "cookie",
+            "credential",
+        ]
+        .iter()
+        .any(|marker| key.contains(marker))
+}
+
+fn sanitize_metadata(value: &Value) -> Value {
+    match value {
+        Value::Object(object) => Value::Object(
+            object
+                .iter()
+                .filter(|(key, _)| !sensitive_metadata_key(key))
+                .map(|(key, value)| (key.clone(), sanitize_metadata(value)))
+                .collect::<Map<_, _>>(),
+        ),
+        Value::Array(values) => Value::Array(values.iter().map(sanitize_metadata).collect()),
+        Value::String(value) => {
+            if let Ok(url) = url::Url::parse(value) {
+                if matches!(url.scheme(), "http" | "https") {
+                    return Value::String(display_url(value));
+                }
+            }
+            Value::String(value.clone())
+        }
+        value => value.clone(),
+    }
 }
 
 /// Write a bounded gallery-level info.json from the directory metadata.
@@ -173,6 +218,17 @@ mod tests {
     use super::*;
     use crate::extract_direct_media;
 
+    fn directlink_metadata(item: &MediaItem) -> Metadata {
+        crate::extractor::directlink::resolve_messages(&item.url)
+            .unwrap()
+            .into_iter()
+            .find_map(|message| match message {
+                ExtractorMessage::Url { metadata, .. } => Some(metadata),
+                _ => None,
+            })
+            .unwrap()
+    }
+
     #[tokio::test]
     async fn creates_redacted_per_file_metadata_with_no_temporary_residue() {
         let root =
@@ -183,7 +239,8 @@ mod tests {
             .unwrap();
         let target = root.join("picture.jpg");
         fs::write(&target, b"jpeg fixture").await.unwrap();
-        let sidecar = write_metadata(&target, &item).await.unwrap();
+        let metadata = directlink_metadata(&item);
+        let sidecar = write_metadata(&target, &item, &metadata).await.unwrap();
         assert_eq!(sidecar, root.join("picture.jpg.json"));
         let bytes = fs::read(sidecar).await.unwrap();
         let content = String::from_utf8(bytes).unwrap();
@@ -192,6 +249,52 @@ mod tests {
         assert!(!content.contains("secret"));
         let entries = std::fs::read_dir(&root).unwrap().count();
         assert_eq!(entries, 2);
+        fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn metadata_sidecar_preserves_source_fields_and_redacts_private_values() {
+        let root = std::env::temp_dir().join(format!(
+            "galerith-metadata-source-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root).await;
+        fs::create_dir_all(&root).await.unwrap();
+        let item = extract_direct_media("https://example.org/picture.jpg").unwrap();
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "category": "directlink",
+            "title": "Source title",
+            "tags": ["landscape", "night"],
+            "url": "https://user:private@example.org/picture.jpg?token=signed#fragment",
+            "api_token": "secret-token",
+            "_http_headers": {"Authorization": "private-header"},
+            "author": {"name": "Public artist", "access_token": "nested-secret"}
+        }))
+        .unwrap();
+        let target = root.join("picture.jpg");
+        fs::write(&target, b"synthetic media").await.unwrap();
+
+        let sidecar = write_metadata(&target, &item, &metadata).await.unwrap();
+        let output = fs::read_to_string(sidecar).await.unwrap();
+        let output: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(output["title"], "Source title");
+        assert_eq!(output["tags"], serde_json::json!(["landscape", "night"]));
+        assert_eq!(output["author"]["name"], "Public artist");
+        assert_eq!(output["url"], "https://example.org/picture.jpg");
+        assert!(output.get("api_token").is_none());
+        assert!(output.get("_http_headers").is_none());
+        assert!(output["author"].get("access_token").is_none());
+        let serialized = serde_json::to_string(&output).unwrap();
+        for private in [
+            "private",
+            "signed",
+            "fragment",
+            "secret-token",
+            "private-header",
+            "nested-secret",
+        ] {
+            assert!(!serialized.contains(private), "leaked {private}");
+        }
         fs::remove_dir_all(root).await.unwrap();
     }
 
@@ -208,7 +311,8 @@ mod tests {
         let target = root.join("picture.jpg");
         fs::write(&target, b"synthetic image").await.unwrap();
 
-        let sidecar = write_metadata(&target, &item).await.unwrap();
+        let metadata = directlink_metadata(&item);
+        let sidecar = write_metadata(&target, &item, &metadata).await.unwrap();
         let actual = fs::read_to_string(sidecar).await.unwrap();
         let expected = include_str!("../tests/fixtures/metadata/directlink.json").trim_end();
         assert_eq!(actual, expected);

@@ -1333,8 +1333,18 @@ fn native_sidecar(
     runtime: &tokio::runtime::Runtime,
 ) -> Value {
     std::fs::write(target, b"metadata fixture").unwrap();
+    let metadata = galerith::extractor::directlink::resolve_messages(&item.url)
+        .unwrap()
+        .into_iter()
+        .find_map(|message| match message {
+            galerith::message::ExtractorMessage::Url { metadata, .. } => Some(metadata),
+            _ => None,
+        })
+        .unwrap();
     let sidecar = runtime
-        .block_on(galerith::postprocess::write_metadata(target, item))
+        .block_on(galerith::postprocess::write_metadata(
+            target, item, &metadata,
+        ))
         .unwrap();
     serde_json::from_slice(&std::fs::read(sidecar).unwrap()).unwrap()
 }

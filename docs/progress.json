@@ -494,7 +494,7 @@
                 {
                   "title": "Sidecar JSON/text/original metadata",
                   "passed": false,
-                  "evidence": "Partial: src/postprocess.rs implements atomic per-media tag sidecars, omits the file when tags are absent, and newline-terminates present tags; local unit and CLI tests pass. tests/reference_directlink.rs now compares the missing-tags case with the pinned client, but CI run 41574377683 failed because the earlier differential expected an empty file; rerun pinned oracle required. Full JSON/text/original metadata parity remains unverified."
+                  "evidence": "Partial: src/postprocess.rs implements atomic per-media tag sidecars, omits the file when tags are absent, and newline-terminates present tags; local unit and CLI tests pass. tests/reference_directlink.rs compares missing-tag behavior with pinned gallery-dl; GitHub Actions 41651266972 passed the pinned oracle and Rust gates. Full JSON/text/original metadata parity remains unverified."
                 },
                 {
                   "title": "Media extensions and MIME matching",
@@ -583,12 +583,13 @@
                 },
                 {
                   "title": "Full upstream metadata and output formats",
-                  "passed": false
+                  "passed": false,
+                  "evidence": "Partial: src/postprocess.rs now preserves safe source URL-event metadata in per-media JSON sidecars and recursively removes query/fragment, private underscore fields, credential-like keys, and credentials/query values in URL strings; local source-field and redaction regression passes. Full pinned extractor metadata, output formats, and postprocessor lifecycle remain incomplete."
                 },
                 {
                   "title": "Reference golden metadata comparisons",
                   "passed": false,
-                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Local focused tests pass; full extractor metadata and golden parity remains incomplete pending pinned CI."
+                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Per-media JSON has a synthetic exact-byte golden and a source-metadata preservation/redaction regression; full pinned per-media golden coverage and extractor metadata parity remain incomplete."
                 }
               ]
             }

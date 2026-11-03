@@ -1467,7 +1467,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 match outcome {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
-                            write_metadata(&path, &item).await?;
+                            write_metadata(&path, &item, &metadata).await?;
                         }
                         if cli.write_tags {
                             write_tags(&path, &metadata).await?;
@@ -1483,7 +1483,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     }
                     Ok(DownloadOutcome::Skipped(path)) => {
                         if cli.write_metadata {
-                            write_metadata(&path, &item).await?;
+                            write_metadata(&path, &item, &metadata).await?;
                         }
                         if cli.write_tags {
                             write_tags(&path, &metadata).await?;
