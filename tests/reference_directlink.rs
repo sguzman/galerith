@@ -2763,7 +2763,9 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "small": 0.000012345,
         "zero": 0.0,
         "large": 1_234_567,
-        "medium": 1_234
+        "medium": 1_234,
+        "round_up": 999.9,
+        "round_down": 0.00009999
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
@@ -2792,6 +2794,8 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "{whole:.3g}",
         "{negative:.3G}",
         "{zero:.3g}",
+        "{round_up:.3g}",
+        "{round_down:.3g}",
         "{whole:#.0f}x",
         "{whole:#.3g}",
         "{whole:#.0e}",
@@ -2838,6 +2842,8 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             "42",
             "-1.25",
             "0",
+            "1e+03",
+            "0.0001",
             "42.x",
             "42.0",
             "4.e+01",
@@ -2861,7 +2867,7 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42,'ratio':0.125,'negative':-1.25,'tiny':0.00000012345,'small':0.000012345,'zero':0.0,'large':1234567,'medium':1234}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'rating':1.2345,'whole':42,'ratio':0.125,'negative':-1.25,'tiny':0.00000012345,'small':0.000012345,'zero':0.0,'large':1234567,'medium':1234,'round_up':999.9,'round_down':0.00009999}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);
