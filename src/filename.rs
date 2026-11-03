@@ -39,6 +39,9 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
 }
 
 fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
+    if let Some(selector) = selector.strip_prefix('b') {
+        return slice_field_bytes(value, selector);
+    }
     let chars: Vec<char> = value.chars().collect();
     if selector.contains(':') {
         let parts: Vec<_> = selector.split(':').collect();
@@ -119,6 +122,76 @@ fn slice_field(value: &str, selector: &str) -> Result<String, FormatError> {
         .copied()
         .map(String::from)
         .ok_or_else(|| FormatError("filename field index out of range".into()))
+}
+
+fn slice_field_bytes(value: &str, selector: &str) -> Result<String, FormatError> {
+    let parts: Vec<_> = selector.split(':').collect();
+    if !(2..=3).contains(&parts.len()) {
+        return Err(FormatError("byte selector requires a slice".into()));
+    }
+    let index = |raw: &str| -> Result<Option<isize>, FormatError> {
+        if raw.is_empty() {
+            Ok(None)
+        } else {
+            raw.parse::<isize>()
+                .map(Some)
+                .map_err(|_| FormatError("invalid filename byte-slice index".into()))
+        }
+    };
+    let length = isize::try_from(value.len())
+        .map_err(|_| FormatError("filename field is too long to slice".into()))?;
+    let start = index(parts[0])?;
+    let stop = index(parts[1])?;
+    let step = if parts.len() == 3 {
+        index(parts[2])?.unwrap_or(1)
+    } else {
+        1
+    };
+    if step == 0 {
+        return Err(FormatError("filename slice step cannot be zero".into()));
+    }
+    let normalize = |value: isize, negative_step: bool| {
+        let value = if value < 0 {
+            value.saturating_add(length)
+        } else {
+            value
+        };
+        if negative_step {
+            value.clamp(-1, length.saturating_sub(1))
+        } else {
+            value.clamp(0, length)
+        }
+    };
+    let negative_step = step < 0;
+    let mut cursor = match start {
+        Some(value) => normalize(value, negative_step),
+        None if negative_step => length.saturating_sub(1),
+        None => 0,
+    };
+    let end = match stop {
+        Some(value) => normalize(value, negative_step),
+        None if negative_step => -1,
+        None => length,
+    };
+    let mut bytes = Vec::new();
+    while if negative_step {
+        cursor > end
+    } else {
+        cursor < end
+    } {
+        if let Some(byte) = usize::try_from(cursor)
+            .ok()
+            .and_then(|index| value.as_bytes().get(index))
+        {
+            bytes.push(*byte);
+        }
+        let Some(next) = cursor.checked_add(step) else {
+            break;
+        };
+        cursor = next;
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| FormatError("filename byte slice is not valid UTF-8".into()))
 }
 
 fn python_string_repr(value: &str, ascii_only: bool) -> String {
@@ -798,6 +871,19 @@ mod tests {
         assert_eq!(render("x{filename[99:]}", &item).unwrap(), "x");
         assert!(render("{filename[99]}", &item).is_err());
         assert!(render("{filename[::0]}", &item).is_err());
+    }
+
+    #[test]
+    fn byte_slices_match_utf8_byte_offsets_and_reject_invalid_boundaries() {
+        let mut item = sample();
+        item.filename = "asset.jpg".into();
+        assert_eq!(render("{filename[b0:3]}", &item).unwrap(), "ass");
+        assert_eq!(render("{filename[b1:5:2]}", &item).unwrap(), "se");
+        assert_eq!(render("{filename[b::-1]}", &item).unwrap(), "tessa");
+        item.filename = "猫x.jpg".into();
+        assert_eq!(render("{stem[b0:3]}", &item).unwrap(), "猫");
+        assert!(render("{stem[b1:3]}", &item).is_err());
+        assert!(render("{stem[b0:2:0]}", &item).is_err());
     }
 
     #[test]

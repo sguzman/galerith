@@ -2148,6 +2148,7 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{category}_{extension[0:2]}.{extension}",
             "directlink_jp.jpg",
         ),
+        ("byte-slice", "{filename[b0:3]}.{extension}", "ass.jpg"),
         (
             "filename-stem",
             "{category}_{filename}.{extension}",
@@ -2848,7 +2849,7 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
         "--config-ignore",
         "--no-input",
         "--write-metadata",
-        "-d",
+        "-D",
     ]);
     pinned.arg(output_root.join("pinned"));
     pinned.arg(pinned_url);
@@ -2868,16 +2869,24 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
     spawn(native, "native Galerith --write-metadata");
     native_server.join().unwrap();
 
-    let pinned_metadata: Value = serde_json::from_slice(
-        &std::fs::read(output_root.join("pinned/asset.jpg.json"))
-            .expect("pinned per-media JSON sidecar created"),
-    )
-    .unwrap();
-    let native_metadata: Value = serde_json::from_slice(
-        &std::fs::read(output_root.join("native/asset.jpg.json"))
-            .expect("native per-media JSON sidecar created"),
-    )
-    .unwrap();
+    let pinned_sidecar = saved_paths(&output_root.join("pinned"))
+        .into_iter()
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .expect("pinned per-media JSON sidecar created");
+    let native_sidecar = saved_paths(&output_root.join("native"))
+        .into_iter()
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .expect("native per-media JSON sidecar created");
+    let pinned_metadata: Value = serde_json::from_slice(&std::fs::read(pinned_sidecar).unwrap())
+        .expect("pinned per-media JSON is valid");
+    let native_metadata: Value = serde_json::from_slice(&std::fs::read(native_sidecar).unwrap())
+        .expect("native per-media JSON is valid");
     for key in [
         "category",
         "filename",
