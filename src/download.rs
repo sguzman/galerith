@@ -237,7 +237,16 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
 /// Return a conservative extension correction for common, unambiguous file
 /// signatures. The prefix is bounded by the downloader and is never trusted
 /// for formats whose signatures overlap substantially.
-fn signature_extension(first: &[u8]) -> Option<&'static str> {
+fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<&'static str> {
+    let extension = current_extension?.to_ascii_lowercase();
+    let checkable = [
+        "jpg", "png", "gif", "bmp", "webp", "avif", "heic", "svg", "ico", "cur", "psd", "mp4",
+        "m4v", "mov", "webm", "ogg", "wav", "mp3", "zip", "rar", "7z", "pdf", "swf", "blend",
+        "obj", "clip", "bin",
+    ];
+    if !checkable.contains(&extension.as_str()) {
+        return None;
+    }
     if first.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("png")
     } else if first.starts_with(b"\xff\xd8\xff") {
@@ -248,9 +257,50 @@ fn signature_extension(first: &[u8]) -> Option<&'static str> {
         Some("pdf")
     } else if first.starts_with(b"BM") {
         Some("bmp")
+    } else if first.get(0..4) == Some(b"RIFF") && first.get(8..12) == Some(b"WEBP") {
+        Some("webp")
+    } else if first.get(4..11) == Some(b"ftypavi") && matches!(first.get(11), Some(b'f' | b's')) {
+        Some("avif")
+    } else if first.get(4..10) == Some(b"ftyphe")
+        && matches!(
+            first.get(10..12),
+            Some(b"ic" | b"im" | b"is" | b"ix" | b"vc" | b"vm" | b"vs")
+        )
+    {
+        Some("heic")
+    } else if first.starts_with(b"<?xml") {
+        Some("svg")
+    } else if first.starts_with(b"\0\0\x01\0") {
+        Some("ico")
+    } else if first.starts_with(b"\0\0\x02\0") {
+        Some("cur")
+    } else if first.starts_with(b"8BPS") {
+        Some("psd")
+    } else if first.get(4..8) == Some(b"ftyp")
+        && first
+            .get(8..11)
+            .is_some_and(|brand| [b"mp4".as_slice(), b"avc", b"iso"].contains(&brand))
+    {
+        Some("mp4")
+    } else if first.get(4..11) == Some(b"ftypM4V") {
+        Some("m4v")
+    } else if first.starts_with(b"\x1a\x45\xdf\xa3") {
+        Some("webm")
+    } else if first.starts_with(b"OggS") {
+        Some("ogg")
+    } else if first.get(0..4) == Some(b"RIFF") && first.get(8..12) == Some(b"WAVE") {
+        Some("wav")
+    } else if first.starts_with(b"ID3")
+        || [b"\xff\xfb".as_slice(), b"\xff\xf3", b"\xff\xf2"]
+            .contains(&first.get(0..2).unwrap_or_default())
+    {
+        Some("mp3")
     } else if first.starts_with(b"II*\0") || first.starts_with(b"MM\0*") {
         Some("tif")
-    } else if first.starts_with(b"PK\x03\x04") || first.starts_with(b"PK\x05\x06") {
+    } else if first.starts_with(b"PK\x03\x04")
+        || first.starts_with(b"PK\x05\x06")
+        || first.starts_with(b"PK\x07\x08")
+    {
         Some("zip")
     } else if first.starts_with(b"7z\xbc\xaf\x27\x1c") {
         Some("7z")
@@ -258,6 +308,14 @@ fn signature_extension(first: &[u8]) -> Option<&'static str> {
         Some("rar")
     } else if first.starts_with(b"\x1f\x8b") {
         Some("gz")
+    } else if first.starts_with(b"CWS") || first.starts_with(b"FWS") {
+        Some("swf")
+    } else if first.starts_with(b"BLENDER") {
+        Some("blend")
+    } else if first.starts_with(b"# Blender v") {
+        Some("obj")
+    } else if first.starts_with(b"CSFCHUNK") {
+        Some("clip")
     } else {
         None
     }
@@ -874,7 +932,12 @@ pub async fn download(
         }
         let detected_extension = options
             .adjust_extensions
-            .then(|| signature_extension(&first_bytes))
+            .then(|| {
+                signature_extension(
+                    &first_bytes,
+                    target.extension().and_then(|value| value.to_str()),
+                )
+            })
             .flatten();
         if transfer_error.is_none()
             && incompatible_media_type
@@ -1010,6 +1073,28 @@ pub async fn download(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn signature_correction_covers_common_checkable_formats_and_ignores_other_suffixes() {
+        for (current, prefix, corrected) in [
+            ("jpg", b"RIFFxxxxWEBP".as_slice(), "webp"),
+            ("png", b"\0\0\x02\0", "cur"),
+            ("mov", b"\x89PNG\r\n\x1a\n", "png"),
+            ("jpg", b"xxxxftypavif", "avif"),
+            ("jpg", b"xxxxftypheic", "heic"),
+            ("jpg", b"xxxxftypmp4", "mp4"),
+            ("jpg", b"RIFFxxxxWAVE", "wav"),
+            ("jpg", b"\x1a\x45\xdf\xa3", "webm"),
+            ("jpg", b"OggS", "ogg"),
+            ("jpg", b"ID3", "mp3"),
+            ("jpg", b"8BPS", "psd"),
+            ("jpg", b"BLENDER", "blend"),
+            ("jpg", b"CSFCHUNK", "clip"),
+        ] {
+            assert_eq!(signature_extension(prefix, Some(current)), Some(corrected));
+        }
+        assert_eq!(signature_extension(b"\x89PNG\r\n\x1a\n", Some("txt")), None);
+    }
 
     #[test]
     fn absent_429_retry_after_uses_reference_interval_unless_configured() {
