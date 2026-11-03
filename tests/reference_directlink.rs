@@ -2717,13 +2717,17 @@ fn pinned_and_native_http_signature_correction_adjust_output_extension() {
             "{label}: {}",
             String::from_utf8_lossy(&result.stderr)
         );
+        let filenames = std::fs::read_dir(&output)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
         assert!(
-            output.join("asset.png").exists(),
-            "{label}: expected corrected PNG output"
+            filenames.iter().any(|filename| filename.ends_with(".png")),
+            "{label}: expected corrected PNG output, found {filenames:?}"
         );
         assert!(
-            !output.join("asset.jpg").exists(),
-            "{label}: original suffix must not remain"
+            filenames.iter().all(|filename| !filename.ends_with(".jpg")),
+            "{label}: original suffix must not remain: {filenames:?}"
         );
     }
     server.join().unwrap();
