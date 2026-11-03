@@ -95,9 +95,9 @@ fn pinned_resolve_urls(root: &Path, url: &str) -> String {
     spawn(command, "pinned gallery-dl --resolve-urls")
 }
 
-fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
-    let mut cmd = Command::new("python3");
-    cmd.args([
+fn pinned_event_output(root: &Path, url: &str) -> std::process::Output {
+    let mut command = Command::new("python3");
+    command.args([
         "-m",
         "gallery_dl",
         "--config-ignore",
@@ -105,10 +105,10 @@ fn pinned_events(root: &Path, url: &str) -> Vec<Value> {
         "--dump-json",
         url,
     ]);
-    cmd.env("PYTHONPATH", root);
-    cmd.env("PYTHONNOUSERSITE", "1");
-    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
-    serde_json::from_str(&spawn(cmd, "pinned gallery-dl")).expect("upstream typed-message JSON")
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    command.output().expect("launch pinned gallery-dl")
 }
 
 fn serve_retry_sequence<const N: usize>(
@@ -1381,6 +1381,7 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         )
         .collect::<Vec<_>>();
     let mut verified_cases = Vec::with_capacity(urls.len());
+    let mut unsupported_suffixes = Vec::new();
     let db_dir = env::temp_dir().join(format!(
         "galerith-pinned-archive-oracle-{}",
         std::process::id()
@@ -1391,10 +1392,34 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
     for (case_index, url) in urls.iter().enumerate() {
         let rust = native_events(url);
         let native_tuples = native_upstream_tuples(url);
-        let source = pinned_events(root, url);
         assert_eq!(rust.len(), 2, "{url}: native event count");
         assert_eq!(native_tuples.len(), rust.len(), "{url}: native tuple count");
+        let output = pinned_event_output(root, url);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if case_index >= URLS.len() && stderr.contains("Unsupported URL") {
+                unsupported_suffixes.push(url.rsplit('.').next().unwrap_or(url).to_owned());
+                continue;
+            }
+            panic!(
+                "pinned gallery-dl: exit {:?}: {stderr}",
+                output.status.code()
+            );
+        }
+        let source: Vec<Value> =
+            serde_json::from_slice(&output.stdout).expect("upstream typed-message JSON");
         assert_eq!(source.len(), 2, "{url}: upstream event count");
+        if case_index >= URLS.len() {
+            assert_eq!(
+                native_tuples, source,
+                "{url}: complete pinned suffix metadata"
+            );
+            verified_cases.push(json!({
+                "url": url,
+                "status": "suffix_and_source_metadata_match"
+            }));
+            continue;
+        }
         for (ordinal, (native, upstream)) in rust.iter().zip(&source).enumerate() {
             let tuple = upstream.as_array().expect("upstream message tuple");
             let kind = if ordinal == 0 { 2 } else { 3 };
@@ -1591,6 +1616,10 @@ fn live_pinned_runtime_directlink_events_match_on_source_metadata() {
         }));
     }
     std::fs::remove_dir_all(&db_dir).unwrap();
+    assert!(
+        unsupported_suffixes.is_empty(),
+        "pinned gallery-dl rejected native directlink suffixes: {unsupported_suffixes:?}"
+    );
     if let Ok(report_path) = env::var("GALERITH_ORACLE_REPORT_PATH") {
         let path = Path::new(&report_path);
         std::fs::create_dir_all(path.parent().expect("oracle report parent"))
