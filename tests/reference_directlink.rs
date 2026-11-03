@@ -2255,6 +2255,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("url-decode-conversion", "{_lit[a%20b]!Q}", "a b"),
         ("html-entity-conversion", "{_lit[a &amp; b]!U}", "a & b"),
         (
+            "html-text-conversion",
+            "{_lit[<p>a &amp; <b>b</b></p>]!H}",
+            "a & b",
+        ),
+        (
             "html-legacy-entity-conversion",
             "{_lit[a &amp b]!U}",
             "a & b",

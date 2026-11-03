@@ -68,6 +68,44 @@ fn decode_html_entities(value: &str) -> String {
     output
 }
 
+fn html_to_text(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor] == b'<' {
+            if value[cursor..].starts_with("<!--") {
+                if let Some(end) = value[cursor + 4..].find("-->") {
+                    output.push(' ');
+                    cursor += 4 + end + 3;
+                    continue;
+                }
+            }
+            let mut end = cursor + 1;
+            let mut quote = None;
+            while end < bytes.len() {
+                match (quote, bytes[end]) {
+                    (Some(delimiter), byte) if delimiter == byte => quote = None,
+                    (None, b'\'' | b'"') => quote = Some(bytes[end]),
+                    (None, b'>') if end > cursor + 1 => break,
+                    _ => {}
+                }
+                end += 1;
+            }
+            if end < bytes.len() && bytes[end] == b'>' && end > cursor + 1 {
+                output.push(' ');
+                cursor = end + 1;
+                continue;
+            }
+        }
+        let character = value[cursor..].chars().next().expect("cursor is in bounds");
+        output.push(character);
+        cursor += character.len_utf8();
+    }
+    let collapsed = output.split_whitespace().collect::<Vec<_>>().join(" ");
+    decode_html_entities(&collapsed)
+}
+
 fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     let mut depth = 0usize;
     for (index, character) in field.char_indices() {
@@ -1122,7 +1160,7 @@ fn field_with_metadata(
     if native_scalar.is_some()
         && matches!(
             conversion,
-            "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q" | "U"
+            "l" | "u" | "c" | "C" | "t" | "W" | "q" | "Q" | "U" | "H"
         )
     {
         return Err(FormatError(
@@ -1141,6 +1179,7 @@ fn field_with_metadata(
         "q" => encode_url_component(&value),
         "Q" => decode_url_component(&value),
         "U" => decode_html_entities(&value),
+        "H" => html_to_text(&value),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -2083,6 +2122,16 @@ mod tests {
             "unmatched & text"
         );
         assert_eq!(decode_html_entities("&amp;amp;"), "&amp;");
+    }
+
+    #[test]
+    fn html_text_conversion_removes_tags_and_collapses_whitespace() {
+        assert_eq!(
+            html_to_text("<p>  foo &amp; <b>bar</b> </p><!-- ignored --> baz"),
+            "foo & bar baz"
+        );
+        assert_eq!(html_to_text("<a title=\"1 > 0\">link</a>"), "link");
+        assert_eq!(html_to_text("plain text"), "plain text");
     }
 
     #[test]
