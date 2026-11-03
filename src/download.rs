@@ -6,10 +6,10 @@ use crate::{safe_filename, MediaItem};
 use fs2::FileExt;
 use reqwest::{
     header::{
-        HeaderMap, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, ETAG,
-        IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER,
+        HeaderMap, HeaderValue, ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_RANGE,
+        CONTENT_TYPE, ETAG, IF_RANGE, LAST_MODIFIED, RANGE, RETRY_AFTER,
     },
-    Client, StatusCode,
+    Client, Method, StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -56,6 +56,35 @@ pub struct DownloadOptions {
     pub rate_limit_delay: Option<RetryDelay>,
     /// Optional delay before starting a non-skipped media download.
     pub download_delay: Option<DelayRange>,
+}
+
+/// Per-media HTTP request metadata carried by extractor URL messages.
+#[derive(Clone)]
+pub struct MediaRequest {
+    pub method: Method,
+    pub body: Option<Vec<u8>>,
+    pub headers: HeaderMap,
+}
+
+impl std::fmt::Debug for MediaRequest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("MediaRequest")
+            .field("method", &self.method)
+            .field("body_present", &self.body.is_some())
+            .field("header_names", &self.headers.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
+impl Default for MediaRequest {
+    fn default() -> Self {
+        Self {
+            method: Method::GET,
+            body: None,
+            headers: HeaderMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -109,9 +138,9 @@ struct PartMetadata {
 }
 
 impl PartMetadata {
-    fn for_response(url: &str, response: &reqwest::Response) -> Self {
+    fn for_response(source_fingerprint: &str, response: &reqwest::Response) -> Self {
         Self {
-            source_sha256: fingerprint(url),
+            source_sha256: source_fingerprint.to_owned(),
             etag: header(response, ETAG),
             last_modified: header(response, LAST_MODIFIED),
             total_length: response.content_length(),
@@ -130,6 +159,77 @@ impl PartMetadata {
 fn fingerprint(source: &str) -> String {
     let hash = Sha256::digest(source.as_bytes());
     hash.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn request_fingerprint(
+    url: &str,
+    method: &Method,
+    body: Option<&[u8]>,
+    headers: &HeaderMap,
+) -> String {
+    let default_headers = headers.len() == 2
+        && headers.get(ACCEPT).is_some_and(|value| value == "*/*")
+        && headers
+            .get(ACCEPT_ENCODING)
+            .is_some_and(|value| value == "identity");
+    if method == Method::GET && body.is_none() && default_headers {
+        return fingerprint(url);
+    }
+    let mut hash = Sha256::new();
+    for bytes in [url.as_bytes(), method.as_str().as_bytes()] {
+        hash.update((bytes.len() as u64).to_be_bytes());
+        hash.update(bytes);
+    }
+    if let Some(body) = body {
+        hash.update((body.len() as u64).to_be_bytes());
+        hash.update(body);
+    } else {
+        hash.update(0_u64.to_be_bytes());
+    }
+    let mut request_headers = headers.iter().collect::<Vec<_>>();
+    request_headers.sort_by(|(left, _), (right, _)| left.as_str().cmp(right.as_str()));
+    for (name, value) in request_headers {
+        hash.update((name.as_str().len() as u64).to_be_bytes());
+        hash.update(name.as_str().as_bytes());
+        hash.update((value.as_bytes().len() as u64).to_be_bytes());
+        hash.update(value.as_bytes());
+    }
+    hash.finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn effective_request(
+    media_request: Option<&MediaRequest>,
+    options: &DownloadOptions,
+) -> (Method, Option<Vec<u8>>, HeaderMap) {
+    let method = media_request.map_or(Method::GET, |request| request.method.clone());
+    let body = media_request.and_then(|request| request.body.clone());
+    let mut headers = HeaderMap::new();
+    headers.insert(ACCEPT, HeaderValue::from_static("*/*"));
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+    if let Some(media_request) = media_request {
+        for (name, value) in media_request.headers.iter() {
+            headers.insert(name.clone(), value.clone());
+        }
+    }
+    for (name, value) in options.headers.iter() {
+        headers.insert(name.clone(), value.clone());
+    }
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+    (method, body, headers)
+}
+
+/// Stable, non-reversible identity for a request, suitable for archive and
+/// resume separation without persisting per-media body or header values.
+pub fn request_archive_identity(
+    url: &str,
+    media_request: Option<&MediaRequest>,
+    options: &DownloadOptions,
+) -> String {
+    let (method, body, headers) = effective_request(media_request, options);
+    request_fingerprint(url, &method, body.as_deref(), &headers)
 }
 
 fn header(response: &reqwest::Response, name: reqwest::header::HeaderName) -> Option<String> {
@@ -413,7 +513,11 @@ fn resumed_length(raw: &str, offset: u64) -> Option<(u64, u64)> {
     Some((end.checked_sub(start)?.checked_add(1)?, total))
 }
 
-async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Option<PartMetadata>) {
+async fn partial_info(
+    path: &Path,
+    metadata_path: &Path,
+    source_fingerprint: &str,
+) -> (u64, Option<PartMetadata>) {
     let size = match fs::metadata(path).await {
         Ok(info) if info.is_file() => info.len(),
         _ => return (0, None),
@@ -429,7 +533,7 @@ async fn partial_info(path: &Path, metadata_path: &Path, url: &str) -> (u64, Opt
         Some(meta) => meta,
         None => return (0, None),
     };
-    if meta.source_sha256 != fingerprint(url)
+    if meta.source_sha256 != source_fingerprint
         || meta.validator().is_none()
         || meta.total_length.is_some_and(|total| size >= total)
     {
@@ -575,6 +679,15 @@ pub async fn download(
     item: &MediaItem,
     options: &DownloadOptions,
 ) -> Result<DownloadOutcome, Box<dyn Error + Send + Sync>> {
+    download_with_request(client, item, options, None).await
+}
+
+pub async fn download_with_request(
+    client: &Client,
+    item: &MediaItem,
+    options: &DownloadOptions,
+    media_request: Option<&MediaRequest>,
+) -> Result<DownloadOutcome, Box<dyn Error + Send + Sync>> {
     // MediaItem is public, so validate even if a caller bypasses an extractor.
     if item.filename.is_empty()
         || item.filename == "."
@@ -618,22 +731,35 @@ pub async fn download(
         tokio::time::sleep(delay.sample()).await;
     }
 
+    let (request_method, request_body, request_headers) = effective_request(media_request, options);
+    let can_resume = request_method == Method::GET && request_body.is_none();
+    let source_fingerprint = request_fingerprint(
+        &item.url,
+        &request_method,
+        request_body.as_deref(),
+        &request_headers,
+    );
+
     for attempt in 0..=options.retries {
         let (offset, prior) = if options.no_part {
             (0, None)
+        } else if can_resume {
+            partial_info(&part, &metadata, &source_fingerprint).await
         } else {
-            partial_info(&part, &metadata, &item.url).await
+            invalidate_for_mode(&part, &metadata, options.no_part).await?;
+            (0, None)
         };
         // Resume offsets refer to the raw representation: opt out of
         // HTTP content encoding to keep sidecar byte counts meaningful.
         let mut request = client
-            .get(&item.url)
-            .header(ACCEPT, "*/*")
-            .header(ACCEPT_ENCODING, "identity");
+            .request(request_method.clone(), &item.url)
+            .headers(request_headers.clone());
+        if let Some(body) = &request_body {
+            request = request.body(body.clone());
+        }
         if let Some(timeout) = options.http_timeout {
             request = request.timeout(timeout);
         }
-        request = request.headers(options.headers.clone());
         // Media retries do not use extractor sleep-request intervals, but
         // they still honor any Retry-After cooldown previously recorded for
         // this origin.
@@ -861,7 +987,7 @@ pub async fn download(
             if !options.no_part {
                 write_metadata_atomically(
                     &metadata,
-                    &PartMetadata::for_response(&item.url, &response),
+                    &PartMetadata::for_response(&source_fingerprint, &response),
                 )
                 .await?;
             }
@@ -1101,6 +1227,39 @@ pub async fn download(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resume_fingerprint_includes_request_method_body_and_headers() {
+        let url = "https://example.test/file.bin";
+        let mut defaults = HeaderMap::new();
+        defaults.insert(ACCEPT, "*/*".parse().unwrap());
+        defaults.insert(ACCEPT_ENCODING, "identity".parse().unwrap());
+        assert_eq!(
+            request_fingerprint(url, &Method::GET, None, &defaults),
+            fingerprint(url)
+        );
+
+        let mut first = defaults.clone();
+        first.insert("x-auth", "alice".parse().unwrap());
+        first.insert("x-version", "1".parse().unwrap());
+        let first_fingerprint = request_fingerprint(url, &Method::GET, None, &first);
+        let mut reordered = defaults.clone();
+        reordered.insert("x-version", "1".parse().unwrap());
+        reordered.insert("x-auth", "alice".parse().unwrap());
+        assert_eq!(
+            first_fingerprint,
+            request_fingerprint(url, &Method::GET, None, &reordered)
+        );
+        first.insert("x-auth", "bob".parse().unwrap());
+        assert_ne!(
+            first_fingerprint,
+            request_fingerprint(url, &Method::GET, None, &first)
+        );
+        assert_ne!(
+            first_fingerprint,
+            request_fingerprint(url, &Method::POST, Some(b"body"), &first)
+        );
+    }
 
     #[test]
     fn signature_correction_covers_common_checkable_formats_and_ignores_other_suffixes() {

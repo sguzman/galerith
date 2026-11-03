@@ -1,6 +1,6 @@
 //! Network tests use a loopback fixture server, never live gallery websites.
 use galerith::{
-    download::{download, DownloadOptions, DownloadOutcome},
+    download::{download, download_with_request, DownloadOptions, DownloadOutcome, MediaRequest},
     extract_direct_media, MediaItem,
 };
 use std::{
@@ -72,6 +72,79 @@ async fn downloads_atomically_and_skips_existing_files() {
     );
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn per_media_request_method_body_and_headers_reach_http_server() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = Vec::new();
+        let mut chunk = [0_u8; 512];
+        loop {
+            let count = stream.read(&mut chunk).await.unwrap();
+            assert!(count > 0);
+            request.extend_from_slice(&chunk[..count]);
+            let text = String::from_utf8_lossy(&request);
+            if let Some(header_end) = text.find("\r\n\r\n") {
+                let length = text[..header_end]
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().unwrap())
+                    })
+                    .unwrap_or_default();
+                if request.len() >= header_end + 4 + length {
+                    break;
+                }
+            }
+        }
+        let request_text = String::from_utf8_lossy(&request);
+        assert!(request_text.starts_with("POST /file.jpg HTTP/1.1"));
+        assert!(request_text
+            .to_ascii_lowercase()
+            .contains("x-media-mode: global"));
+        assert!(!request_text
+            .to_ascii_lowercase()
+            .contains("x-media-mode: file-specific"));
+        assert!(!request_text.to_ascii_lowercase().contains("range: bytes="));
+        assert!(request.ends_with(b"token=abc"));
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nDATA")
+            .await
+            .unwrap();
+    });
+    let dir = test_dir("per-media-http-request");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("file.jpg.part"), b"stale partial").unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/file.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let mut opts = options(dir.clone());
+    opts.headers
+        .insert("x-media-mode", "global".parse().unwrap());
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert("x-media-mode", "file-specific".parse().unwrap());
+    let request = MediaRequest {
+        method: reqwest::Method::POST,
+        body: Some(b"token=abc".to_vec()),
+        headers,
+    };
+    assert_eq!(
+        download_with_request(&client, &item, &opts, Some(&request))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dir.join("file.jpg"))
+    );
+    server.await.unwrap();
+    assert_eq!(fs::read(dir.join("file.jpg")).unwrap(), b"DATA");
+    assert!(!dir.join("file.jpg.part").exists());
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[tokio::test]

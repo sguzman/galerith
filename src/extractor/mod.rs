@@ -90,15 +90,20 @@ pub mod wallpapercave;
 pub mod webmshare;
 pub mod wikimedia;
 
+use crate::download::MediaRequest;
 use crate::{
     extract_direct_media,
     message::{
         from_media, from_source_post_media, traverse_queue_job_filtered_with, ExtractorMessage,
-        JobSelection,
+        JobSelection, Metadata,
     },
     MediaItem,
 };
 use reqwest::Client;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE},
+    Method,
+};
 use std::error::Error;
 
 /// Only previews with a dispatcher implementation appear here. This is not
@@ -1249,13 +1254,27 @@ pub async fn resolve_messages_expanding(
     resolve_messages_traversing(client, input, max_pages, max_children, 1).await
 }
 
-/// Convert typed URL events into the existing native file download
-/// contract. Deferred Queue events and Directory scope markers must NEVER
-/// become downloads. This adapter intentionally discards metadata that
-/// MediaItem cannot yet represent and is not full gallery-dl job parity.
+/// One URL event projected onto the media contract plus its HTTP request data.
+#[derive(Debug, Clone)]
+pub struct MediaDownload {
+    pub item: MediaItem,
+    pub request: Option<MediaRequest>,
+}
+
+/// Compatibility adapter for consumers that only need MediaItem fields.
+/// Deferred Queue events and Directory scope markers must never become files.
 pub fn media_from_messages(
     events: Vec<ExtractorMessage>,
 ) -> Result<Vec<MediaItem>, Box<dyn Error + Send + Sync>> {
+    Ok(media_downloads_from_messages(events)?
+        .into_iter()
+        .map(|download| download.item)
+        .collect())
+}
+
+pub fn media_downloads_from_messages(
+    events: Vec<ExtractorMessage>,
+) -> Result<Vec<MediaDownload>, Box<dyn Error + Send + Sync>> {
     let mut media = Vec::new();
     for event in events {
         let ExtractorMessage::Url { url, metadata } = event else {
@@ -1281,9 +1300,15 @@ pub fn media_from_messages(
         {
             return Err("job URL contains an unsafe filename".into());
         }
-        let name = metadata
+        let extractor_name = metadata
             .get("extractor")
-            .and_then(serde_json::Value::as_str)
+            .and_then(serde_json::Value::as_str);
+        let category = metadata.get("category").and_then(serde_json::Value::as_str);
+        if extractor_name.is_some() && category.is_some() && extractor_name != category {
+            return Err("job URL extractor and category metadata disagree".into());
+        }
+        let name = extractor_name
+            .or(category)
             .ok_or("job URL missing extractor provenance")?;
         let extractor = PREVIEW_EXTRACTORS
             .iter()
@@ -1298,14 +1323,86 @@ pub fn media_from_messages(
             ),
             None => None,
         };
-        media.push(MediaItem {
+        let item = MediaItem {
             url,
             filename: filename.to_owned(),
             extractor,
             post_id,
-        });
+        };
+        let request = media_request_from_metadata(&metadata)?;
+        media.push(MediaDownload { item, request });
     }
     Ok(media)
+}
+
+fn media_request_from_metadata(
+    metadata: &Metadata,
+) -> Result<Option<MediaRequest>, Box<dyn Error + Send + Sync>> {
+    let method = metadata
+        .get("_http_method")
+        .map(|value| {
+            let value = value.as_str().ok_or("_http_method must be a string")?;
+            Method::from_bytes(value.as_bytes()).map_err(|_| "invalid _http_method")
+        })
+        .transpose()?;
+    let mut headers = HeaderMap::new();
+    if let Some(value) = metadata.get("_http_headers") {
+        let object = value.as_object().ok_or("_http_headers must be an object")?;
+        for (name, value) in object {
+            let value = value.as_str().ok_or("HTTP header values must be strings")?;
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes())?,
+                HeaderValue::from_str(value)?,
+            );
+        }
+    }
+    let data = metadata.get("_http_data");
+    let form_body = data.is_some_and(serde_json::Value::is_object);
+    let body = data
+        .map(|value| match value {
+            serde_json::Value::String(value) => Ok(value.as_bytes().to_vec()),
+            serde_json::Value::Object(fields) => {
+                let mut form = url::form_urlencoded::Serializer::new(String::new());
+                for (key, value) in fields {
+                    let values = value
+                        .as_array()
+                        .map_or_else(|| std::slice::from_ref(value), |v| v);
+                    for value in values {
+                        let scalar = if let Some(value) = value.as_str() {
+                            Some(value.to_owned())
+                        } else if value.is_number() {
+                            Some(value.to_string())
+                        } else if let Some(value) = value.as_bool() {
+                            Some(if value { "True" } else { "False" }.to_owned())
+                        } else if value.is_null() {
+                            None
+                        } else {
+                            return Err("_http_data object values must be scalar or arrays");
+                        };
+                        if let Some(scalar) = scalar {
+                            form.append_pair(key, &scalar);
+                        }
+                    }
+                }
+                Ok(form.finish().into_bytes())
+            }
+            _ => Err("_http_data must be a string or form object"),
+        })
+        .transpose()?;
+    if form_body && !headers.contains_key(CONTENT_TYPE) {
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/x-www-form-urlencoded"),
+        );
+    }
+    if method.is_none() && body.is_none() && headers.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(MediaRequest {
+        method: method.unwrap_or(Method::GET),
+        body,
+        headers,
+    }))
 }
 
 /// Opt-in bounded message-driven file resolution. The normal CLI still uses
@@ -1331,9 +1428,59 @@ pub async fn resolve_media_job_selected(
     media_from_messages(messages)
 }
 
+pub async fn resolve_media_job_downloads_selected(
+    client: &Client,
+    input: &str,
+    max_pages: u16,
+    selection: &JobSelection,
+) -> Result<Vec<MediaDownload>, Box<dyn Error + Send + Sync>> {
+    let messages =
+        resolve_messages_traversing_selected(client, input, max_pages, 8, 2, selection).await?;
+    media_downloads_from_messages(messages)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn media_message_http_request_metadata_is_typed_and_validated() {
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "category": "directlink",
+            "filename": "file.jpg",
+            "_http_method": "POST",
+            "_http_data": {"token": "safe value", "page": 2, "tag": ["a", "b"], "empty": null},
+            "_http_headers": {"X-Media-Mode": "private fixture"}
+        }))
+        .unwrap();
+        let mut downloads = media_downloads_from_messages(vec![ExtractorMessage::Url {
+            url: "https://example.test/file.jpg".into(),
+            metadata,
+        }])
+        .unwrap();
+        let download = downloads.pop().unwrap();
+        assert_eq!(download.item.filename, "file.jpg");
+        let request = download.request.unwrap();
+        assert_eq!(request.method, Method::POST);
+        assert_eq!(
+            request.body.as_deref(),
+            Some(b"page=2&tag=a&tag=b&token=safe+value".as_slice())
+        );
+        assert_eq!(request.headers["x-media-mode"], "private fixture");
+        assert_eq!(
+            request.headers[CONTENT_TYPE],
+            "application/x-www-form-urlencoded"
+        );
+        let debug = format!("{request:?}");
+        assert!(!debug.contains("private fixture"));
+        assert!(!debug.contains("safe+value"));
+
+        let malformed = serde_json::from_value::<Metadata>(serde_json::json!({
+            "_http_headers": {"bad name": "value"}
+        }))
+        .unwrap();
+        assert!(media_request_from_metadata(&malformed).is_err());
+    }
+
     #[test]
     fn preview_registry_matches_routed_extractors() {
         let fixtures = [

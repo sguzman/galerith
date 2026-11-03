@@ -4,10 +4,13 @@ use galerith::{
     cache::Cache,
     config::{Config, Format as ConfigFormat},
     cookies::load_netscape_file,
-    download::{download, DownloadOptions, DownloadOutcome},
+    download::{
+        download, download_with_request, request_archive_identity, DownloadOptions,
+        DownloadOutcome, MediaRequest,
+    },
     extractor::{
-        extractor_name, resolve, resolve_media_job_selected, resolve_messages,
-        resolve_messages_traversing_selected, PREVIEW_EXTRACTORS,
+        extractor_name, resolve, resolve_media_job_downloads_selected, resolve_messages,
+        resolve_messages_traversing_selected, MediaDownload, PREVIEW_EXTRACTORS,
     },
     filename::render as render_filename,
     message::{
@@ -26,6 +29,44 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
+fn request_archive_item(
+    item: &galerith::MediaItem,
+    request: &MediaRequest,
+    options: &DownloadOptions,
+) -> galerith::MediaItem {
+    let identity = request_archive_identity(&item.url, Some(request), options);
+    let mut archived = item.clone();
+    archived.url = format!("https://request-identity.invalid/{identity}");
+    archived.post_id = None;
+    archived
+}
+
+fn archive_contains_item(
+    archive: &Archive,
+    item: &galerith::MediaItem,
+    source_url: &str,
+    request_specific: bool,
+) -> Result<bool, rusqlite::Error> {
+    if request_specific {
+        archive.contains(item)
+    } else {
+        archive.contains_for_source(item, source_url)
+    }
+}
+
+fn archive_record_item(
+    archive: &Archive,
+    item: &galerith::MediaItem,
+    source_url: &str,
+    request_specific: bool,
+) -> Result<(), rusqlite::Error> {
+    if request_specific {
+        archive.record(item)
+    } else {
+        archive.record_for_source(item, source_url)
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(
@@ -1262,10 +1303,25 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         }
         let extraction_future = async {
             if cli.follow_queues {
-                resolve_media_job_selected(&extractor_client, &url, cli.max_pages, &job_selection)
-                    .await
+                resolve_media_job_downloads_selected(
+                    &extractor_client,
+                    &url,
+                    cli.max_pages,
+                    &job_selection,
+                )
+                .await
             } else {
-                resolve(&extractor_client, &url, cli.max_pages).await
+                resolve(&extractor_client, &url, cli.max_pages)
+                    .await
+                    .map(|items| {
+                        items
+                            .into_iter()
+                            .map(|item| MediaDownload {
+                                item,
+                                request: None,
+                            })
+                            .collect()
+                    })
             }
         };
         let extraction_future =
@@ -1297,11 +1353,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             }
         };
         if cli.write_info_json && !cli.simulate {
-            if let Some(item) = items.first() {
+            if let Some(download) = items.first() {
+                let item = &download.item;
                 write_info_json(&options.destination, item).await?;
             }
         }
-        for (index, mut item) in items.into_iter().enumerate() {
+        for (index, MediaDownload { mut item, request }) in items.into_iter().enumerate() {
             if selected
                 .as_ref()
                 .is_some_and(|range| !range.contains(index + 1))
@@ -1333,13 +1390,20 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             // Re-check under the archive lock: another process may have
             // completed this same media item while we were waiting. Retain
             // the guard through transfer and durable archive insertion.
+            let request_specific = request.is_some();
+            let request_archive = request
+                .as_ref()
+                .map(|request| request_archive_item(&item, request, &options));
+            let archive_item = request_archive.as_ref().unwrap_or(&item);
             let _archive_guard = if let Some(ref archive) = archive {
-                archive.lock_item_for_source(&item, &url).await?
+                archive
+                    .lock_item_for_source(archive_item, if request_specific { "" } else { &url })
+                    .await?
             } else {
                 None
             };
             if let Some(ref archive) = archive {
-                if archive.contains_for_source(&item, &url)? {
+                if archive_contains_item(archive, archive_item, &url, request_specific)? {
                     if !cli.quiet {
                         println!("archived {}", item.filename);
                     }
@@ -1371,14 +1435,19 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             } else {
                 let mut media_options = options.clone();
                 media_options.download_delay = download_sleep;
-                match download(&media_client, &item, &media_options).await {
+                let outcome = if let Some(request) = request.as_ref() {
+                    download_with_request(&media_client, &item, &media_options, Some(request)).await
+                } else {
+                    download(&media_client, &item, &media_options).await
+                };
+                match outcome {
                     Ok(DownloadOutcome::Saved(path)) => {
                         if cli.write_metadata {
                             write_metadata(&path, &item).await?;
                         }
                         if record_download {
                             if let Some(ref archive) = archive {
-                                archive.record_for_source(&item, &url)?;
+                                archive_record_item(archive, archive_item, &url, request_specific)?;
                             }
                         }
                         if !cli.quiet {
@@ -1391,7 +1460,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                         }
                         if record_skip {
                             if let Some(ref archive) = archive {
-                                archive.record_for_source(&item, &url)?;
+                                archive_record_item(archive, archive_item, &url, request_specific)?;
                             }
                         }
                         if !cli.quiet {
@@ -1410,7 +1479,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                     Ok(DownloadOutcome::Filtered(path)) => {
                         if record_skip {
                             if let Some(ref archive) = archive {
-                                archive.record_for_source(&item, &url)?;
+                                archive_record_item(archive, archive_item, &url, request_specific)?;
                             }
                         }
                         if !cli.quiet {
@@ -1563,8 +1632,11 @@ fn append_error_url(path: Option<&std::path::Path>, url: &str, failed: &mut usiz
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, ResponsePageMode};
+    use super::{request_archive_item, Cli, DownloadOptions, MediaRequest, ResponsePageMode};
     use clap::Parser;
+    use galerith::archive::Archive;
+    use reqwest::{header::HeaderMap, Method, StatusCode};
+    use std::fs;
 
     #[test]
     fn write_pages_accepts_body_default_and_header_inclusive_mode() {
@@ -1573,5 +1645,59 @@ mod tests {
         let all = Cli::try_parse_from(["galerith", "--write-pages=all"]).unwrap();
         assert!(matches!(all.write_pages, Some(ResponsePageMode::All)));
         assert!(Cli::try_parse_from(["galerith", "--write-pages=ALL"]).is_err());
+    }
+
+    #[test]
+    fn request_specific_archive_identity_separates_bodies_without_storing_them() {
+        let root =
+            std::env::temp_dir().join(format!("galerith-request-archive-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let options = DownloadOptions {
+            destination: root.clone(),
+            retries: 0,
+            no_skip: false,
+            no_mtime: false,
+            no_part: false,
+            limit_rate: None,
+            chunk_size: 32 * 1024,
+            validate_html: true,
+            adjust_extensions: true,
+            filesize_min: None,
+            filesize_max: None,
+            headers: HeaderMap::new(),
+            retry_codes: Vec::<StatusCode>::new(),
+            http_timeout: None,
+            retry_delay: None,
+            rate_limit_delay: None,
+            download_delay: None,
+        };
+        let item = galerith::extract_direct_media("https://example.test/file.jpg").unwrap();
+        let first = request_archive_item(
+            &item,
+            &MediaRequest {
+                method: Method::POST,
+                body: Some(b"secret-one".to_vec()),
+                headers: HeaderMap::new(),
+            },
+            &options,
+        );
+        let second = request_archive_item(
+            &item,
+            &MediaRequest {
+                method: Method::POST,
+                body: Some(b"secret-two".to_vec()),
+                headers: HeaderMap::new(),
+            },
+            &options,
+        );
+        assert_ne!(first.url, second.url);
+        assert!(!first.url.contains("secret-one"));
+        let archive = Archive::open(&root.join("archive.sqlite")).unwrap();
+        archive.record(&first).unwrap();
+        assert!(archive.contains(&first).unwrap());
+        assert!(!archive.contains(&second).unwrap());
+        drop(archive);
+        fs::remove_dir_all(root).unwrap();
     }
 }
