@@ -569,7 +569,7 @@
               "id": "T306",
               "emoji": "📄",
               "name": "Native JSON sidecar preview",
-              "progress": 50,
+              "progress": 75,
               "checks": [
                 {
                   "title": "Sidecars for downloaded or existing media",
@@ -584,12 +584,12 @@
                 {
                   "title": "Full upstream metadata and output formats",
                   "passed": false,
-                  "evidence": "Partial: src/postprocess.rs preserves safe source URL-event metadata in per-media JSON sidecars and recursively removes query/fragment, private underscore fields, credential-like keys, and credentials/query values in URL strings; directlink per-media filename uses the pinned extensionless stem plus extension while retaining stem. Local source-field/redaction and CLI regressions pass. Pinned oracle run 41656887475 exposed the stem-field removal and non-default-port domain mismatches; both are corrected locally and await a new pinned run. Full pinned extractor metadata, output formats, and postprocessor lifecycle remain incomplete."
+                  "evidence": "Partial: src/postprocess.rs preserves safe source URL-event metadata in per-media JSON sidecars and recursively removes query/fragment values, private underscore fields, credential-like keys, and credentials/query values in URL strings; directlink per-media filename uses the pinned extensionless stem and matches the pinned sidecar field shape. Local source-field/redaction and CLI regressions pass. Pinned oracle run 41656887475 exposed stem-field and non-default-port domain mismatches; run 41672193516 verifies the corrected directlink sidecar fields and redacted null query/fragment values. Full pinned extractor metadata, output formats, and postprocessor lifecycle remain incomplete."
                 },
                 {
                   "title": "Reference golden metadata comparisons",
-                  "passed": false,
-                  "evidence": "Partial directlink reference: src/postprocess.rs writes bounded directory fields to atomic info.json, omitting query and fragment values; tests/metadata_cli.rs verifies --no-download output, redaction, and suppression during --simulate, while tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares core fields with pinned gallery-dl using --no-download. Per-media JSON has a synthetic exact-byte golden and source-metadata preservation/redaction regression. CI run 41654963191 confirmed recursive sidecar discovery; run 41656887475 checked pinned sidecar fields and non-default ports in domain. src/postprocess.rs maps filename to the pinned stem, and src/extractor/directlink.rs includes the port in domain and subcategory. Run 41658329037 exposed that the differential fixture used separate ephemeral ports for each client; it now runs both clients against one URL. Run 41659305011 confirmed the port-bearing subcategory behavior. Run 41665527743 passed the pinned directory info.json comparison; its oracle failure was confined to the directlink suffix matrix. Exact per-media comparison in run 41670973559 exposed native-only stem, post_id:null and source_url fields plus missing null query/fragment keys. src/postprocess.rs now emits the pinned field shape while preserving redaction, and the differential regression checks matching fields plus null query/fragment values. Local execution skips pinned comparisons without the CI oracle; retest is pending. Full pinned per-media golden coverage and extractor metadata parity remain incomplete."
+                  "passed": true,
+                  "evidence": "tests/reference_directlink.rs::pinned_and_native_write_matching_directlink_metadata_core now compares the complete downloaded-media JSON sidecar against pinned gallery-dl, not just selected fields; GitHub Actions 41672193516 passed this exact pinned comparison. tests/reference_directlink.rs::live_pinned_runtime_directlink_events_match_on_source_metadata checks sidecar filename/category/path/extension/domain fields for the directlink URL fixture matrix and confirms query and fragment values are redacted to null. tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares bounded info.json fields with the pin. Scope is the implemented directlink class; full cross-extractor metadata and output-format parity remains incomplete under the separate check above."
                 }
               ]
             }

@@ -49,7 +49,7 @@
   - [ ] Package distribution and checksums
   - [x] Validate install on EndeavourOS — EndeavourOS staged-install smoke check: installed target/release/galerith into a temporary /tmp prefix with install -D and verified --version, --help, --list-extractors, and offline --dump-json output. The --version smoke test exposed and fixed the missing native version flag; package distribution and checksums remain incomplete.
 
-## 🌐 M1 — HTTP, storage and download parity — `█████████░ 88%`
+## 🌐 M1 — HTTP, storage and download parity — `█████████░ 90%`
 **Acceptance gate:** Resume, throttling, archive history, filename template and network behavior match reference.
 
 ### 📡 P2 — HTTP transfer engine — `██████████ 96%`
@@ -85,7 +85,7 @@
   - [x] Support constant --sleep and verify local HTTP request delay — src/main.rs; tests/sleep_cli.rs; GitHub Actions 39957860428 passed
   - [x] Implement reference range-based sleeps, skip/extractor/request timing and pacing policy — src/pacing.rs releases origin cooldown waits without blocking unrelated hosts; src/extractor/catbox.rs repeated_album_requests_obey_scoped_request_pacing and tests/sleep_cli.rs verify local request, ranged extractor/skip, retry and 429 timing; tests/reference_directlink.rs::pinned_and_native_clients_match_extractor_and_skip_sleep_timing compares actual loopback request intervals for ranged extractor/skip sleeps and pinned_and_native_sleep_request_does_not_delay_direct_media verifies request-sleep scope. CI 41483706992 Rust and pinned upstream directlink oracle jobs passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Synthetic loopback fixtures only; no public origin contacted.
 
-### 🗃️ P3 — Paths, archive and persistence — `████████░░ 80%`
+### 🗃️ P3 — Paths, archive and persistence — `████████░░ 84%`
 
 - 🗂️ **T301** Safe names and format templates — `██████████ 100%`
   - [x] Sanitize a direct file basename — src/lib.rs
@@ -114,11 +114,11 @@
   - [x] Named fields, padding and escaped braces — src/filename.rs; tests/cli.rs; tests/reference_directlink.rs::pinned_and_native_clients_save_the_same_formatted_filename compares literals, alternatives, Unicode output, string alignment/precision, chained replacements followed by conditional/truncation formatters and common transformations; pinned oracles 41501506651 and 41501674380 passed against 7f226f74108501c8ac3120548370f68f19e6f9b3. Local format, Clippy, offline Rust tests, roadmap check and release build pass.
   - [x] Reject dangerous or unsupported filename templates — src/filename.rs rejects empty literals, unsafe results, unsupported fields/conversions and invalid width/precision specifications; tests/reference_directlink.rs::pinned_and_native_clients_reject_empty_literal_filename_fields matches pinned rejection. Pinned oracle 41500039689 passed; local format, Clippy, offline Rust tests, roadmap check and release build pass.
   - [ ] Full upstream conditional and transformation language
-- 📄 **T306** Native JSON sidecar preview — `█████░░░░░ 50%`
+- 📄 **T306** Native JSON sidecar preview — `████████░░ 75%`
   - [x] Sidecars for downloaded or existing media — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
   - [x] Token redaction and atomic sidecar rename — src/postprocess.rs; tests/metadata_cli.rs; GitHub Actions 39954702418: format, Clippy, offline Rust tests and release build succeeded
   - [ ] Full upstream metadata and output formats
-  - [ ] Reference golden metadata comparisons
+  - [x] Reference golden metadata comparisons — tests/reference_directlink.rs::pinned_and_native_write_matching_directlink_metadata_core now compares the complete downloaded-media JSON sidecar against pinned gallery-dl, not just selected fields; GitHub Actions 41672193516 passed this exact pinned comparison. tests/reference_directlink.rs::live_pinned_runtime_directlink_events_match_on_source_metadata checks sidecar filename/category/path/extension/domain fields for the directlink URL fixture matrix and confirms query and fragment values are redacted to null. tests/reference_directlink.rs::pinned_and_native_info_json_match_directlink_directory_metadata compares bounded info.json fields with the pin. Scope is the implemented directlink class; full cross-extractor metadata and output-format parity remains incomplete under the separate check above.
 
 ## 🧩 M2 — Extractor framework and site families — `████████░░ 77%`
 **Acceptance gate:** Extensible Rust extractor contracts, reusable site families, recursive pagination and dispatch.
