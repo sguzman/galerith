@@ -79,6 +79,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
             "xbooru",
             "wallhaven",
             "4chan",
+            "2chan",
             "imgur",
             "500px",
             "photovogue",
@@ -121,6 +122,9 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                     return Some((category, entry.to_owned()));
                 }
                 if category == "4chan" && canonical_fourchan_archive_suffix(id) {
+                    return Some((category, entry.to_owned()));
+                }
+                if category == "2chan" && canonical_twochan_archive_suffix(id) {
                     return Some((category, entry.to_owned()));
                 }
                 if category == "imagetwist" && canonical_imagetwist_token(id) {
@@ -331,6 +335,7 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
         "xbooru",
         "wallhaven",
         "4chan",
+        "2chan",
         "imgur",
         "500px",
         "photovogue",
@@ -405,11 +410,13 @@ fn import_category(entry: &str, prefix: Option<&str>) -> Option<(&'static str, S
                 || (category == "500px" && canonical_500px_archive_suffix(bare))
                 || (category == "imgur" && canonical_imgur_archive_suffix(bare))
                 || (category == "4chan" && canonical_fourchan_archive_suffix(bare))
+                || (category == "2chan" && canonical_twochan_archive_suffix(bare))
                 || (category == "wallhaven" && canonical_wallhaven_archive_suffix(bare))
                 || (!matches!(
                     category,
                     "wallhaven"
                         | "4chan"
+                        | "2chan"
                         | "imgur"
                         | "500px"
                         | "photovogue"
@@ -3285,6 +3292,94 @@ fn canonical_fourchan_archive_suffix(value: &str) -> bool {
     thread_id > 0 && media_tim > 0 && value == format!("{board}_{thread_id}_{media_tim}")
 }
 
+fn valid_twochan_component(value: &str, max_len: usize) -> bool {
+    (1..=max_len).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn valid_twochan_server(value: &str) -> bool {
+    (1..=36).contains(&value.len())
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'_' | b'-')
+        })
+}
+
+fn canonical_twochan_numeric(value: &str) -> bool {
+    value.len() <= 18 && canonical_numeric_archive_suffix(value)
+}
+
+fn canonical_twochan_archive_suffix(value: &str) -> bool {
+    let mut fields = value.rsplitn(3, '_');
+    let (Some(tim), Some(thread), Some(board)) = (fields.next(), fields.next(), fields.next())
+    else {
+        return false;
+    };
+    valid_twochan_component(board, 24)
+        && canonical_twochan_numeric(thread)
+        && canonical_twochan_numeric(tim)
+}
+
+/// The pinned 2chan archive format includes board, thread and file tim. A
+/// CDN filename alone is shared across source threads, so verify both URLs
+/// before using this identity for history, migration or deduplication.
+fn twochan_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
+    if item.extractor != "2chan" {
+        return None;
+    }
+    let source = url::Url::parse(source_url).ok()?;
+    if !matches!(source.scheme(), "http" | "https")
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.port().is_some()
+        || source.query().is_some()
+        || source.fragment().is_some()
+    {
+        return None;
+    }
+    let server = source.host_str()?.strip_suffix(".2chan.net")?;
+    if !valid_twochan_server(server) {
+        return None;
+    }
+    let source_parts: Vec<_> = source.path_segments()?.collect();
+    let (board, raw_thread) = match source_parts.as_slice() {
+        [board, "res", thread] | [board, "res", thread, ""] => (*board, *thread),
+        _ => return None,
+    };
+    let thread = raw_thread.strip_suffix(".htm").unwrap_or(raw_thread);
+    if !valid_twochan_component(board, 24) || !canonical_twochan_numeric(thread) {
+        return None;
+    }
+    let media = url::Url::parse(&item.url).ok()?;
+    if media.scheme() != "https"
+        || media.host_str() != Some(source.host_str()?)
+        || !media.username().is_empty()
+        || media.password().is_some()
+        || media.port().is_some()
+        || media.query().is_some()
+        || media.fragment().is_some()
+    {
+        return None;
+    }
+    let media_parts: Vec<_> = media.path_segments()?.collect();
+    let [media_board, "src", filename] = media_parts.as_slice() else {
+        return None;
+    };
+    let (tim, extension) = filename.rsplit_once('.')?;
+    if *media_board != board
+        || !canonical_twochan_numeric(tim)
+        || !matches!(
+            extension.to_ascii_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "webm" | "mp4"
+        )
+    {
+        return None;
+    }
+    let upstream = format!("2chan{board}_{thread}_{tim}");
+    Some((format!("thread:{thread}:board:{board}:tim:{tim}"), upstream))
+}
+
 /// Pinned gallery-dl 4chan archive template is {board}_{thread}_{tim}.
 /// MediaItem.post_id is the CDN tim, not the 4chan post number.
 fn fourchan_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String, String)> {
@@ -3884,6 +3979,7 @@ fn verified_archive_scope(item: &MediaItem, source_url: &str) -> Option<(String,
         .or_else(|| gelbooru_archive_scope(item, source_url))
         .or_else(|| wallhaven_archive_scope(item, source_url))
         .or_else(|| fourchan_archive_scope(item, source_url))
+        .or_else(|| twochan_archive_scope(item, source_url))
         .or_else(|| imgur_archive_scope(item, source_url))
         .or_else(|| fivehundredpx_archive_scope(item, source_url))
         .or_else(|| photovogue_archive_scope(item, source_url))
@@ -9029,6 +9125,75 @@ mod tests {
             assert!(!canonical_fourchan_archive_suffix(malformed));
         }
         drop(archive);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn twochan_archive_identity_scopes_file_tim_to_board_and_thread() {
+        let root = std::env::temp_dir().join(format!("galerith-twochan-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let archive = Archive::open(&root.join("native.sqlite")).unwrap();
+        let item = MediaItem {
+            url: "https://dec.2chan.net/12/src/178000001.jpg".into(),
+            filename: "178000001.jpg".into(),
+            extractor: "2chan",
+            post_id: Some(12346),
+        };
+        let source = "https://dec.2chan.net/12/res/12345.htm";
+        assert_eq!(
+            twochan_archive_scope(&item, source).unwrap().1,
+            "2chan12_12345_178000001"
+        );
+        assert!(canonical_twochan_archive_suffix("12_12345_178000001"));
+        assert!(canonical_twochan_archive_suffix("foo_bar_12345_178000001"));
+        assert_eq!(
+            import_category("2chan12_12345_178000001", None),
+            Some(("2chan", "2chan12_12345_178000001".to_owned()))
+        );
+        assert_eq!(
+            import_category("2chan12_12345_178000001", Some("2chan")),
+            Some(("2chan", "2chan12_12345_178000001".to_owned()))
+        );
+        for malformed in [
+            "12_012345_178000001",
+            "12_12345_0178000001",
+            "12_12345_178000001_extra",
+            "../_1_2",
+        ] {
+            assert!(!canonical_twochan_archive_suffix(malformed), "{malformed}");
+        }
+        archive.record_for_source(&item, source).unwrap();
+        let rotated = MediaItem {
+            url: "https://dec.2chan.net/12/src/178000001.png".into(),
+            filename: "178000001.png".into(),
+            ..item.clone()
+        };
+        assert!(archive.contains_for_source(&rotated, source).unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://dec.2chan.net/12/res/12346.htm")
+            .unwrap());
+        assert!(!archive
+            .contains_for_source(&rotated, "https://dec.2chan.net/13/res/12345.htm")
+            .unwrap());
+        for forged in [
+            "https://evil.2chan.net/12/res/12345.htm",
+            "https://dec.2chan.net/12/res/12345.htm?token=x",
+            "https://dec.2chan.net/12/res/012345.htm",
+        ] {
+            assert!(twochan_archive_scope(&item, forged).is_none(), "{forged}");
+        }
+        let foreign_media = MediaItem {
+            url: "https://dec.2chan.net/13/src/178000001.jpg".into(),
+            ..item
+        };
+        assert!(twochan_archive_scope(&foreign_media, source).is_none());
+        drop(archive);
+        let bytes = fs::read(root.join("native.sqlite")).unwrap();
+        let sensitive = "dec.2chan.net";
+        assert!(!bytes
+            .windows(sensitive.len())
+            .any(|part| part == sensitive.as_bytes()));
         fs::remove_dir_all(root).unwrap();
     }
 

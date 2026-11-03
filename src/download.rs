@@ -340,7 +340,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "audio/x-aiff" => "aif",
         "audio/basic" => "au",
         "audio/x-pn-realaudio" => "ra",
-        "audio/x-flac" => "flac",
+        "audio/flac" | "audio/x-flac" => "flac",
         "audio/opus" => "opus",
         "audio/x-ms-wma" => "wma",
         "text/html" => "html",

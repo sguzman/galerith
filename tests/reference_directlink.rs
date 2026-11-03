@@ -2790,7 +2790,7 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
         ("video/x-m4v", "bin"),
         ("audio/wav", "bin"),
         ("audio/x-aac", "bin"),
-        ("audio/flac", "bin"),
+        ("audio/flac", "flac"),
         ("application/problem+json", "bin"),
         ("application/xml", "xsl"),
         ("application/x-zip", "bin"),
@@ -2849,13 +2849,16 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
     let actual = String::from_utf8(output.stdout).unwrap();
     let actual: Vec<_> = actual.lines().collect();
     assert_eq!(actual.len(), cases.len());
+    let mut mismatches = Vec::new();
     for ((mime, expected), actual) in cases.iter().zip(actual) {
-        assert_eq!(
-            actual,
-            format!(".{expected}"),
-            "Python MIME fallback for {mime}"
-        );
+        if actual != format!(".{expected}") {
+            mismatches.push((mime, expected, actual));
+        }
     }
+    assert!(
+        mismatches.is_empty(),
+        "Python MIME fallback mismatches: {mismatches:?}"
+    );
 }
 
 #[test]
@@ -3760,6 +3763,27 @@ fn pinned_fourchan_archive_format_is_board_thread_media_tim() {
     assert_eq!(
         spawn(command, "pinned 4chan board/thread/tim archive template").trim(),
         "4chana_123_456|4chanb_124_456"
+    );
+}
+
+#[test]
+fn pinned_twochan_archive_format_is_board_thread_file_tim() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for 2chan archive differential");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import extractor; urls=('https://dec.2chan.net/12/res/12345.htm','https://img.2chan.net/b/res/54321.htm'); print('|'.join((lambda ex: ex.category+ex.archive_fmt.format(board=ex.board,thread=ex.thread,tim=178000001))(extractor.find(url)) for url in urls))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned 2chan board/thread/tim archive template").trim(),
+        "2chan12_12345_178000001|2chanb_54321_178000001"
     );
 }
 
