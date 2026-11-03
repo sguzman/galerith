@@ -799,8 +799,47 @@ fn format_scientific_float(number: f64, precision: usize, uppercase: bool) -> St
     )
 }
 
+fn format_general_float(number: f64, precision: usize, uppercase: bool) -> String {
+    let precision = precision.max(1);
+    if number.is_nan() {
+        return if uppercase { "NAN" } else { "nan" }.to_owned();
+    }
+    if number.is_infinite() {
+        let sign = if number.is_sign_negative() { "-" } else { "" };
+        let value = if uppercase { "INF" } else { "inf" };
+        return format!("{sign}{value}");
+    }
+    if number == 0.0 {
+        return if number.is_sign_negative() {
+            "-0".to_owned()
+        } else {
+            "0".to_owned()
+        };
+    }
+    let scientific = format!("{number:.digits$e}", digits = precision - 1);
+    let (mantissa, exponent) = scientific
+        .split_once('e')
+        .expect("Rust scientific formatting includes an exponent");
+    let exponent = exponent
+        .parse::<i32>()
+        .expect("Rust scientific exponent is a signed integer");
+    if exponent < -4 || exponent >= precision as i32 {
+        let mantissa = mantissa.trim_end_matches('0').trim_end_matches('.');
+        let marker = if uppercase { 'E' } else { 'e' };
+        let sign = if exponent < 0 { '-' } else { '+' };
+        return format!("{mantissa}{marker}{sign}{:02}", exponent.unsigned_abs());
+    }
+    let decimals = (precision as i32 - exponent - 1).max(0) as usize;
+    let fixed = format!("{number:.decimals$}");
+    if fixed.contains('.') {
+        fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
+    } else {
+        fixed
+    }
+}
+
 fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
-    let Some(kind @ ('f' | 'F' | 'e' | 'E' | '%')) = spec.chars().last() else {
+    let Some(kind @ ('f' | 'F' | 'e' | 'E' | 'g' | 'G' | '%')) = spec.chars().last() else {
         return Ok(None);
     };
     let percent = kind == '%';
@@ -910,6 +949,11 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
             .as_f64()
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
         format_scientific_float(number, precision, kind == 'E')
+    } else if matches!(kind, 'g' | 'G') {
+        let number = number
+            .as_f64()
+            .ok_or_else(|| FormatError("invalid numeric value".into()))?;
+        format_general_float(number, precision, kind == 'G')
     } else if let Some(integer) = number.as_i64() {
         format!("{integer}{decimal_zeros}")
     } else if let Some(integer) = number.as_u64() {
