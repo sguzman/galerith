@@ -2802,7 +2802,7 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
         ("flv", b"X".as_slice(), "flv", FLV),
     ] {
         for (label, pinned) in [("reference", true), ("native", false)] {
-            let (url, server) = serve_retry_sequence_at("/asset", [response, response]);
+            let (url, server) = serve_retry_sequence_at("/asset.jpg", [response, response]);
             let output = root.join(format!("{name}-{label}"));
             std::fs::create_dir_all(&output).unwrap();
             let mut command = if pinned {
@@ -2815,7 +2815,10 @@ fn pinned_and_native_clients_infer_tiff_and_jp2_suffixes_from_mime() {
             } else {
                 Command::new(env!("CARGO_BIN_EXE_galerith"))
             };
-            command.args(["--quiet", "-d"]).arg(&output).arg(&url);
+            command
+                .args(["--quiet", "--filename", "{filename}", "-d"])
+                .arg(&output)
+                .arg(&url);
             for key in [
                 "HTTP_PROXY",
                 "HTTPS_PROXY",
