@@ -45,8 +45,14 @@ fn split_field_spec(field: &str) -> Result<(&str, &str), FormatError> {
     Ok((field, ""))
 }
 
-fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<&str>), FormatError> {
-    let Some(mut cursor) = candidate.find('[') else {
+#[derive(Clone, Copy)]
+enum FieldSelector<'a> {
+    Attribute(&'a str),
+    Element(&'a str),
+}
+
+fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<FieldSelector<'_>>), FormatError> {
+    let Some(mut cursor) = candidate.find(|character| matches!(character, '[' | '.')) else {
         if candidate.contains(']') {
             return Err(FormatError("invalid filename field selector".into()));
         }
@@ -59,46 +65,58 @@ fn split_field_selectors(candidate: &str) -> Result<(&str, Vec<&str>), FormatErr
         let literal = candidate[cursor + 1..]
             .strip_suffix(']')
             .ok_or_else(|| FormatError("invalid filename field selector".into()))?;
-        selectors.push(literal);
+        selectors.push(FieldSelector::Element(literal));
         return Ok((base, selectors));
     }
     while cursor < candidate.len() {
-        if candidate.as_bytes().get(cursor) != Some(&b'[') {
-            return Err(FormatError("invalid filename field selector".into()));
-        }
-        let start = cursor + 1;
-        let mut quote = None;
-        let mut escaped = false;
-        let mut closing = None;
-        for (offset, character) in candidate[start..].char_indices() {
-            if escaped {
-                escaped = false;
-                continue;
+        if candidate.as_bytes().get(cursor) == Some(&b'.') {
+            let start = cursor + 1;
+            let end = candidate[start..]
+                .find(|character| matches!(character, '[' | '.'))
+                .map_or(candidate.len(), |offset| start + offset);
+            if start == end {
+                return Err(FormatError("invalid filename attribute selector".into()));
             }
-            if character == '\\' && quote.is_some() {
-                escaped = true;
-                continue;
+            selectors.push(FieldSelector::Attribute(&candidate[start..end]));
+            cursor = end;
+        } else {
+            if candidate.as_bytes().get(cursor) != Some(&b'[') {
+                return Err(FormatError("invalid filename field selector".into()));
             }
-            if let Some(delimiter) = quote {
-                if character == delimiter {
-                    quote = None;
+            let start = cursor + 1;
+            let mut quote = None;
+            let mut escaped = false;
+            let mut closing = None;
+            for (offset, character) in candidate[start..].char_indices() {
+                if escaped {
+                    escaped = false;
+                    continue;
                 }
-                continue;
-            }
-            match character {
-                '\'' | '"' => quote = Some(character),
-                ']' => {
-                    closing = Some(start + offset);
-                    break;
+                if character == '\\' && quote.is_some() {
+                    escaped = true;
+                    continue;
                 }
-                '[' => return Err(FormatError("invalid filename field selector".into())),
-                _ => {}
+                if let Some(delimiter) = quote {
+                    if character == delimiter {
+                        quote = None;
+                    }
+                    continue;
+                }
+                match character {
+                    '\'' | '"' => quote = Some(character),
+                    ']' => {
+                        closing = Some(start + offset);
+                        break;
+                    }
+                    '[' => return Err(FormatError("invalid filename field selector".into())),
+                    _ => {}
+                }
             }
+            let closing =
+                closing.ok_or_else(|| FormatError("invalid filename field selector".into()))?;
+            selectors.push(FieldSelector::Element(&candidate[start..closing]));
+            cursor = closing + 1;
         }
-        let closing =
-            closing.ok_or_else(|| FormatError("invalid filename field selector".into()))?;
-        selectors.push(&candidate[start..closing]);
-        cursor = closing + 1;
     }
     Ok((base, selectors))
 }
@@ -115,10 +133,14 @@ fn select_mapping_key(selector: &str) -> &str {
         .unwrap_or(selector)
 }
 
-fn select_value(value: &Value, selector: &str, field: &str) -> Result<Value, FormatError> {
-    match value {
-        Value::Array(values) => select_array(values, selector),
-        Value::Object(fields) => fields
+fn select_value(
+    value: &Value,
+    selector: FieldSelector<'_>,
+    field: &str,
+) -> Result<Value, FormatError> {
+    match (value, selector) {
+        (Value::Array(values), FieldSelector::Element(selector)) => select_array(values, selector),
+        (Value::Object(fields), FieldSelector::Element(selector)) => fields
             .get(select_mapping_key(selector))
             .cloned()
             .ok_or_else(|| {
@@ -126,7 +148,19 @@ fn select_value(value: &Value, selector: &str, field: &str) -> Result<Value, For
                     "filename mapping field '{field}[{selector}]' is missing"
                 ))
             }),
-        Value::String(value) => slice_field(value, selector).map(Value::String),
+        (Value::String(value), FieldSelector::Element(selector)) => {
+            slice_field(value, selector).map(Value::String)
+        }
+        (Value::Object(fields), FieldSelector::Attribute(selector)) => {
+            fields.get(selector).cloned().ok_or_else(|| {
+                FormatError(format!(
+                    "filename attribute field '{field}.{selector}' is missing"
+                ))
+            })
+        }
+        (_, FieldSelector::Attribute(selector)) => Err(FormatError(format!(
+            "filename field '{field}' has no attribute '{selector}'"
+        ))),
         _ => Err(FormatError(format!(
             "filename field '{field}' does not support element selection"
         ))),
@@ -899,9 +933,14 @@ fn field_with_metadata(
         let mut selector_applied_to_container = false;
         let mut candidate_source = None;
         let (field_value, is_literal) = if base_name == "_lit" {
-            let literal = selector.ok_or_else(|| {
+            let FieldSelector::Element(literal) = selector.ok_or_else(|| {
                 FormatError("literal filename field requires a bracketed value".into())
-            })?;
+            })?
+            else {
+                return Err(FormatError(
+                    "literal filename field requires a bracketed value".into(),
+                ));
+            };
             if selectors.len() != 1 {
                 return Err(FormatError(
                     "literal filename field accepts one bracketed value".into(),
@@ -943,7 +982,7 @@ fn field_with_metadata(
                         Some(value) => {
                             let mut selected = value.clone();
                             for selector in &selectors {
-                                selected = select_value(&selected, selector, base_name)?;
+                                selected = select_value(&selected, *selector, base_name)?;
                             }
                             selector_applied_to_container = !selectors.is_empty();
                             let value = if selector_applied_to_container {
@@ -986,12 +1025,19 @@ fn field_with_metadata(
         }
         let field_value = match (is_literal, selector_applied_to_container, selector) {
             (true, _, _) | (false, true, _) | (false, false, None) => field_value,
-            (false, false, Some(selector)) => {
-                let mut selected = slice_field(&field_value, selector)?;
-                for selector in selectors.iter().skip(1) {
-                    selected = slice_field(&selected, selector)?;
+            (false, false, Some(_)) => {
+                let mut selected = Value::String(field_value);
+                for selector in &selectors {
+                    selected = select_value(&selected, *selector, base_name)?;
                 }
-                selected
+                match selected {
+                    Value::String(value) => value,
+                    _ => {
+                        return Err(FormatError(
+                            "filename element selector must produce a string".into(),
+                        ))
+                    }
+                }
             }
         };
         if !field_value.is_empty() && value.is_none() {
@@ -1767,12 +1813,12 @@ mod tests {
 
         assert_eq!(
             render_with_metadata(
-                "{labels[nested][name]}_{artists[1][name]}_{labels[short][1]}",
+                "{labels[nested][name]}_{labels.nested.name}_{artists[1][name]}_{labels[short][1]}",
                 &item,
                 &metadata
             )
             .unwrap(),
-            "nested_two_a"
+            "nested_nested_two_a"
         );
     }
 
