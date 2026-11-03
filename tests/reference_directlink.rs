@@ -2799,6 +2799,7 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
         "{large:,.2f}",
         "{medium:_.5g}",
         "{large:15,.2f}",
+        "{large:015,.2f}",
     ];
     let native = formats
         .iter()
@@ -2840,7 +2841,8 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             "0.00",
             "1,234,567.00",
             "1_234",
-            "   1,234,567.00"
+            "   1,234,567.00",
+            "0,001,234,567.00"
         ]
     );
 

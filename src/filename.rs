@@ -998,15 +998,21 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
         output.insert(insertion, '.');
     }
     if let Some(separator) = grouping {
-        let suffix_start = output.find(['e', 'E', '%']).unwrap_or(output.len());
-        let decimal_start = output[..suffix_start].find('.').unwrap_or(suffix_start);
-        let integer_start = usize::from(output.starts_with('-'));
-        let grouped = group_integer_digits(&output[integer_start..decimal_start], separator, 3);
-        output = format!(
-            "{}{grouped}{}",
-            &output[..integer_start],
-            &output[decimal_start..]
-        );
+        if zero_fill {
+            let mut candidate = output.clone();
+            loop {
+                let grouped = group_fixed_float(&candidate, separator);
+                let sign_width = usize::from(!sign.is_empty() && !candidate.starts_with('-'));
+                if grouped.len() + sign_width >= width {
+                    output = grouped;
+                    break;
+                }
+                let integer_start = usize::from(candidate.starts_with('-'));
+                candidate.insert(integer_start, '0');
+            }
+        } else {
+            output = group_fixed_float(&output, separator);
+        }
     }
     if !sign.is_empty() && !output.starts_with('-') {
         output.insert_str(0, sign);
@@ -1050,6 +1056,18 @@ fn group_integer_digits(digits: &str, separator: char, group_size: usize) -> Str
         reversed.push(digit);
     }
     reversed.chars().rev().collect()
+}
+
+fn group_fixed_float(value: &str, separator: char) -> String {
+    let suffix_start = value.find(['e', 'E', '%']).unwrap_or(value.len());
+    let decimal_start = value[..suffix_start].find('.').unwrap_or(suffix_start);
+    let integer_start = usize::from(value.starts_with('-'));
+    let grouped = group_integer_digits(&value[integer_start..decimal_start], separator, 3);
+    format!(
+        "{}{grouped}{}",
+        &value[..integer_start],
+        &value[decimal_start..]
+    )
 }
 
 fn format_integer_character(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
