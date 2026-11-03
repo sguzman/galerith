@@ -2689,6 +2689,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     };
     let metadata: galerith::message::Metadata = serde_json::from_value(json!({
         "tags": ["zeta", "alpha", "middle"],
+        "mixed_tags": ["alpha", 2, false, null],
         "title": "plain",
         "display": "  Mixed Case  ",
         "display_encoded": "Mixed%20Case",
@@ -2714,6 +2715,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{artists:Mname/J + /}",
         "{tags:S/J, /}",
         "{tags:Sr/J, /}",
+        "{mixed_tags!S}",
         "{title:J, /}",
         "{title:A*3/}",
         "{display:Ctu/}",
@@ -2755,6 +2757,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "one + two + three",
             "alpha, middle, zeta",
             "zeta, middle, alpha",
+            "alpha, 2, False, None",
             "plain",
             "plainplainplain",
             "MIXED CASE",
@@ -2793,7 +2796,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':''}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'mixed_tags':['alpha',2,False,None],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':''}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{mixed_tags!S}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
