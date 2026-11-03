@@ -2799,16 +2799,26 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         extractor: "directlink",
         post_id: None,
     };
-    let metadata = json!({"count": 42, "large": 1_234_567});
+    let metadata = json!({"count": 42, "large": 1_234_567, "negative": -42});
     let metadata = metadata.as_object().unwrap();
-    let formats = ["{count:04d}", "{count:#x}", "{count:b}", "{large:,}"];
+    let formats = [
+        "{count:04d}",
+        "{count:#x}",
+        "{count:b}",
+        "{large:,}",
+        "{negative:05d}",
+        "{negative:#06x}",
+    ];
     let native = formats
         .iter()
         .map(|template| {
             galerith::filename::render_with_metadata(template, &item, metadata).unwrap()
         })
         .collect::<Vec<_>>();
-    assert_eq!(native, ["0042", "0x2a", "101010", "1,234,567"]);
+    assert_eq!(
+        native,
+        ["0042", "0x2a", "101010", "1,234,567", "-0042", "-0x02a"]
+    );
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -2819,7 +2829,7 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'count':42,'large':1234567}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'count':42,'large':1234567,'negative':-42}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);

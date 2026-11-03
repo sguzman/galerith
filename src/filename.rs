@@ -899,11 +899,13 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
         return Err(FormatError("filename numeric width is too large".into()));
     }
     let number = value
-        .parse::<u64>()
-        .map_err(|_| FormatError("numeric formatting requires an unsigned integer field".into()))?;
+        .parse::<i128>()
+        .map_err(|_| FormatError("numeric formatting requires an integer field".into()))?;
+    let sign = if number < 0 { "-" } else { "" };
+    let magnitude = number.unsigned_abs();
     let mut digits = match (base, grouping) {
         (10, Some(separator)) => {
-            let raw = number.to_string();
+            let raw = magnitude.to_string();
             let mut reversed = String::with_capacity(raw.len() + raw.len() / 3);
             for (index, digit) in raw.chars().rev().enumerate() {
                 if index > 0 && index % 3 == 0 {
@@ -913,19 +915,19 @@ fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatErro
             }
             reversed.chars().rev().collect()
         }
-        (10, None) => number.to_string(),
-        (2, None) => format!("{number:b}"),
-        (8, None) => format!("{number:o}"),
-        (16, None) => format!("{number:x}"),
+        (10, None) => magnitude.to_string(),
+        (2, None) => format!("{magnitude:b}"),
+        (8, None) => format!("{magnitude:o}"),
+        (16, None) => format!("{magnitude:x}"),
         _ => unreachable!(),
     };
     let prefix = if alternate { marker } else { "" };
-    let padding = width.saturating_sub(prefix.len() + digits.len());
+    let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
     if zero_fill {
         digits.insert_str(0, &"0".repeat(padding));
-        Ok(Some(format!("{prefix}{digits}")))
+        Ok(Some(format!("{sign}{prefix}{digits}")))
     } else {
-        Ok(Some(format!("{}{prefix}{digits}", " ".repeat(padding))))
+        Ok(Some(format!("{}{}{prefix}{digits}", " ".repeat(padding), sign)))
     }
 }
 
@@ -1496,7 +1498,8 @@ fn field_with_metadata(
             .collect());
     }
     if matches!(base_name, "id" | "post_id")
-        || selected_source.as_ref().is_some_and(Value::is_number)
+        || (conversion.is_empty()
+            && selected_source.as_ref().is_some_and(Value::is_number))
     {
         if let Some(formatted) = format_radix_id(&value, spec)? {
             return Ok(formatted);
