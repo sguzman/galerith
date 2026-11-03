@@ -766,29 +766,21 @@ fn python_json_value(value: &Value) -> String {
     }
 }
 
-fn slugify_ascii(value: &str) -> Result<String, FormatError> {
-    if !value.is_ascii() {
-        return Err(FormatError(
-            "slug conversion currently accepts ASCII values only".into(),
-        ));
-    }
+fn slugify(value: &str) -> String {
     let mut result = String::with_capacity(value.len());
     let mut separator = false;
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() {
+    for character in value.chars().flat_map(char::to_lowercase) {
+        if character.is_whitespace() || character == '-' {
+            separator = true;
+        } else if character.is_alphanumeric() || character == '_' {
             if separator && !result.is_empty() {
                 result.push('-');
             }
-            result.push(byte.to_ascii_lowercase() as char);
+            result.push(character);
             separator = false;
-        } else if matches!(byte, b'.' | b':') {
-            // gallery-dl's !g slugifier drops dots and colons (notably in
-            // domains and ports) instead of treating them as separators.
-        } else {
-            separator = true;
         }
     }
-    Ok(result)
+    result.trim_matches(['-', '_']).to_owned()
 }
 
 fn format_radix_id(value: &str, spec: &str) -> Result<Option<String>, FormatError> {
@@ -917,7 +909,7 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             'C' => python_capwords(&value),
             't' => value.trim().to_owned(),
             's' => value,
-            'g' => slugify_ascii(&value)?,
+            'g' => slugify(&value),
             'j' => python_json_string(&value),
             'r' => python_string_repr(&value, false),
             'a' => python_string_repr(&value, true),
@@ -1316,7 +1308,7 @@ fn field_with_metadata(
         "a" => python_string_repr(&value, true),
         "j" if native_non_string.is_some() => python_json_value(native_non_string.unwrap()),
         "j" => python_json_string(&value),
-        "g" => slugify_ascii(&value)?,
+        "g" => slugify(&value),
         "q" => encode_url_component(&value),
         "Q" => decode_url_component(&value),
         "U" => decode_html_entities(&value),
@@ -2116,9 +2108,15 @@ mod tests {
     }
 
     #[test]
-    fn slug_conversion_normalizes_basic_ascii_values_and_rejects_unicode() {
+    fn slug_conversion_preserves_words_and_normalizes_separators() {
         let item = sample();
         assert_eq!(field("_lit[Hello, World]!g", &item).unwrap(), "hello-world");
+        assert_eq!(field("_lit[foo,bar]!g", &item).unwrap(), "foobar");
+        assert_eq!(
+            field("_lit[Foo__BAR--baz]!g", &item).unwrap(),
+            "foo__bar-baz"
+        );
+        assert_eq!(field("_lit[猫 World]!g", &item).unwrap(), "猫-world");
         assert_eq!(
             field("_lit[Assets.Example.org]!g", &item).unwrap(),
             "assetsexampleorg"
@@ -2129,9 +2127,9 @@ mod tests {
         );
         assert_eq!(
             field("_lit[  Foo__BAR--baz  ]!g", &item).unwrap(),
-            "foo-bar-baz"
+            "foo__bar-baz"
         );
-        assert!(field("_lit[猫]!g", &item).is_err());
+        assert_eq!(field("_lit[__foo__]!g", &item).unwrap(), "foo");
     }
 
     #[test]

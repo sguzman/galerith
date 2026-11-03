@@ -2281,6 +2281,9 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "__u00e9lan_",
         ),
         ("slug-conversion", "{_lit[Hello, World]!g}", "hello-world"),
+        ("punctuation-slug-conversion", "{_lit[foo,bar]!g}", "foobar"),
+        ("unicode-slug-conversion", "{_lit[猫 World]!g}", "猫-world"),
+        ("internal-underscore-slug", "{_lit[foo__bar]!g}", "foo__bar"),
         ("repr-conversion", r#"{_lit[foo]!r:R'/_/}"#, "_foo_"),
         (
             "ascii-conversion",
