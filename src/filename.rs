@@ -1288,6 +1288,7 @@ mod tests {
             "tags": ["zeta", "alpha", "middle"],
             "title": "plain",
             "display": "  Mixed Case  ",
+            "display_encoded": "Mixed%20Case",
             "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
         }))
         .unwrap();
@@ -1341,6 +1342,26 @@ mod tests {
         );
         assert_eq!(
             render_with_metadata("{display:CW/}", &item, &metadata).unwrap(),
+            "Mixed Case"
+        );
+        assert_eq!(
+            convert_string_chain("  Mixed Case  ", "j").unwrap(),
+            "\"  Mixed Case  \""
+        );
+        assert_eq!(
+            convert_string_chain("  Mixed Case  ", "r").unwrap(),
+            "'  Mixed Case  '"
+        );
+        assert_eq!(
+            convert_string_chain("  Mixed Case  ", "a").unwrap(),
+            "'  Mixed Case  '"
+        );
+        assert_eq!(
+            render_with_metadata("{display:Cq/}", &item, &metadata).unwrap(),
+            "%20%20Mixed%20Case%20%20"
+        );
+        assert_eq!(
+            convert_string_chain("Mixed%20Case", "Q").unwrap(),
             "Mixed Case"
         );
         assert!(render_with_metadata("{title:A*-2/}", &item, &metadata).is_err());

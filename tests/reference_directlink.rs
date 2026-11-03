@@ -2691,6 +2691,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "tags": ["zeta", "alpha", "middle"],
         "title": "plain",
         "display": "  Mixed Case  ",
+        "display_encoded": "Mixed%20Case",
         "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
     }))
     .unwrap();
@@ -2709,6 +2710,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{display:Ctu/}",
         "{display:Cg/}",
         "{display:CW/}",
+        "{display:Cq/}",
+        "{display_encoded:CQ/}",
     ];
     let native = formats
         .iter()
@@ -2730,6 +2733,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "plainplainplain",
             "MIXED CASE",
             "mixed-case",
+            "Mixed Case",
+            "%20%20Mixed%20Case%20%20",
             "Mixed Case"
         ]
     );
@@ -2745,7 +2750,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','display':'  Mixed Case  ','artists':[{'name':'one'},{'name':'two'},{'name':'three'}]}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','artists':[{'name':'one'},{'name':'two'},{'name':'three'}]}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{title:J, /}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
