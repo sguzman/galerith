@@ -2582,6 +2582,82 @@ fn pinned_and_native_html_validation_config_allow_html_payloads() {
 }
 
 #[test]
+fn pinned_and_native_http_rate_config_limit_download_speed() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let pinned_root = Path::new(&pinned_root);
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    let body = vec![b'R'; 8192];
+    let mut response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    response.extend_from_slice(&body);
+    let response: &'static [u8] = Box::leak(response.into_boxed_slice());
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-rate-config-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (url, server) = serve_retry_sequence([response, response]);
+
+    for (label, pinned) in [("reference", true), ("native", false)] {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command
+            .args(["--quiet", "-o", "downloader.http.rate=8k", "-d"])
+            .arg(&output)
+            .arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let started = std::time::Instant::now();
+        let result = command.output().expect("launch rate fixture client");
+        let elapsed = started.elapsed();
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            contains_file_with_bytes(&output, &body),
+            "{label}: downloaded bytes differed"
+        );
+        assert!(
+            elapsed >= std::time::Duration::from_millis(900),
+            "{label}: configured 8 KiB/s rate was not applied ({elapsed:?})"
+        );
+    }
+    server.join().unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
     let template = "{_lit[é猫]!n}";
     let url = "https://example.org/image.jpg";

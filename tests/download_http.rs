@@ -554,16 +554,27 @@ async fn failed_no_part_transfer_leaves_a_partial_at_the_requested_output_path()
 
 #[tokio::test]
 async fn limit_rate_paces_body_bytes_at_the_configured_average() {
-    assert_limit_rate_paces_body_bytes("8k", "limited-rate", 900).await;
+    assert_limit_rate_paces_body_bytes(None, Some("8k"), "limited-rate", 900).await;
 }
 
 #[tokio::test]
 async fn ranged_limit_rate_paces_body_bytes_at_the_fastest_configured_rate() {
-    assert_limit_rate_paces_body_bytes("4k-8k", "limited-rate-range", 900).await;
+    assert_limit_rate_paces_body_bytes(None, Some("4k-8k"), "limited-rate-range", 900).await;
+}
+
+#[tokio::test]
+async fn configured_downloader_rate_paces_body_bytes() {
+    assert_limit_rate_paces_body_bytes(Some("8k"), None, "configured-rate", 900).await;
+}
+
+#[tokio::test]
+async fn cli_limit_rate_overrides_downloader_rate_configuration() {
+    assert_limit_rate_paces_body_bytes(Some("1M"), Some("8k"), "cli-rate-override", 900).await;
 }
 
 async fn assert_limit_rate_paces_body_bytes(
-    rate: &'static str,
+    configured_rate: Option<&'static str>,
+    cli_rate: Option<&'static str>,
     label: &'static str,
     minimum_ms: u64,
 ) {
@@ -590,10 +601,18 @@ async fn assert_limit_rate_paces_body_bytes(
     let _ = fs::remove_dir_all(&dir);
     let url = format!("http://{addr}/photo.jpg");
     let output_dir = dir.clone();
+    let configured_rate = configured_rate.map(|rate| format!("downloader.http.rate={rate}"));
     let started = Instant::now();
     let output = tokio::task::spawn_blocking(move || {
-        Command::new(env!("CARGO_BIN_EXE_galerith"))
-            .args(["--limit-rate", rate, "-d"])
+        let mut command = Command::new(env!("CARGO_BIN_EXE_galerith"));
+        if let Some(configured_rate) = configured_rate {
+            command.args(["-o", &configured_rate]);
+        }
+        if let Some(rate) = cli_rate {
+            command.args(["--limit-rate", rate]);
+        }
+        command
+            .args(["-d"])
             .arg(output_dir)
             .arg(url)
             .output()

@@ -60,6 +60,10 @@ impl RateRange {
         let span = u128::from(self.maximum) - minimum + 1;
         (minimum + u128::from(random) % span) as u64
     }
+
+    pub fn maximum(self) -> u64 {
+        self.maximum
+    }
 }
 
 fn parse_bytes_per_second(input: &str) -> Result<u64, &'static str> {

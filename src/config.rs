@@ -1,6 +1,6 @@
 //! A deliberately bounded, independently implemented subset of gallery-dl's
 //! configuration overlay semantics. Only explicit files are loaded in preview.
-use crate::pacing::{parse_byte_size, DelayRange};
+use crate::pacing::{parse_byte_size, DelayRange, RateRange};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::StatusCode;
 use serde_json::{Map, Value};
@@ -272,6 +272,25 @@ impl Config {
             })
             .transpose()
             .map(Option::flatten)
+    }
+
+    /// Optional constant or ranged media download rate in bytes per second.
+    pub fn downloader_http_rate(&self) -> Result<Option<RateRange>, &'static str> {
+        let Some(value) = self
+            .root
+            .get("rate")
+            .or_else(|| self.root.pointer("/downloader/http/rate"))
+        else {
+            return Ok(None);
+        };
+        let value = match value {
+            Value::Number(number) => number.to_string(),
+            Value::String(rate) => rate.clone(),
+            _ => return Err("downloader.http.rate must be a positive byte rate or range"),
+        };
+        RateRange::parse(&value)
+            .map(Some)
+            .map_err(|_| "downloader.http.rate must be a positive byte rate or range")
     }
 
     /// Additional HTTP response codes the media downloader should retry.
@@ -849,6 +868,29 @@ mod tests {
                 .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn downloader_http_rate_parses_ranges_and_global_precedence() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_rate().unwrap(), None);
+        config.option("downloader.http.rate=4k-8k").unwrap();
+        assert_eq!(
+            config.downloader_http_rate().unwrap(),
+            Some(RateRange::parse("4k-8k").unwrap())
+        );
+        config.option("rate=2k").unwrap();
+        assert_eq!(
+            config.downloader_http_rate().unwrap(),
+            Some(RateRange::parse("2k").unwrap())
+        );
+        config.option("downloader.http.rate=bad").unwrap();
+        assert_eq!(
+            config.downloader_http_rate().unwrap(),
+            Some(RateRange::parse("2k").unwrap())
+        );
+        config.option("rate=0").unwrap();
+        assert!(config.downloader_http_rate().is_err());
     }
 
     #[test]

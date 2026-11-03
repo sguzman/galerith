@@ -885,6 +885,24 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
         force_ipv6: cli.force_ipv6,
     };
     let client = build_http_client(client_options)?;
+    let limit_rate = cli
+        .limit_rate
+        .as_deref()
+        .map(RateRange::parse)
+        .transpose()
+        .map_err(std::io::Error::other)?
+        .or(config
+            .downloader_http_rate()
+            .map_err(std::io::Error::other)?);
+    let chunk_size = config
+        .downloader_http_chunk_size()
+        .map_err(std::io::Error::other)?
+        .unwrap_or(32 * 1024)
+        .min(
+            limit_rate
+                .and_then(|rate| usize::try_from(rate.maximum()).ok())
+                .unwrap_or(usize::MAX),
+        );
     let options = DownloadOptions {
         destination: cli.destination.unwrap_or_else(|| {
             config
@@ -905,16 +923,8 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
                 .map_err(std::io::Error::other)?
                 == Some(false),
         no_part: cli.no_part,
-        limit_rate: cli
-            .limit_rate
-            .as_deref()
-            .map(RateRange::parse)
-            .transpose()
-            .map_err(std::io::Error::other)?,
-        chunk_size: config
-            .downloader_http_chunk_size()
-            .map_err(std::io::Error::other)?
-            .unwrap_or(32 * 1024),
+        limit_rate,
+        chunk_size,
         validate_html: config
             .downloader_http_validate_html()
             .map_err(std::io::Error::other)?
