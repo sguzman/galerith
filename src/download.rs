@@ -290,7 +290,7 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "video/x-matroska" => "mkv",
         "audio/wav" | "audio/x-wav" => "wav",
         "audio/mpeg" => "mp3",
-        "audio/aac" => "aac",
+        "audio/aac" | "audio/x-aac" => "aac",
         "audio/flac" | "audio/x-flac" => "flac",
         "audio/opus" => "opus",
         "audio/x-ms-wma" => "wma",
@@ -303,6 +303,8 @@ fn media_extension_from_mime(content_type: Option<&str>) -> &'static str {
         "application/zip" | "application/x-zip" | "application/x-zip-compressed" => "zip",
         "application/rar" | "application/x-rar" | "application/x-rar-compressed" => "rar",
         "application/x-7z-compressed" => "7z",
+        "application/vnd.apple.mpegurl" | "application/x-mpegurl" => "m3u8",
+        "application/dash+xml" => "mpd",
         "application/pdf" | "application/x-pdf" => "pdf",
         "application/x-shockwave-flash" => "swf",
         "application/gzip" | "application/x-gzip" => "gz",
@@ -323,8 +325,8 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
     let extension = current_extension?.to_ascii_lowercase();
     let checkable = [
         "jpg", "png", "gif", "bmp", "webp", "avif", "heic", "svg", "ico", "cur", "psd", "mp4",
-        "m4v", "mov", "webm", "ogg", "wav", "mp3", "zip", "rar", "7z", "pdf", "swf", "blend",
-        "obj", "clip", "bin",
+        "m4v", "mov", "webm", "ogg", "wav", "mp3", "aac", "m3u8", "mpd", "zip", "rar", "7z", "pdf",
+        "swf", "blend", "obj", "clip", "bin",
     ];
     if !checkable.contains(&extension.as_str()) {
         return None;
@@ -377,6 +379,12 @@ fn signature_extension(first: &[u8], current_extension: Option<&str>) -> Option<
             .contains(&first.get(0..2).unwrap_or_default())
     {
         Some("mp3")
+    } else if [b"\xff\xf9".as_slice(), b"\xff\xf1"].contains(&first.get(0..2).unwrap_or_default()) {
+        Some("aac")
+    } else if first.starts_with(b"#EXTM3U") {
+        Some("m3u8")
+    } else if first.windows(4).any(|window| window == b"<MPD") {
+        Some("mpd")
     } else if first.starts_with(b"II*\0") || first.starts_with(b"MM\0*") {
         Some("tif")
     } else if first.starts_with(b"PK\x03\x04")
@@ -1175,6 +1183,13 @@ mod tests {
             ("jpg", b"\x1a\x45\xdf\xa3", "webm"),
             ("jpg", b"OggS", "ogg"),
             ("jpg", b"ID3", "mp3"),
+            ("mp3", b"\xff\xf1\x50\x80", "aac"),
+            ("mpd", b"#EXTM3U\n#EXT-X-VERSION:3", "m3u8"),
+            (
+                "m3u8",
+                b"<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\">",
+                "mpd",
+            ),
             ("jpg", b"8BPS", "psd"),
             ("jpg", b"BLENDER", "blend"),
             ("jpg", b"CSFCHUNK", "clip"),
@@ -1202,6 +1217,23 @@ mod tests {
             "bin"
         );
         assert_eq!(media_extension_from_mime(Some("unknown/type")), "bin");
+
+        for (mime, extension) in [
+            ("audio/x-aac", "aac"),
+            ("application/vnd.apple.mpegurl", "m3u8"),
+            ("application/x-mpegurl", "m3u8"),
+            ("application/dash+xml", "mpd"),
+            ("application/x-zip", "zip"),
+            ("application/x-zip-compressed", "zip"),
+            ("application/x-rar", "rar"),
+            ("application/x-rar-compressed", "rar"),
+        ] {
+            assert_eq!(
+                media_extension_from_mime(Some(mime)),
+                extension,
+                "unexpected extension for {mime}"
+            );
+        }
     }
 
     #[test]

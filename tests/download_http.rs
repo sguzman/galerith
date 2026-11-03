@@ -1,7 +1,7 @@
 //! Network tests use a loopback fixture server, never live gallery websites.
 use galerith::{
     download::{download, DownloadOptions, DownloadOutcome},
-    extract_direct_media,
+    extract_direct_media, MediaItem,
 };
 use std::{
     fs,
@@ -72,6 +72,77 @@ async fn downloads_atomically_and_skips_existing_files() {
     );
     server.await.unwrap();
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[tokio::test]
+async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let cases = [
+        ("application/vnd.apple.mpegurl", "m3u8"),
+        ("application/x-mpegurl", "m3u8"),
+        ("application/dash+xml", "mpd"),
+        ("audio/x-aac", "aac"),
+    ];
+    let server_cases = cases;
+    let server = tokio::spawn(async move {
+        for (content_type, _) in server_cases {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 256];
+            loop {
+                let count = stream.read(&mut buffer).await.unwrap();
+                assert_ne!(count, 0, "client closed before sending HTTP headers");
+                request.extend_from_slice(&buffer[..count]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let body = b"synthetic media payload";
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            stream.write_all(body).await.unwrap();
+        }
+    });
+    let dir = test_dir("mime-alias-extension");
+    let _ = fs::remove_dir_all(&dir);
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    for (index, (_, expected_extension)) in cases.into_iter().enumerate() {
+        let item = MediaItem {
+            url: format!("http://{addr}/asset-{index}"),
+            filename: format!("extensionless-output-{index}"),
+            extractor: "fixture",
+            post_id: None,
+        };
+        assert_eq!(
+            download(&client, &item, &options(dir.clone()))
+                .await
+                .unwrap(),
+            DownloadOutcome::Saved(
+                dir.join(format!("extensionless-output-{index}.{expected_extension}"))
+            )
+        );
+    }
+    server.await.unwrap();
+    for (index, (_, expected_extension)) in cases.into_iter().enumerate() {
+        assert_eq!(
+            fs::read(dir.join(format!("extensionless-output-{index}.{expected_extension}")))
+                .unwrap(),
+            b"synthetic media payload"
+        );
+    }
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[tokio::test]
