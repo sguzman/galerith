@@ -2775,6 +2775,12 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
     let cases = [
         ("image/tiff", "tiff"),
         ("image/jp2", "jp2"),
+        ("image/ief", "ief"),
+        ("image/x-cmu-raster", "ras"),
+        ("image/x-rgb", "rgb"),
+        ("image/x-xbitmap", "xbm"),
+        ("image/x-xpixmap", "xpm"),
+        ("image/x-xwindowdump", "xwd"),
         ("image/heic-sequence", "heics"),
         ("image/heif-sequence", "heifs"),
         ("image/jxl", "jxl"),
@@ -2783,17 +2789,21 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
         ("image/x-portable-bitmap", "pbm"),
         ("image/x-portable-anymap", "pnm"),
         ("video/x-flv", "flv"),
-        ("video/x-ms-asf", "asx"),
-        ("application/vnd.ms-asf", "asf"),
+        ("video/x-sgi-movie", "movie"),
+        ("video/x-ms-asf", "bin"),
+        ("application/vnd.ms-asf", "bin"),
         ("audio/mp4", "m4a"),
+        ("audio/3gpp", "3gp"),
+        ("audio/3gpp2", "3g2"),
         ("audio/x-aiff", "aif"),
         ("audio/basic", "au"),
+        ("audio/x-pn-realaudio", "ra"),
     ];
     let python = env::var_os("GALERITH_REFERENCE_PYTHON").unwrap_or_else(|| "python3".into());
     let mut command = Command::new(python);
     command.args([
         "-c",
-        "import mimetypes, sys; print('\\n'.join(mimetypes.guess_extension(x, strict=False) or '' for x in sys.argv[1:]))",
+        "import mimetypes, sys; print('\\n'.join(mimetypes.guess_extension(x, strict=False) or '.bin' for x in sys.argv[1:]))",
     ]);
     command.args(cases.iter().map(|(mime, _)| mime));
     command.env("PYTHONNOUSERSITE", "1");

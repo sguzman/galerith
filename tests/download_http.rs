@@ -148,7 +148,7 @@ async fn per_media_request_method_body_and_headers_reach_http_server() {
 }
 
 #[tokio::test]
-async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
+async fn extensionless_outputs_use_upstream_mime_aliases() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let cases = [
@@ -158,6 +158,12 @@ async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
         ("audio/x-aac", "aac"),
         ("image/tiff", "tiff"),
         ("image/jp2", "jp2"),
+        ("image/ief", "ief"),
+        ("image/x-cmu-raster", "ras"),
+        ("image/x-rgb", "rgb"),
+        ("image/x-xbitmap", "xbm"),
+        ("image/x-xpixmap", "xpm"),
+        ("image/x-xwindowdump", "xwd"),
         ("image/heic-sequence", "heics"),
         ("image/heif-sequence", "heifs"),
         ("image/jxl", "jxl"),
@@ -166,11 +172,15 @@ async fn extensionless_outputs_use_upstream_streaming_and_audio_mime_aliases() {
         ("image/x-portable-bitmap", "pbm"),
         ("image/x-portable-anymap", "pnm"),
         ("video/x-flv", "flv"),
-        ("video/x-ms-asf", "asx"),
-        ("application/vnd.ms-asf", "asf"),
+        ("video/x-sgi-movie", "movie"),
+        ("video/x-ms-asf", "bin"),
+        ("application/vnd.ms-asf", "bin"),
         ("audio/mp4", "m4a"),
+        ("audio/3gpp", "3gp"),
+        ("audio/3gpp2", "3g2"),
         ("audio/x-aiff", "aif"),
         ("audio/basic", "au"),
+        ("audio/x-pn-realaudio", "ra"),
     ];
     let server_cases = cases;
     let server = tokio::spawn(async move {
