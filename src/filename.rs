@@ -847,10 +847,10 @@ fn format_fixed_float(value: &Value, spec: &str) -> Result<Option<String>, Forma
     Ok(Some(output))
 }
 
-fn group_integer_digits(digits: &str, separator: char) -> String {
+fn group_integer_digits(digits: &str, separator: char, group_size: usize) -> String {
     let mut reversed = String::with_capacity(digits.len() + digits.len() / 3);
     for (index, digit) in digits.chars().rev().enumerate() {
-        if index > 0 && index % 3 == 0 {
+        if index > 0 && index % group_size == 0 {
             reversed.push(separator);
         }
         reversed.push(digit);
@@ -865,7 +865,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let Some(kind) = spec.chars().last() else {
         return Ok(None);
     };
-    let (base, marker, grouping) = match kind {
+    let (base, marker, type_grouping) = match kind {
         'd' => (10, "", None),
         'b' => (2, "0b", None),
         'o' => (8, "0o", None),
@@ -903,7 +903,13 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         _ => (None, radix),
     };
     let alternate = radix.starts_with('#');
-    let width_spec = radix.strip_prefix('#').unwrap_or(radix);
+    let radix = radix.strip_prefix('#').unwrap_or(radix);
+    let (grouping, width_spec) = match type_grouping {
+        Some(separator) => (Some(separator), radix),
+        None if base != 10 && radix.ends_with('_') => (Some('_'), &radix[..radix.len() - 1]),
+        None => (None, radix),
+    };
+    let group_size = if base == 10 { 3 } else { 4 };
     let zero_flag = width_spec.starts_with('0') && width_spec.len() > 1;
     let zero_fill = alignment.is_none() && zero_flag;
     if zero_flag && !explicit_fill {
@@ -952,11 +958,14 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let prefix = if alternate { marker } else { "" };
     if zero_fill {
         if let Some(separator) = grouping {
-            while sign.len() + prefix.len() + group_integer_digits(&digits, separator).len() < width
+            while sign.len()
+                + prefix.len()
+                + group_integer_digits(&digits, separator, group_size).len()
+                < width
             {
                 digits.insert(0, '0');
             }
-            digits = group_integer_digits(&digits, separator);
+            digits = group_integer_digits(&digits, separator, group_size);
         } else {
             let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
             digits.insert_str(0, &"0".repeat(padding));
@@ -964,7 +973,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         Ok(Some(format!("{sign}{prefix}{digits}")))
     } else {
         if let Some(separator) = grouping {
-            digits = group_integer_digits(&digits, separator);
+            digits = group_integer_digits(&digits, separator, group_size);
         }
         let padding = width.saturating_sub(sign.len() + prefix.len() + digits.len());
         if alignment == Some('=') {
