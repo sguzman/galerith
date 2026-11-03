@@ -312,7 +312,7 @@ fn soft_200_error_documents_cannot_become_archived_image_media() {
     let server = std::thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
         for (content_type, body) in [
-            ("application/pdf", b"%PDF-1.7\nsynthetic".as_slice()),
+            ("application/pdf", b"not a PDF document".as_slice()),
             (
                 "text/html; charset=utf-8",
                 b"<html>Blocked</html>".as_slice(),

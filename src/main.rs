@@ -929,6 +929,10 @@ async fn run(cli: Cli) -> Result<(), Box<dyn Error + Send + Sync>> {
             .downloader_http_validate_html()
             .map_err(std::io::Error::other)?
             .unwrap_or(true),
+        adjust_extensions: config
+            .downloader_http_adjust_extensions()
+            .map_err(std::io::Error::other)?
+            .unwrap_or(true),
         filesize_min,
         filesize_max,
         headers: config

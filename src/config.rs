@@ -293,6 +293,21 @@ impl Config {
             .map_err(|_| "downloader.http.rate must be a positive byte rate or range")
     }
 
+    /// Optional signature-based output extension adjustment toggle.
+    pub fn downloader_http_adjust_extensions(&self) -> Result<Option<bool>, &'static str> {
+        self.root
+            .get("adjust-extensions")
+            .or_else(|| self.root.pointer("/downloader/http/adjust-extensions"))
+            .map(|value| {
+                value
+                    .as_bool()
+                    .map(Some)
+                    .ok_or("downloader.http.adjust-extensions must be a boolean")
+            })
+            .transpose()
+            .map(Option::flatten)
+    }
+
     /// Additional HTTP response codes the media downloader should retry.
     /// Server errors remain retryable independently of this setting.
     pub fn downloader_http_retry_codes(&self) -> Result<Vec<StatusCode>, &'static str> {
@@ -891,6 +906,33 @@ mod tests {
         );
         config.option("rate=0").unwrap();
         assert!(config.downloader_http_rate().is_err());
+    }
+
+    #[test]
+    fn downloader_http_adjust_extensions_is_optional_boolean_with_global_precedence() {
+        let mut config = Config::default();
+        assert_eq!(config.downloader_http_adjust_extensions().unwrap(), None);
+        config
+            .option("downloader.http.adjust-extensions=false")
+            .unwrap();
+        assert_eq!(
+            config.downloader_http_adjust_extensions().unwrap(),
+            Some(false)
+        );
+        config.option("adjust-extensions=true").unwrap();
+        assert_eq!(
+            config.downloader_http_adjust_extensions().unwrap(),
+            Some(true)
+        );
+        config
+            .option("downloader.http.adjust-extensions=1")
+            .unwrap();
+        assert_eq!(
+            config.downloader_http_adjust_extensions().unwrap(),
+            Some(true)
+        );
+        config.option("adjust-extensions=1").unwrap();
+        assert!(config.downloader_http_adjust_extensions().is_err());
     }
 
     #[test]

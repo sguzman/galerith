@@ -28,6 +28,7 @@ fn options(destination: PathBuf, no_skip: bool) -> DownloadOptions {
         limit_rate: None,
         chunk_size: 32 * 1024,
         validate_html: true,
+        adjust_extensions: true,
         filesize_min: None,
         filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),

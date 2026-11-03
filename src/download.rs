@@ -19,7 +19,10 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::{
+    fs,
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 
 #[derive(Debug, Clone)]
 pub struct DownloadOptions {
@@ -35,6 +38,8 @@ pub struct DownloadOptions {
     pub chunk_size: usize,
     /// Whether HTML responses with non-HTML output names are rejected.
     pub validate_html: bool,
+    /// Whether recognized file signatures correct the output extension.
+    pub adjust_extensions: bool,
     /// Minimum response size; responses with a known smaller size are filtered.
     pub filesize_min: Option<u64>,
     /// Maximum response size; responses with a known larger size are filtered.
@@ -227,6 +232,35 @@ fn media_type_mismatches_extension(item: &MediaItem, content_type: &str) -> bool
         _ => None,
     };
     expected.is_some_and(|extensions| !extensions.contains(&extension))
+}
+
+/// Return a conservative extension correction for common, unambiguous file
+/// signatures. The prefix is bounded by the downloader and is never trusted
+/// for formats whose signatures overlap substantially.
+fn signature_extension(first: &[u8]) -> Option<&'static str> {
+    if first.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if first.starts_with(b"\xff\xd8\xff") {
+        Some("jpg")
+    } else if first.starts_with(b"GIF87a") || first.starts_with(b"GIF89a") {
+        Some("gif")
+    } else if first.starts_with(b"%PDF-") {
+        Some("pdf")
+    } else if first.starts_with(b"BM") {
+        Some("bmp")
+    } else if first.starts_with(b"II*\0") || first.starts_with(b"MM\0*") {
+        Some("tif")
+    } else if first.starts_with(b"PK\x03\x04") || first.starts_with(b"PK\x05\x06") {
+        Some("zip")
+    } else if first.starts_with(b"7z\xbc\xaf\x27\x1c") {
+        Some("7z")
+    } else if first.starts_with(b"Rar!\x1a\x07") {
+        Some("rar")
+    } else if first.starts_with(b"\x1f\x8b") {
+        Some("gz")
+    } else {
+        None
+    }
 }
 
 /// Some servers label an HTML or JSON block page as application/octet-stream
@@ -465,8 +499,8 @@ pub async fn download(
     fs::create_dir_all(&options.destination).await?;
     // Hold this OS advisory lock through the existence check, transfer and
     // rename. Parallel Galerith workers cannot clobber the same .part file.
-    let _lock = lock_output(&options.destination, &item.filename).await?;
-    let target = options.destination.join(&item.filename);
+    let output_lock = lock_output(&options.destination, &item.filename).await?;
+    let mut target = options.destination.join(&item.filename);
     let part = if options.no_part {
         target.clone()
     } else {
@@ -597,10 +631,11 @@ pub async fn download(
         }
         // Some image hosts return a branded HTML/JSON block page with 200.
         // Never archive it as completed image or video content.
-        if header(&response, CONTENT_TYPE).is_some_and(|mime| {
-            media_error_document(item, &mime, options.validate_html)
-                || media_type_mismatches_extension(item, &mime)
-        }) {
+        let incompatible_media_type = header(&response, CONTENT_TYPE)
+            .is_some_and(|mime| media_type_mismatches_extension(item, &mime));
+        if header(&response, CONTENT_TYPE)
+            .is_some_and(|mime| media_error_document(item, &mime, options.validate_html))
+        {
             // Neither a 206 error suffix nor a 200 block page replacing a
             // Range request can satisfy the media transfer. A stale partial
             // must not make the next retry repeat the unusable range.
@@ -776,8 +811,14 @@ pub async fn download(
         let mut received = 0_u64;
         let transfer_started = tokio::time::Instant::now();
         let mut first_bytes = Vec::with_capacity(160);
+        let mut response_first_bytes = Vec::with_capacity(160);
+        if append {
+            let prior_file = fs::File::open(&part).await?;
+            prior_file.take(160).read_to_end(&mut first_bytes).await?;
+        }
         let mut transfer_error: Option<Box<dyn Error + Send + Sync>> = None;
         let mut oversized_response = false;
+        let mut invalid_content_type = false;
         loop {
             match response.chunk().await {
                 Ok(Some(chunk)) => {
@@ -794,6 +835,10 @@ pub async fn download(
                         if first_bytes.len() < 160 {
                             let count = (160 - first_bytes.len()).min(chunk.len());
                             first_bytes.extend_from_slice(&chunk[..count]);
+                        }
+                        if response_first_bytes.len() < 160 {
+                            let count = (160 - response_first_bytes.len()).min(chunk.len());
+                            response_first_bytes.extend_from_slice(&chunk[..count]);
                         }
                         if let Err(err) = file.write_all(chunk).await {
                             transfer_error = Some(err.into());
@@ -823,9 +868,22 @@ pub async fn download(
             }
         }
         let misleading_error_body =
-            looks_like_soft_error_body(item, &first_bytes, options.validate_html);
+            looks_like_soft_error_body(item, &response_first_bytes, options.validate_html);
         if misleading_error_body {
             transfer_error = Some(error("block page disguised as binary media"));
+        }
+        let detected_extension = options
+            .adjust_extensions
+            .then(|| signature_extension(&first_bytes))
+            .flatten();
+        if transfer_error.is_none()
+            && incompatible_media_type
+            && (detected_extension.is_none() || options.no_part)
+        {
+            transfer_error = Some(error(
+                "incompatible Content-Type instead of requested media",
+            ));
+            invalid_content_type = true;
         }
         if transfer_error.is_none() {
             if received == 0 {
@@ -859,7 +917,11 @@ pub async fn download(
         }
         drop(file);
         if let Some(err) = transfer_error {
-            if misleading_error_body || oversized_response || (received == 0 && !append) {
+            if misleading_error_body
+                || invalid_content_type
+                || oversized_response
+                || (received == 0 && !append)
+            {
                 // Discard deceptive or oversized responses and their sidecars.
                 // Never retain an untrustworthy suffix for future resume.
                 invalidate_for_mode(&part, &metadata, options.no_part).await?;
@@ -886,6 +948,37 @@ pub async fn download(
                     continue;
                 }
                 return Err(error("resumed chunk saved; more bytes remain"));
+            }
+        }
+        if let Some(extension) = detected_extension {
+            let old_extension = target.extension().and_then(|value| value.to_str());
+            if old_extension.is_some_and(|old| !old.eq_ignore_ascii_case(extension)) {
+                let corrected_target = target.with_extension(extension);
+                drop(output_lock);
+                let _corrected_output_lock = lock_output(
+                    &options.destination,
+                    corrected_target
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .ok_or_else(|| error("invalid corrected filename"))?,
+                )
+                .await?;
+                verify_output_entry(&corrected_target, false).await?;
+                if !options.no_skip && fs::try_exists(&corrected_target).await? {
+                    let existing = fs::metadata(&corrected_target).await?;
+                    if existing.is_file() && existing.len() > 0 {
+                        if options.no_part {
+                            fs::remove_file(&target).await?;
+                        } else {
+                            invalidate_for_mode(&part, &metadata, false).await?;
+                        }
+                        return Ok(DownloadOutcome::Skipped(corrected_target));
+                    }
+                }
+                if options.no_part {
+                    fs::rename(&target, &corrected_target).await?;
+                }
+                target = corrected_target;
             }
         }
         if !options.no_part {

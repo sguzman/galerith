@@ -2658,6 +2658,79 @@ fn pinned_and_native_http_rate_config_limit_download_speed() {
 }
 
 #[test]
+fn pinned_and_native_http_signature_correction_adjust_output_extension() {
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let pinned_root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("CI reference oracle must supply the pinned upstream directory");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+
+    const PNG: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 29\r\nConnection: close\r\n\r\n\x89PNG\r\n\x1a\nsynthetic-png-payload";
+    let root = env::temp_dir().join(format!(
+        "galerith-pinned-extension-oracle-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    let (url, server) = serve_retry_sequence([PNG, PNG]);
+
+    for (label, pinned) in [("reference", true), ("native", false)] {
+        let output = root.join(label);
+        std::fs::create_dir_all(&output).unwrap();
+        let mut command = if pinned {
+            let mut command = Command::new("python3");
+            command.args(["-m", "gallery_dl", "--config-ignore", "--no-input"]);
+            command.env("PYTHONPATH", &pinned_root);
+            command.env("PYTHONNOUSERSITE", "1");
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
+            command
+        } else {
+            Command::new(env!("CARGO_BIN_EXE_galerith"))
+        };
+        command
+            .args([
+                "--quiet",
+                "-o",
+                "downloader.http.adjust-extensions=true",
+                "-d",
+            ])
+            .arg(&output)
+            .arg(&url);
+        for key in [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        ] {
+            command.env_remove(key);
+        }
+        let result = command
+            .output()
+            .expect("launch signature-correction fixture client");
+        assert!(
+            result.status.success(),
+            "{label}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            output.join("asset.png").exists(),
+            "{label}: expected corrected PNG output"
+        );
+        assert!(
+            !output.join("asset.jpg").exists(),
+            "{label}: original suffix must not remain"
+        );
+    }
+    server.join().unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn pinned_and_native_clients_reject_integer_length_filename_conversion() {
     let template = "{_lit[é猫]!n}";
     let url = "https://example.org/image.jpg";

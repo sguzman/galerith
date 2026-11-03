@@ -28,6 +28,7 @@ fn options(destination: PathBuf) -> DownloadOptions {
         limit_rate: None,
         chunk_size: 32 * 1024,
         validate_html: true,
+        adjust_extensions: true,
         filesize_min: None,
         filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),
@@ -154,6 +155,136 @@ async fn common_mime_alias_still_rejects_a_conflicting_filename_extension() {
     assert!(error.to_string().contains("incompatible Content-Type"));
     assert!(!dir.join("misnamed.jpg").exists());
     assert!(!dir.join("misnamed.jpg.part").exists());
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn recognized_signature_corrects_a_misleading_extension() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        let body = b"\x89PNG\r\n\x1a\nsynthetic image";
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        stream.write_all(body).await.unwrap();
+    });
+    let dir = test_dir("signature-extension");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/misnamed.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(dir.join("misnamed.png"))
+    );
+    assert!(fs::read(dir.join("misnamed.png"))
+        .unwrap()
+        .starts_with(b"\x89PNG\r\n\x1a\n"));
+    assert!(!dir.join("misnamed.jpg").exists());
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn recognized_signature_correction_skips_an_existing_corrected_target() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        let body = b"\x89PNG\r\n\x1a\nsynthetic image";
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        stream.write_all(body).await.unwrap();
+    });
+    let dir = test_dir("signature-extension-collision");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("misnamed.png"), b"existing good file").unwrap();
+    let item = extract_direct_media(&format!("http://{addr}/misnamed.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        download(&client, &item, &options(dir.clone()))
+            .await
+            .unwrap(),
+        DownloadOutcome::Skipped(dir.join("misnamed.png"))
+    );
+    assert_eq!(
+        fs::read(dir.join("misnamed.png")).unwrap(),
+        b"existing good file"
+    );
+    assert!(!dir.join("misnamed.jpg").exists());
+    server.await.unwrap();
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn no_part_mode_corrects_a_completed_signature_after_direct_write() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = [0_u8; 512];
+        assert!(stream.read(&mut request).await.unwrap() > 0);
+        let body = b"\x89PNG\r\n\x1a\nsynthetic image";
+        stream
+            .write_all(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        stream.write_all(body).await.unwrap();
+    });
+    let dir = test_dir("signature-extension-no-part");
+    let _ = fs::remove_dir_all(&dir);
+    let item = extract_direct_media(&format!("http://{addr}/misnamed.jpg")).unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let mut opts = options(dir.clone());
+    opts.no_part = true;
+
+    assert_eq!(
+        download(&client, &item, &opts).await.unwrap(),
+        DownloadOutcome::Saved(dir.join("misnamed.png"))
+    );
+    assert!(dir.join("misnamed.png").exists());
+    assert!(!dir.join("misnamed.jpg").exists());
     server.await.unwrap();
     fs::remove_dir_all(dir).unwrap();
 }

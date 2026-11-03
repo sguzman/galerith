@@ -29,6 +29,7 @@ fn settings(destination: PathBuf, retries: u32) -> DownloadOptions {
         limit_rate: None,
         chunk_size: 32 * 1024,
         validate_html: true,
+        adjust_extensions: true,
         filesize_min: None,
         filesize_max: None,
         headers: reqwest::header::HeaderMap::new(),
@@ -440,6 +441,43 @@ async fn resumes_interrupted_http_body_with_matching_etag() {
     assert_eq!(fs::read(path.join("a.jpg")).unwrap(), b"ABCDEFGHIJ");
     assert!(!path.join("a.jpg.part").exists());
     assert!(!path.join("a.jpg.part.json").exists());
+    server.await.unwrap();
+    clean(&path);
+}
+
+#[tokio::test]
+async fn resumed_signature_prefix_corrects_misleading_extension() {
+    const PREFIX: &[u8] = b"\x89PNG\r\n\x1a\n";
+    const SUFFIX: &[u8] = b"tail!";
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let mut first = next(&listener).await;
+        let req = request(&mut first).await;
+        assert!(!req.contains("\r\nrange:"));
+        first.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 13\r\nETag: \"png\"\r\nConnection: close\r\n\r\n").await.unwrap();
+        first.write_all(PREFIX).await.unwrap();
+        drop(first);
+
+        let mut second = next(&listener).await;
+        let req = request(&mut second).await;
+        assert!(req.contains("\r\nrange: bytes=8-\r\n"), "{req}");
+        second.write_all(b"HTTP/1.1 206 Partial Content\r\nContent-Range: bytes 8-12/13\r\nContent-Length: 5\r\nContent-Type: image/png\r\nETag: \"png\"\r\nConnection: close\r\n\r\n").await.unwrap();
+        second.write_all(SUFFIX).await.unwrap();
+    });
+    let path = dir("resume-signature-extension");
+    clean(&path);
+    let item = extract_direct_media(&format!("http://{addr}/misnamed.jpg")).unwrap();
+    assert_eq!(
+        download(&client(), &item, &settings(path.clone(), 1))
+            .await
+            .unwrap(),
+        DownloadOutcome::Saved(path.join("misnamed.png"))
+    );
+    let mut bytes = PREFIX.to_vec();
+    bytes.extend_from_slice(SUFFIX);
+    assert_eq!(fs::read(path.join("misnamed.png")).unwrap(), bytes);
+    assert!(!path.join("misnamed.jpg").exists());
     server.await.unwrap();
     clean(&path);
 }
