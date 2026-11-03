@@ -590,7 +590,7 @@ fn metadata_field(
     spec: &mut &str,
 ) -> Result<Option<String>, FormatError> {
     match value {
-        Value::Null if matches!(conversion, "s" | "r" | "a") => Ok(Some("None".into())),
+        Value::Null if !conversion.is_empty() => Ok(Some("None".into())),
         Value::Null if conversion.is_empty() && spec.starts_with('?') => Ok(Some(String::new())),
         Value::Null => Ok(None),
         Value::Bool(false) if conversion.is_empty() && spec.starts_with('?') => {
@@ -732,7 +732,7 @@ fn field_with_metadata(
     let mut selected_base = None;
     let mut empty_fallback = None;
     let mut selected_spec = None;
-    let mut selected_native_scalar = false;
+    let mut selected_source = None;
     let mut missing_field = None;
     for candidate in &candidates {
         let mut candidate_spec = spec;
@@ -751,7 +751,7 @@ fn field_with_metadata(
             None => (*candidate, None),
         };
         let mut selector_applied_to_list = false;
-        let mut candidate_native_scalar = false;
+        let mut candidate_source = None;
         let (field_value, is_literal) = if base_name == "_lit" {
             let literal = selector.ok_or_else(|| {
                 FormatError("literal filename field requires a bracketed value".into())
@@ -779,7 +779,10 @@ fn field_with_metadata(
                     ),
                     "category" | "extractor" => Some(item.extractor.to_owned()),
                     "id" | "post_id" => match item.post_id {
-                        Some(id) => Some(id.to_string()),
+                        Some(id) => {
+                            candidate_source = Some(Value::from(id));
+                            Some(id.to_string())
+                        }
                         None => {
                             missing_field.get_or_insert(base_name);
                             None
@@ -795,8 +798,7 @@ fn field_with_metadata(
                             };
                             selector_applied_to_list = selected.is_some();
                             let value = selected.as_ref().unwrap_or(value);
-                            candidate_native_scalar =
-                                matches!(value, Value::Null | Value::Bool(_) | Value::Number(_));
+                            candidate_source = Some(value.clone());
                             let value =
                                 metadata_field(value, base_name, conversion, &mut candidate_spec)?;
                             if value.is_none() {
@@ -836,22 +838,22 @@ fn field_with_metadata(
         if !field_value.is_empty() && value.is_none() {
             selected_base = Some(base_name);
             selected_spec = Some(candidate_spec);
-            selected_native_scalar = candidate_native_scalar;
+            selected_source = candidate_source.clone();
             value = Some(field_value);
         } else if field_value.is_empty() && value.is_none() {
             empty_fallback.get_or_insert((
                 base_name,
                 field_value,
                 candidate_spec,
-                candidate_native_scalar,
+                candidate_source,
             ));
         }
     }
     let (base_name, value) = match (selected_base, value, empty_fallback) {
         (Some(base), Some(value), _) => (base, value),
-        (None, None, Some((base, value, spec, native_scalar))) => {
+        (None, None, Some((base, value, spec, source))) => {
             selected_spec = Some(spec);
-            selected_native_scalar = native_scalar;
+            selected_source = source;
             (base, value)
         }
         (None, None, None) if candidates.len() == 1 => {
@@ -870,12 +872,16 @@ fn field_with_metadata(
         _ => unreachable!("selected filename field must have a value"),
     };
     let mut spec = selected_spec.unwrap_or(spec);
+    let native_scalar = selected_source
+        .as_ref()
+        .filter(|source| matches!(source, Value::Null | Value::Bool(_) | Value::Number(_)));
     let mut value = match conversion {
         "" | "s" | "S" => value,
-        "r" if selected_native_scalar || matches!(base_name, "id" | "post_id") => value,
+        "r" if native_scalar.is_some() || matches!(base_name, "id" | "post_id") => value,
         "r" => python_string_repr(&value, false),
-        "a" if selected_native_scalar || matches!(base_name, "id" | "post_id") => value,
+        "a" if native_scalar.is_some() || matches!(base_name, "id" | "post_id") => value,
         "a" => python_string_repr(&value, true),
+        "j" if native_scalar.is_some() => native_scalar.unwrap().to_string(),
         "j" => python_json_string(&value),
         "g" => slugify_ascii(&value)?,
         "q" => encode_url_component(&value),
@@ -1462,6 +1468,10 @@ mod tests {
             ("enabled!a", "False"),
             ("count!a", "0"),
             ("nullable!a", "None"),
+            ("enabled!j", "false"),
+            ("count!j", "0"),
+            ("nullable!j", "null"),
+            ("id!j", "42"),
         ] {
             assert_eq!(
                 render_with_metadata(&format!("{{{field}}}"), &item, &metadata).unwrap(),
