@@ -2902,6 +2902,7 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     let metadata = metadata.as_object().unwrap();
     let formats = [
         "{count:04d}",
+        "{count:A+2/04d}",
         "{count:#x}",
         "{count:b}",
         "{large:,}",
@@ -2947,6 +2948,7 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         native,
         [
             "0042",
+            "0044",
             "0x2a",
             "101010",
             "1,234,567",

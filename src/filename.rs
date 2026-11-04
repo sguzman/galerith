@@ -1855,11 +1855,13 @@ fn field_with_metadata(
             .chain(replacement.chars())
             .collect());
     }
-    if matches!(base_name, "id" | "post_id")
-        || (conversion.is_empty()
-            && selected_source
-                .as_ref()
-                .is_some_and(|source| source.is_number() || source.is_boolean()))
+    let arithmetic_spec = spec.starts_with('A');
+    if !arithmetic_spec
+        && (matches!(base_name, "id" | "post_id")
+            || (conversion.is_empty()
+                && selected_source
+                    .as_ref()
+                    .is_some_and(|source| source.is_number() || source.is_boolean())))
     {
         let integer_value = match selected_source.as_ref() {
             Some(Value::Bool(true)) => "1",
@@ -1875,7 +1877,7 @@ fn field_with_metadata(
             return Ok(formatted);
         }
     }
-    if conversion.is_empty() {
+    if conversion.is_empty() && !arithmetic_spec {
         if let Some(source) = selected_source.as_ref() {
             if let Some(formatted) = format_fixed_numeric(source, spec)? {
                 return Ok(formatted);
@@ -1886,10 +1888,10 @@ fn field_with_metadata(
         return Err(FormatError("invalid filename length formatter".into()));
     }
     if let Some(operation) = spec.strip_prefix('A') {
-        let operation = operation
-            .strip_suffix('/')
+        let (expression, remainder) = operation
+            .split_once('/')
             .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
-        let (operator, operand) = operation
+        let (operator, operand) = expression
             .split_at_checked(1)
             .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
         let right = operand
@@ -1909,7 +1911,12 @@ fn field_with_metadata(
                 for _ in 0..count {
                     repeated.push_str(&value);
                 }
-                return Ok(repeated);
+                if remainder.is_empty() {
+                    return Ok(repeated);
+                }
+                return Err(FormatError(
+                    "unsupported string arithmetic format suffix".into(),
+                ));
             }
             Err(_) => {
                 return Err(FormatError(
@@ -1928,7 +1935,19 @@ fn field_with_metadata(
             }
         }
         .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
-        return Ok(result.to_string());
+        let result = result.to_string();
+        if remainder.is_empty() {
+            return Ok(result);
+        }
+        if let Some(formatted) = format_integer_character(&result, remainder)? {
+            return Ok(formatted);
+        }
+        if let Some(formatted) = format_integer(&result, remainder)? {
+            return Ok(formatted);
+        }
+        return Err(FormatError(
+            "unsupported filename arithmetic format suffix".into(),
+        ));
     }
     if let Some(precision) = spec.strip_prefix('.') {
         if matches!(base_name, "id" | "post_id")
@@ -2657,6 +2676,7 @@ mod tests {
         assert_eq!(render("{id:A+8/}", &item).unwrap(), "50");
         assert_eq!(render("{id:A-2/}", &item).unwrap(), "40");
         assert_eq!(render("{id:A*3/}", &item).unwrap(), "126");
+        assert_eq!(render("{id:A+8/04d}", &item).unwrap(), "0050");
         assert!(render("{filename:A+1/}", &item).is_err());
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
