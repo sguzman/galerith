@@ -1384,6 +1384,34 @@ fn python_string_value(value: &Value) -> Result<String, FormatError> {
     }
 }
 
+fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, FormatError> {
+    let invalid = || FormatError("integer conversion requires an integer-compatible value".into());
+    match source {
+        Some(Value::Bool(value)) => Ok(i128::from(*value)),
+        Some(Value::Number(number)) => {
+            if let Some(value) = number.as_i64() {
+                Ok(i128::from(value))
+            } else if let Some(value) = number.as_u64() {
+                Ok(i128::from(value))
+            } else if let Some(value) = number.as_f64() {
+                const I128_MIN: f64 = -170141183460469231731687303715884105728.0;
+                const I128_MAX_EXCLUSIVE: f64 = 170141183460469231731687303715884105728.0;
+                let value = value.trunc();
+                if value.is_finite() && (I128_MIN..I128_MAX_EXCLUSIVE).contains(&value) {
+                    Ok(value as i128)
+                } else {
+                    Err(invalid())
+                }
+            } else {
+                Err(invalid())
+            }
+        }
+        Some(Value::String(value)) => value.trim().parse().map_err(|_| invalid()),
+        Some(Value::Null | Value::Array(_) | Value::Object(_)) => Err(invalid()),
+        None => value.trim().parse().map_err(|_| invalid()),
+    }
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -1715,6 +1743,11 @@ fn field_with_metadata(
             "filename string conversion requires a string value".into(),
         ));
     }
+    let converted_integer = if conversion == "i" {
+        Some(python_integer_value(selected_source.as_ref(), &value)?)
+    } else {
+        None
+    };
     let mut value = match conversion {
         "" | "s" | "S" => value,
         "r" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
@@ -1737,6 +1770,9 @@ fn field_with_metadata(
         "C" => python_capwords(&value),
         "t" => value.trim().to_owned(),
         "W" => value.split_whitespace().collect::<Vec<_>>().join(" "),
+        "i" => converted_integer
+            .expect("integer conversion has a parsed value")
+            .to_string(),
         "n" => {
             return Err(FormatError(
                 "length conversion produces a non-string filename value".into(),
@@ -1748,6 +1784,17 @@ fn field_with_metadata(
             )))
         }
     };
+    if conversion == "i" && !spec.starts_with('A') {
+        if let Some(formatted) = format_integer_character(&value, spec)? {
+            return Ok(formatted);
+        }
+        if let Some(formatted) = format_integer(&value, spec)? {
+            return Ok(formatted);
+        }
+        return Err(FormatError(
+            "integer conversion requires a numeric filename format".into(),
+        ));
+    }
     if spec.starts_with('D') {
         if conversion.is_empty()
             && (native_non_string.is_some() || matches!(base_name, "id" | "post_id"))
@@ -1857,7 +1904,8 @@ fn field_with_metadata(
     }
     let arithmetic_spec = spec.starts_with('A');
     if !arithmetic_spec
-        && (matches!(base_name, "id" | "post_id")
+        && (conversion == "i"
+            || matches!(base_name, "id" | "post_id")
             || (conversion.is_empty()
                 && selected_source
                     .as_ref()
@@ -1868,7 +1916,7 @@ fn field_with_metadata(
             Some(Value::Bool(false)) => "0",
             _ => &value,
         };
-        if conversion.is_empty() {
+        if conversion.is_empty() || conversion == "i" {
             if let Some(formatted) = format_integer_character(integer_value, spec)? {
                 return Ok(formatted);
             }
@@ -2232,6 +2280,37 @@ mod tests {
         let item = sample();
         assert_eq!(render("{filename!s}", &item).unwrap(), "original");
         assert_eq!(render("{id!s}", &item).unwrap(), "42");
+    }
+
+    #[test]
+    fn integer_conversion_formats_string_numeric_and_boolean_metadata() {
+        let item = sample();
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "count": 42,
+            "numeric_text": " 17 ",
+            "decimal": 12.9,
+            "enabled": true,
+            "invalid": "not a number"
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{count!i:04d}", &item, &metadata).unwrap(),
+            "0042"
+        );
+        assert_eq!(
+            render_with_metadata("{numeric_text!i:04d}", &item, &metadata).unwrap(),
+            "0017"
+        );
+        assert_eq!(
+            render_with_metadata("{decimal!i:d}", &item, &metadata).unwrap(),
+            "12"
+        );
+        assert_eq!(
+            render_with_metadata("{enabled!i:02d}", &item, &metadata).unwrap(),
+            "01"
+        );
+        assert!(render_with_metadata("{invalid!i}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{count!i}", &item, &metadata).is_err());
     }
 
     #[test]

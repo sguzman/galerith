@@ -2903,6 +2903,8 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     let formats = [
         "{count:04d}",
         "{count:A+2/04d}",
+        "{count!i:04d}",
+        "{flag!i:02d}",
         "{count:#x}",
         "{count:b}",
         "{large:,}",
@@ -2949,6 +2951,8 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
         [
             "0042",
             "0044",
+            "0042",
+            "01",
             "0x2a",
             "101010",
             "1,234,567",
