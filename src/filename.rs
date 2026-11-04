@@ -1385,6 +1385,35 @@ fn python_array_repr(values: &[Value]) -> Result<String, FormatError> {
     Ok(format!("[{}]", values.join(", ")))
 }
 
+fn python_array_ascii_repr(values: &[Value]) -> Result<String, FormatError> {
+    let values = values
+        .iter()
+        .map(python_ascii_repr_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(format!("[{}]", values.join(", ")))
+}
+
+fn python_ascii_repr_value(value: &Value) -> Result<String, FormatError> {
+    match value {
+        Value::String(value) => Ok(python_string_repr(value, true)),
+        Value::Array(values) => python_array_ascii_repr(values),
+        Value::Object(values) => {
+            let values = values
+                .iter()
+                .map(|(key, value)| {
+                    Ok(format!(
+                        "{}: {}",
+                        python_string_repr(key, true),
+                        python_ascii_repr_value(value)?
+                    ))
+                })
+                .collect::<Result<Vec<_>, FormatError>>()?;
+            Ok(format!("{{{}}}", values.join(", ")))
+        }
+        _ => python_string_value(value),
+    }
+}
+
 fn python_object_repr(values: &serde_json::Map<String, Value>) -> Result<String, FormatError> {
     let values = values
         .iter()
@@ -1578,21 +1607,33 @@ fn metadata_field(
                 let urls = extract_urls(&source);
                 if suffix.is_empty() {
                     Value::Array(urls)
-                } else if let Some(suffix) = suffix.strip_prefix('S') {
-                    let value = urls
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    Value::String(if suffix.is_empty() {
+                } else {
+                    let mut suffix_chars = suffix.chars();
+                    let conversion = suffix_chars.next().ok_or_else(|| {
+                        FormatError("filename URL extraction conversion is incomplete".into())
+                    })?;
+                    let trailing: String = suffix_chars.collect();
+                    let value = match conversion {
+                        'S' => urls
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        's' | 'r' => python_array_repr(&urls)?,
+                        'a' => python_array_ascii_repr(&urls)?,
+                        'j' => python_json_value(&Value::Array(urls)),
+                        'n' => urls.len().to_string(),
+                        _ => {
+                            return Err(FormatError(format!(
+                                "unsupported conversion '{conversion}' after URL extraction"
+                            )))
+                        }
+                    };
+                    Value::String(if trailing.is_empty() {
                         value
                     } else {
-                        convert_string_chain(&value, suffix)?
+                        convert_string_chain(&value, &trailing)?
                     })
-                } else {
-                    return Err(FormatError(
-                        "filename URL extraction conversion must be final or followed by S".into(),
-                    ));
                 }
             } else {
                 Value::String(convert_string_chain(value, conversions)?)
@@ -2703,6 +2744,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{link_text:CRS/Cg/}", &item, &links).unwrap(),
             "httpsatestx-httpsbtesty"
+        );
+        assert_eq!(
+            render_with_metadata("{link_text:CRn/}", &item, &links).unwrap(),
+            "2"
         );
         assert!(render_with_metadata("{link_text:CR/}", &item, &links).is_err());
         assert_eq!(
