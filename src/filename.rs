@@ -1439,11 +1439,26 @@ fn python_float_value(source: Option<&Value>, value: &str) -> Result<f64, Format
     let number = match source {
         Some(Value::Bool(value)) => f64::from(u8::from(*value)),
         Some(Value::Number(number)) => number.as_f64().ok_or_else(invalid)?,
-        Some(Value::String(value)) => value.trim().parse().map_err(|_| invalid())?,
+        Some(Value::String(value)) => parse_python_float_text(value).ok_or_else(invalid)?,
         Some(Value::Null | Value::Array(_) | Value::Object(_)) => return Err(invalid()),
-        None => value.trim().parse().map_err(|_| invalid())?,
+        None => parse_python_float_text(value).ok_or_else(invalid)?,
     };
     number.is_finite().then_some(number).ok_or_else(invalid)
+}
+
+fn parse_python_float_text(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let bytes = value.as_bytes();
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte == b'_'
+            && !(index > 0
+                && bytes[index - 1].is_ascii_digit()
+                && bytes.get(index + 1).is_some_and(u8::is_ascii_digit))
+        {
+            return None;
+        }
+    }
+    value.replace('_', "").parse().ok()
 }
 
 fn python_length_value(source: Option<&Value>, value: &str) -> Result<usize, FormatError> {
@@ -2372,6 +2387,7 @@ mod tests {
             "decimal": 12.9,
             "enabled": true,
             "rating_text": "1.2345",
+            "grouped_rating": "1_234.5_6",
             "invalid": "not a number",
             "invalid_separator": "1__2"
         }))
@@ -2404,11 +2420,16 @@ mod tests {
             render_with_metadata("{rating_text!f:.2f}", &item, &metadata).unwrap(),
             "1.23"
         );
+        assert_eq!(
+            render_with_metadata("{grouped_rating!f:.2f}", &item, &metadata).unwrap(),
+            "1234.56"
+        );
         assert!(render_with_metadata("{invalid!i}", &item, &metadata).is_err());
         assert!(render_with_metadata("{invalid_separator!i:04d}", &item, &metadata).is_err());
         assert!(render_with_metadata("{invalid!f:.2f}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!i}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!f}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{invalid_separator!f:.2f}", &item, &metadata).is_err());
     }
 
     #[test]
