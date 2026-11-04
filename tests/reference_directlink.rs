@@ -3424,6 +3424,96 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
 }
 
 #[test]
+fn pinned_datetime_conversions_match_unix_and_iso_values() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "timestamp": 1_709_211_845,
+        "iso": "2024-02-29T13:04:05.987654+02:00",
+        "fractional": "2024-02-29T13:04:05.987654Z",
+        "invalid": "not-a-date",
+        "zero": 0,
+        "yes": true,
+        "no": false,
+        "timestamp_text": "1709211845"
+    }))
+    .unwrap();
+    let formats = [
+        "{timestamp!d:%Y-%m-%d_%H-%M-%S}",
+        "{timestamp!D:%Y-%m-%d_%H-%M-%S}",
+        "{iso!D:%Y-%m-%d_%H-%M-%S}",
+        "{iso!D:%Y%m%d_%H%M%S_%f%z}",
+        "{timestamp!D:%Y-%m-%d}",
+        "{fractional!D:%Y-%m-%d_%H-%M-%S.%f}",
+        "{invalid!D}",
+        "{invalid!d}",
+        "{zero!d:%Y}",
+        "{zero!D:%Y}",
+        "{yes!d:%S}",
+        "{no!d:%S}",
+        "{yes!D:%S}",
+        "{no!D:%S}",
+        "{timestamp_text!d:%Y}",
+        "file{timestamp!T}",
+        "{timestamp!T:08}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| {
+            galerith::filename::render_with_metadata(format, &item, &metadata)
+                .unwrap_or_else(|error| panic!("format {format:?} failed: {error}"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "2024-02-29_13-04-05",
+            "2024-02-29_13-04-05",
+            "2024-02-29_11-04-05",
+            "20240229_110405_000000",
+            "2024-02-29",
+            "2024-02-29_13-04-05.000000",
+            "[Invalid DateTime]",
+            "[Invalid DateTime]",
+            "1970",
+            "[Invalid DateTime]",
+            "01",
+            "00",
+            "01",
+            "[Invalid DateTime]",
+            "2024",
+            "file",
+            "00000000",
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for datetime conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'timestamp':1709211845,'iso':'2024-02-29T13:04:05.987654+02:00','fractional':'2024-02-29T13:04:05.987654Z','invalid':'not-a-date','zero':0,'yes':True,'no':False,'timestamp_text':'1709211845'}; formats=('{timestamp!d:%Y-%m-%d_%H-%M-%S}','{timestamp!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y%m%d_%H%M%S_%f%z}','{timestamp!D:%Y-%m-%d}','{fractional!D:%Y-%m-%d_%H-%M-%S.%f}','{invalid!D}','{invalid!d}','{zero!d:%Y}','{zero!D:%Y}','{yes!d:%S}','{no!d:%S}','{yes!D:%S}','{no!D:%S}','{timestamp_text!d:%Y}','file{timestamp!T}','{timestamp!T:08}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned datetime conversions").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_datetime_week_number_inputs_match_python() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),

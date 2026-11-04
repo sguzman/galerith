@@ -90,6 +90,85 @@ pub(crate) fn format_datetime(value: &str, spec: &str) -> Option<String> {
     })
 }
 
+/// Convert gallery-dl's `d` and `D` filename conversions to a UTC datetime
+/// string, optionally applying Python-style datetime format directives.
+pub(crate) fn convert_datetime(
+    value: &str,
+    source: Option<&serde_json::Value>,
+    spec: &str,
+    parse_iso: bool,
+) -> String {
+    use serde_json::Value;
+
+    let date = match source {
+        Some(Value::Number(number)) => number
+            .as_f64()
+            .filter(|seconds| !parse_iso || *seconds != 0.0)
+            .and_then(datetime_from_timestamp),
+        Some(Value::Bool(boolean)) if parse_iso && !boolean => None,
+        Some(Value::Bool(boolean)) => datetime_from_timestamp(f64::from(u8::from(*boolean))),
+        Some(Value::String(value)) => value
+            .parse::<i64>()
+            .ok()
+            .and_then(|seconds| datetime_from_timestamp(seconds as f64))
+            .or_else(|| parse_iso.then(|| parse_iso_datetime(value)).flatten()),
+        _ => value
+            .parse::<i64>()
+            .ok()
+            .and_then(|seconds| datetime_from_timestamp(seconds as f64))
+            .or_else(|| parse_iso.then(|| parse_iso_datetime(value)).flatten()),
+    };
+    date.filter(|date| date.valid())
+        .map(|date| format_datetime_value(date, spec))
+        .unwrap_or_else(|| "[Invalid DateTime]".into())
+}
+
+fn datetime_from_timestamp(seconds: f64) -> Option<DateTime> {
+    let seconds = seconds.floor();
+    if !(i64::MIN as f64..=i64::MAX as f64).contains(&seconds) {
+        return None;
+    }
+    let seconds = seconds as i64;
+    let days = seconds.div_euclid(86_400);
+    let day_seconds = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let date = DateTime {
+        year,
+        month,
+        day,
+        hour: (day_seconds / 3600) as u32,
+        minute: (day_seconds % 3600 / 60) as u32,
+        second: (day_seconds % 60) as u32,
+        microsecond: 0,
+        offset_seconds: None,
+    };
+    date.valid().then_some(date)
+}
+
+fn parse_iso_datetime(value: &str) -> Option<DateTime> {
+    let value = value
+        .strip_suffix('Z')
+        .map_or_else(|| value.to_owned(), |prefix| format!("{prefix}+00:00"));
+    [
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M%z",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d %H:%M:%S.%f%z",
+        "%Y-%m-%d %H:%M:%S%z",
+        "%Y-%m-%d %H:%M%z",
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+    ]
+    .into_iter()
+    .find_map(|format| parse_datetime(&value, format))
+    .map(DateTime::normalize_offset)
+}
+
 fn parse_fixed_offset(value: &str) -> Option<i64> {
     if value.is_empty() || value == "local" {
         return None;
@@ -651,7 +730,31 @@ const MONTHS_LONG: [&str; 12] = [
 
 #[cfg(test)]
 mod tests {
-    use super::format_datetime;
+    use super::{convert_datetime, format_datetime};
+
+    #[test]
+    fn converts_unix_and_iso_datetime_filename_values() {
+        assert_eq!(
+            convert_datetime("1709211845", None, "", false),
+            "2024-02-29 13:04:05"
+        );
+        assert_eq!(
+            convert_datetime("2024-02-29T13:04:05.987654+02:00", None, "", true),
+            "2024-02-29 11:04:05"
+        );
+        assert_eq!(
+            convert_datetime("2024-02-29T13:04:05Z", None, "%Y%m%d_%H%M%S_%f%z", true,),
+            "20240229_130405_000000"
+        );
+        assert_eq!(
+            convert_datetime("not-a-date", None, "%Y", true),
+            "[Invalid DateTime]"
+        );
+        assert_eq!(
+            convert_datetime("not-a-timestamp", None, "", false),
+            "[Invalid DateTime]"
+        );
+    }
 
     #[test]
     fn parses_and_formats_common_datetime_patterns() {

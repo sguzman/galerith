@@ -1974,8 +1974,17 @@ fn field_with_metadata(
     } else {
         None
     };
+    if conversion == "d" || conversion == "D" {
+        return Ok(crate::filename_datetime::convert_datetime(
+            &value,
+            selected_source.as_ref(),
+            spec,
+            conversion == "D",
+        ));
+    }
     let mut value = match conversion {
         "" | "s" | "S" => value,
+        "T" => String::new(),
         "r" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
         "r" => python_string_repr(&value, false),
         "a" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
