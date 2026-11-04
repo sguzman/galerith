@@ -56,6 +56,11 @@ async fn write_atomic(output: &Path, bytes: &[u8], tmp: &Path) -> io::Result<()>
         let _ = fs::remove_file(tmp).await;
         return Err(error);
     }
+    if let Err(error) = file.flush().await {
+        drop(file);
+        let _ = fs::remove_file(tmp).await;
+        return Err(error);
+    }
     drop(file);
     if let Err(error) = fs::rename(tmp, output).await {
         let _ = fs::remove_file(tmp).await;
