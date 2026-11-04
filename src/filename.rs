@@ -1559,6 +1559,114 @@ fn python_length_value(source: Option<&Value>, value: &str) -> Result<usize, For
     }
 }
 
+fn arithmetic_operation(spec: &str) -> Result<(&str, i128, &str), FormatError> {
+    let operation = spec
+        .strip_prefix('A')
+        .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
+    let (expression, remainder) = operation
+        .split_once('/')
+        .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
+    let (operator, operand) = expression
+        .split_at_checked(1)
+        .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
+    let right = operand
+        .parse::<i128>()
+        .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+    Ok((operator, right, remainder))
+}
+
+fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, FormatError> {
+    let (operator, right, remainder) = arithmetic_operation(spec)?;
+    let result = match operator {
+        "+" => left.checked_add(right),
+        "-" => left.checked_sub(right),
+        "*" => left.checked_mul(right),
+        _ => {
+            return Err(FormatError(
+                "unsupported filename arithmetic operator".into(),
+            ))
+        }
+    }
+    .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
+    if remainder.starts_with('A') {
+        return apply_integer_arithmetic_chain(result, remainder);
+    }
+    let value = result.to_string();
+    if remainder.is_empty() {
+        return Ok(value);
+    }
+    if let Some(formatted) = format_integer_character(&value, remainder)? {
+        return Ok(formatted);
+    }
+    if let Some(formatted) = format_integer(&value, remainder)? {
+        return Ok(formatted);
+    }
+    Err(FormatError(
+        "unsupported filename arithmetic format suffix".into(),
+    ))
+}
+
+fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatError> {
+    let (operator, right, remainder) = arithmetic_operation(spec)?;
+    let right = right as f64;
+    let result = match operator {
+        "+" => left + right,
+        "-" => left - right,
+        "*" => left * right,
+        _ => {
+            return Err(FormatError(
+                "unsupported filename arithmetic operator".into(),
+            ))
+        }
+    };
+    if !result.is_finite() {
+        return Err(FormatError("filename arithmetic overflow".into()));
+    }
+    if remainder.starts_with('A') {
+        return apply_float_arithmetic_chain(result, remainder);
+    }
+    let number = Value::Number(
+        serde_json::Number::from_f64(result)
+            .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?,
+    );
+    if remainder.is_empty() {
+        return formatter_to_string(&number);
+    }
+    if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
+        return Ok(formatted);
+    }
+    Err(FormatError(
+        "unsupported floating-point arithmetic format suffix".into(),
+    ))
+}
+
+fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, FormatError> {
+    let (operator, right, remainder) = arithmetic_operation(spec)?;
+    if operator != "*" {
+        return Err(FormatError(
+            "filename arithmetic requires an integer field".into(),
+        ));
+    }
+    let count = usize::try_from(right.max(0))
+        .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+    let output_len = value
+        .len()
+        .checked_mul(count)
+        .filter(|length| *length <= 240)
+        .ok_or_else(|| FormatError("filename repetition exceeds 240 bytes".into()))?;
+    let repeated = value.repeat(count);
+    debug_assert_eq!(repeated.len(), output_len);
+    if remainder.starts_with('A') {
+        return apply_string_arithmetic_chain(repeated, remainder);
+    }
+    if remainder.is_empty() {
+        return Ok(repeated);
+    }
+    Err(FormatError(
+        "unsupported string arithmetic format suffix".into(),
+    ))
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -2192,16 +2300,8 @@ fn field_with_metadata(
     if spec.starts_with('X') || spec.starts_with('L') {
         return Err(FormatError("invalid filename length formatter".into()));
     }
-    if let Some(operation) = spec.strip_prefix('A') {
-        let (expression, remainder) = operation
-            .split_once('/')
-            .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
-        let (operator, operand) = expression
-            .split_at_checked(1)
-            .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
-        let right = operand
-            .parse::<i128>()
-            .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+    if spec.starts_with('A') {
+        let (operator, _, _) = arithmetic_operation(spec)?;
         let float_left = if conversion == "f" {
             converted_float
         } else {
@@ -2211,57 +2311,13 @@ fn field_with_metadata(
             })
         };
         if let Some(left) = float_left {
-            let right = right as f64;
-            let result = match operator {
-                "+" => left + right,
-                "-" => left - right,
-                "*" => left * right,
-                _ => {
-                    return Err(FormatError(
-                        "unsupported filename arithmetic operator".into(),
-                    ))
-                }
-            };
-            let number = serde_json::Number::from_f64(result)
-                .filter(|_| result.is_finite())
-                .map(Value::Number)
-                .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
-            if remainder.is_empty() {
-                return formatter_to_string(&number);
-            }
-            if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
-                return Ok(formatted);
-            }
-            return Err(FormatError(
-                "unsupported floating-point arithmetic format suffix".into(),
-            ));
+            return apply_float_arithmetic_chain(left, spec);
         }
         let left = match selected_source.as_ref() {
             Some(Value::Bool(value)) => i128::from(*value),
             _ => match value.parse::<i128>() {
                 Ok(left) => left,
-                Err(_) if operator == "*" => {
-                    let count = usize::try_from(right.max(0)).map_err(|_| {
-                        FormatError("filename repetition count is too large".into())
-                    })?;
-                    let output_len = value
-                        .len()
-                        .checked_mul(count)
-                        .filter(|length| *length <= 240)
-                        .ok_or_else(|| {
-                            FormatError("filename repetition exceeds 240 bytes".into())
-                        })?;
-                    let mut repeated = String::with_capacity(output_len);
-                    for _ in 0..count {
-                        repeated.push_str(&value);
-                    }
-                    if remainder.is_empty() {
-                        return Ok(repeated);
-                    }
-                    return Err(FormatError(
-                        "unsupported string arithmetic format suffix".into(),
-                    ));
-                }
+                Err(_) if operator == "*" => return apply_string_arithmetic_chain(value, spec),
                 Err(_) => {
                     return Err(FormatError(
                         "filename arithmetic requires an integer field".into(),
@@ -2269,30 +2325,7 @@ fn field_with_metadata(
                 }
             },
         };
-        let result = match operator {
-            "+" => left.checked_add(right),
-            "-" => left.checked_sub(right),
-            "*" => left.checked_mul(right),
-            _ => {
-                return Err(FormatError(
-                    "unsupported filename arithmetic operator".into(),
-                ))
-            }
-        }
-        .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
-        let result = result.to_string();
-        if remainder.is_empty() {
-            return Ok(result);
-        }
-        if let Some(formatted) = format_integer_character(&result, remainder)? {
-            return Ok(formatted);
-        }
-        if let Some(formatted) = format_integer(&result, remainder)? {
-            return Ok(formatted);
-        }
-        return Err(FormatError(
-            "unsupported filename arithmetic format suffix".into(),
-        ));
+        return apply_integer_arithmetic_chain(left, spec);
     }
     if let Some(precision) = spec.strip_prefix('.') {
         if matches!(base_name, "id" | "post_id")
@@ -3168,6 +3201,8 @@ mod tests {
         assert_eq!(render("{id:A-2/}", &item).unwrap(), "40");
         assert_eq!(render("{id:A*3/}", &item).unwrap(), "126");
         assert_eq!(render("{id:A+8/04d}", &item).unwrap(), "0050");
+        assert_eq!(render("{id:A+1/A*2/}", &item).unwrap(), "86");
+        assert_eq!(render("{id:A+1/A*2/04d}", &item).unwrap(), "0086");
         assert!(render("{filename:A+1/}", &item).is_err());
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
@@ -3197,6 +3232,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{rating:A+1/.2f}", &item, &metadata).unwrap(),
             "2.25"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:A*2/A+1/}", &item, &metadata).unwrap(),
+            "3.5"
         );
         assert_eq!(
             render_with_metadata("{whole:A*2/}", &item, &metadata).unwrap(),
@@ -3229,6 +3268,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/}", &item, &metadata).unwrap(),
             "abab"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/A*2/}", &item, &metadata).unwrap(),
+            "abababab"
         );
     }
 
