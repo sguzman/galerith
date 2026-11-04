@@ -468,6 +468,10 @@ fn read_number(value: &str, cursor: &mut usize, min: usize, max: usize) -> Optio
 }
 
 fn read_offset(value: &str, cursor: &mut usize) -> Option<i32> {
+    if value.as_bytes().get(*cursor) == Some(&b'Z') {
+        *cursor += 1;
+        return Some(0);
+    }
     let sign = match value.as_bytes().get(*cursor)? {
         b'+' => 1,
         b'-' => -1,
@@ -1009,6 +1013,14 @@ mod tests {
             )
             .as_deref(),
             Some("2024-02-29 22:29:45")
+        );
+        assert_eq!(
+            format_datetime(
+                "2024-03-01T01:00:00Z",
+                "D%Y-%m-%dT%H:%M:%S%z/%Y-%m-%d_%H-%M_%z"
+            )
+            .as_deref(),
+            Some("2024-03-01_01-00_")
         );
         assert_eq!(
             format_datetime("2024-02-29 13:04:05.987654", "D%Y-%m-%d %H:%M:%S.%f/%S.%f").as_deref(),
