@@ -35,7 +35,6 @@ impl DateTime {
             (self.year, self.month, self.day) = civil_from_days(days);
             self.hour = (day_minutes / 60) as u32;
             self.minute = (day_minutes % 60) as u32;
-            self.offset_minutes = Some(0);
         }
         self
     }

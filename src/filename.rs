@@ -1450,15 +1450,15 @@ fn metadata_field(
             let mapped = values
                 .iter()
                 .map(|value| match value {
-                    Value::Object(fields) => fields
-                        .get(key)
-                        .filter(|value| !value.is_array() && !value.is_object())
-                        .cloned()
-                        .ok_or_else(|| {
-                            FormatError(format!(
-                                "filename map field '{field_name}.{key}' is missing or not scalar"
-                            ))
-                        }),
+                    Value::Object(fields) => match fields.get(key) {
+                        Some(Value::String(value)) => Ok(Value::String(value.clone())),
+                        Some(_) => Err(FormatError(format!(
+                            "filename map field '{field_name}.{key}' must be a string"
+                        ))),
+                        None => Err(FormatError(format!(
+                            "filename map field '{field_name}.{key}' is missing"
+                        ))),
+                    },
                     _ => Err(FormatError(format!(
                         "filename map field '{field_name}' must contain objects"
                     ))),
@@ -1502,14 +1502,11 @@ fn metadata_field(
                 join_formatter_spec(spec).expect("join formatter spec starts with J");
             let values = values
                 .iter()
-                .map(|value| {
-                    if value.is_array() || value.is_object() {
-                        Err(FormatError(format!(
-                            "filename list field '{field_name}' must contain only scalar values"
-                        )))
-                    } else {
-                        python_string_value(value)
-                    }
+                .map(|value| match value {
+                    Value::String(value) => Ok(value.as_str()),
+                    _ => Err(FormatError(format!(
+                        "filename list field '{field_name}' must contain only strings"
+                    ))),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             *spec = remainder;
