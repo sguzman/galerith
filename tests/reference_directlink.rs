@@ -3112,7 +3112,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "alpha, 2, False, None, [1, True], {'name'- 'one'}",
             "[1,true,null]",
             "plain",
-            "plain",
+            "plain000",
             "plainplainplain",
             "MIXED CASE",
             "mixed-case",

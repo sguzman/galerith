@@ -1960,7 +1960,14 @@ fn field_with_metadata(
         && spec.starts_with('0')
         && spec[1..].bytes().all(|byte| byte.is_ascii_digit())
     {
-        return Ok(value.to_owned());
+        let width = spec[1..]
+            .parse::<usize>()
+            .map_err(|_| FormatError("invalid string width formatting".into()))?;
+        if width > 240 {
+            return Err(FormatError("filename string width is too large".into()));
+        }
+        let padding = width.saturating_sub(value.chars().count());
+        return Ok(format!("{value}{}", "0".repeat(padding)));
     }
     let chars: Vec<char> = spec.chars().collect();
     let (fill, align, width_start) = match chars.as_slice() {
@@ -2249,7 +2256,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             render_with_metadata("{title:08}", &item, &metadata).unwrap(),
-            "plain"
+            "plain000"
         );
         assert_eq!(
             render_with_metadata("{tags:J, /}", &item, &metadata).unwrap(),
