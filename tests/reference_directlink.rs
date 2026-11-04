@@ -3264,6 +3264,8 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "offset": "2024-02-29 23:45",
         "newyear": "2024-01-01",
         "unknown_zone": "2024-01-01 XYZ",
+        "meridiem_only": "PM 2024",
+        "time_pm": "11 PM",
         "invalid": "2024-02-30"
     }))
     .unwrap();
@@ -3279,6 +3281,8 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}",
         "{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}",
         "{unknown_zone:D%Y-%m-%d %Z/%Y}",
+        "{meridiem_only:D%p %Y/%H}",
+        "{time_pm:D%I %p/%H}",
         "{id:D%Y/%Y}",
     ];
     let native = formats
@@ -3299,6 +3303,8 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "20240229_1815",
             "20240229_2315",
             "[Invalid DateTime]",
+            "00",
+            "23",
             "[Invalid DateTime]",
         ]
     );
@@ -3311,7 +3317,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','meridiem_only':'PM 2024','time_pm':'11 PM','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{meridiem_only:D%p %Y/%H}','{time_pm:D%I %p/%H}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", &root);
     command.env("PYTHONNOUSERSITE", "1");

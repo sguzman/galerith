@@ -118,6 +118,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         microsecond: 0,
         offset_minutes: None,
     };
+    let mut twelve_hour_clock = false;
     let mut input = 0;
     let mut chars = format.chars();
     while let Some(character) = chars.next() {
@@ -161,6 +162,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
             'I' | 'l' => {
                 let hour = read_number(value, &mut input, 1, 2)?;
                 date.hour = hour % 12;
+                twelve_hour_clock = true;
             }
             'M' => date.minute = read_number(value, &mut input, 1, 2)?,
             'S' => date.second = read_number(value, &mut input, 1, 2)?,
@@ -199,8 +201,13 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 let word = &value[word_start..input];
                 match directive {
                     'b' | 'B' => date.month = month_number(word)?,
-                    'p' if word.eq_ignore_ascii_case("PM") => date.hour = (date.hour % 12) + 12,
-                    'p' if word.eq_ignore_ascii_case("AM") => date.hour %= 12,
+                    'p' if word.eq_ignore_ascii_case("PM") && twelve_hour_clock => {
+                        date.hour = (date.hour % 12) + 12;
+                    }
+                    'p' if word.eq_ignore_ascii_case("AM") && twelve_hour_clock => {
+                        date.hour %= 12;
+                    }
+                    'p' if word.eq_ignore_ascii_case("AM") || word.eq_ignore_ascii_case("PM") => {}
                     'p' | 'a' | 'A' => {}
                     'Z' if word.eq_ignore_ascii_case("UTC") || word.eq_ignore_ascii_case("GMT") => {
                     }
@@ -581,6 +588,11 @@ mod tests {
             format_datetime("2024-01-01 XYZ", "D%Y-%m-%d %Z/%Y").as_deref(),
             Some("[Invalid DateTime]")
         );
+        assert_eq!(
+            format_datetime("PM 2024", "D%p %Y/%H").as_deref(),
+            Some("00")
+        );
+        assert_eq!(format_datetime("11 PM", "D%I %p/%H").as_deref(), Some("23"));
         assert_eq!(
             format_datetime("2024-02-30", "D%Y-%m-%d/%Y%m%d").as_deref(),
             Some("[Invalid DateTime]")
