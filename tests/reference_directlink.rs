@@ -2770,6 +2770,8 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
+        "{rating!f:.2f}",
+        "{whole!f:.1f}",
         "{rating:.2f}",
         "{rating:f}",
         "{rating:08.2f}",
@@ -2820,6 +2822,8 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
     assert_eq!(
         native,
         [
+            "1.23",
+            "42.0",
             "1.23",
             "1.234500",
             "00001.23",

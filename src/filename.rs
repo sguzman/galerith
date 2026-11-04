@@ -1412,6 +1412,18 @@ fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, For
     }
 }
 
+fn python_float_value(source: Option<&Value>, value: &str) -> Result<f64, FormatError> {
+    let invalid = || FormatError("float conversion requires a finite numeric value".into());
+    let number = match source {
+        Some(Value::Bool(value)) => f64::from(u8::from(*value)),
+        Some(Value::Number(number)) => number.as_f64().ok_or_else(invalid)?,
+        Some(Value::String(value)) => value.trim().parse().map_err(|_| invalid())?,
+        Some(Value::Null | Value::Array(_) | Value::Object(_)) => return Err(invalid()),
+        None => value.trim().parse().map_err(|_| invalid())?,
+    };
+    number.is_finite().then_some(number).ok_or_else(invalid)
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -1748,6 +1760,11 @@ fn field_with_metadata(
     } else {
         None
     };
+    let converted_float = if conversion == "f" {
+        Some(python_float_value(selected_source.as_ref(), &value)?)
+    } else {
+        None
+    };
     let mut value = match conversion {
         "" | "s" | "S" => value,
         "r" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
@@ -1773,6 +1790,9 @@ fn field_with_metadata(
         "i" => converted_integer
             .expect("integer conversion has a parsed value")
             .to_string(),
+        "f" => converted_float
+            .expect("float conversion has a parsed value")
+            .to_string(),
         "n" => {
             return Err(FormatError(
                 "length conversion produces a non-string filename value".into(),
@@ -1793,6 +1813,15 @@ fn field_with_metadata(
         }
         return Err(FormatError(
             "integer conversion requires a numeric filename format".into(),
+        ));
+    }
+    if conversion == "f" {
+        let number = Value::from(converted_float.expect("float conversion has a parsed value"));
+        if let Some(formatted) = format_fixed_numeric(&number, spec)? {
+            return Ok(formatted);
+        }
+        return Err(FormatError(
+            "float conversion requires a numeric filename format".into(),
         ));
     }
     if spec.starts_with('D') {
@@ -2290,6 +2319,7 @@ mod tests {
             "numeric_text": " 17 ",
             "decimal": 12.9,
             "enabled": true,
+            "rating_text": "1.2345",
             "invalid": "not a number"
         }))
         .unwrap();
@@ -2309,8 +2339,18 @@ mod tests {
             render_with_metadata("{enabled!i:02d}", &item, &metadata).unwrap(),
             "01"
         );
+        assert_eq!(
+            render_with_metadata("{decimal!f:.1f}", &item, &metadata).unwrap(),
+            "12.9"
+        );
+        assert_eq!(
+            render_with_metadata("{rating_text!f:.2f}", &item, &metadata).unwrap(),
+            "1.23"
+        );
         assert!(render_with_metadata("{invalid!i}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{invalid!f:.2f}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!i}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{count!f}", &item, &metadata).is_err());
     }
 
     #[test]
