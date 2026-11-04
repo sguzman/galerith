@@ -2454,6 +2454,10 @@ mod tests {
             render_with_metadata("{labels!n:02d}", &item, &metadata).unwrap(),
             "02"
         );
+        assert_eq!(
+            render_with_metadata("{tags!n:A+2/02d}", &item, &metadata).unwrap(),
+            "05"
+        );
         assert_eq!(render("{_lit[猫]!n:02d}", &item).unwrap(), "01");
         assert!(render_with_metadata("{title!n}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!n:02d}", &item, &metadata).is_err());

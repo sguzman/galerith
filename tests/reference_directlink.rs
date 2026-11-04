@@ -3215,12 +3215,17 @@ fn pinned_length_conversion_formats_string_list_and_mapping_lengths() {
         "labels": {"one": 1, "two": 2}
     });
     let metadata = metadata.as_object().unwrap();
-    let formats = ["{title!n:03d}", "{tags!n:02d}", "{labels!n:02d}"];
+    let formats = [
+        "{title!n:03d}",
+        "{tags!n:02d}",
+        "{labels!n:02d}",
+        "{tags!n:A+2/02d}",
+    ];
     let native = formats
         .iter()
         .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(native, ["002", "03", "02"]);
+    assert_eq!(native, ["002", "03", "02", "05"]);
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
