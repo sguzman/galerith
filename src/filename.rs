@@ -2012,10 +2012,7 @@ fn metadata_field(
                 .iter()
                 .map(|value| match value {
                     Value::Object(fields) => match fields.get(key) {
-                        Some(Value::String(value)) => Ok(Value::String(value.clone())),
-                        Some(_) => Err(FormatError(format!(
-                            "filename map field '{field_name}.{key}' must be a string"
-                        ))),
+                        Some(value) => Ok(value.clone()),
                         None => Err(FormatError(format!(
                             "filename map field '{field_name}.{key}' is missing"
                         ))),
@@ -2078,9 +2075,7 @@ fn metadata_field(
             .map(python_string_value)
             .collect::<Result<Vec<_>, _>>()
             .map(|values| Some(values.join(", "))),
-        Value::Array(_) => Err(FormatError(format!(
-            "filename list field '{field_name}' requires the !S conversion"
-        ))),
+        Value::Array(values) => python_array_repr(values).map(Some),
         Value::Object(_) => Err(FormatError(format!(
             "nested filename field '{field_name}' is unsupported"
         ))),
@@ -2869,7 +2864,10 @@ mod tests {
             render_with_metadata("{missing|title}", &item, &metadata).unwrap(),
             "Autumn Night"
         );
-        assert!(render_with_metadata("{tags}", &item, &metadata).is_err());
+        assert_eq!(
+            render_with_metadata("{tags}", &item, &metadata).unwrap(),
+            "['autumn', 'night sky']"
+        );
         assert!(render_with_metadata("{author}", &item, &metadata).is_err());
     }
 
