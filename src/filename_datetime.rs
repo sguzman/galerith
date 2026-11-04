@@ -39,6 +39,19 @@ impl DateTime {
         self
     }
 
+    fn add_minutes(mut self, minutes: i64) -> Option<Self> {
+        let total = days_from_civil(self.year, self.month, self.day)
+            .checked_mul(1440)?
+            .checked_add(i64::from(self.hour) * 60 + i64::from(self.minute))?
+            .checked_add(minutes)?;
+        let days = total.div_euclid(1440);
+        let day_minutes = total.rem_euclid(1440);
+        (self.year, self.month, self.day) = civil_from_days(days);
+        self.hour = (day_minutes / 60) as u32;
+        self.minute = (day_minutes % 60) as u32;
+        self.valid().then_some(self)
+    }
+
     fn ordinal(self) -> u32 {
         let before_month = (1..self.month)
             .map(|month| days_in_month(self.year, month))
@@ -56,12 +69,45 @@ impl DateTime {
 /// reference formatter's invalid-date marker.
 pub(crate) fn format_datetime(value: &str, spec: &str) -> Option<String> {
     let body = spec.strip_prefix('D')?;
-    let (input_format, output_format) = body.split_once('/').unwrap_or((body, ""));
+    let (input_format, format_spec) = body.split_once('/').unwrap_or((body, ""));
     let date = parse_datetime(value, input_format).map(DateTime::normalize_offset);
+    let (date, output_format) = match date {
+        Some(date) if format_spec.starts_with('O') => {
+            let offset_spec = format_spec.strip_prefix('O').unwrap_or_default();
+            let (offset, output_format) = offset_spec.split_once('/').unwrap_or((offset_spec, ""));
+            (
+                parse_fixed_offset(offset).and_then(|minutes| date.add_minutes(minutes)),
+                output_format,
+            )
+        }
+        date => (date, format_spec),
+    };
     Some(match date {
         Some(date) if date.valid() => format_datetime_value(date, output_format),
         _ => "[Invalid DateTime]".into(),
     })
+}
+
+fn parse_fixed_offset(value: &str) -> Option<i64> {
+    if value.is_empty() || value == "local" {
+        return None;
+    }
+    let (sign, value) = if let Some(value) = value.strip_prefix('-') {
+        (-1, value)
+    } else if let Some(value) = value.strip_prefix('+') {
+        (1, value)
+    } else {
+        (1, value)
+    };
+    let (hours, minutes) = value.split_once(':').unwrap_or((value, ""));
+    let hours = hours.parse::<i64>().ok()?;
+    let mut offset = hours.checked_mul(60)?;
+    if !minutes.is_empty() {
+        let minutes = minutes.parse::<i64>().ok()?;
+        offset = offset.checked_add(minutes)?;
+    }
+    let offset = offset.checked_mul(sign)?;
+    (offset.unsigned_abs() <= 60 * 24 * 366).then_some(offset)
 }
 
 fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
@@ -374,7 +420,7 @@ fn week_number(date: DateTime, monday_first: bool) -> u32 {
     } else {
         first_weekday
     };
-    (date.ordinal() - 1 + offset) / 7
+    (date.ordinal() - 1 - offset) / 7
 }
 
 fn iso_week(date: DateTime) -> (u32, i32) {
@@ -500,6 +546,18 @@ mod tests {
         assert_eq!(
             format_datetime("2024-02-29", "D%Y-%m-%d/%U-%W-%V-%G").as_deref(),
             Some("08-08-09-2024")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M").as_deref(),
+            Some("20240301_0215")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M").as_deref(),
+            Some("20240229_1815")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M").as_deref(),
+            Some("20240301_0015")
         );
         assert_eq!(
             format_datetime("2024-August-01", "D%Y-%B-%d/%B").as_deref(),
