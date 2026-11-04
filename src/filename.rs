@@ -1575,6 +1575,38 @@ fn arithmetic_operation(spec: &str) -> Result<(&str, i128, &str), FormatError> {
     Ok((operator, right, remainder))
 }
 
+fn apply_chained_replacements(
+    mut value: String,
+    mut spec: &str,
+) -> Result<(String, &str), FormatError> {
+    while let Some(operation) = spec.strip_prefix('R') {
+        let (old, remainder) = operation
+            .split_once('/')
+            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        let (new, remainder) = remainder
+            .split_once('/')
+            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
+        let occurrences = if old.is_empty() {
+            value.chars().count().saturating_add(1)
+        } else {
+            value.matches(old).count()
+        };
+        let output_len = value
+            .len()
+            .checked_sub(old.len().saturating_mul(occurrences))
+            .and_then(|length| length.checked_add(new.len().checked_mul(occurrences)?))
+            .ok_or_else(|| FormatError("filename replacement output is too long".into()))?;
+        if output_len > 240 {
+            return Err(FormatError(
+                "filename replacement output exceeds 240 bytes".into(),
+            ));
+        }
+        value = value.replace(old, new);
+        spec = remainder;
+    }
+    Ok((value, spec))
+}
+
 fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
     let result = match operator {
@@ -1592,6 +1624,13 @@ fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, Form
         return apply_integer_arithmetic_chain(result, remainder);
     }
     let value = result.to_string();
+    if remainder.starts_with('R') {
+        let (value, trailing) = apply_chained_replacements(value, remainder)?;
+        if trailing.is_empty() {
+            return Ok(value);
+        }
+        return Err(FormatError("unsupported arithmetic format chain".into()));
+    }
     if remainder.is_empty() {
         return Ok(value);
     }
@@ -1632,6 +1671,14 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
     if remainder.is_empty() {
         return formatter_to_string(&number);
     }
+    if remainder.starts_with('R') {
+        let (value, trailing) =
+            apply_chained_replacements(formatter_to_string(&number)?, remainder)?;
+        if trailing.is_empty() {
+            return Ok(value);
+        }
+        return Err(FormatError("unsupported arithmetic format chain".into()));
+    }
     if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
         return Ok(formatted);
     }
@@ -1661,6 +1708,13 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
     }
     if remainder.is_empty() {
         return Ok(repeated);
+    }
+    if remainder.starts_with('R') {
+        let (value, trailing) = apply_chained_replacements(repeated, remainder)?;
+        if trailing.is_empty() {
+            return Ok(value);
+        }
+        return Err(FormatError("unsupported arithmetic format chain".into()));
     }
     Err(FormatError(
         "unsupported string arithmetic format suffix".into(),
@@ -2173,31 +2227,7 @@ fn field_with_metadata(
     if spec.starts_with('I') {
         return Ok(value);
     }
-    while let Some(operation) = spec.strip_prefix('R') {
-        let (old, remainder) = operation
-            .split_once('/')
-            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
-        let (new, remainder) = remainder
-            .split_once('/')
-            .ok_or_else(|| FormatError("invalid filename replacement formatter".into()))?;
-        let occurrences = if old.is_empty() {
-            value.chars().count().saturating_add(1)
-        } else {
-            value.matches(old).count()
-        };
-        let output_len = value
-            .len()
-            .checked_sub(old.len().saturating_mul(occurrences))
-            .and_then(|length| length.checked_add(new.len().checked_mul(occurrences)?))
-            .ok_or_else(|| FormatError("filename replacement output is too long".into()))?;
-        if output_len > 240 {
-            return Err(FormatError(
-                "filename replacement output exceeds 240 bytes".into(),
-            ));
-        }
-        value = value.replace(old, new);
-        spec = remainder;
-    }
+    (value, spec) = apply_chained_replacements(value, spec)?;
     if spec.is_empty() {
         return Ok(value);
     }
@@ -3203,6 +3233,7 @@ mod tests {
         assert_eq!(render("{id:A+8/04d}", &item).unwrap(), "0050");
         assert_eq!(render("{id:A+1/A*2/}", &item).unwrap(), "86");
         assert_eq!(render("{id:A+1/A*2/04d}", &item).unwrap(), "0086");
+        assert_eq!(render("{id:A+1/R4/9/}", &item).unwrap(), "93");
         assert!(render("{filename:A+1/}", &item).is_err());
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
@@ -3236,6 +3267,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{rating:A*2/A+1/}", &item, &metadata).unwrap(),
             "3.5"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:A*2/R2/7/}", &item, &metadata).unwrap(),
+            "7.5"
         );
         assert_eq!(
             render_with_metadata("{whole:A*2/}", &item, &metadata).unwrap(),
@@ -3272,6 +3307,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/A*2/}", &item, &metadata).unwrap(),
             "abababab"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Rab/x/}", &item, &metadata).unwrap(),
+            "xx"
         );
     }
 
