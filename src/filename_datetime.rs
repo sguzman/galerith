@@ -9,7 +9,7 @@ struct DateTime {
     minute: u32,
     second: u32,
     microsecond: u32,
-    offset_minutes: Option<i32>,
+    offset_seconds: Option<i32>,
 }
 
 impl DateTime {
@@ -25,16 +25,18 @@ impl DateTime {
 
     fn normalize_offset(mut self) -> Self {
         self.microsecond = 0;
-        if let Some(offset) = self.offset_minutes.take() {
-            let minutes = days_from_civil(self.year, self.month, self.day) * 1440
-                + i64::from(self.hour) * 60
-                + i64::from(self.minute)
+        if let Some(offset) = self.offset_seconds.take() {
+            let seconds = days_from_civil(self.year, self.month, self.day) * 86_400
+                + i64::from(self.hour) * 3600
+                + i64::from(self.minute) * 60
+                + i64::from(self.second)
                 - i64::from(offset);
-            let days = minutes.div_euclid(1440);
-            let day_minutes = minutes.rem_euclid(1440);
+            let days = seconds.div_euclid(86_400);
+            let day_seconds = seconds.rem_euclid(86_400);
             (self.year, self.month, self.day) = civil_from_days(days);
-            self.hour = (day_minutes / 60) as u32;
-            self.minute = (day_minutes % 60) as u32;
+            self.hour = (day_seconds / 3600) as u32;
+            self.minute = (day_seconds % 3600 / 60) as u32;
+            self.second = (day_seconds % 60) as u32;
         }
         self
     }
@@ -116,7 +118,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         minute: 0,
         second: 0,
         microsecond: 0,
-        offset_minutes: None,
+        offset_seconds: None,
     };
     let mut twelve_hour_clock = false;
     let mut ordinal_day = None;
@@ -228,7 +230,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                     return None;
                 }
             }
-            'z' => date.offset_minutes = Some(read_offset(value, &mut input)?),
+            'z' => date.offset_seconds = Some(read_offset(value, &mut input)?),
             'a' | 'A' | 'b' | 'B' | 'p' | 'Z' => {
                 let word_start = input;
                 while value
@@ -344,7 +346,13 @@ fn read_offset(value: &str, cursor: &mut usize) -> Option<i32> {
         *cursor += 1;
     }
     let minutes = read_number(value, cursor, 2, 2)? as i32;
-    (hours <= 23 && minutes < 60).then_some(sign * (hours * 60 + minutes))
+    let mut seconds = 0;
+    if value.as_bytes().get(*cursor) == Some(&b':') {
+        *cursor += 1;
+        seconds = read_number(value, cursor, 2, 2)? as i32;
+    }
+    (hours <= 23 && minutes < 60 && seconds < 60)
+        .then_some(sign * (hours * 3600 + minutes * 60 + seconds))
 }
 
 fn month_number(value: &str, full_name: bool) -> Option<u32> {
@@ -431,10 +439,10 @@ fn format_datetime_value(date: DateTime, format: &str) -> String {
             'B' => MONTHS_LONG[date.month as usize - 1].into(),
             'p' => if date.hour < 12 { "AM" } else { "PM" }.into(),
             'z' => date
-                .offset_minutes
-                .map(|offset| format!("{:+03}{:02}", offset / 60, offset.abs() % 60))
+                .offset_seconds
+                .map(|offset| format!("{:+03}{:02}", offset / 3600, offset.abs() / 60 % 60))
                 .unwrap_or_default(),
-            'Z' => if date.offset_minutes == Some(0) {
+            'Z' => if date.offset_seconds == Some(0) {
                 "UTC"
             } else {
                 ""
@@ -553,7 +561,7 @@ fn weeks_in_iso_year(year: i32) -> u32 {
         minute: 0,
         second: 0,
         microsecond: 0,
-        offset_minutes: None,
+        offset_seconds: None,
     }
     .weekday();
     if jan1 == 4 || (jan1 == 3 && is_leap_year(year)) {
@@ -767,6 +775,14 @@ mod tests {
             )
             .as_deref(),
             Some("2024-02-29 23:00")
+        );
+        assert_eq!(
+            format_datetime(
+                "2024-03-01T01:00:00+02:30:15",
+                "D%Y-%m-%dT%H:%M:%S%z/%Y-%m-%d %H:%M:%S"
+            )
+            .as_deref(),
+            Some("2024-02-29 22:29:45")
         );
         assert_eq!(
             format_datetime("2024-02-29 13:04:05.987654", "D%Y-%m-%d %H:%M:%S.%f/%S.%f").as_deref(),

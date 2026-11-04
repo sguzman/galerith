@@ -3262,6 +3262,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "timestamp": "2024-03-01T01:00:00+02:00",
         "fractional": "2024-02-29T13:04:05.987654",
         "offset": "2024-02-29 23:45",
+        "offset_seconds": "2024-03-01T01:00:00+02:30:15",
         "newyear": "2024-01-01",
         "unknown_zone": "2024-01-01 XYZ",
         "meridiem_only": "PM 2024",
@@ -3297,6 +3298,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}",
         "{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}",
         "{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}",
+        "{offset_seconds:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M%S}",
         "{unknown_zone:D%Y-%m-%d %Z/%Y}",
         "{meridiem_only:D%p %Y/%H}",
         "{time_pm:D%I %p/%H}",
@@ -3337,6 +3339,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "20240301_0215",
             "20240229_1815",
             "20240229_2315",
+            "20240229_222945",
             "[Invalid DateTime]",
             "00",
             "23",
@@ -3370,7 +3373,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','meridiem_only':'PM 2024','time_pm':'11 PM','invalid_hour12':'13 PM','weekday_long':'Thursday 2024-02-29','invalid_weekday':'Funday 2024-02-29','weekday_mismatch':'Thursday 2024-02-29','year_padded':'0007-01-01','year_short':'7-01-01','short_time':'13:04','long_time':'13:04:05','meridiem_time':'01:04:05 PM','invalid_meridiem_time':'13:04:05 PM','ordinal_first':'366 2024','ordinal_last':'2024 366','ordinal_precedence':'2024 060 01-01','month_short_full':'January 2024','month_full_short':'Jan 2024','weekday_numeric':'2024-02-29 4','weekday_numeric_invalid':'2024-02-29 8','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{meridiem_only:D%p %Y/%H}','{time_pm:D%I %p/%H}','{invalid_hour12:D%I %p/%H}','{weekday_long:D%A %Y-%m-%d/%Y}','{invalid_weekday:D%A %Y-%m-%d/%Y}','{weekday_mismatch:D%a %Y-%m-%d/%Y}','{year_padded:D%Y-%m-%d/%Y}','{year_short:D%Y-%m-%d/%Y}','{short_time:D%R/%H%M}','{long_time:D%T/%H%M%S}','{meridiem_time:D%r/%H%M%S}','{invalid_meridiem_time:D%r/%H}','{ordinal_first:D%j %Y/%Y%m%d}','{ordinal_last:D%Y %j/%Y%m%d}','{ordinal_precedence:D%Y %j %m-%d/%Y%m%d}','{month_short_full:D%b %Y/%m}','{month_full_short:D%B %Y/%m}','{weekday_numeric:D%Y-%m-%d %w/%Y%m%d}','{weekday_numeric:D%Y-%m-%d %u/%Y%m%d}','{weekday_numeric_invalid:D%Y-%m-%d %u/%Y%m%d}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','offset_seconds':'2024-03-01T01:00:00+02:30:15','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','meridiem_only':'PM 2024','time_pm':'11 PM','invalid_hour12':'13 PM','weekday_long':'Thursday 2024-02-29','invalid_weekday':'Funday 2024-02-29','weekday_mismatch':'Thursday 2024-02-29','year_padded':'0007-01-01','year_short':'7-01-01','short_time':'13:04','long_time':'13:04:05','meridiem_time':'01:04:05 PM','invalid_meridiem_time':'13:04:05 PM','ordinal_first':'366 2024','ordinal_last':'2024 366','ordinal_precedence':'2024 060 01-01','month_short_full':'January 2024','month_full_short':'Jan 2024','weekday_numeric':'2024-02-29 4','weekday_numeric_invalid':'2024-02-29 8','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{offset_seconds:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M%S}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{meridiem_only:D%p %Y/%H}','{time_pm:D%I %p/%H}','{invalid_hour12:D%I %p/%H}','{weekday_long:D%A %Y-%m-%d/%Y}','{invalid_weekday:D%A %Y-%m-%d/%Y}','{weekday_mismatch:D%a %Y-%m-%d/%Y}','{year_padded:D%Y-%m-%d/%Y}','{year_short:D%Y-%m-%d/%Y}','{short_time:D%R/%H%M}','{long_time:D%T/%H%M%S}','{meridiem_time:D%r/%H%M%S}','{invalid_meridiem_time:D%r/%H}','{ordinal_first:D%j %Y/%Y%m%d}','{ordinal_last:D%Y %j/%Y%m%d}','{ordinal_precedence:D%Y %j %m-%d/%Y%m%d}','{month_short_full:D%b %Y/%m}','{month_full_short:D%B %Y/%m}','{weekday_numeric:D%Y-%m-%d %w/%Y%m%d}','{weekday_numeric:D%Y-%m-%d %u/%Y%m%d}','{weekday_numeric_invalid:D%Y-%m-%d %u/%Y%m%d}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", &root);
     command.env("PYTHONNOUSERSITE", "1");
