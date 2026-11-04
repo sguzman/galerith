@@ -1704,7 +1704,7 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
     if remainder.is_empty() {
         return Ok(repeated);
     }
-    if remainder.starts_with('C') || remainder.starts_with('R') {
+    if remainder.starts_with('C') || remainder.starts_with('R') || remainder.starts_with('?') {
         return apply_string_formatter_chain(repeated, remainder);
     }
     Err(FormatError(
@@ -1724,6 +1724,19 @@ fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<Str
         } else if spec.starts_with('X') || spec.starts_with('L') {
             (value, spec) =
                 format_string_length(&value, spec)?.expect("length formatter starts with X or L");
+        } else if let Some(wrapper) = spec.strip_prefix('?') {
+            let (prefix, rest) = wrapper
+                .split_once('/')
+                .ok_or_else(|| FormatError("invalid conditional filename format".into()))?;
+            let (suffix, remainder) = rest
+                .split_once('/')
+                .ok_or_else(|| FormatError("invalid conditional filename format".into()))?;
+            value = if value.is_empty() {
+                String::new()
+            } else {
+                format!("{prefix}{value}{suffix}")
+            };
+            spec = remainder;
         } else if spec.is_empty() {
             return Ok(value);
         } else {
@@ -3387,6 +3400,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/Cu/X3/!/}", &item, &metadata).unwrap(),
             "AB!"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/?[/]/>8}", &item, &metadata).unwrap(),
+            "  [ABAB]"
         );
     }
 
