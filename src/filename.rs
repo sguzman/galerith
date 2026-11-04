@@ -1565,6 +1565,23 @@ fn metadata_field(
     conversion: &str,
     spec: &mut &str,
 ) -> Result<Option<String>, FormatError> {
+    if !matches!(value, Value::String(_)) && spec.starts_with('C') {
+        let (conversions, remainder) =
+            conversion_formatter_spec(spec).expect("conversion formatter starts with C");
+        let Some(trailing) = conversions.strip_prefix('S') else {
+            return Err(FormatError(
+                "filename non-string conversion requires the S conversion".into(),
+            ));
+        };
+        let value = formatter_to_string(value)?;
+        let converted = if trailing.is_empty() {
+            value
+        } else {
+            convert_string_chain(&value, trailing)?
+        };
+        *spec = remainder;
+        return metadata_field(&Value::String(converted), field_name, conversion, spec);
+    }
     match value {
         Value::Null if !conversion.is_empty() => Ok(Some("None".into())),
         Value::Null if conversion.is_empty() && spec.starts_with('?') => Ok(Some(String::new())),
@@ -1712,26 +1729,6 @@ fn metadata_field(
                 spec,
             )
         }
-        Value::Array(_) | Value::Object(_) if spec.starts_with('C') => {
-            let (conversions, remainder) =
-                conversion_formatter_spec(spec).expect("conversion formatter starts with C");
-            let Some(trailing) = conversions.strip_prefix('S') else {
-                return Err(FormatError(
-                    "filename string conversions require a string field or S conversion".into(),
-                ));
-            };
-            let value = formatter_to_string(value)?;
-            let converted = if trailing.is_empty() {
-                value
-            } else {
-                convert_string_chain(&value, trailing)?
-            };
-            *spec = remainder;
-            metadata_field(&Value::String(converted), field_name, conversion, spec)
-        }
-        Value::Number(_) | Value::Bool(_) if spec.starts_with('C') => Err(FormatError(
-            "filename string conversions require a string field".into(),
-        )),
         Value::Array(values) if spec.starts_with('J') => {
             let (separator, remainder) =
                 join_formatter_spec(spec).expect("join formatter spec starts with J");
@@ -2683,6 +2680,22 @@ mod tests {
         assert_eq!(
             render_with_metadata("{tags:CS/}", &item, &metadata).unwrap(),
             "zeta, alpha, middle"
+        );
+        assert_eq!(
+            render_with_metadata("file{enabled:CS/}", &item, &metadata).unwrap(),
+            "file"
+        );
+        assert_eq!(
+            render_with_metadata("file{count:CS/}", &item, &metadata).unwrap(),
+            "file"
+        );
+        assert_eq!(
+            render_with_metadata("{positive:CS/}", &item, &metadata).unwrap(),
+            "2"
+        );
+        assert_eq!(
+            render_with_metadata("file{nullable:CS/}", &item, &metadata).unwrap(),
+            "file"
         );
         assert_eq!(
             formatter_to_string(metadata.get("mixed_tags").unwrap()).unwrap(),
