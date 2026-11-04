@@ -1724,9 +1724,42 @@ fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<Str
         } else if spec.is_empty() {
             return Ok(value);
         } else {
-            return Err(FormatError("unsupported arithmetic format chain".into()));
+            return format_string_width(&value, spec);
         }
     }
+}
+
+fn format_string_width(value: &str, spec: &str) -> Result<String, FormatError> {
+    let chars: Vec<char> = spec.chars().collect();
+    let (fill, align, width_start) = match chars.as_slice() {
+        [align, ..] if matches!(align, '<' | '>' | '^') => (' ', *align, 1),
+        [fill, align, ..] if matches!(align, '<' | '>' | '^') => (*fill, *align, 2),
+        _ => {
+            return Err(FormatError("unsupported arithmetic format chain".into()));
+        }
+    };
+    let width_text: String = chars[width_start..].iter().collect();
+    if width_text.is_empty() || !width_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(FormatError("invalid string width formatting".into()));
+    }
+    let width = width_text
+        .parse::<usize>()
+        .map_err(|_| FormatError("invalid string width".into()))?;
+    if width > 240 {
+        return Err(FormatError("filename string width is too large".into()));
+    }
+    let padding = width.saturating_sub(value.chars().count());
+    let (left, right) = match align {
+        '<' => (0, padding),
+        '^' => (padding / 2, padding - padding / 2),
+        _ => (padding, 0),
+    };
+    Ok(format!(
+        "{}{}{}",
+        fill.to_string().repeat(left),
+        value,
+        fill.to_string().repeat(right)
+    ))
 }
 
 fn metadata_field(
@@ -3326,6 +3359,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/Cu/Cc/}", &item, &metadata).unwrap(),
             "Abab"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/RB/X/>8}", &item, &metadata).unwrap(),
+            "    AXAX"
         );
     }
 
