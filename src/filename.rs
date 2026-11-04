@@ -1730,6 +1730,51 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
     apply_string_formatter_chain(value, remainder)
 }
 
+fn apply_array_arithmetic_chain(
+    values: &[Value],
+    field_name: &str,
+    spec: &str,
+) -> Result<String, FormatError> {
+    let (operator, right, remainder) = arithmetic_operation(spec)?;
+    if matches!(operator, "+" | "-") {
+        return Err(FormatError(
+            "filename arithmetic requires a numeric field".into(),
+        ));
+    }
+    let repeated = if operator == "*" {
+        let count = usize::try_from(right.max(0))
+            .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+        let item_count = values
+            .len()
+            .checked_mul(count)
+            .filter(|length| *length <= 240)
+            .ok_or_else(|| FormatError("filename list repetition exceeds 240 items".into()))?;
+        let mut repeated = Vec::with_capacity(item_count);
+        if item_count != 0 {
+            for _ in 0..count {
+                repeated.extend(values.iter().cloned());
+            }
+        }
+        debug_assert_eq!(repeated.len(), item_count);
+        repeated
+    } else {
+        values.to_vec()
+    };
+    let result = if remainder.starts_with('A') {
+        return apply_array_arithmetic_chain(&repeated, field_name, remainder);
+    } else {
+        let mut suffix = remainder;
+        let result = metadata_field(&Value::Array(repeated), field_name, "", &mut suffix)?;
+        if !suffix.is_empty() {
+            return Err(FormatError(
+                "unsupported list arithmetic format suffix".into(),
+            ));
+        }
+        result
+    };
+    result.ok_or_else(|| FormatError("list arithmetic produced no filename value".into()))
+}
+
 fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<String, FormatError> {
     let mut wrappers = Vec::new();
     loop {
@@ -2475,6 +2520,11 @@ fn field_with_metadata(
     }
     if spec.starts_with('A') {
         let (operator, _, _) = arithmetic_operation(spec)?;
+        if conversion.is_empty() {
+            if let Some(Value::Array(values)) = selected_source.as_ref() {
+                return apply_array_arithmetic_chain(values, base_name, spec);
+            }
+        }
         let string_source = !matches!(base_name, "id" | "post_id")
             && selected_source
                 .as_ref()

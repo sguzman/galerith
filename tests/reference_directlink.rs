@@ -3127,6 +3127,58 @@ fn pinned_formatter_preserves_string_types_during_arithmetic() {
 }
 
 #[test]
+fn pinned_formatter_repeats_lists_without_stringifying_them_first() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({"tags": ["red", "blue"]});
+    let metadata = metadata.as_object().unwrap();
+    let formats = [
+        "{tags:A*2/}",
+        "{tags:A*2/J, /}",
+        "{tags:A%3/}",
+        "{tags:A*0/}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "['red', 'blue', 'red', 'blue']",
+            "red, blue, red, blue",
+            "['red', 'blue']",
+            "[]"
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for list arithmetic comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'tags':['red','blue']}; formats=('{tags:A*2/}','{tags:A*2/J, /}','{tags:A%3/}','{tags:A*0/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned list arithmetic formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
