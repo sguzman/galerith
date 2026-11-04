@@ -147,6 +147,45 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 }
                 input += 1;
             }
+            'R' => {
+                date.hour = read_number(value, &mut input, 1, 2)?;
+                read_datetime_literal(value, &mut input, ':')?;
+                date.minute = read_number(value, &mut input, 1, 2)?;
+            }
+            'T' => {
+                date.hour = read_number(value, &mut input, 1, 2)?;
+                read_datetime_literal(value, &mut input, ':')?;
+                date.minute = read_number(value, &mut input, 1, 2)?;
+                read_datetime_literal(value, &mut input, ':')?;
+                date.second = read_number(value, &mut input, 1, 2)?;
+            }
+            'r' => {
+                let hour = read_number(value, &mut input, 1, 2)?;
+                if !(1..=12).contains(&hour) {
+                    return None;
+                }
+                read_datetime_literal(value, &mut input, ':')?;
+                date.minute = read_number(value, &mut input, 1, 2)?;
+                read_datetime_literal(value, &mut input, ':')?;
+                date.second = read_number(value, &mut input, 1, 2)?;
+                if !skip_datetime_whitespace(value, &mut input) {
+                    return None;
+                }
+                let marker_start = input;
+                while value
+                    .as_bytes()
+                    .get(input)
+                    .is_some_and(u8::is_ascii_alphabetic)
+                {
+                    input += 1;
+                }
+                date.hour = match &value[marker_start..input] {
+                    marker if marker.eq_ignore_ascii_case("AM") => hour % 12,
+                    marker if marker.eq_ignore_ascii_case("PM") => (hour % 12) + 12,
+                    _ => return None,
+                };
+                twelve_hour_clock = true;
+            }
             'Y' => date.year = read_number(value, &mut input, 4, 4)? as i32,
             'y' => {
                 let year = read_number(value, &mut input, 2, 2)?;
@@ -217,7 +256,6 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                         date.hour %= 12;
                     }
                     'p' if word.eq_ignore_ascii_case("AM") || word.eq_ignore_ascii_case("PM") => {}
-                    'p' if word.eq_ignore_ascii_case("AM") || word.eq_ignore_ascii_case("PM") => {}
                     'p' => return None,
                     'a' | 'A' => return None,
                     'Z' if word.eq_ignore_ascii_case("UTC") || word.eq_ignore_ascii_case("GMT") => {
@@ -237,6 +275,27 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         input += 1;
     }
     (input == value.len() && date.valid()).then_some(date)
+}
+
+fn read_datetime_literal(value: &str, cursor: &mut usize, expected: char) -> Option<()> {
+    if value.get(*cursor..)?.starts_with(expected) {
+        *cursor += expected.len_utf8();
+        Some(())
+    } else {
+        None
+    }
+}
+
+fn skip_datetime_whitespace(value: &str, cursor: &mut usize) -> bool {
+    let start = *cursor;
+    while value
+        .as_bytes()
+        .get(*cursor)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        *cursor += 1;
+    }
+    *cursor > start
 }
 
 fn read_number(value: &str, cursor: &mut usize, min: usize, max: usize) -> Option<u32> {
@@ -626,6 +685,22 @@ mod tests {
         );
         assert_eq!(
             format_datetime("7-01-01", "D%Y-%m-%d/%Y").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("13:04", "D%R/%H:%M").as_deref(),
+            Some("13:04")
+        );
+        assert_eq!(
+            format_datetime("13:04:05", "D%T/%H:%M:%S").as_deref(),
+            Some("13:04:05")
+        );
+        assert_eq!(
+            format_datetime("01:04:05 PM", "D%r/%H:%M:%S").as_deref(),
+            Some("13:04:05")
+        );
+        assert_eq!(
+            format_datetime("13:04:05 PM", "D%r/%H").as_deref(),
             Some("[Invalid DateTime]")
         );
         assert_eq!(

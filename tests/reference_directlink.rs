@@ -3272,6 +3272,10 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "weekday_mismatch": "Thursday 2024-02-29",
         "year_padded": "0007-01-01",
         "year_short": "7-01-01",
+        "short_time": "13:04",
+        "long_time": "13:04:05",
+        "meridiem_time": "01:04:05 PM",
+        "invalid_meridiem_time": "13:04:05 PM",
         "invalid": "2024-02-30"
     }))
     .unwrap();
@@ -3295,6 +3299,10 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "{weekday_mismatch:D%a %Y-%m-%d/%Y}",
         "{year_padded:D%Y-%m-%d/%Y}",
         "{year_short:D%Y-%m-%d/%Y}",
+        "{short_time:D%R/%H%M}",
+        "{long_time:D%T/%H%M%S}",
+        "{meridiem_time:D%r/%H%M%S}",
+        "{invalid_meridiem_time:D%r/%H}",
         "{id:D%Y/%Y}",
     ];
     let native = formats
@@ -3323,6 +3331,10 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "[Invalid DateTime]",
             "0007",
             "[Invalid DateTime]",
+            "1304",
+            "130405",
+            "130405",
+            "[Invalid DateTime]",
             "[Invalid DateTime]",
         ]
     );
@@ -3335,7 +3347,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','meridiem_only':'PM 2024','time_pm':'11 PM','invalid_hour12':'13 PM','weekday_long':'Thursday 2024-02-29','invalid_weekday':'Funday 2024-02-29','weekday_mismatch':'Thursday 2024-02-29','year_padded':'0007-01-01','year_short':'7-01-01','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{meridiem_only:D%p %Y/%H}','{time_pm:D%I %p/%H}','{invalid_hour12:D%I %p/%H}','{weekday_long:D%A %Y-%m-%d/%Y}','{invalid_weekday:D%A %Y-%m-%d/%Y}','{weekday_mismatch:D%a %Y-%m-%d/%Y}','{year_padded:D%Y-%m-%d/%Y}','{year_short:D%Y-%m-%d/%Y}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','offset':'2024-02-29 23:45','newyear':'2024-01-01','unknown_zone':'2024-01-01 XYZ','meridiem_only':'PM 2024','time_pm':'11 PM','invalid_hour12':'13 PM','weekday_long':'Thursday 2024-02-29','invalid_weekday':'Funday 2024-02-29','weekday_mismatch':'Thursday 2024-02-29','year_padded':'0007-01-01','year_short':'7-01-01','short_time':'13:04','long_time':'13:04:05','meridiem_time':'01:04:05 PM','invalid_meridiem_time':'13:04:05 PM','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%z-%Z}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{newyear:D%Y-%m-%d/%U-%W}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{offset:D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O-5:30/%Y%m%d_%H%M}','{offset:D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M}','{unknown_zone:D%Y-%m-%d %Z/%Y}','{meridiem_only:D%p %Y/%H}','{time_pm:D%I %p/%H}','{invalid_hour12:D%I %p/%H}','{weekday_long:D%A %Y-%m-%d/%Y}','{invalid_weekday:D%A %Y-%m-%d/%Y}','{weekday_mismatch:D%a %Y-%m-%d/%Y}','{year_padded:D%Y-%m-%d/%Y}','{year_short:D%Y-%m-%d/%Y}','{short_time:D%R/%H%M}','{long_time:D%T/%H%M%S}','{meridiem_time:D%r/%H%M%S}','{invalid_meridiem_time:D%r/%H}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", &root);
     command.env("PYTHONNOUSERSITE", "1");
