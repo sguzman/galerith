@@ -3526,6 +3526,41 @@ fn pinned_datetime_conversions_match_unix_and_iso_values() {
 }
 
 #[test]
+fn pinned_datetime_local_offset_matches_system_timezone() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata: galerith::message::Metadata =
+        serde_json::from_value(json!({"date": "2024-02-29 23:45"})).unwrap();
+    let template = "{date:D%Y-%m-%d %H:%M/Olocal/%Y%m%d_%H%M}";
+    let native = galerith::filename::render_with_metadata(template, &item, &metadata).unwrap();
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for local datetime offset comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'date':'2024-02-29 23:45'}; print(formatter.parse('{date:D%Y-%m-%d %H:%M/Olocal/%Y%m%d_%H%M}').format_map(data))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned local datetime offset").trim(),
+        native
+    );
+}
+
+#[test]
 fn pinned_datetime_week_number_inputs_match_python() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),

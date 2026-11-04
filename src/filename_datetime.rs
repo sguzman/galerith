@@ -77,8 +77,13 @@ pub(crate) fn format_datetime(value: &str, spec: &str) -> Option<String> {
         Some(date) if format_spec.starts_with('O') => {
             let offset_spec = format_spec.strip_prefix('O').unwrap_or_default();
             let (offset, output_format) = offset_spec.split_once('/').unwrap_or((offset_spec, ""));
+            let minutes = if offset == "local" {
+                local_offset_minutes(date)
+            } else {
+                parse_fixed_offset(offset)
+            };
             (
-                parse_fixed_offset(offset).and_then(|minutes| date.add_minutes(minutes)),
+                minutes.and_then(|minutes| date.add_minutes(minutes)),
                 output_format,
             )
         }
@@ -195,7 +200,7 @@ fn parse_iso_datetime(value: &str) -> Option<DateTime> {
 }
 
 fn parse_fixed_offset(value: &str) -> Option<i64> {
-    if value.is_empty() || value == "local" {
+    if value.is_empty() {
         return None;
     }
     let (hours, minutes) = value.split_once(':').unwrap_or((value, ""));
@@ -211,6 +216,18 @@ fn parse_fixed_offset(value: &str) -> Option<i64> {
         offset = offset.checked_add(signed_minutes)?;
     }
     (offset.unsigned_abs() <= 60 * 24 * 366).then_some(offset)
+}
+
+fn local_offset_minutes(date: DateTime) -> Option<i64> {
+    let timestamp = days_from_civil(date.year, date.month, date.day)
+        .checked_mul(86_400)?
+        .checked_add(
+            i64::from(date.hour) * 3600 + i64::from(date.minute) * 60 + i64::from(date.second),
+        )?;
+    let datetime = time::OffsetDateTime::from_unix_timestamp(timestamp).ok()?;
+    time::UtcOffset::local_offset_at(datetime)
+        .ok()
+        .map(|offset| i64::from(offset.whole_seconds()) / 60)
 }
 
 fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
@@ -755,7 +772,9 @@ const MONTHS_LONG: [&str; 12] = [
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_datetime, format_datetime};
+    use super::{
+        convert_datetime, format_datetime, format_datetime_value, local_offset_minutes, DateTime,
+    };
 
     #[test]
     fn converts_unix_and_iso_datetime_filename_values() {
@@ -804,6 +823,24 @@ mod tests {
 
     #[test]
     fn parses_and_formats_common_datetime_patterns() {
+        let date = DateTime {
+            year: 2024,
+            month: 2,
+            day: 29,
+            hour: 23,
+            minute: 45,
+            second: 0,
+            microsecond: 0,
+            offset_seconds: None,
+        };
+        if let Some(offset) = local_offset_minutes(date) {
+            let expected = date.add_minutes(offset).unwrap();
+            assert_eq!(
+                format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/Olocal/%Y%m%d_%H%M")
+                    .as_deref(),
+                Some(format_datetime_value(expected, "%Y%m%d_%H%M").as_str())
+            );
+        }
         assert_eq!(
             format_datetime("2024-02-29", "D%Y-%m-%d/%Y%m%d").as_deref(),
             Some("20240229")

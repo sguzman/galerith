@@ -15,6 +15,8 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 
 Never set `CARGO_TARGET_DIR` to work around MBX contention, permissions, or cache errors. Never create, use, or request approval for a temporary or isolated Cargo target. Do not override `RUSTC`, `RUSTC_WRAPPER`, or `PATH` to get around MBX either. Stop and diagnose the MBX-managed cache using the supported checks above; if MBX cannot run the gate after its documented recovery, report its exact error and stop build operations.
 
+When the user says `stop` or interrupts a build, cancel the active build immediately, verify that its MBX/Cargo/rustc processes have exited, and do not launch a replacement build until the user resumes work. Before resuming, inspect the process list and identify any remaining build process; never work around contention by redirecting the target directory.
+
 ## Autonomous iteration
 
 When the user says **continue**, begin a **sustained autonomous work session targeting approximately 60 minutes of active engineering**, or the longest useful uninterrupted work permitted by the current Codex/session execution limits. The time target is a planning preference, not a promise that the runtime will allow an hour. **A single finished task is not a stopping condition.** Complete one meaningful, bounded check, verify and commit it, then select and implement the next feasible check **within the same response/session**. Repeat until the available execution budget is genuinely exhausted, the complete MVP is verified, the user interrupts, or no safe independent work remains. Do not ask the user to pick tasks when the ledger suffices. Do not sleep, idle, run busywork, or pad progress simply to fill a clock.
