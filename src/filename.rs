@@ -1330,6 +1330,11 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             'a' => python_string_repr(&value, true),
             'q' => encode_url_component(&value),
             'Q' => decode_url_component(&value),
+            'U' => decode_html_entities(&value),
+            'H' => html_to_text(&value),
+            'L' => language_name(&value).map(str::to_owned).ok_or_else(|| {
+                FormatError("language conversion produces a non-string filename value".into())
+            })?,
             'W' => value.split_whitespace().collect::<Vec<_>>().join(" "),
             _ => {
                 return Err(FormatError(format!(
@@ -1662,7 +1667,18 @@ fn field_with_metadata(
             if literal.is_empty() {
                 return Err(FormatError("literal filename field cannot be empty".into()));
             }
-            (Some(literal.to_owned()), true)
+            candidate_source = Some(Value::String(literal.to_owned()));
+            let mut value = literal.to_owned();
+            if candidate_spec.starts_with('C') {
+                value = metadata_field(
+                    &Value::String(value.clone()),
+                    base_name,
+                    conversion,
+                    &mut candidate_spec,
+                )?
+                .ok_or_else(|| FormatError("literal conversion produced no value".into()))?;
+            }
+            (Some(value), true)
         } else {
             (
                 match base_name {
@@ -3053,6 +3069,17 @@ mod tests {
         assert_eq!(decode_html_entities("&copy &notin &CoPy"), "© ¬in &CoPy");
         assert_eq!(decode_html_entities("&#128 &#x80; &#0;"), "€ € �");
         assert_eq!(decode_html_entities("&#1;|&#xFDD0;|&#xD800;"), "||�");
+    }
+
+    #[test]
+    fn html_and_language_conversions_can_be_chained() {
+        let item = sample();
+        assert_eq!(render("{_lit[a &amp; b]:CUl/}", &item).unwrap(), "a & b");
+        assert_eq!(
+            render("{_lit[<p>a &amp; <b>b</b></p>]:CHu/}", &item).unwrap(),
+            "A & B"
+        );
+        assert_eq!(render("{_lit[en]:CLu/}", &item).unwrap(), "ENGLISH");
     }
 
     #[test]

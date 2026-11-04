@@ -2259,6 +2259,17 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{_lit[<p>a &amp; <b>b</b></p>]!H}",
             "a & b",
         ),
+        (
+            "html-text-conversion-chain",
+            "{_lit[<p>a &amp; <b>b</b></p>]:CHu/}",
+            "A & B",
+        ),
+        (
+            "html-entity-conversion-chain",
+            "{_lit[a &amp; b]:CUl/}",
+            "a & b",
+        ),
+        ("language-conversion-chain", "{_lit[en]:CLu/}", "ENGLISH"),
         ("language-conversion", "{_lit[en]!L}", "English"),
         (
             "html-legacy-entity-conversion",
