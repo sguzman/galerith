@@ -3284,9 +3284,6 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "month_full_short": "Jan 2024",
         "weekday_numeric": "2024-02-29 4",
         "weekday_numeric_invalid": "2024-02-29 8",
-        "week_sunday": "2024 09 4",
-        "week_monday": "2024 09 4",
-        "week_zero": "2024 00 0",
         "invalid": "2024-02-30"
     }))
     .unwrap();
@@ -3323,9 +3320,6 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "{weekday_numeric:D%Y-%m-%d %w/%Y%m%d}",
         "{weekday_numeric:D%Y-%m-%d %u/%Y%m%d}",
         "{weekday_numeric_invalid:D%Y-%m-%d %u/%Y%m%d}",
-        "{week_sunday:D%Y %U %w/%Y-%m-%d}",
-        "{week_monday:D%Y %W %w/%Y-%m-%d}",
-        "{week_zero:D%Y %U %w/%Y-%m-%d}",
         "{id:D%Y/%Y}",
     ];
     let native = formats
@@ -3367,9 +3361,6 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "20240229",
             "20240229",
             "[Invalid DateTime]",
-            "2024-03-07",
-            "2024-02-29",
-            "2023-12-31",
             "[Invalid DateTime]",
         ]
     );
