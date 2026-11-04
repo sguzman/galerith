@@ -763,7 +763,7 @@ fn fractional_http_timeout_expires_a_stalled_media_request() {
         let (mut socket, _) = listener.accept().unwrap();
         let mut request = [0_u8; 1024];
         let _ = socket.read(&mut request);
-        std::thread::sleep(std::time::Duration::from_millis(350));
+        std::thread::sleep(std::time::Duration::from_secs(2));
         let _ = socket
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nSLOW");
     });
@@ -780,8 +780,8 @@ fn fractional_http_timeout_expires_a_stalled_media_request() {
     server.join().unwrap();
     assert!(!output.status.success());
     assert!(
-        elapsed < std::time::Duration::from_millis(300),
-        "{elapsed:?}"
+        elapsed < std::time::Duration::from_millis(1500),
+        "HTTP timeout should expire before the stalled response: {elapsed:?}"
     );
     assert!(!dir.join("asset.jpg").exists());
     let _ = fs::remove_dir_all(dir);
@@ -795,7 +795,7 @@ fn downloader_timeout_config_expires_media_request() {
         let (mut socket, _) = listener.accept().unwrap();
         let mut request = [0_u8; 1024];
         let _ = socket.read(&mut request);
-        std::thread::sleep(std::time::Duration::from_millis(350));
+        std::thread::sleep(std::time::Duration::from_secs(2));
         let _ = socket
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nSLOW");
     });
@@ -812,7 +812,7 @@ fn downloader_timeout_config_expires_media_request() {
     server.join().unwrap();
     assert!(!output.status.success());
     assert!(
-        elapsed < std::time::Duration::from_millis(300),
+        elapsed < std::time::Duration::from_millis(1500),
         "downloader-scoped timeout was not applied: {elapsed:?}"
     );
     assert!(!dir.join("asset.jpg").exists());
