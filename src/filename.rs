@@ -1346,6 +1346,36 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
     Ok(value)
 }
 
+fn extract_urls(value: &str) -> Vec<Value> {
+    let mut urls = Vec::new();
+    let mut search_from = 0;
+    while search_from < value.len() {
+        let next = ["http://", "https://"]
+            .into_iter()
+            .filter_map(|prefix| {
+                value[search_from..]
+                    .find(prefix)
+                    .map(|offset| (offset, prefix))
+            })
+            .min_by_key(|(offset, _)| *offset);
+        let Some((offset, prefix)) = next else {
+            break;
+        };
+        let start = search_from + offset;
+        let end = value[start..]
+            .char_indices()
+            .find_map(|(offset, character)| {
+                (character.is_whitespace() || matches!(character, '"' | '\'' | '<' | '>' | '\\'))
+                    .then_some(start + offset)
+            })
+            .unwrap_or(value.len());
+        let end = end.max(start + prefix.len());
+        urls.push(Value::String(value[start..end].to_owned()));
+        search_from = end;
+    }
+    urls
+}
+
 fn python_array_repr(values: &[Value]) -> Result<String, FormatError> {
     let values = values
         .iter()
@@ -1533,9 +1563,18 @@ fn metadata_field(
         Value::String(value) if spec.starts_with('C') => {
             let (conversions, remainder) =
                 conversion_formatter_spec(spec).expect("conversion formatter starts with C");
-            let converted = convert_string_chain(value, conversions)?;
+            let converted = if let Some(prefix) = conversions.strip_suffix('R') {
+                let converted = if prefix.is_empty() {
+                    value.clone()
+                } else {
+                    convert_string_chain(value, prefix)?
+                };
+                Value::Array(extract_urls(&converted))
+            } else {
+                Value::String(convert_string_chain(value, conversions)?)
+            };
             *spec = remainder;
-            metadata_field(&Value::String(converted), field_name, conversion, spec)
+            metadata_field(&converted, field_name, conversion, spec)
         }
         Value::String(value) => Ok(Some(value.clone())),
         Value::Array(values) if spec.starts_with('M') => {
@@ -1605,8 +1644,9 @@ fn metadata_field(
                     ))),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
+            let joined = values.join(separator);
             *spec = remainder;
-            Ok(Some(values.join(separator)))
+            metadata_field(&Value::String(joined), field_name, conversion, spec)
         }
         Value::Number(_) | Value::Bool(_) if spec.starts_with('J') => Err(FormatError(
             "filename join formatter requires a string or string list".into(),
@@ -2628,6 +2668,15 @@ mod tests {
             render_with_metadata("{display:Cq/}", &item, &metadata).unwrap(),
             "%20%20Mixed%20Case%20%20"
         );
+        let links: Metadata = serde_json::from_value(serde_json::json!({
+            "link_text": "Visit https://a.test/x and https://b.test/y"
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{link_text:CR/J, /Cg/}", &item, &links).unwrap(),
+            "httpsatestx-httpsbtesty"
+        );
+        assert!(render_with_metadata("{link_text:CR/}", &item, &links).is_err());
         assert_eq!(
             convert_string_chain("Mixed%20Case", "Q").unwrap(),
             "Mixed Case"
@@ -2742,6 +2791,21 @@ mod tests {
         );
         assert!(render_with_metadata("{id:J, /}", &item, &metadata).is_err());
         assert!(render_with_metadata("{tags[3]:J, /}", &item, &metadata).is_err());
+    }
+
+    #[test]
+    fn url_extraction_conversion_uses_pinned_delimiters() {
+        assert_eq!(
+            extract_urls(
+                r#"pre http://a/x?y=1&z=2" https://b.test/path<tail> http://c\rest ftp://d.test"#
+            ),
+            [
+                Value::String("http://a/x?y=1&z=2".into()),
+                Value::String("https://b.test/path".into()),
+                Value::String("http://c".into()),
+            ]
+        );
+        assert!(extract_urls("text without a URL").is_empty());
     }
 
     #[test]

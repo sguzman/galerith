@@ -2270,6 +2270,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "a & b",
         ),
         ("language-conversion-chain", "{_lit[en]:CLu/}", "ENGLISH"),
+        (
+            "url-extraction-conversion-chain",
+            "{_lit[Visit https://a.test/x and https://b.test/y]:CR/J, /Cg/}",
+            "httpsatestx-httpsbtesty",
+        ),
         ("language-conversion", "{_lit[en]!L}", "English"),
         (
             "html-legacy-entity-conversion",
