@@ -2202,6 +2202,38 @@ fn field_with_metadata(
         let right = operand
             .parse::<i128>()
             .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+        if let Some(Value::Number(number)) = selected_source
+            .as_ref()
+            .filter(|source| matches!(source, Value::Number(number) if number.is_f64()))
+        {
+            let left = number.as_f64().ok_or_else(|| {
+                FormatError("filename arithmetic requires a finite number".into())
+            })?;
+            let right = right as f64;
+            let result = match operator {
+                "+" => left + right,
+                "-" => left - right,
+                "*" => left * right,
+                _ => {
+                    return Err(FormatError(
+                        "unsupported filename arithmetic operator".into(),
+                    ))
+                }
+            };
+            let number = serde_json::Number::from_f64(result)
+                .filter(|_| result.is_finite())
+                .map(Value::Number)
+                .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
+            if remainder.is_empty() {
+                return formatter_to_string(&number);
+            }
+            if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
+                return Ok(formatted);
+            }
+            return Err(FormatError(
+                "unsupported floating-point arithmetic format suffix".into(),
+            ));
+        }
         let left = match value.parse::<i128>() {
             Ok(left) => left,
             Err(_) if operator == "*" => {
@@ -3134,6 +3166,38 @@ mod tests {
         let mut large = item;
         large.filename = i128::MAX.to_string();
         assert!(render("{filename:A*4/}", &large).is_err());
+    }
+
+    #[test]
+    fn floating_point_arithmetic_preserves_numeric_type() {
+        let item = sample();
+        let metadata: Metadata = serde_json::from_value(serde_json::json!({
+            "rating": 1.25,
+            "whole": 1.0,
+            "ratio": 0.125,
+            "text": "ab"
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{rating:A*2/}", &item, &metadata).unwrap(),
+            "2.5"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:A+1/.2f}", &item, &metadata).unwrap(),
+            "2.25"
+        );
+        assert_eq!(
+            render_with_metadata("{whole:A*2/}", &item, &metadata).unwrap(),
+            "2.0"
+        );
+        assert_eq!(
+            render_with_metadata("{ratio:A*2/}", &item, &metadata).unwrap(),
+            "0.25"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/}", &item, &metadata).unwrap(),
+            "abab"
+        );
     }
 
     #[test]
