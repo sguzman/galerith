@@ -1748,6 +1748,15 @@ fn field_with_metadata(
             )))
         }
     };
+    if spec.starts_with('D') {
+        if conversion.is_empty()
+            && (native_non_string.is_some() || matches!(base_name, "id" | "post_id"))
+        {
+            return Ok("[Invalid DateTime]".into());
+        }
+        return crate::filename_datetime::format_datetime(&value, spec)
+            .ok_or_else(|| FormatError("invalid filename datetime formatter".into()));
+    }
     // gallery-dl's identity formatter returns its input directly, ignoring
     // any remaining specifier text.
     if spec.starts_with('I') {
@@ -2113,6 +2122,7 @@ mod tests {
         assert!(render("{_lit}", &item).is_err());
         assert_eq!(render("{filename:03}", &item).unwrap(), "original");
         assert!(render("{filename:>241}", &item).is_err());
+        assert_eq!(render("{id:D%Y/%Y}", &item).unwrap(), "[Invalid DateTime]");
     }
 
     #[test]

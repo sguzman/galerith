@@ -3186,6 +3186,62 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
 }
 
 #[test]
+fn pinned_datetime_formatter_matches_common_filename_dates() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "date": "2024-02-29",
+        "timestamp": "2024-03-01T01:00:00+02:00",
+        "fractional": "2024-02-29T13:04:05.987654",
+        "invalid": "2024-02-30"
+    }))
+    .unwrap();
+    let formats = [
+        "{date:D%Y-%m-%d/%Y%m%d}",
+        "{date:D%Y-%m-%d/%A %B %d, %Y}",
+        "{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}",
+        "{date:D%Y-%m-%d/%U-%W-%V-%G}",
+        "{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}",
+        "{id:D%Y/%Y}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, &metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "20240229",
+            "Thursday February 29, 2024",
+            "20240229_2300",
+            "08-08-09-2024",
+            "05_000000",
+            "[Invalid DateTime]",
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for datetime formatter comparison");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'date':'2024-02-29','timestamp':'2024-03-01T01:00:00+02:00','fractional':'2024-02-29T13:04:05.987654','id':42}; formats=('{date:D%Y-%m-%d/%Y%m%d}','{date:D%Y-%m-%d/%A %B %d, %Y}','{timestamp:D%Y-%m-%dT%H:%M:%S%z/%Y%m%d_%H%M}','{date:D%Y-%m-%d/%U-%W-%V-%G}','{fractional:D%Y-%m-%dT%H:%M:%S.%f/%S_%f}','{id:D%Y/%Y}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", &root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let upstream = spawn(command, "pinned datetime filename formatter");
+    assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
 fn pinned_formatter_selects_mapping_keys() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
