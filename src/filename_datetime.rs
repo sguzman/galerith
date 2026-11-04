@@ -564,7 +564,7 @@ fn format_datetime_value(date: DateTime, format: &str) -> String {
         }
         let rendered = match directive {
             '%' => "%".into(),
-            'Y' => format!("{:04}", date.year),
+            'Y' => date.year.to_string(),
             'y' => format!("{:02}", date.year.rem_euclid(100)),
             'C' => format!("{:02}", date.year.div_euclid(100)),
             'm' => format!("{:02}", date.month),
@@ -988,7 +988,7 @@ mod tests {
         );
         assert_eq!(
             format_datetime("0007-01-01", "D%Y-%m-%d/%Y").as_deref(),
-            Some("0007")
+            Some("7")
         );
         assert_eq!(
             format_datetime("7-01-01", "D%Y-%m-%d/%Y").as_deref(),
