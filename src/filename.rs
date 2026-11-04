@@ -1765,6 +1765,9 @@ fn apply_array_arithmetic_chain(
     } else {
         let mut suffix = remainder;
         let result = metadata_field(&Value::Array(repeated), field_name, "", &mut suffix)?;
+        if remainder.starts_with('?') {
+            return apply_string_formatter_chain(result.unwrap_or_default(), remainder);
+        }
         if !suffix.is_empty() {
             return Err(FormatError(
                 "unsupported list arithmetic format suffix".into(),
