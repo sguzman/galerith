@@ -1705,6 +1705,11 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
 
 fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
+    if matches!(operator, "+" | "-") {
+        return Err(FormatError(
+            "filename arithmetic requires an integer field".into(),
+        ));
+    }
     let value = if operator == "*" {
         let count = usize::try_from(right.max(0))
             .map_err(|_| FormatError("filename repetition count is too large".into()))?;
@@ -2470,6 +2475,33 @@ fn field_with_metadata(
     }
     if spec.starts_with('A') {
         let (operator, _, _) = arithmetic_operation(spec)?;
+        let string_source = !matches!(base_name, "id" | "post_id")
+            && selected_source
+                .as_ref()
+                .is_none_or(|source| matches!(source, Value::String(_)));
+        if matches!(
+            conversion,
+            "s" | "S"
+                | "r"
+                | "a"
+                | "j"
+                | "g"
+                | "q"
+                | "Q"
+                | "U"
+                | "H"
+                | "L"
+                | "l"
+                | "u"
+                | "c"
+                | "C"
+                | "t"
+                | "W"
+                | "T"
+        ) || (conversion.is_empty() && string_source)
+        {
+            return apply_string_arithmetic_chain(value, spec);
+        }
         let float_left = if conversion == "f" {
             converted_float
         } else {
@@ -3381,8 +3413,8 @@ mod tests {
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
         let mut large = item;
-        large.filename = i128::MAX.to_string();
-        assert!(render("{filename:A*4/}", &large).is_err());
+        large.post_id = Some(u64::MAX);
+        assert!(render("{id:A*170141183460469231731687303715884105727/}", &large).is_err());
     }
 
     #[test]

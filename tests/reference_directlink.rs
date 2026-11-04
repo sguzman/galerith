@@ -3078,6 +3078,55 @@ fn pinned_formatter_preserves_values_for_unimplemented_arithmetic_operators() {
 }
 
 #[test]
+fn pinned_formatter_preserves_string_types_during_arithmetic() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "12.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({"numeric_text": "12", "count": 12});
+    let metadata = metadata.as_object().unwrap();
+    let formats = [
+        "{numeric_text:A*2/}",
+        "{numeric_text!s:A*2/}",
+        "{count!s:A*2/}",
+        "{numeric_text:A%3/}",
+        "{filename:A*2/}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["1212", "1212", "1212", "12", "1212"]);
+    assert!(
+        galerith::filename::render_with_metadata("{numeric_text:A+1/}", &item, metadata).is_err()
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for string arithmetic comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'numeric_text':'12','count':12,'filename':'12'}; formats=('{numeric_text:A*2/}','{numeric_text!s:A*2/}','{count!s:A*2/}','{numeric_text:A%3/}','{filename:A*2/}'); output=[formatter.parse(value).format_map(data) for value in formats];\ntry: formatter.parse('{numeric_text:A+1/}').format_map(data)\nexcept TypeError: output.append('error')\nelse: output.append('ok')\nprint('|'.join(output))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let expected = format!("{}|error", native.join("|"));
+    assert_eq!(
+        spawn(command, "pinned string arithmetic formatter").trim(),
+        expected
+    );
+}
+
+#[test]
 fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
