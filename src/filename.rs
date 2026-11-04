@@ -1446,6 +1446,18 @@ fn python_float_value(source: Option<&Value>, value: &str) -> Result<f64, Format
     number.is_finite().then_some(number).ok_or_else(invalid)
 }
 
+fn python_length_value(source: Option<&Value>, value: &str) -> Result<usize, FormatError> {
+    match source {
+        Some(Value::String(value)) => Ok(value.chars().count()),
+        Some(Value::Array(values)) => Ok(values.len()),
+        Some(Value::Object(values)) => Ok(values.len()),
+        None => Ok(value.chars().count()),
+        Some(Value::Null | Value::Bool(_) | Value::Number(_)) => Err(FormatError(
+            "length conversion requires a string, list, or mapping".into(),
+        )),
+    }
+}
+
 fn metadata_field(
     value: &Value,
     field_name: &str,
@@ -1478,6 +1490,7 @@ fn metadata_field(
         {
             Ok(Some(String::new()))
         }
+        Value::Array(values) if conversion == "n" => Ok(Some(values.len().to_string())),
         Value::Object(fields)
             if fields.is_empty() && matches!(conversion, "s" | "r" | "a" | "j" | "g") =>
         {
@@ -1488,6 +1501,7 @@ fn metadata_field(
         {
             Ok(Some(String::new()))
         }
+        Value::Object(fields) if conversion == "n" => Ok(Some(fields.len().to_string())),
         Value::Array(_) | Value::Object(_) if conversion == "j" => {
             Ok(Some(python_json_value(value)))
         }
@@ -1787,6 +1801,11 @@ fn field_with_metadata(
     } else {
         None
     };
+    let converted_length = if conversion == "n" {
+        Some(python_length_value(selected_source.as_ref(), &value)?)
+    } else {
+        None
+    };
     let mut value = match conversion {
         "" | "s" | "S" => value,
         "r" if native_non_string.is_some() || matches!(base_name, "id" | "post_id") => value,
@@ -1815,11 +1834,9 @@ fn field_with_metadata(
         "f" => converted_float
             .expect("float conversion has a parsed value")
             .to_string(),
-        "n" => {
-            return Err(FormatError(
-                "length conversion produces a non-string filename value".into(),
-            ))
-        }
+        "n" => converted_length
+            .expect("length conversion has a computed value")
+            .to_string(),
         _ => {
             return Err(FormatError(format!(
                 "unsupported conversion '{conversion}'"
@@ -1844,6 +1861,17 @@ fn field_with_metadata(
         }
         return Err(FormatError(
             "float conversion requires a numeric filename format".into(),
+        ));
+    }
+    if conversion == "n" && !spec.starts_with('A') {
+        if let Some(formatted) = format_integer_character(&value, spec)? {
+            return Ok(formatted);
+        }
+        if let Some(formatted) = format_integer(&value, spec)? {
+            return Ok(formatted);
+        }
+        return Err(FormatError(
+            "length conversion requires a numeric filename format".into(),
         ));
     }
     if spec.starts_with('D') {
@@ -1956,6 +1984,7 @@ fn field_with_metadata(
     let arithmetic_spec = spec.starts_with('A');
     if !arithmetic_spec
         && (conversion == "i"
+            || conversion == "n"
             || matches!(base_name, "id" | "post_id")
             || (conversion.is_empty()
                 && selected_source
@@ -1967,7 +1996,7 @@ fn field_with_metadata(
             Some(Value::Bool(false)) => "0",
             _ => &value,
         };
-        if conversion.is_empty() || conversion == "i" {
+        if conversion.is_empty() || conversion == "i" || conversion == "n" {
             if let Some(formatted) = format_integer_character(integer_value, spec)? {
                 return Ok(formatted);
             }
@@ -2380,6 +2409,33 @@ mod tests {
         assert!(render_with_metadata("{invalid!f:.2f}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!i}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!f}", &item, &metadata).is_err());
+    }
+
+    #[test]
+    fn length_conversion_requires_and_accepts_numeric_filename_formats() {
+        let item = sample();
+        let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
+            "title": "猫a",
+            "tags": ["first", "second", "third"],
+            "labels": {"one": 1, "two": 2},
+            "count": 42
+        }))
+        .unwrap();
+        assert_eq!(
+            render_with_metadata("{title!n:03d}", &item, &metadata).unwrap(),
+            "002"
+        );
+        assert_eq!(
+            render_with_metadata("{tags!n:02d}", &item, &metadata).unwrap(),
+            "03"
+        );
+        assert_eq!(
+            render_with_metadata("{labels!n:02d}", &item, &metadata).unwrap(),
+            "02"
+        );
+        assert_eq!(render("{_lit[猫]!n:02d}", &item).unwrap(), "01");
+        assert!(render_with_metadata("{title!n}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{count!n:02d}", &item, &metadata).is_err());
     }
 
     #[test]

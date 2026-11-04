@@ -3199,6 +3199,49 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
 }
 
 #[test]
+fn pinned_length_conversion_formats_string_list_and_mapping_lengths() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({
+        "title": "猫a",
+        "tags": ["first", "second", "third"],
+        "labels": {"one": 1, "two": 2}
+    });
+    let metadata = metadata.as_object().unwrap();
+    let formats = ["{title!n:03d}", "{tags!n:02d}", "{labels!n:02d}"];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["002", "03", "02"]);
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for length conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("pinned source revision required for length conversion comparison");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let source = format!(
+        "from gallery_dl import formatter; data={{'title':'猫a','tags':['first','second','third'],'labels':{{'one':1,'two':2}}}}; print('|'.join(formatter.parse(value).format_map(data) for value in {formats:?}))"
+    );
+    let mut command = Command::new("python3");
+    command.args(["-c", &source]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned length conversion formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_datetime_formatter_matches_common_filename_dates() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
