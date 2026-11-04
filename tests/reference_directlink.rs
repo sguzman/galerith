@@ -5339,10 +5339,9 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
         "native info-json failed: {}",
         String::from_utf8_lossy(&native.stderr)
     );
-    let native_metadata: Value = serde_json::from_slice(
-        &std::fs::read(native_dir.join("info.json")).expect("native info.json created"),
-    )
-    .unwrap();
+    let native_bytes =
+        std::fs::read(native_dir.join("info.json")).expect("native info.json created");
+    let native_metadata: Value = serde_json::from_slice(&native_bytes).unwrap();
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         std::fs::remove_dir_all(root).unwrap();
@@ -5374,13 +5373,16 @@ fn pinned_and_native_info_json_match_directlink_directory_metadata() {
         "pinned info-json failed: {}",
         String::from_utf8_lossy(&pinned.stderr)
     );
-    let pinned_metadata: Value = serde_json::from_slice(
-        &std::fs::read(pinned_dir.join("info.json")).expect("pinned info.json created"),
-    )
-    .unwrap();
+    let pinned_bytes =
+        std::fs::read(pinned_dir.join("info.json")).expect("pinned info.json created");
+    let pinned_metadata: Value = serde_json::from_slice(&pinned_bytes).unwrap();
     assert_eq!(
         native_metadata, pinned_metadata,
         "directlink info.json differs from pinned gallery-dl"
+    );
+    assert_eq!(
+        native_bytes, pinned_bytes,
+        "directlink info.json serialization differs from pinned gallery-dl"
     );
     std::fs::remove_dir_all(root).unwrap();
 }
