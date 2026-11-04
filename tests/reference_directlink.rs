@@ -2426,11 +2426,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
-fn pinned_language_conversion_matches_all_reference_codes() {
+fn pinned_language_conversion_matches_reference_codes_and_unknowns() {
     let codes = [
         "ar", "bg", "bn", "ca", "cs", "da", "de", "el", "en", "es", "fa", "fi", "fr", "he", "hi",
         "hu", "id", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr",
-        "sv", "th", "tr", "uk", "vi", "zh",
+        "sv", "th", "tr", "uk", "vi", "zh", "xx",
     ];
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),

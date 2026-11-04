@@ -1333,9 +1333,7 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             'Q' => decode_url_component(&value),
             'U' => decode_html_entities(&value),
             'H' => html_to_text(&value),
-            'L' => language_name(&value).map(str::to_owned).ok_or_else(|| {
-                FormatError("language conversion produces a non-string filename value".into())
-            })?,
+            'L' => language_name(&value).unwrap_or("None").to_owned(),
             'W' => value.split_whitespace().collect::<Vec<_>>().join(" "),
             _ => {
                 return Err(FormatError(format!(
@@ -2329,9 +2327,7 @@ fn field_with_metadata(
         "Q" => decode_url_component(&value),
         "U" => decode_html_entities(&value),
         "H" => html_to_text(&value),
-        "L" => language_name(&value).map(str::to_owned).ok_or_else(|| {
-            FormatError("language conversion produces a non-string filename value".into())
-        })?,
+        "L" => language_name(&value).unwrap_or("None").to_owned(),
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -3680,7 +3676,7 @@ mod tests {
             assert_eq!(language_name(&code.to_ascii_uppercase()), Some(name));
         }
         assert_eq!(language_name("xx"), None);
-        assert!(render("{_lit[xx]!L}", &sample()).is_err());
+        assert_eq!(render("{_lit[xx]!L}", &sample()).unwrap(), "None");
     }
 
     #[test]
