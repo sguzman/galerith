@@ -119,6 +119,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         offset_minutes: None,
     };
     let mut twelve_hour_clock = false;
+    let mut ordinal_day = None;
     let mut input = 0;
     let mut chars = format.chars();
     while let Some(character) = chars.next() {
@@ -214,18 +215,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 date.microsecond = micros * 10u32.pow(6 - (input - start) as u32);
             }
             'j' => {
-                let ordinal = read_number(value, &mut input, 1, 3)?;
-                if ordinal == 0 || ordinal > if is_leap_year(date.year) { 366 } else { 365 } {
-                    return None;
-                }
-                let mut month = 1;
-                let mut day = ordinal;
-                while day > days_in_month(date.year, month) {
-                    day -= days_in_month(date.year, month);
-                    month += 1;
-                }
-                date.month = month;
-                date.day = day;
+                ordinal_day = Some(read_number(value, &mut input, 1, 3)?);
             }
             'z' => date.offset_minutes = Some(read_offset(value, &mut input)?),
             'a' | 'A' | 'b' | 'B' | 'p' | 'Z' => {
@@ -273,6 +263,19 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         .is_some_and(u8::is_ascii_whitespace)
     {
         input += 1;
+    }
+    if let Some(ordinal) = ordinal_day {
+        if ordinal == 0 || ordinal > if is_leap_year(date.year) { 366 } else { 365 } {
+            return None;
+        }
+        let mut month = 1;
+        let mut day = ordinal;
+        while day > days_in_month(date.year, month) {
+            day -= days_in_month(date.year, month);
+            month += 1;
+        }
+        date.month = month;
+        date.day = day;
     }
     (input == value.len() && date.valid()).then_some(date)
 }
@@ -702,6 +705,18 @@ mod tests {
         assert_eq!(
             format_datetime("13:04:05 PM", "D%r/%H").as_deref(),
             Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("366 2024", "D%j %Y/%Y%m%d").as_deref(),
+            Some("20241231")
+        );
+        assert_eq!(
+            format_datetime("2024 366", "D%Y %j/%Y%m%d").as_deref(),
+            Some("20241231")
+        );
+        assert_eq!(
+            format_datetime("2024 060 01-01", "D%Y %j %m-%d/%Y%m%d").as_deref(),
+            Some("20240229")
         );
         assert_eq!(
             format_datetime("2024-02-30", "D%Y-%m-%d/%Y%m%d").as_deref(),
