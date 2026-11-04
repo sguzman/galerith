@@ -1956,20 +1956,11 @@ fn field_with_metadata(
             Ok(format!("{value:>parsed$}"))
         };
     }
-    // Python's string mini-language accepts a zero fill flag without an
-    // explicit alignment while retaining the string default (left alignment).
-    if spec.starts_with('0')
-        && spec.len() > 1
+    if spec.len() > 1
+        && spec.starts_with('0')
         && spec[1..].bytes().all(|byte| byte.is_ascii_digit())
     {
-        let width = spec[1..]
-            .parse::<usize>()
-            .map_err(|_| FormatError("invalid string width formatting".into()))?;
-        if width > 240 {
-            return Err(FormatError("filename string width is too large".into()));
-        }
-        let padding = width.saturating_sub(value.chars().count());
-        return Ok(format!("{value}{}", "0".repeat(padding)));
+        return Ok(value.to_owned());
     }
     let chars: Vec<char> = spec.chars().collect();
     let (fill, align, width_start) = match chars.as_slice() {
@@ -2258,7 +2249,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             render_with_metadata("{title:08}", &item, &metadata).unwrap(),
-            "plain000"
+            "plain"
         );
         assert_eq!(
             render_with_metadata("{tags:J, /}", &item, &metadata).unwrap(),
