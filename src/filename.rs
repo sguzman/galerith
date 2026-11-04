@@ -1768,6 +1768,9 @@ fn apply_array_arithmetic_chain(
         if remainder.starts_with('?') {
             return apply_string_formatter_chain(result.unwrap_or_default(), remainder);
         }
+        if remainder.starts_with('J') {
+            return apply_string_formatter_chain(result.unwrap_or_default(), suffix);
+        }
         if !suffix.is_empty() {
             return Err(FormatError(
                 "unsupported list arithmetic format suffix".into(),

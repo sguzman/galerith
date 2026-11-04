@@ -3143,6 +3143,7 @@ fn pinned_formatter_repeats_lists_without_stringifying_them_first() {
         "{tags:A*0/}",
         "file{tags:A*2/?pre/post/}",
         "file{empty:A*2/?pre/post/}",
+        "{tags:A*2/J, />25}",
     ];
     let native = formats
         .iter()
@@ -3156,7 +3157,8 @@ fn pinned_formatter_repeats_lists_without_stringifying_them_first() {
             "['red', 'blue']",
             "[]",
             "filepre['red', 'blue', 'red', 'blue']post",
-            "file"
+            "file",
+            "     red, blue, red, blue"
         ]
     );
 
@@ -3171,7 +3173,7 @@ fn pinned_formatter_repeats_lists_without_stringifying_them_first() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['red','blue'],'empty':[]}; formats=('{tags:A*2/}','{tags:A*2/J, /}','{tags:A%3/}','{tags:A*0/}','file{tags:A*2/?pre/post/}','file{empty:A*2/?pre/post/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['red','blue'],'empty':[]}; formats=('{tags:A*2/}','{tags:A*2/J, /}','{tags:A%3/}','{tags:A*0/}','file{tags:A*2/?pre/post/}','file{empty:A*2/?pre/post/}','{tags:A*2/J, />25}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
