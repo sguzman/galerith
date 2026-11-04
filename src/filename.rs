@@ -2031,7 +2031,7 @@ fn field_with_metadata(
             "integer conversion requires a numeric filename format".into(),
         ));
     }
-    if conversion == "f" {
+    if conversion == "f" && !spec.starts_with('A') {
         let number = Value::from(converted_float.expect("float conversion has a parsed value"));
         if let Some(formatted) = format_fixed_numeric(&number, spec)? {
             return Ok(formatted);
@@ -2202,13 +2202,15 @@ fn field_with_metadata(
         let right = operand
             .parse::<i128>()
             .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
-        if let Some(Value::Number(number)) = selected_source
-            .as_ref()
-            .filter(|source| matches!(source, Value::Number(number) if number.is_f64()))
-        {
-            let left = number.as_f64().ok_or_else(|| {
-                FormatError("filename arithmetic requires a finite number".into())
-            })?;
+        let float_left = if conversion == "f" {
+            converted_float
+        } else {
+            selected_source.as_ref().and_then(|source| match source {
+                Value::Number(number) if number.is_f64() => number.as_f64(),
+                _ => None,
+            })
+        };
+        if let Some(left) = float_left {
             let right = right as f64;
             let result = match operator {
                 "+" => left + right,
@@ -3175,6 +3177,8 @@ mod tests {
             "rating": 1.25,
             "whole": 1.0,
             "ratio": 0.125,
+            "count": 42,
+            "text_number": "1.25",
             "text": "ab"
         }))
         .unwrap();
@@ -3193,6 +3197,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{ratio:A*2/}", &item, &metadata).unwrap(),
             "0.25"
+        );
+        assert_eq!(
+            render_with_metadata("{count!f:A*2/}", &item, &metadata).unwrap(),
+            "84.0"
+        );
+        assert_eq!(
+            render_with_metadata("{text_number!f:A*2/}", &item, &metadata).unwrap(),
+            "2.5"
         );
         assert_eq!(
             render_with_metadata("{text:A*2/}", &item, &metadata).unwrap(),
