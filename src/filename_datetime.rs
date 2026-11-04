@@ -426,6 +426,9 @@ fn expand_datetime_format(format: &str) -> String {
             Some('R') => expanded.push_str("%H:%M"),
             Some('T') => expanded.push_str("%H:%M:%S"),
             Some('r') => expanded.push_str("%I:%M:%S %p"),
+            Some('c') => expanded.push_str("%a %b %e %H:%M:%S %Y"),
+            Some('x') => expanded.push_str("%m/%d/%y"),
+            Some('X') => expanded.push_str("%H:%M:%S"),
             Some(directive) => {
                 expanded.push('%');
                 expanded.push(directive);
@@ -1048,6 +1051,18 @@ mod tests {
         assert_eq!(
             format_datetime("2024-02-29 13:04:05.987654", "D%Y-%m-%d %H:%M:%S.%f/%S.%f").as_deref(),
             Some("05.000000")
+        );
+        assert_eq!(
+            format_datetime("Thu Feb 29 13:04:05 2024", "D%c/%Y-%m-%d_%H-%M-%S").as_deref(),
+            Some("2024-02-29_13-04-05")
+        );
+        assert_eq!(
+            format_datetime("02/29/24", "D%x/%Y-%m-%d").as_deref(),
+            Some("2024-02-29")
+        );
+        assert_eq!(
+            format_datetime("13:04:05", "D%X/%H-%M-%S").as_deref(),
+            Some("13-04-05")
         );
     }
 }

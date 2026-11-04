@@ -3564,6 +3564,56 @@ fn pinned_datetime_local_offset_matches_system_timezone() {
 }
 
 #[test]
+fn pinned_datetime_locale_composite_inputs_match_upstream() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "date_time": "Thu Feb 29 13:04:05 2024",
+        "date": "02/29/24",
+        "time": "13:04:05"
+    }))
+    .unwrap();
+    let templates = [
+        "{date_time:D%c/%Y-%m-%d_%H-%M-%S}",
+        "{date:D%x/%Y-%m-%d}",
+        "{time:D%X/%H-%M-%S}",
+    ];
+    let native = templates
+        .iter()
+        .map(|template| {
+            galerith::filename::render_with_metadata(template, &item, &metadata).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["2024-02-29_13-04-05", "2024-02-29", "13-04-05"]);
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for datetime locale-format comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'date_time':'Thu Feb 29 13:04:05 2024','date':'02/29/24','time':'13:04:05'}; templates=('{date_time:D%c/%Y-%m-%d_%H-%M-%S}','{date:D%x/%Y-%m-%d}','{time:D%X/%H-%M-%S}'); print('|'.join(formatter.parse(template).format_map(data) for template in templates))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    command.env("LC_TIME", "C");
+    assert_eq!(
+        spawn(command, "pinned datetime locale inputs").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_datetime_week_number_inputs_match_python() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
