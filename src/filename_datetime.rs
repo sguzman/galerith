@@ -415,12 +415,14 @@ fn week_number(date: DateTime, monday_first: bool) -> u32 {
         ..date
     }
     .weekday();
-    let offset = if monday_first {
-        (first_weekday + 6) % 7
+    let week_start = u32::from(monday_first);
+    let offset = (week_start + 7 - first_weekday) % 7;
+    let day_index = date.ordinal() - 1;
+    if day_index < offset {
+        0
     } else {
-        first_weekday
-    };
-    (date.ordinal() - 1 - offset) / 7
+        (day_index - offset) / 7 + 1
+    }
 }
 
 fn iso_week(date: DateTime) -> (u32, i32) {
@@ -545,7 +547,11 @@ mod tests {
         );
         assert_eq!(
             format_datetime("2024-02-29", "D%Y-%m-%d/%U-%W-%V-%G").as_deref(),
-            Some("08-08-09-2024")
+            Some("08-09-09-2024")
+        );
+        assert_eq!(
+            format_datetime("2024-01-01", "D%Y-%m-%d/%U-%W").as_deref(),
+            Some("00-01")
         );
         assert_eq!(
             format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/O+2:30/%Y%m%d_%H%M").as_deref(),
