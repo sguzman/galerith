@@ -3229,7 +3229,7 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "05_000000",
             "20240301_0215",
             "20240229_1815",
-            "20240301_0015",
+            "20240229_2315",
             "[Invalid DateTime]",
         ]
     );
@@ -3265,12 +3265,13 @@ fn pinned_formatter_selects_mapping_keys() {
             "display": "indigo",
             "nested": {"name": "nested"}
         },
-        "artists": [{"name": "one"}, {"name": "two"}]
+        "artists": [{"name": "one"}, {"name": "two"}],
+        "scores": [{"value": 3}, {"value": 11}]
     }))
     .unwrap();
-    let template = "{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{labels.nested.name}_{artists[1][name]}";
+    let template = "{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{labels.nested.name}_{artists[1][name]}_{scores!S:Mvalue}";
     let native = galerith::filename::render_with_metadata(template, &item, &metadata).unwrap();
-    assert_eq!(native, "safe_safe_INDIGO_nested_nested_two");
+    assert_eq!(native, "safe_safe_INDIGO_nested_nested_two_3, 11");
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -3283,7 +3284,7 @@ fn pinned_formatter_selects_mapping_keys() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        r#"from gallery_dl import formatter; data={'labels':{'short':'safe','display':'indigo','nested':{'name':'nested'}},'artists':[{'name':'one'},{'name':'two'}]}; print(formatter.parse("{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{labels.nested.name}_{artists[1][name]}").format_map(data))"#,
+        r#"from gallery_dl import formatter; data={'labels':{'short':'safe','display':'indigo','nested':{'name':'nested'}},'artists':[{'name':'one'},{'name':'two'}],'scores':[{'value':3},{'value':11}]}; print(formatter.parse("{labels['short']}_{labels[short]}_{labels[display]!u}_{labels[nested][name]}_{labels.nested.name}_{artists[1][name]}_{scores!S:Mvalue}").format_map(data))"#,
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");

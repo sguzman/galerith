@@ -92,21 +92,18 @@ fn parse_fixed_offset(value: &str) -> Option<i64> {
     if value.is_empty() || value == "local" {
         return None;
     }
-    let (sign, value) = if let Some(value) = value.strip_prefix('-') {
-        (-1, value)
-    } else if let Some(value) = value.strip_prefix('+') {
-        (1, value)
-    } else {
-        (1, value)
-    };
     let (hours, minutes) = value.split_once(':').unwrap_or((value, ""));
     let hours = hours.parse::<i64>().ok()?;
     let mut offset = hours.checked_mul(60)?;
     if !minutes.is_empty() {
         let minutes = minutes.parse::<i64>().ok()?;
-        offset = offset.checked_add(minutes)?;
+        let signed_minutes = if offset > 0 {
+            minutes
+        } else {
+            minutes.checked_neg()?
+        };
+        offset = offset.checked_add(signed_minutes)?;
     }
-    let offset = offset.checked_mul(sign)?;
     (offset.unsigned_abs() <= 60 * 24 * 366).then_some(offset)
 }
 
@@ -563,7 +560,7 @@ mod tests {
         );
         assert_eq!(
             format_datetime("2024-02-29 23:45", "D%Y-%m-%d %H:%M/O+0:30/%Y%m%d_%H%M").as_deref(),
-            Some("20240301_0015")
+            Some("20240229_2315")
         );
         assert_eq!(
             format_datetime("2024-August-01", "D%Y-%B-%d/%B").as_deref(),
