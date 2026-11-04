@@ -1625,11 +1625,9 @@ fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, Form
     }
     let value = result.to_string();
     if remainder.starts_with('R') {
-        let (value, trailing) = apply_chained_replacements(value, remainder)?;
-        if trailing.is_empty() {
-            return Ok(value);
-        }
-        return Err(FormatError("unsupported arithmetic format chain".into()));
+        return Err(FormatError(
+            "filename replacement requires a string value".into(),
+        ));
     }
     if remainder.is_empty() {
         return Ok(value);
@@ -1672,12 +1670,9 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
         return formatter_to_string(&number);
     }
     if remainder.starts_with('R') {
-        let (value, trailing) =
-            apply_chained_replacements(formatter_to_string(&number)?, remainder)?;
-        if trailing.is_empty() {
-            return Ok(value);
-        }
-        return Err(FormatError("unsupported arithmetic format chain".into()));
+        return Err(FormatError(
+            "filename replacement requires a string value".into(),
+        ));
     }
     if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
         return Ok(formatted);
@@ -1713,6 +1708,21 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
         let (value, trailing) = apply_chained_replacements(repeated, remainder)?;
         if trailing.is_empty() {
             return Ok(value);
+        }
+        return Err(FormatError("unsupported arithmetic format chain".into()));
+    }
+    if remainder.starts_with('C') {
+        let (conversions, trailing) =
+            conversion_formatter_spec(remainder).expect("conversion formatter starts with C");
+        let value = convert_string_chain(&repeated, conversions)?;
+        if trailing.is_empty() {
+            return Ok(value);
+        }
+        if trailing.starts_with('R') {
+            let (value, trailing) = apply_chained_replacements(value, trailing)?;
+            if trailing.is_empty() {
+                return Ok(value);
+            }
         }
         return Err(FormatError("unsupported arithmetic format chain".into()));
     }
@@ -3233,7 +3243,6 @@ mod tests {
         assert_eq!(render("{id:A+8/04d}", &item).unwrap(), "0050");
         assert_eq!(render("{id:A+1/A*2/}", &item).unwrap(), "86");
         assert_eq!(render("{id:A+1/A*2/04d}", &item).unwrap(), "0086");
-        assert_eq!(render("{id:A+1/R4/9/}", &item).unwrap(), "93");
         assert!(render("{filename:A+1/}", &item).is_err());
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
@@ -3267,10 +3276,6 @@ mod tests {
         assert_eq!(
             render_with_metadata("{rating:A*2/A+1/}", &item, &metadata).unwrap(),
             "3.5"
-        );
-        assert_eq!(
-            render_with_metadata("{rating:A*2/R2/7/}", &item, &metadata).unwrap(),
-            "7.5"
         );
         assert_eq!(
             render_with_metadata("{whole:A*2/}", &item, &metadata).unwrap(),
@@ -3311,6 +3316,14 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/Rab/x/}", &item, &metadata).unwrap(),
             "xx"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/}", &item, &metadata).unwrap(),
+            "ABAB"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/RB/X/}", &item, &metadata).unwrap(),
+            "AXAX"
         );
     }
 
