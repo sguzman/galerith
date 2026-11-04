@@ -1721,6 +1721,9 @@ fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<Str
             spec = remainder;
         } else if spec.starts_with('R') {
             (value, spec) = apply_chained_replacements(value, spec)?;
+        } else if spec.starts_with('X') || spec.starts_with('L') {
+            (value, spec) =
+                format_string_length(&value, spec)?.expect("length formatter starts with X or L");
         } else if spec.is_empty() {
             return Ok(value);
         } else {
@@ -1760,6 +1763,65 @@ fn format_string_width(value: &str, spec: &str) -> Result<String, FormatError> {
         value,
         fill.to_string().repeat(right)
     ))
+}
+
+fn format_string_length<'a>(
+    value: &str,
+    spec: &'a str,
+) -> Result<Option<(String, &'a str)>, FormatError> {
+    let (truncate, rest) = if let Some(rest) = spec.strip_prefix('X') {
+        (true, rest)
+    } else if let Some(rest) = spec.strip_prefix('L') {
+        (false, rest)
+    } else {
+        return Ok(None);
+    };
+    let (max_len, rest) = rest
+        .split_once('/')
+        .ok_or_else(|| FormatError("invalid filename length formatter".into()))?;
+    let (replacement, remainder) = rest
+        .split_once('/')
+        .ok_or_else(|| FormatError("invalid filename length formatter".into()))?;
+    let byte_len = max_len.starts_with('b');
+    let max_len = max_len
+        .strip_prefix('b')
+        .unwrap_or(max_len)
+        .parse::<usize>()
+        .ok()
+        .filter(|length| (1..=240).contains(length))
+        .ok_or_else(|| FormatError("invalid filename length limit".into()))?;
+    let length = if byte_len {
+        value.len()
+    } else {
+        value.chars().count()
+    };
+    if length <= max_len {
+        return Ok(Some((value.to_owned(), remainder)));
+    }
+    if !truncate {
+        return Ok(Some((replacement.to_owned(), remainder)));
+    }
+    let replacement_len = if byte_len {
+        replacement.len()
+    } else {
+        replacement.chars().count()
+    };
+    if replacement_len > max_len {
+        return Err(FormatError(
+            "filename length suffix exceeds its configured limit".into(),
+        ));
+    }
+    let shortened = if byte_len {
+        let prefix = decode_utf8_ignoring_invalid(&value.as_bytes()[..max_len - replacement_len]);
+        format!("{prefix}{replacement}")
+    } else {
+        value
+            .chars()
+            .take(max_len - replacement_len)
+            .chain(replacement.chars())
+            .collect()
+    };
+    Ok(Some((shortened, remainder)))
 }
 
 fn metadata_field(
@@ -2288,54 +2350,12 @@ fn field_with_metadata(
     // Bounded character-count and UTF-8 byte-count formatters used to keep
     // output names portable. Byte-oriented truncation ignores an incomplete
     // final code point, matching the formatter's UTF-8 decoding behavior.
-    if let Some((max_len, replacement)) = spec
-        .strip_prefix('X')
-        .or_else(|| spec.strip_prefix('L'))
-        .and_then(|spec| {
-            let (max_len, replacement) = spec.split_once('/')?;
-            Some((max_len, replacement.strip_suffix('/')?))
-        })
-    {
-        let truncate = spec.starts_with('X');
-        let byte_len = max_len.starts_with('b');
-        let max_len = max_len
-            .strip_prefix('b')
-            .unwrap_or(max_len)
-            .parse::<usize>()
-            .ok()
-            .filter(|length| (1..=240).contains(length))
-            .ok_or_else(|| FormatError("invalid filename length limit".into()))?;
-        let length = if byte_len {
-            value.len()
-        } else {
-            value.chars().count()
-        };
-        if length <= max_len {
+    if spec.starts_with('X') || spec.starts_with('L') {
+        (value, spec) =
+            format_string_length(&value, spec)?.expect("length formatter starts with X or L");
+        if spec.is_empty() {
             return Ok(value);
         }
-        if !truncate {
-            return Ok(replacement.to_owned());
-        }
-        let replacement_len = if byte_len {
-            replacement.len()
-        } else {
-            replacement.chars().count()
-        };
-        if replacement_len > max_len {
-            return Err(FormatError(
-                "filename length suffix exceeds its configured limit".into(),
-            ));
-        }
-        if byte_len {
-            let prefix =
-                decode_utf8_ignoring_invalid(&value.as_bytes()[..max_len - replacement_len]);
-            return Ok(format!("{prefix}{replacement}"));
-        }
-        return Ok(value
-            .chars()
-            .take(max_len - replacement_len)
-            .chain(replacement.chars())
-            .collect());
     }
     let arithmetic_spec = spec.starts_with('A');
     if !arithmetic_spec
@@ -3363,6 +3383,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/Cu/RB/X/>8}", &item, &metadata).unwrap(),
             "    AXAX"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/X3/!/}", &item, &metadata).unwrap(),
+            "AB!"
         );
     }
 
