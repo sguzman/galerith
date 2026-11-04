@@ -1406,10 +1406,32 @@ fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, For
                 Err(invalid())
             }
         }
-        Some(Value::String(value)) => value.trim().parse().map_err(|_| invalid()),
+        Some(Value::String(value)) => parse_python_integer_text(value).ok_or_else(invalid),
         Some(Value::Null | Value::Array(_) | Value::Object(_)) => Err(invalid()),
-        None => value.trim().parse().map_err(|_| invalid()),
+        None => parse_python_integer_text(value).ok_or_else(invalid),
     }
+}
+
+fn parse_python_integer_text(value: &str) -> Option<i128> {
+    let value = value.trim();
+    let bytes = value.as_bytes();
+    let digits_start = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
+    if digits_start == bytes.len() {
+        return None;
+    }
+    for (index, byte) in bytes.iter().enumerate().skip(digits_start) {
+        if *byte == b'_' {
+            if index == digits_start
+                || !bytes[index - 1].is_ascii_digit()
+                || !bytes.get(index + 1).is_some_and(u8::is_ascii_digit)
+            {
+                return None;
+            }
+        } else if !byte.is_ascii_digit() {
+            return None;
+        }
+    }
+    value.replace('_', "").parse().ok()
 }
 
 fn python_float_value(source: Option<&Value>, value: &str) -> Result<f64, FormatError> {
@@ -2317,10 +2339,12 @@ mod tests {
         let metadata = serde_json::from_value::<Metadata>(serde_json::json!({
             "count": 42,
             "numeric_text": " 17 ",
+            "underscored": "-1_234",
             "decimal": 12.9,
             "enabled": true,
             "rating_text": "1.2345",
-            "invalid": "not a number"
+            "invalid": "not a number",
+            "invalid_separator": "1__2"
         }))
         .unwrap();
         assert_eq!(
@@ -2330,6 +2354,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{numeric_text!i:04d}", &item, &metadata).unwrap(),
             "0017"
+        );
+        assert_eq!(
+            render_with_metadata("{underscored!i:,}", &item, &metadata).unwrap(),
+            "-1,234"
         );
         assert_eq!(
             render_with_metadata("{decimal!i:d}", &item, &metadata).unwrap(),
@@ -2348,6 +2376,7 @@ mod tests {
             "1.23"
         );
         assert!(render_with_metadata("{invalid!i}", &item, &metadata).is_err());
+        assert!(render_with_metadata("{invalid_separator!i:04d}", &item, &metadata).is_err());
         assert!(render_with_metadata("{invalid!f:.2f}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!i}", &item, &metadata).is_err());
         assert!(render_with_metadata("{count!f}", &item, &metadata).is_err());
