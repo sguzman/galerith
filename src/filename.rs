@@ -1449,6 +1449,27 @@ fn python_string_value(value: &Value) -> Result<String, FormatError> {
     }
 }
 
+fn formatter_to_string(value: &Value) -> Result<String, FormatError> {
+    match value {
+        Value::Null | Value::Bool(false) => Ok(String::new()),
+        Value::Number(number)
+            if number.as_i64() == Some(0)
+                || number.as_u64() == Some(0)
+                || number.as_f64() == Some(0.0) =>
+        {
+            Ok(String::new())
+        }
+        Value::String(value) => Ok(value.clone()),
+        Value::Array(values) => values
+            .iter()
+            .map(python_string_value)
+            .collect::<Result<Vec<_>, _>>()
+            .map(|values| values.join(", ")),
+        Value::Object(values) if values.is_empty() => Ok(String::new()),
+        _ => python_string_value(value),
+    }
+}
+
 fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, FormatError> {
     let invalid = || FormatError("integer conversion requires an integer-compatible value".into());
     match source {
@@ -1691,9 +1712,23 @@ fn metadata_field(
                 spec,
             )
         }
-        Value::Array(_) if spec.starts_with('C') => Err(FormatError(
-            "filename string conversions require a string field".into(),
-        )),
+        Value::Array(_) | Value::Object(_) if spec.starts_with('C') => {
+            let (conversions, remainder) =
+                conversion_formatter_spec(spec).expect("conversion formatter starts with C");
+            let Some(trailing) = conversions.strip_prefix('S') else {
+                return Err(FormatError(
+                    "filename string conversions require a string field or S conversion".into(),
+                ));
+            };
+            let value = formatter_to_string(value)?;
+            let converted = if trailing.is_empty() {
+                value
+            } else {
+                convert_string_chain(&value, trailing)?
+            };
+            *spec = remainder;
+            metadata_field(&Value::String(converted), field_name, conversion, spec)
+        }
         Value::Number(_) | Value::Bool(_) if spec.starts_with('C') => Err(FormatError(
             "filename string conversions require a string field".into(),
         )),
@@ -2644,6 +2679,18 @@ mod tests {
         assert_eq!(
             render_with_metadata("{tags:J/}", &item, &metadata).unwrap(),
             "zetaalphamiddle"
+        );
+        assert_eq!(
+            render_with_metadata("{tags:CS/}", &item, &metadata).unwrap(),
+            "zeta, alpha, middle"
+        );
+        assert_eq!(
+            formatter_to_string(metadata.get("mixed_tags").unwrap()).unwrap(),
+            "alpha, 2, False, None, [1, True], {'name': 'one'}"
+        );
+        assert_eq!(
+            render_with_metadata("{mixed_tags:CSg/}", &item, &metadata).unwrap(),
+            "alpha-2-false-none-1-true-name-one"
         );
         assert_eq!(
             render_with_metadata("{tags[0]:J, /}", &item, &metadata).unwrap(),
