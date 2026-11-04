@@ -2236,32 +2236,38 @@ fn field_with_metadata(
                 "unsupported floating-point arithmetic format suffix".into(),
             ));
         }
-        let left = match value.parse::<i128>() {
-            Ok(left) => left,
-            Err(_) if operator == "*" => {
-                let count = usize::try_from(right.max(0))
-                    .map_err(|_| FormatError("filename repetition count is too large".into()))?;
-                let output_len = value
-                    .len()
-                    .checked_mul(count)
-                    .filter(|length| *length <= 240)
-                    .ok_or_else(|| FormatError("filename repetition exceeds 240 bytes".into()))?;
-                let mut repeated = String::with_capacity(output_len);
-                for _ in 0..count {
-                    repeated.push_str(&value);
+        let left = match selected_source.as_ref() {
+            Some(Value::Bool(value)) => i128::from(*value),
+            _ => match value.parse::<i128>() {
+                Ok(left) => left,
+                Err(_) if operator == "*" => {
+                    let count = usize::try_from(right.max(0)).map_err(|_| {
+                        FormatError("filename repetition count is too large".into())
+                    })?;
+                    let output_len = value
+                        .len()
+                        .checked_mul(count)
+                        .filter(|length| *length <= 240)
+                        .ok_or_else(|| {
+                            FormatError("filename repetition exceeds 240 bytes".into())
+                        })?;
+                    let mut repeated = String::with_capacity(output_len);
+                    for _ in 0..count {
+                        repeated.push_str(&value);
+                    }
+                    if remainder.is_empty() {
+                        return Ok(repeated);
+                    }
+                    return Err(FormatError(
+                        "unsupported string arithmetic format suffix".into(),
+                    ));
                 }
-                if remainder.is_empty() {
-                    return Ok(repeated);
+                Err(_) => {
+                    return Err(FormatError(
+                        "filename arithmetic requires an integer field".into(),
+                    ))
                 }
-                return Err(FormatError(
-                    "unsupported string arithmetic format suffix".into(),
-                ));
-            }
-            Err(_) => {
-                return Err(FormatError(
-                    "filename arithmetic requires an integer field".into(),
-                ))
-            }
+            },
         };
         let result = match operator {
             "+" => left.checked_add(right),
@@ -3179,6 +3185,8 @@ mod tests {
             "ratio": 0.125,
             "count": 42,
             "text_number": "1.25",
+            "yes": true,
+            "no": false,
             "text": "ab"
         }))
         .unwrap();
@@ -3205,6 +3213,18 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text_number!f:A*2/}", &item, &metadata).unwrap(),
             "2.5"
+        );
+        assert_eq!(
+            render_with_metadata("{yes:A+1/}", &item, &metadata).unwrap(),
+            "2"
+        );
+        assert_eq!(
+            render_with_metadata("{yes:A*2/}", &item, &metadata).unwrap(),
+            "2"
+        );
+        assert_eq!(
+            render_with_metadata("{no:A*2/}", &item, &metadata).unwrap(),
+            "0"
         );
         assert_eq!(
             render_with_metadata("{text:A*2/}", &item, &metadata).unwrap(),

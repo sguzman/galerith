@@ -2914,7 +2914,9 @@ fn pinned_formatter_matches_arithmetic_on_float_metadata() {
         "whole": 1.0,
         "ratio": 0.125,
         "count": 42,
-        "text_number": "1.25"
+        "text_number": "1.25",
+        "yes": true,
+        "no": false
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
@@ -2924,12 +2926,18 @@ fn pinned_formatter_matches_arithmetic_on_float_metadata() {
         "{ratio:A*2/}",
         "{count!f:A*2/}",
         "{text_number!f:A*2/}",
+        "{yes:A+1/}",
+        "{yes:A*2/}",
+        "{no:A*2/}",
     ];
     let native = formats
         .iter()
         .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(native, ["2.5", "2.25", "2.0", "0.25", "84.0", "2.5"]);
+    assert_eq!(
+        native,
+        ["2.5", "2.25", "2.0", "0.25", "84.0", "2.5", "2", "2", "0"]
+    );
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
@@ -2942,7 +2950,7 @@ fn pinned_formatter_matches_arithmetic_on_float_metadata() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'rating':1.25,'whole':1.0,'ratio':0.125,'count':42,'text_number':'1.25'}; formats=('{rating:A*2/}','{rating:A+1/.2f}','{whole:A*2/}','{ratio:A*2/}','{count!f:A*2/}','{text_number!f:A*2/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+        "from gallery_dl import formatter; data={'rating':1.25,'whole':1.0,'ratio':0.125,'count':42,'text_number':'1.25','yes':True,'no':False}; formats=('{rating:A*2/}','{rating:A+1/.2f}','{whole:A*2/}','{ratio:A*2/}','{count!f:A*2/}','{text_number!f:A*2/}','{yes:A+1/}','{yes:A*2/}','{no:A*2/}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
