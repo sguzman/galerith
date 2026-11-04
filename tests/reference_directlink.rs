@@ -2270,16 +2270,6 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "a & b",
         ),
         ("language-conversion-chain", "{_lit[en]:CLu/}", "ENGLISH"),
-        (
-            "url-extraction-conversion-chain",
-            "{_lit[Visit https://a.test/x and https://b.test/y]:CR/J, /Cg/}",
-            "httpsatestx-httpsbtesty",
-        ),
-        (
-            "url-extraction-string-conversion-chain",
-            "{_lit[Visit https://a.test/x and https://b.test/y]:CRS/Cg/}",
-            "httpsatestx-httpsbtesty",
-        ),
         ("language-conversion", "{_lit[en]!L}", "English"),
         (
             "html-legacy-entity-conversion",
@@ -3065,6 +3055,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "empty_list": [],
         "empty_map": {},
         "empty_string": "",
+        "link_text": "Visit https://a.test/x and https://b.test/y",
         "artists": [{"name": "one"}, {"name": "two"}, {"name": "three"}]
     }))
     .unwrap();
@@ -3129,6 +3120,8 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
         "{empty_map!j}",
         "file{empty_list!s:?yes/no/}",
         "file{empty_map!s:?yes/no/}",
+        "{link_text:CR/J, /Cg/}",
+        "{link_text:CRS/Cg/}",
     ];
     let native = formats
         .iter()
@@ -3196,7 +3189,9 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
             "{}",
             "{}",
             "fileyes[]no",
-            "fileyes{}no"
+            "fileyes{}no",
+            "httpsatestx-httpsbtesty",
+            "httpsatestx-httpsbtesty"
         ]
     );
 
@@ -3211,7 +3206,7 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'mixed_tags':['alpha',2,False,None,[1,True],{'name':'one'}],'json_values':[1,True,None],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':''}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{mixed_tags!S:R:/-/}','{json_values!j}','{title:J, /}','{title:08}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{enabled!g}','{count!g}','{nullable!g}','{enabled!r}','{count!r}','{nullable!r}','{enabled!a}','{count!a}','{nullable!a}','{enabled!j}','{count!j}','{nullable!j}','{id!j}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{nullable!r:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}','{empty_list!s}','{empty_list!r}','{empty_list!a}','{empty_list!j}','{empty_map!s}','{empty_map!r}','{empty_map!a}','{empty_map!j}','file{empty_list!s:?yes/no/}','file{empty_map!s:?yes/no/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'tags':['zeta','alpha','middle'],'mixed_tags':['alpha',2,False,None,[1,True],{'name':'one'}],'json_values':[1,True,None],'title':'plain','display':'  Mixed Case  ','display_encoded':'Mixed%20Case','display_invalid_encoded':'x%FFy','display_ws':'one\\t  TWO\\nthree','artists':[{'name':'one'},{'name':'two'},{'name':'three'}],'id':42,'enabled':False,'count':0,'positive':2,'nullable':None,'empty_list':[],'empty_map':{},'empty_string':'','link_text':'Visit https://a.test/x and https://b.test/y'}; formats=('{tags:J, /}','{tags:J/}','{tags[0]:J, /}','{tags[-1]:J, /}','{tags[0:2]:J, /}','{tags[::-1]:J, /}','{artists:Mname/J + /}','{tags:S/J, /}','{tags:Sr/J, /}','{mixed_tags!S:R:/-/}','{json_values!j}','{title:J, /}','{title:08}','{title:A*3/}','{display:Ctu/}','{display:Cg/}','{display:CW/}','{display:Cq/}','{display_encoded:CQ/}','{display_invalid_encoded:CQ/}','{display_ws!C}','{display_ws:CC/}','{title:I}','{title:Iignored}','{title!u:I}','{enabled!g}','{count!g}','{nullable!g}','{enabled!r}','{count!r}','{nullable!r}','{enabled!a}','{count!a}','{nullable!a}','{enabled!j}','{count!j}','{nullable!j}','{id!j}','{id:I}','file{enabled:?yes/no/}','file{enabled!s:?yes/no/}','file{count:?n-/times/}','file{count!s:?n-/times/}','file{positive:?n-/times/}','file{nullable:?yes/no/}','file{nullable!s:?yes/no/}','file{nullable!r:?yes/no/}','file{empty_list:?yes/no/}','file{empty_map:?yes/no/}','file{empty_string:?yes/no/}','{empty_list!s}','{empty_list!r}','{empty_list!a}','{empty_list!j}','{empty_map!s}','{empty_map!r}','{empty_map!a}','{empty_map!j}','file{empty_list!s:?yes/no/}','file{empty_map!s:?yes/no/}','{link_text:CR/J, /Cg/}','{link_text:CRS/Cg/}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
