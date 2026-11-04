@@ -31,6 +31,35 @@ fn direct_media_message_dump_is_ordered_json_lines_without_network() {
 }
 
 #[test]
+fn message_dump_does_not_create_or_download_into_the_destination() {
+    let destination = std::env::temp_dir().join(format!(
+        "galerith-message-dump-read-only-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&destination);
+    let destination_arg = destination.to_string_lossy().into_owned();
+    let response = run(&[
+        "--dump-messages",
+        "--destination",
+        &destination_arg,
+        "https://example.org/photo.webp",
+    ]);
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(response.stdout).unwrap().lines().count(),
+        2
+    );
+    assert!(
+        !destination.exists(),
+        "read-only message inspection must not create its download destination"
+    );
+}
+
+#[test]
 fn list_keywords_prints_sorted_native_metadata_keys_without_values() {
     let response = run(&[
         "-K",
