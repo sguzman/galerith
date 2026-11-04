@@ -204,6 +204,12 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 let word = &value[word_start..input];
                 match directive {
                     'b' | 'B' => date.month = month_number(word)?,
+                    'a' if WEEKDAYS_SHORT
+                        .iter()
+                        .any(|weekday| weekday.eq_ignore_ascii_case(word)) => {}
+                    'A' if WEEKDAYS_LONG
+                        .iter()
+                        .any(|weekday| weekday.eq_ignore_ascii_case(word)) => {}
                     'p' if word.eq_ignore_ascii_case("PM") && twelve_hour_clock => {
                         date.hour = (date.hour % 12) + 12;
                     }
@@ -211,7 +217,9 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                         date.hour %= 12;
                     }
                     'p' if word.eq_ignore_ascii_case("AM") || word.eq_ignore_ascii_case("PM") => {}
-                    'p' | 'a' | 'A' => {}
+                    'p' if word.eq_ignore_ascii_case("AM") || word.eq_ignore_ascii_case("PM") => {}
+                    'p' => return None,
+                    'a' | 'A' => return None,
                     'Z' if word.eq_ignore_ascii_case("UTC") || word.eq_ignore_ascii_case("GMT") => {
                     }
                     'Z' => return None,
@@ -598,6 +606,18 @@ mod tests {
         assert_eq!(format_datetime("11 PM", "D%I %p/%H").as_deref(), Some("23"));
         assert_eq!(
             format_datetime("13 PM", "D%I %p/%H").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("Thursday 2024-02-29", "D%A %Y-%m-%d/%Y").as_deref(),
+            Some("2024")
+        );
+        assert_eq!(
+            format_datetime("Funday 2024-02-29", "D%A %Y-%m-%d/%Y").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("Thursday 2024-02-29", "D%a %Y-%m-%d/%Y").as_deref(),
             Some("[Invalid DateTime]")
         );
         assert_eq!(
