@@ -67,3 +67,60 @@ async fn opt_in_message_job_reuses_native_atomic_download_pipeline() {
     assert!(!dir.join("asset.png.part").exists());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test]
+async fn read_only_message_inspection_never_fetches_media_url() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        match tokio::time::timeout(std::time::Duration::from_secs(1), listener.accept()).await {
+            Ok(Ok((mut stream, _))) => {
+                let mut request = [0_u8; 1024];
+                assert!(stream.read(&mut request).await.unwrap() > 0);
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\n12345678",
+                    )
+                    .await
+                    .unwrap();
+                true
+            }
+            Ok(Err(error)) => panic!("accept loopback request: {error}"),
+            Err(_) => false,
+        }
+    });
+
+    let dir = fixture_dir();
+    let _ = fs::remove_dir_all(&dir);
+    let input = format!("http://{addr}/asset.png");
+    let output_dir = dir.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new(env!("CARGO_BIN_EXE_galerith"))
+            .args([
+                "--dump-messages",
+                "--destination",
+                output_dir.to_str().unwrap(),
+                &input,
+            ])
+            .output()
+            .expect("run read-only Galerith inspection")
+    })
+    .await
+    .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let events: Vec<serde_json::Value> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(events.len(), 2);
+    assert!(
+        !server.await.unwrap(),
+        "read-only message inspection must not request the media URL"
+    );
+    assert!(!dir.exists(), "inspection must not create its destination");
+}
