@@ -5,6 +5,7 @@ use crate::{
     privacy::display_url,
     MediaItem,
 };
+use serde::Serialize;
 use serde_json::{Map, Value};
 use std::{
     error::Error,
@@ -30,6 +31,27 @@ fn sidecar_path_with_extension(target: &Path, extension: &str) -> Result<PathBuf
     );
     filename.push(format!(".{extension}"));
     Ok(target.with_file_name(filename))
+}
+
+fn order_directlink_metadata(metadata: Map<String, Value>) -> Map<String, Value> {
+    let mut remaining = metadata;
+    let mut ordered = Map::new();
+    for key in [
+        "domain",
+        "path",
+        "query",
+        "fragment",
+        "filename",
+        "extension",
+        "category",
+        "subcategory",
+    ] {
+        if let Some(value) = remaining.remove(key) {
+            ordered.insert(key.to_owned(), value);
+        }
+    }
+    ordered.extend(remaining);
+    ordered
 }
 
 fn temporary_path(output: &Path) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
@@ -73,9 +95,13 @@ async fn write_json_atomic(
     output: &Path,
     value: &serde_json::Value,
 ) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
-    let mut sorted = value.clone();
-    sorted.sort_all_objects();
-    let bytes = serde_json::to_vec_pretty(&sorted)?;
+    let mut bytes = Vec::new();
+    {
+        let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        let mut serializer = serde_json::Serializer::with_formatter(&mut bytes, formatter);
+        value.serialize(&mut serializer)?;
+    }
+    bytes.push(b'\n');
     let tmp = temporary_path(output)?;
     write_atomic(output, &bytes, &tmp).await?;
     Ok(output.to_owned())
@@ -158,6 +184,8 @@ pub async fn write_metadata(
             .entry("post_id")
             .or_insert_with(|| item.post_id.map_or(Value::Null, Value::from));
         value.insert("source_url".into(), Value::String(display_url(&item.url)));
+    } else {
+        value = order_directlink_metadata(value);
     }
     write_json_atomic(&output, &Value::Object(value)).await
 }
@@ -337,7 +365,7 @@ mod tests {
         let metadata = directlink_metadata(&item);
         let sidecar = write_metadata(&target, &item, &metadata).await.unwrap();
         let actual = fs::read_to_string(sidecar).await.unwrap();
-        let expected = include_str!("../tests/fixtures/metadata/directlink.json").trim_end();
+        let expected = include_str!("../tests/fixtures/metadata/directlink.json");
         assert_eq!(actual, expected);
 
         fs::remove_dir_all(root).await.unwrap();

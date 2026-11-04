@@ -1,10 +1,10 @@
 {
-  "category": "directlink",
-  "domain": "example.org",
-  "extension": "jpg",
-  "filename": "picture",
-  "fragment": null,
-  "path": "",
-  "query": null,
-  "subcategory": "example.org"
+    "domain": "example.org",
+    "path": "",
+    "query": null,
+    "fragment": null,
+    "filename": "picture",
+    "extension": "jpg",
+    "category": "directlink",
+    "subcategory": "example.org"
 }
