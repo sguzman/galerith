@@ -201,7 +201,10 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                     'b' | 'B' => date.month = month_number(word)?,
                     'p' if word.eq_ignore_ascii_case("PM") => date.hour = (date.hour % 12) + 12,
                     'p' if word.eq_ignore_ascii_case("AM") => date.hour %= 12,
-                    'p' | 'a' | 'A' | 'Z' => {}
+                    'p' | 'a' | 'A' => {}
+                    'Z' if word.eq_ignore_ascii_case("UTC") || word.eq_ignore_ascii_case("GMT") => {
+                    }
+                    'Z' => return None,
                     _ => unreachable!(),
                 }
             }
@@ -569,6 +572,14 @@ mod tests {
         assert_eq!(
             format_datetime("2024-02-02", "D%Y-%m-%d/%_d|%-d|%d").as_deref(),
             Some(" 2|2|02")
+        );
+        assert_eq!(
+            format_datetime("2024-01-01 UTC", "D%Y-%m-%d %Z/%Y").as_deref(),
+            Some("2024")
+        );
+        assert_eq!(
+            format_datetime("2024-01-01 XYZ", "D%Y-%m-%d %Z/%Y").as_deref(),
+            Some("[Invalid DateTime]")
         );
         assert_eq!(
             format_datetime("2024-02-30", "D%Y-%m-%d/%Y%m%d").as_deref(),
