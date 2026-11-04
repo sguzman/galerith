@@ -232,7 +232,8 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 }
                 let word = &value[word_start..input];
                 match directive {
-                    'b' | 'B' => date.month = month_number(word)?,
+                    'b' => date.month = month_number(word, false)?,
+                    'B' => date.month = month_number(word, true)?,
                     'a' if WEEKDAYS_SHORT
                         .iter()
                         .any(|weekday| weekday.eq_ignore_ascii_case(word)) => {}
@@ -335,7 +336,7 @@ fn read_offset(value: &str, cursor: &mut usize) -> Option<i32> {
     (hours <= 23 && minutes < 60).then_some(sign * (hours * 60 + minutes))
 }
 
-fn month_number(value: &str) -> Option<u32> {
+fn month_number(value: &str, full_name: bool) -> Option<u32> {
     [
         "January",
         "February",
@@ -351,7 +352,13 @@ fn month_number(value: &str) -> Option<u32> {
         "December",
     ]
     .iter()
-    .position(|month| month.eq_ignore_ascii_case(value) || month[..3].eq_ignore_ascii_case(value))
+    .position(|month| {
+        if full_name {
+            month.eq_ignore_ascii_case(value)
+        } else {
+            month[..3].eq_ignore_ascii_case(value)
+        }
+    })
     .map(|index| index as u32 + 1)
 }
 
@@ -680,6 +687,14 @@ mod tests {
         );
         assert_eq!(
             format_datetime("Thursday 2024-02-29", "D%a %Y-%m-%d/%Y").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("January 2024", "D%b %Y/%m").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("Jan 2024", "D%B %Y/%m").as_deref(),
             Some("[Invalid DateTime]")
         );
         assert_eq!(
