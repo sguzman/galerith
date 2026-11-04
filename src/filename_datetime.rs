@@ -423,9 +423,6 @@ fn expand_datetime_format(format: &str) -> String {
             continue;
         }
         match chars.next() {
-            Some('R') => expanded.push_str("%H:%M"),
-            Some('T') => expanded.push_str("%H:%M:%S"),
-            Some('r') => expanded.push_str("%I:%M:%S %p"),
             Some('c') => expanded.push_str("%a %b %e %H:%M:%S %Y"),
             Some('x') => expanded.push_str("%m/%d/%y"),
             Some('X') => expanded.push_str("%H:%M:%S"),
@@ -994,15 +991,15 @@ mod tests {
         );
         assert_eq!(
             format_datetime("13:04", "D%R/%H:%M").as_deref(),
-            Some("13:04")
+            Some("[Invalid DateTime]")
         );
         assert_eq!(
             format_datetime("13:04:05", "D%T/%H:%M:%S").as_deref(),
-            Some("13:04:05")
+            Some("[Invalid DateTime]")
         );
         assert_eq!(
             format_datetime("01:04:05 PM", "D%r/%H:%M:%S").as_deref(),
-            Some("13:04:05")
+            Some("[Invalid DateTime]")
         );
         assert_eq!(
             format_datetime("13:04:05 PM", "D%r/%H").as_deref(),
