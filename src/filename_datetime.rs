@@ -147,7 +147,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 }
                 input += 1;
             }
-            'Y' => date.year = read_number(value, &mut input, 1, 4)? as i32,
+            'Y' => date.year = read_number(value, &mut input, 4, 4)? as i32,
             'y' => {
                 let year = read_number(value, &mut input, 2, 2)?;
                 date.year = if year <= 68 {
@@ -618,6 +618,14 @@ mod tests {
         );
         assert_eq!(
             format_datetime("Thursday 2024-02-29", "D%a %Y-%m-%d/%Y").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("0007-01-01", "D%Y-%m-%d/%Y").as_deref(),
+            Some("0007")
+        );
+        assert_eq!(
+            format_datetime("7-01-01", "D%Y-%m-%d/%Y").as_deref(),
             Some("[Invalid DateTime]")
         );
         assert_eq!(
