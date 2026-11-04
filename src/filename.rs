@@ -1607,6 +1607,26 @@ fn apply_chained_replacements(
     Ok((value, spec))
 }
 
+fn apply_arithmetic_string_conversion(value: String, spec: &str) -> Result<String, FormatError> {
+    let (conversions, remainder) =
+        conversion_formatter_spec(spec).expect("conversion formatter starts with C");
+    let Some(conversions) = conversions.strip_prefix('S') else {
+        return Err(FormatError(
+            "filename non-string conversion requires the S conversion".into(),
+        ));
+    };
+    let value = if conversions.is_empty() {
+        value
+    } else {
+        convert_string_chain(&value, conversions)?
+    };
+    if remainder.is_empty() {
+        Ok(value)
+    } else {
+        apply_string_formatter_chain(value, remainder)
+    }
+}
+
 fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
     let result = match operator {
@@ -1628,6 +1648,9 @@ fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, Form
         return Err(FormatError(
             "filename replacement requires a string value".into(),
         ));
+    }
+    if remainder.starts_with('C') {
+        return apply_arithmetic_string_conversion(value, remainder);
     }
     if remainder.is_empty() {
         return Ok(value);
@@ -1673,6 +1696,9 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
         return Err(FormatError(
             "filename replacement requires a string value".into(),
         ));
+    }
+    if remainder.starts_with('C') {
+        return apply_arithmetic_string_conversion(formatter_to_string(&number)?, remainder);
     }
     if let Some(formatted) = format_fixed_numeric(&number, remainder)? {
         return Ok(formatted);
@@ -3307,6 +3333,7 @@ mod tests {
         assert_eq!(render("{id:A+8/04d}", &item).unwrap(), "0050");
         assert_eq!(render("{id:A+1/A*2/}", &item).unwrap(), "86");
         assert_eq!(render("{id:A+1/A*2/04d}", &item).unwrap(), "0086");
+        assert_eq!(render("{id:A+1/CS/R4/9/}", &item).unwrap(), "93");
         assert!(render("{filename:A+1/}", &item).is_err());
         assert!(render("{id:A/}", &item).is_err());
         assert!(render("{id:A/2/}", &item).is_err());
@@ -3340,6 +3367,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{rating:A*2/A+1/}", &item, &metadata).unwrap(),
             "3.5"
+        );
+        assert_eq!(
+            render_with_metadata("{rating:A*2/CS/R2/7/}", &item, &metadata).unwrap(),
+            "7.5"
         );
         assert_eq!(
             render_with_metadata("{whole:A*2/}", &item, &metadata).unwrap(),
