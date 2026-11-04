@@ -3403,7 +3403,10 @@ fn pinned_datetime_week_number_inputs_match_python() {
         "sunday": "2024 09 4",
         "monday": "2024 09 4",
         "week_zero": "2024 00 0",
-        "ordinal_precedence": "2024 060 09 4"
+        "ordinal_precedence": "2024 060 09 4",
+        "iso_first": "2020-W01-1",
+        "iso_last": "2020-W53-7",
+        "iso_invalid": "2021-W53-1"
     }))
     .unwrap();
     let formats = [
@@ -3411,6 +3414,9 @@ fn pinned_datetime_week_number_inputs_match_python() {
         "{monday:D%Y %W %w/%Y-%m-%d}",
         "{week_zero:D%Y %U %w/%Y-%m-%d}",
         "{ordinal_precedence:D%Y %j %U %w/%Y-%m-%d}",
+        "{iso_first:D%G-W%V-%u/%Y-%m-%d}",
+        "{iso_last:D%G-W%V-%u/%Y-%m-%d}",
+        "{iso_invalid:D%G-W%V-%u/%Y-%m-%d}",
     ];
     let native = formats
         .iter()
@@ -3418,7 +3424,15 @@ fn pinned_datetime_week_number_inputs_match_python() {
         .collect::<Vec<_>>();
     assert_eq!(
         native,
-        ["2024-03-07", "2024-02-29", "2023-12-31", "2024-02-29"]
+        [
+            "2024-03-07",
+            "2024-02-29",
+            "2023-12-31",
+            "2024-02-29",
+            "2019-12-30",
+            "2021-01-03",
+            "[Invalid DateTime]"
+        ]
     );
 
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
@@ -3429,7 +3443,7 @@ fn pinned_datetime_week_number_inputs_match_python() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'sunday':'2024 09 4','monday':'2024 09 4','week_zero':'2024 00 0','ordinal_precedence':'2024 060 09 4'}; formats=('{sunday:D%Y %U %w/%Y-%m-%d}','{monday:D%Y %W %w/%Y-%m-%d}','{week_zero:D%Y %U %w/%Y-%m-%d}','{ordinal_precedence:D%Y %j %U %w/%Y-%m-%d}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'sunday':'2024 09 4','monday':'2024 09 4','week_zero':'2024 00 0','ordinal_precedence':'2024 060 09 4','iso_first':'2020-W01-1','iso_last':'2020-W53-7','iso_invalid':'2021-W53-1'}; formats=('{sunday:D%Y %U %w/%Y-%m-%d}','{monday:D%Y %W %w/%Y-%m-%d}','{week_zero:D%Y %U %w/%Y-%m-%d}','{ordinal_precedence:D%Y %j %U %w/%Y-%m-%d}','{iso_first:D%G-W%V-%u/%Y-%m-%d}','{iso_last:D%G-W%V-%u/%Y-%m-%d}','{iso_invalid:D%G-W%V-%u/%Y-%m-%d}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", &root);
     command.env("PYTHONNOUSERSITE", "1");

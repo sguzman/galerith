@@ -124,7 +124,10 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
     let mut ordinal_day = None;
     let mut sunday_week = None;
     let mut monday_week = None;
+    let mut iso_year = None;
+    let mut iso_week = None;
     let mut weekday_number = None;
+    let mut iso_weekday_number = None;
     let mut input = 0;
     let mut chars = format.chars();
     while let Some(character) = chars.next() {
@@ -154,6 +157,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                 input += 1;
             }
             'Y' => date.year = read_number(value, &mut input, 4, 4)? as i32,
+            'G' => iso_year = Some(read_number(value, &mut input, 4, 4)? as i32),
             'y' => {
                 let year = read_number(value, &mut input, 2, 2)?;
                 date.year = if year <= 68 {
@@ -189,12 +193,16 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
             'W' => {
                 monday_week = Some(read_number(value, &mut input, 1, 2)?);
             }
+            'V' => {
+                iso_week = Some(read_number(value, &mut input, 1, 2)?);
+            }
             'w' => {
                 let weekday = read_number(value, &mut input, 1, 1)?;
                 if weekday > 6 {
                     return None;
                 }
                 weekday_number = Some(weekday);
+                iso_weekday_number = Some(if weekday == 0 { 7 } else { weekday });
             }
             'u' => {
                 let weekday = read_number(value, &mut input, 1, 1)?;
@@ -202,6 +210,7 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
                     return None;
                 }
                 weekday_number = Some(weekday % 7);
+                iso_weekday_number = Some(weekday);
             }
             'z' => date.offset_seconds = Some(read_offset(value, &mut input)?),
             'a' | 'A' | 'b' | 'B' | 'p' | 'Z' => {
@@ -263,6 +272,12 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         }
         date.month = month;
         date.day = day;
+    } else if let (Some(year), Some(week), Some(weekday)) = (iso_year, iso_week, iso_weekday_number)
+    {
+        if !(1..=9999).contains(&year) || !(1..=53).contains(&week) || weekday == 0 {
+            return None;
+        }
+        apply_iso_week_date(&mut date, year, week, weekday)?;
     } else if let (Some(week), Some(weekday)) = (sunday_week, weekday_number) {
         if week > 53 {
             return None;
@@ -275,6 +290,18 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         apply_week_date(&mut date, week, weekday, true);
     }
     (input == value.len() && date.valid()).then_some(date)
+}
+
+fn apply_iso_week_date(date: &mut DateTime, year: i32, week: u32, weekday: u32) -> Option<()> {
+    if week > weeks_in_iso_year(year) {
+        return None;
+    }
+    let january_fourth = days_from_civil(year, 1, 4);
+    let sunday_weekday = (january_fourth + 4).rem_euclid(7) as u32;
+    let monday = january_fourth - i64::from((sunday_weekday + 6) % 7);
+    let days = monday + i64::from((week - 1) * 7 + weekday - 1);
+    (date.year, date.month, date.day) = civil_from_days(days);
+    (iso_week(*date) == (week, year)).then_some(())
 }
 
 fn apply_week_date(date: &mut DateTime, week: u32, weekday: u32, monday_first: bool) {
@@ -728,6 +755,18 @@ mod tests {
         assert_eq!(
             format_datetime("2024 060 09 4", "D%Y %j %U %w/%Y-%m-%d").as_deref(),
             Some("2024-02-29")
+        );
+        assert_eq!(
+            format_datetime("2020-W01-1", "D%G-W%V-%u/%Y-%m-%d").as_deref(),
+            Some("2019-12-30")
+        );
+        assert_eq!(
+            format_datetime("2020-W53-7", "D%G-W%V-%u/%Y-%m-%d").as_deref(),
+            Some("2021-01-03")
+        );
+        assert_eq!(
+            format_datetime("2021-W53-1", "D%G-W%V-%u/%Y-%m-%d").as_deref(),
+            Some("[Invalid DateTime]")
         );
         assert_eq!(
             format_datetime("0007-01-01", "D%Y-%m-%d/%Y").as_deref(),
