@@ -231,6 +231,7 @@ fn local_offset_minutes(date: DateTime) -> Option<i64> {
 }
 
 fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
+    let format = expand_datetime_format(format);
     let mut date = DateTime {
         year: 1900,
         month: 1,
@@ -411,6 +412,28 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         apply_week_date(&mut date, week, weekday, true);
     }
     (input == value.len() && date.valid()).then_some(date)
+}
+
+fn expand_datetime_format(format: &str) -> String {
+    let mut expanded = String::with_capacity(format.len());
+    let mut chars = format.chars();
+    while let Some(character) = chars.next() {
+        if character != '%' {
+            expanded.push(character);
+            continue;
+        }
+        match chars.next() {
+            Some('R') => expanded.push_str("%H:%M"),
+            Some('T') => expanded.push_str("%H:%M:%S"),
+            Some('r') => expanded.push_str("%I:%M:%S %p"),
+            Some(directive) => {
+                expanded.push('%');
+                expanded.push(directive);
+            }
+            None => expanded.push('%'),
+        }
+    }
+    expanded
 }
 
 fn apply_iso_week_date(date: &mut DateTime, year: i32, week: u32, weekday: u32) -> Option<()> {
@@ -968,15 +991,15 @@ mod tests {
         );
         assert_eq!(
             format_datetime("13:04", "D%R/%H:%M").as_deref(),
-            Some("[Invalid DateTime]")
+            Some("13:04")
         );
         assert_eq!(
             format_datetime("13:04:05", "D%T/%H:%M:%S").as_deref(),
-            Some("[Invalid DateTime]")
+            Some("13:04:05")
         );
         assert_eq!(
             format_datetime("01:04:05 PM", "D%r/%H:%M:%S").as_deref(),
-            Some("[Invalid DateTime]")
+            Some("13:04:05")
         );
         assert_eq!(
             format_datetime("13:04:05 PM", "D%r/%H").as_deref(),
