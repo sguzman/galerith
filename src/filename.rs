@@ -1151,7 +1151,10 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         return Ok(None);
     };
     let (base, marker, type_grouping) = match kind {
-        'd' => (10, "", None),
+        // `n` uses the current locale in Python's numeric mini-language.
+        // The pinned formatter process starts in the C numeric locale, where
+        // its integer representation is the ordinary decimal form.
+        'd' | 'n' => (10, "", None),
         'b' => (2, "0b", None),
         'o' => (8, "0o", None),
         'x' => (16, "0x", None),
