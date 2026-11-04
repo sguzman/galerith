@@ -1888,6 +1888,21 @@ fn metadata_field(
     conversion: &str,
     spec: &mut &str,
 ) -> Result<Option<String>, FormatError> {
+    if !matches!(value, Value::String(_)) {
+        let converted = match conversion {
+            "s" | "r" => Some(python_string_value(value)?),
+            "a" => Some(python_ascii_repr_value(value)?),
+            "g" => Some(slugify(&python_string_value(value)?)),
+            _ => None,
+        };
+        if let Some(converted) = converted {
+            return metadata_field(&Value::String(converted), field_name, "", spec);
+        }
+        if matches!(value, Value::Object(_)) && conversion == "S" {
+            let converted = python_string_value(value)?;
+            return metadata_field(&Value::String(converted), field_name, "", spec);
+        }
+    }
     if !matches!(value, Value::String(_)) && spec.starts_with('C') {
         let (conversions, remainder) =
             conversion_formatter_spec(spec).expect("conversion formatter starts with C");
@@ -1922,7 +1937,7 @@ fn metadata_field(
             Ok(Some(String::new()))
         }
         Value::Array(values)
-            if values.is_empty() && matches!(conversion, "s" | "r" | "a" | "j" | "g") =>
+            if values.is_empty() && matches!(conversion, "s" | "r" | "a" | "j") =>
         {
             Ok(Some("[]".into()))
         }
@@ -1933,7 +1948,7 @@ fn metadata_field(
         }
         Value::Array(values) if conversion == "n" => Ok(Some(values.len().to_string())),
         Value::Object(fields)
-            if fields.is_empty() && matches!(conversion, "s" | "r" | "a" | "j" | "g") =>
+            if fields.is_empty() && matches!(conversion, "s" | "r" | "a" | "j") =>
         {
             Ok(Some("{}".into()))
         }

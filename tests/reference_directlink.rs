@@ -3860,6 +3860,82 @@ fn pinned_formatter_maps_typed_values_and_renders_list_repr() {
 }
 
 #[test]
+fn pinned_formatter_converts_lists_and_mappings_like_python_values() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "tags": ["Cat", "猫"],
+        "labels": {"key": "猫"},
+        "empty_list": [],
+        "empty_map": {}
+    }))
+    .unwrap();
+    let formats = [
+        "{tags!s}",
+        "{tags!r}",
+        r#"{tags!a:R\/_/}"#,
+        "{tags!g}",
+        "{tags!S}",
+        "{labels!s:R:/_/}",
+        "{labels!r:R:/_/}",
+        r#"{labels!a:R\/_/R:/_/}"#,
+        "{labels!g}",
+        "{labels!S:R:/_/}",
+        "file{empty_list!g}",
+        "file{empty_map!g}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| {
+            galerith::filename::render_with_metadata(format, &item, &metadata)
+                .unwrap_or_else(|error| panic!("format {format:?} failed: {error}"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "['Cat', '猫']",
+            "['Cat', '猫']",
+            r"['Cat', '_u732b']",
+            "cat-猫",
+            "Cat, 猫",
+            "{'key'_ '猫'}",
+            "{'key'_ '猫'}",
+            r"{'key'_ '_u732b'}",
+            "key-猫",
+            "{'key'_ '猫'}",
+            "file",
+            "file",
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for structured conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        r#"from gallery_dl import formatter; data={'tags':['Cat','猫'],'labels':{'key':'猫'},'empty_list':[],'empty_map':{}}; formats=('{tags!s}','{tags!r}',r'{tags!a:R\/_/}','{tags!g}','{tags!S}','{labels!s:R:/_/}','{labels!r:R:/_/}',r'{labels!a:R\/_/R:/_/}','{labels!g}','{labels!S:R:/_/}','file{empty_list!g}','file{empty_map!g}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))"#,
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned structured value conversions").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_formatter_preserves_json_mapping_order() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
