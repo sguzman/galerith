@@ -2426,11 +2426,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
 }
 
 #[test]
-fn pinned_language_conversion_matches_reference_codes_and_unknowns() {
+fn pinned_language_conversion_matches_all_reference_codes() {
     let codes = [
         "ar", "bg", "bn", "ca", "cs", "da", "de", "el", "en", "es", "fa", "fi", "fr", "he", "hi",
         "hu", "id", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr",
-        "sv", "th", "tr", "uk", "vi", "zh", "xx",
+        "sv", "th", "tr", "uk", "vi", "zh",
     ];
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),
@@ -2465,6 +2465,39 @@ fn pinned_language_conversion_matches_reference_codes_and_unknowns() {
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     let upstream = spawn(command, "pinned language filename formatter");
     assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
+fn pinned_unknown_language_conversion_fails_as_a_filename() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let template = "file{_lit[xx]!L}";
+    assert!(galerith::filename::render(template, &item).is_err());
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for unknown language conversion comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; template='file{_lit[xx]!L}';\ntry: formatter.parse(template).format_map({})\nexcept TypeError: print('error')\nelse: print('ok')",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned unknown language conversion").trim(),
+        "error"
+    );
 }
 
 #[test]
@@ -3335,6 +3368,71 @@ fn pinned_formatter_matches_native_string_list_join_formatter() {
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     assert_eq!(
         spawn(command, "pinned string-list join formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
+fn pinned_formatter_sorts_numeric_and_boolean_lists() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "integers": [4, -1, 2, 1],
+        "floats": [1.5, -2.25, 1.25],
+        "booleans": [true, false],
+        "mixed_numbers": [true, 1, false, 0],
+        "mixed_floats": [2, 1.5, -1]
+    }))
+    .unwrap();
+    let formats = [
+        "{integers:S}",
+        "{integers:Sd}",
+        "{floats:S}",
+        "{booleans:S}",
+        "{mixed_numbers:S}",
+        "{mixed_floats:S}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| {
+            galerith::filename::render_with_metadata(format, &item, &metadata)
+                .unwrap_or_else(|error| panic!("format {format:?} failed: {error}"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "[-1, 1, 2, 4]",
+            "[4, 2, 1, -1]",
+            "[-2.25, 1.25, 1.5]",
+            "[False, True]",
+            "[False, 0, True, 1]",
+            "[-1, 1.5, 2]",
+        ]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for numeric sorting comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'integers':[4,-1,2,1],'floats':[1.5,-2.25,1.25],'booleans':[True,False],'mixed_numbers':[True,1,False,0],'mixed_floats':[2,1.5,-1]}; formats=('{integers:S}','{integers:Sd}','{floats:S}','{booleans:S}','{mixed_numbers:S}','{mixed_floats:S}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned numeric list sorting formatter").trim(),
         native.join("|")
     );
 }

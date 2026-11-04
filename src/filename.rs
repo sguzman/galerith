@@ -1333,7 +1333,9 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             'Q' => decode_url_component(&value),
             'U' => decode_html_entities(&value),
             'H' => html_to_text(&value),
-            'L' => language_name(&value).unwrap_or("None").to_owned(),
+            'L' => language_name(&value).map(str::to_owned).ok_or_else(|| {
+                FormatError("language conversion produces a non-string filename value".into())
+            })?,
             'W' => value.split_whitespace().collect::<Vec<_>>().join(" "),
             _ => {
                 return Err(FormatError(format!(
@@ -2041,26 +2043,48 @@ fn metadata_field(
         Value::Array(values) if spec.starts_with('S') => {
             let (options, remainder) =
                 sort_formatter_spec(spec).expect("sort formatter starts with S");
-            let mut sorted = values
+            let mut sorted = values.clone();
+            if sorted.iter().all(Value::is_string) {
+                sorted.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+            } else if sorted
                 .iter()
-                .map(|value| match value {
-                    Value::String(value) => Ok(value.clone()),
-                    _ => Err(FormatError(format!(
-                        "filename sort field '{field_name}' must contain only strings"
-                    ))),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            sorted.sort();
+                .all(|value| value.is_number() || value.is_boolean())
+            {
+                let integer_key = |value: &Value| match value {
+                    Value::Bool(value) => Some(i128::from(*value)),
+                    Value::Number(value) => value
+                        .as_i64()
+                        .map(i128::from)
+                        .or_else(|| value.as_u64().map(i128::from)),
+                    _ => None,
+                };
+                if sorted.iter().all(|value| integer_key(value).is_some()) {
+                    sorted.sort_by_key(|value| {
+                        integer_key(value).expect("all sort values are integers")
+                    });
+                } else {
+                    let numeric_key = |value: &Value| match value {
+                        Value::Bool(value) => Some(f64::from(u8::from(*value))),
+                        Value::Number(value) => value.as_f64(),
+                        _ => None,
+                    };
+                    sorted.sort_by(|left, right| {
+                        numeric_key(left)
+                            .expect("all sort values are numeric")
+                            .partial_cmp(&numeric_key(right).expect("all sort values are numeric"))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+            } else {
+                return Err(FormatError(format!(
+                    "filename sort field '{field_name}' must contain comparable values"
+                )));
+            }
             if options.contains('d') || options.contains('r') {
                 sorted.reverse();
             }
             *spec = remainder;
-            metadata_field(
-                &Value::Array(sorted.into_iter().map(Value::String).collect()),
-                field_name,
-                conversion,
-                spec,
-            )
+            metadata_field(&Value::Array(sorted), field_name, conversion, spec)
         }
         Value::Array(values) if spec.starts_with('J') => {
             let (separator, remainder) =
@@ -2327,7 +2351,9 @@ fn field_with_metadata(
         "Q" => decode_url_component(&value),
         "U" => decode_html_entities(&value),
         "H" => html_to_text(&value),
-        "L" => language_name(&value).unwrap_or("None").to_owned(),
+        "L" => language_name(&value).map(str::to_owned).ok_or_else(|| {
+            FormatError("language conversion produces a non-string filename value".into())
+        })?,
         "l" => value.to_lowercase(),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
@@ -3676,7 +3702,7 @@ mod tests {
             assert_eq!(language_name(&code.to_ascii_uppercase()), Some(name));
         }
         assert_eq!(language_name("xx"), None);
-        assert_eq!(render("{_lit[xx]!L}", &sample()).unwrap(), "None");
+        assert!(render("{_lit[xx]!L}", &sample()).is_err());
     }
 
     #[test]
