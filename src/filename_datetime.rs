@@ -146,9 +146,34 @@ fn datetime_from_timestamp(seconds: f64) -> Option<DateTime> {
 }
 
 fn parse_iso_datetime(value: &str) -> Option<DateTime> {
-    let value = value
+    let mut value = value
         .strip_suffix('Z')
         .map_or_else(|| value.to_owned(), |prefix| format!("{prefix}+00:00"));
+    if value.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        if let Some(separator) = value.get(10..).and_then(|tail| tail.chars().next()) {
+            if separator != 'T' {
+                let suffix_start = 10 + separator.len_utf8();
+                value = format!("{}T{}", &value[..10], &value[suffix_start..]);
+            }
+        }
+    }
+    if let Some(offset_start) = value
+        .char_indices()
+        .filter(|(index, character)| *index > 10 && matches!(character, '+' | '-'))
+        .map(|(index, _)| index)
+        .next_back()
+    {
+        if value.len() - offset_start == 3 {
+            value.push_str(":00");
+        }
+    }
+    if let Some(comma) = value
+        .char_indices()
+        .find(|(index, character)| *index > 10 && *character == ',')
+        .map(|(index, _)| index)
+    {
+        value.replace_range(comma..comma + 1, ".");
+    }
     [
         "%Y-%m-%dT%H:%M:%S.%f%z",
         "%Y-%m-%dT%H:%M:%S%z",
@@ -741,6 +766,27 @@ mod tests {
         assert_eq!(
             convert_datetime("2024-02-29T13:04:05.987654+02:00", None, "", true),
             "2024-02-29 11:04:05"
+        );
+        assert_eq!(
+            convert_datetime("2024-02-29t13:04:05+02:00", None, "%Y-%m-%d_%H-%M-%S", true),
+            "2024-02-29_11-04-05"
+        );
+        assert_eq!(
+            convert_datetime("2024-02-29 13:04:05+02", None, "%Y-%m-%d_%H-%M-%S", true),
+            "2024-02-29_11-04-05"
+        );
+        assert_eq!(
+            convert_datetime(
+                "2024-02-29_13:04:05+02:30:15",
+                None,
+                "%Y-%m-%d_%H-%M-%S",
+                true,
+            ),
+            "2024-02-29_10-33-50"
+        );
+        assert_eq!(
+            convert_datetime("2024-02-29T13:04:05,5Z", None, "%Y-%m-%d_%H-%M-%S_%f", true,),
+            "2024-02-29_13-04-05_000000"
         );
         assert_eq!(
             convert_datetime("2024-02-29T13:04:05Z", None, "%Y%m%d_%H%M%S_%f%z", true,),

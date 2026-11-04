@@ -3439,7 +3439,11 @@ fn pinned_datetime_conversions_match_unix_and_iso_values() {
         "zero": 0,
         "yes": true,
         "no": false,
-        "timestamp_text": "1709211845"
+        "timestamp_text": "1709211845",
+        "lower_separator": "2024-02-29t13:04:05+02:00",
+        "hour_offset": "2024-02-29 13:04:05+02",
+        "seconds_offset": "2024-02-29_13:04:05+02:30:15",
+        "comma_fraction": "2024-02-29T13:04:05,5Z"
     }))
     .unwrap();
     let formats = [
@@ -3458,6 +3462,10 @@ fn pinned_datetime_conversions_match_unix_and_iso_values() {
         "{yes!D:%S}",
         "{no!D:%S}",
         "{timestamp_text!d:%Y}",
+        "{lower_separator!D:%Y-%m-%d_%H-%M-%S}",
+        "{hour_offset!D:%Y-%m-%d_%H-%M-%S}",
+        "{seconds_offset!D:%Y-%m-%d_%H-%M-%S}",
+        "{comma_fraction!D:%Y-%m-%d_%H-%M-%S_%f}",
         "file{timestamp!T}",
         "{timestamp!T:08}",
     ];
@@ -3486,6 +3494,10 @@ fn pinned_datetime_conversions_match_unix_and_iso_values() {
             "01",
             "[Invalid DateTime]",
             "2024",
+            "2024-02-29_11-04-05",
+            "2024-02-29_11-04-05",
+            "2024-02-29_10-33-50",
+            "2024-02-29_13-04-05_000000",
             "file",
             "00000000",
         ]
@@ -3502,7 +3514,7 @@ fn pinned_datetime_conversions_match_unix_and_iso_values() {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        "from gallery_dl import formatter; data={'timestamp':1709211845,'iso':'2024-02-29T13:04:05.987654+02:00','fractional':'2024-02-29T13:04:05.987654Z','invalid':'not-a-date','zero':0,'yes':True,'no':False,'timestamp_text':'1709211845'}; formats=('{timestamp!d:%Y-%m-%d_%H-%M-%S}','{timestamp!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y%m%d_%H%M%S_%f%z}','{timestamp!D:%Y-%m-%d}','{fractional!D:%Y-%m-%d_%H-%M-%S.%f}','{invalid!D}','{invalid!d}','{zero!d:%Y}','{zero!D:%Y}','{yes!d:%S}','{no!d:%S}','{yes!D:%S}','{no!D:%S}','{timestamp_text!d:%Y}','file{timestamp!T}','{timestamp!T:08}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+        "from gallery_dl import formatter; data={'timestamp':1709211845,'iso':'2024-02-29T13:04:05.987654+02:00','fractional':'2024-02-29T13:04:05.987654Z','invalid':'not-a-date','zero':0,'yes':True,'no':False,'timestamp_text':'1709211845','lower_separator':'2024-02-29t13:04:05+02:00','hour_offset':'2024-02-29 13:04:05+02','seconds_offset':'2024-02-29_13:04:05+02:30:15','comma_fraction':'2024-02-29T13:04:05,5Z'}; formats=('{timestamp!d:%Y-%m-%d_%H-%M-%S}','{timestamp!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y-%m-%d_%H-%M-%S}','{iso!D:%Y%m%d_%H%M%S_%f%z}','{timestamp!D:%Y-%m-%d}','{fractional!D:%Y-%m-%d_%H-%M-%S.%f}','{invalid!D}','{invalid!d}','{zero!d:%Y}','{zero!D:%Y}','{yes!d:%S}','{no!d:%S}','{yes!D:%S}','{no!D:%S}','{timestamp_text!d:%Y}','{lower_separator!D:%Y-%m-%d_%H-%M-%S}','{hour_offset!D:%Y-%m-%d_%H-%M-%S}','{seconds_offset!D:%Y-%m-%d_%H-%M-%S}','{comma_fraction!D:%Y-%m-%d_%H-%M-%S_%f}','file{timestamp!T}','{timestamp!T:08}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
     ]);
     command.env("PYTHONPATH", root);
     command.env("PYTHONNOUSERSITE", "1");
