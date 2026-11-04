@@ -122,6 +122,9 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
     };
     let mut twelve_hour_clock = false;
     let mut ordinal_day = None;
+    let mut sunday_week = None;
+    let mut monday_week = None;
+    let mut weekday_number = None;
     let mut input = 0;
     let mut chars = format.chars();
     while let Some(character) = chars.next() {
@@ -180,16 +183,25 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
             'j' => {
                 ordinal_day = Some(read_number(value, &mut input, 1, 3)?);
             }
+            'U' => {
+                sunday_week = Some(read_number(value, &mut input, 1, 2)?);
+            }
+            'W' => {
+                monday_week = Some(read_number(value, &mut input, 1, 2)?);
+            }
             'w' => {
-                if read_number(value, &mut input, 1, 1)? > 6 {
+                let weekday = read_number(value, &mut input, 1, 1)?;
+                if weekday > 6 {
                     return None;
                 }
+                weekday_number = Some(weekday);
             }
             'u' => {
                 let weekday = read_number(value, &mut input, 1, 1)?;
                 if !(1..=7).contains(&weekday) {
                     return None;
                 }
+                weekday_number = Some(weekday % 7);
             }
             'z' => date.offset_seconds = Some(read_offset(value, &mut input)?),
             'a' | 'A' | 'b' | 'B' | 'p' | 'Z' => {
@@ -251,8 +263,41 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
         }
         date.month = month;
         date.day = day;
+    } else if let (Some(week), Some(weekday)) = (sunday_week, weekday_number) {
+        if week > 53 {
+            return None;
+        }
+        apply_week_date(&mut date, week, weekday, false);
+    } else if let (Some(week), Some(weekday)) = (monday_week, weekday_number) {
+        if week > 53 {
+            return None;
+        }
+        apply_week_date(&mut date, week, weekday, true);
     }
     (input == value.len() && date.valid()).then_some(date)
+}
+
+fn apply_week_date(date: &mut DateTime, week: u32, weekday: u32, monday_first: bool) {
+    let year_start = days_from_civil(date.year, 1, 1);
+    let first_sunday_weekday = (year_start + 4).rem_euclid(7) as u32;
+    let first_weekday = if monday_first {
+        (first_sunday_weekday + 6) % 7
+    } else {
+        first_sunday_weekday
+    };
+    let week_start = u32::from(monday_first);
+    let offset = (week_start + 7 - first_sunday_weekday) % 7;
+    let weekday = if monday_first {
+        (weekday + 6) % 7
+    } else {
+        weekday
+    };
+    let day_of_year = if week == 0 {
+        i64::from(weekday) - i64::from(first_weekday)
+    } else {
+        i64::from(offset + (week - 1) * 7 + weekday)
+    };
+    (date.year, date.month, date.day) = civil_from_days(year_start + day_of_year);
 }
 
 fn read_number(value: &str, cursor: &mut usize, min: usize, max: usize) -> Option<u32> {
@@ -667,6 +712,22 @@ mod tests {
         assert_eq!(
             format_datetime("2024-02-29 8", "D%Y-%m-%d %u/%Y%m%d").as_deref(),
             Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("2024 09 4", "D%Y %U %w/%Y-%m-%d").as_deref(),
+            Some("2024-03-07")
+        );
+        assert_eq!(
+            format_datetime("2024 09 4", "D%Y %W %w/%Y-%m-%d").as_deref(),
+            Some("2024-02-29")
+        );
+        assert_eq!(
+            format_datetime("2024 00 0", "D%Y %U %w/%Y-%m-%d").as_deref(),
+            Some("2023-12-31")
+        );
+        assert_eq!(
+            format_datetime("2024 060 09 4", "D%Y %j %U %w/%Y-%m-%d").as_deref(),
+            Some("2024-02-29")
         );
         assert_eq!(
             format_datetime("0007-01-01", "D%Y-%m-%d/%Y").as_deref(),

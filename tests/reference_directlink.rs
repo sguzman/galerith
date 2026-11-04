@@ -3284,6 +3284,9 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "month_full_short": "Jan 2024",
         "weekday_numeric": "2024-02-29 4",
         "weekday_numeric_invalid": "2024-02-29 8",
+        "week_sunday": "2024 09 4",
+        "week_monday": "2024 09 4",
+        "week_zero": "2024 00 0",
         "invalid": "2024-02-30"
     }))
     .unwrap();
@@ -3320,6 +3323,9 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
         "{weekday_numeric:D%Y-%m-%d %w/%Y%m%d}",
         "{weekday_numeric:D%Y-%m-%d %u/%Y%m%d}",
         "{weekday_numeric_invalid:D%Y-%m-%d %u/%Y%m%d}",
+        "{week_sunday:D%Y %U %w/%Y-%m-%d}",
+        "{week_monday:D%Y %W %w/%Y-%m-%d}",
+        "{week_zero:D%Y %U %w/%Y-%m-%d}",
         "{id:D%Y/%Y}",
     ];
     let native = formats
@@ -3361,6 +3367,9 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
             "20240229",
             "20240229",
             "[Invalid DateTime]",
+            "2024-03-07",
+            "2024-02-29",
+            "2023-12-31",
             "[Invalid DateTime]",
         ]
     );
@@ -3379,6 +3388,53 @@ fn pinned_datetime_formatter_matches_common_filename_dates() {
     command.env("PYTHONNOUSERSITE", "1");
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     let upstream = spawn(command, "pinned datetime filename formatter");
+    assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
+fn pinned_datetime_week_number_inputs_match_python() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata: galerith::message::Metadata = serde_json::from_value(json!({
+        "sunday": "2024 09 4",
+        "monday": "2024 09 4",
+        "week_zero": "2024 00 0",
+        "ordinal_precedence": "2024 060 09 4"
+    }))
+    .unwrap();
+    let formats = [
+        "{sunday:D%Y %U %w/%Y-%m-%d}",
+        "{monday:D%Y %W %w/%Y-%m-%d}",
+        "{week_zero:D%Y %U %w/%Y-%m-%d}",
+        "{ordinal_precedence:D%Y %j %U %w/%Y-%m-%d}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, &metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        ["2024-03-07", "2024-02-29", "2023-12-31", "2024-02-29"]
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for datetime week-number comparison");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'sunday':'2024 09 4','monday':'2024 09 4','week_zero':'2024 00 0','ordinal_precedence':'2024 060 09 4'}; formats=('{sunday:D%Y %U %w/%Y-%m-%d}','{monday:D%Y %W %w/%Y-%m-%d}','{week_zero:D%Y %U %w/%Y-%m-%d}','{ordinal_precedence:D%Y %j %U %w/%Y-%m-%d}'); print('|'.join(str(formatter.parse(value).format_map(data)) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", &root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let upstream = spawn(command, "pinned datetime week-number formatter");
     assert_eq!(upstream.trim(), native.join("|"));
 }
 
