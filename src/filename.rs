@@ -1502,11 +1502,14 @@ fn metadata_field(
                 join_formatter_spec(spec).expect("join formatter spec starts with J");
             let values = values
                 .iter()
-                .map(|value| match value {
-                    Value::String(value) => Ok(value.as_str()),
-                    _ => Err(FormatError(format!(
-                        "filename list field '{field_name}' must contain only strings"
-                    ))),
+                .map(|value| {
+                    if value.is_array() || value.is_object() {
+                        Err(FormatError(format!(
+                            "filename list field '{field_name}' must contain only scalar values"
+                        )))
+                    } else {
+                        python_string_value(value)
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             *spec = remainder;
