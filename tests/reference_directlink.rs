@@ -4888,13 +4888,20 @@ fn pinned_and_native_write_matching_directlink_metadata_core() {
                 .is_some_and(|extension| extension == "json")
         })
         .expect("native per-media JSON sidecar created");
-    let pinned_metadata: Value = serde_json::from_slice(&std::fs::read(pinned_sidecar).unwrap())
-        .expect("pinned per-media JSON is valid");
-    let native_metadata: Value = serde_json::from_slice(&std::fs::read(native_sidecar).unwrap())
-        .expect("native per-media JSON is valid");
+    let pinned_bytes = std::fs::read(pinned_sidecar).unwrap();
+    let native_bytes = std::fs::read(native_sidecar).unwrap();
+    let pinned_metadata: Value =
+        serde_json::from_slice(&pinned_bytes).expect("pinned per-media JSON is valid");
+    let native_metadata: Value =
+        serde_json::from_slice(&native_bytes).expect("native per-media JSON is valid");
     assert_eq!(
         native_metadata, pinned_metadata,
         "directlink per-media JSON sidecar differs from pinned gallery-dl"
+    );
+    assert_eq!(
+        String::from_utf8(native_bytes).expect("native per-media JSON is UTF-8"),
+        String::from_utf8(pinned_bytes).expect("pinned per-media JSON is UTF-8"),
+        "directlink per-media JSON serialization differs from pinned gallery-dl"
     );
     std::fs::remove_dir_all(output_root).unwrap();
 }
