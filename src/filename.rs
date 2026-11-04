@@ -1323,6 +1323,7 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
             }
             'C' => python_capwords(&value),
             't' => value.trim().to_owned(),
+            'S' => value,
             's' => value,
             'g' => slugify(&value),
             'j' => python_json_string(&value),
@@ -1563,13 +1564,36 @@ fn metadata_field(
         Value::String(value) if spec.starts_with('C') => {
             let (conversions, remainder) =
                 conversion_formatter_spec(spec).expect("conversion formatter starts with C");
-            let converted = if let Some(prefix) = conversions.strip_suffix('R') {
-                let converted = if prefix.is_empty() {
+            let converted = if let Some((prefix, suffix)) = conversions.split_once('R') {
+                if prefix.contains('R') {
+                    return Err(FormatError(
+                        "filename URL extraction conversion may only occur once".into(),
+                    ));
+                }
+                let source = if prefix.is_empty() {
                     value.clone()
                 } else {
                     convert_string_chain(value, prefix)?
                 };
-                Value::Array(extract_urls(&converted))
+                let urls = extract_urls(&source);
+                if suffix.is_empty() {
+                    Value::Array(urls)
+                } else if let Some(suffix) = suffix.strip_prefix('S') {
+                    let value = urls
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    Value::String(if suffix.is_empty() {
+                        value
+                    } else {
+                        convert_string_chain(&value, suffix)?
+                    })
+                } else {
+                    return Err(FormatError(
+                        "filename URL extraction conversion must be final or followed by S".into(),
+                    ));
+                }
             } else {
                 Value::String(convert_string_chain(value, conversions)?)
             };
@@ -2674,6 +2698,10 @@ mod tests {
         .unwrap();
         assert_eq!(
             render_with_metadata("{link_text:CR/J, /Cg/}", &item, &links).unwrap(),
+            "httpsatestx-httpsbtesty"
+        );
+        assert_eq!(
+            render_with_metadata("{link_text:CRS/Cg/}", &item, &links).unwrap(),
             "httpsatestx-httpsbtesty"
         );
         assert!(render_with_metadata("{link_text:CR/}", &item, &links).is_err());

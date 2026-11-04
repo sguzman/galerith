@@ -2275,6 +2275,11 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{_lit[Visit https://a.test/x and https://b.test/y]:CR/J, /Cg/}",
             "httpsatestx-httpsbtesty",
         ),
+        (
+            "url-extraction-string-conversion-chain",
+            "{_lit[Visit https://a.test/x and https://b.test/y]:CRS/Cg/}",
+            "httpsatestx-httpsbtesty",
+        ),
         ("language-conversion", "{_lit[en]!L}", "English"),
         (
             "html-legacy-entity-conversion",
