@@ -249,6 +249,7 @@ pub async fn write_info_json(
     if item.extractor == "directlink" {
         metadata.insert("query".into(), Value::Null);
         metadata.insert("fragment".into(), Value::Null);
+        metadata = order_directlink_metadata(metadata);
     } else {
         metadata.remove("query");
         metadata.remove("fragment");
