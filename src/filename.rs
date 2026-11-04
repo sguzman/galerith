@@ -1704,31 +1704,29 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
     if remainder.is_empty() {
         return Ok(repeated);
     }
-    if remainder.starts_with('R') {
-        let (value, trailing) = apply_chained_replacements(repeated, remainder)?;
-        if trailing.is_empty() {
-            return Ok(value);
-        }
-        return Err(FormatError("unsupported arithmetic format chain".into()));
-    }
-    if remainder.starts_with('C') {
-        let (conversions, trailing) =
-            conversion_formatter_spec(remainder).expect("conversion formatter starts with C");
-        let value = convert_string_chain(&repeated, conversions)?;
-        if trailing.is_empty() {
-            return Ok(value);
-        }
-        if trailing.starts_with('R') {
-            let (value, trailing) = apply_chained_replacements(value, trailing)?;
-            if trailing.is_empty() {
-                return Ok(value);
-            }
-        }
-        return Err(FormatError("unsupported arithmetic format chain".into()));
+    if remainder.starts_with('C') || remainder.starts_with('R') {
+        return apply_string_formatter_chain(repeated, remainder);
     }
     Err(FormatError(
         "unsupported string arithmetic format suffix".into(),
     ))
+}
+
+fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<String, FormatError> {
+    loop {
+        if spec.starts_with('C') {
+            let (conversions, remainder) =
+                conversion_formatter_spec(spec).expect("conversion formatter starts with C");
+            value = convert_string_chain(&value, conversions)?;
+            spec = remainder;
+        } else if spec.starts_with('R') {
+            (value, spec) = apply_chained_replacements(value, spec)?;
+        } else if spec.is_empty() {
+            return Ok(value);
+        } else {
+            return Err(FormatError("unsupported arithmetic format chain".into()));
+        }
+    }
 }
 
 fn metadata_field(
@@ -3324,6 +3322,10 @@ mod tests {
         assert_eq!(
             render_with_metadata("{text:A*2/Cu/RB/X/}", &item, &metadata).unwrap(),
             "AXAX"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/Cc/}", &item, &metadata).unwrap(),
+            "Abab"
         );
     }
 
