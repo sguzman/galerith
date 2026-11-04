@@ -3032,6 +3032,52 @@ fn pinned_formatter_matches_arithmetic_on_float_metadata() {
 }
 
 #[test]
+fn pinned_formatter_preserves_values_for_unimplemented_arithmetic_operators() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({"count": 42, "rating": 1.25, "text": "cat"});
+    let metadata = metadata.as_object().unwrap();
+    let formats = [
+        "{count:A%2/}",
+        "{rating:A^3/.2f}",
+        "{text:A%7/}",
+        "{text:A%7/Cu/}",
+        "{text:A%7/>5}",
+        "{text:A*2/>7}",
+    ];
+    let native = formats
+        .iter()
+        .map(|format| galerith::filename::render_with_metadata(format, &item, metadata).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(native, ["42", "1.25", "cat", "CAT", "  cat", " catcat"]);
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for arithmetic operator comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let mut command = Command::new("python3");
+    command.args([
+        "-c",
+        "from gallery_dl import formatter; data={'count':42,'rating':1.25,'text':'cat'}; formats=('{count:A%2/}','{rating:A^3/.2f}','{text:A%7/}','{text:A%7/Cu/}','{text:A%7/>5}','{text:A*2/>7}'); print('|'.join(formatter.parse(value).format_map(data) for value in formats))",
+    ]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned arithmetic operator formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     let item = galerith::MediaItem {
         url: "https://example.org/image.jpg".into(),

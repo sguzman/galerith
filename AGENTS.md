@@ -15,6 +15,8 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 
 Never set `CARGO_TARGET_DIR` to work around MBX contention, permissions, or cache errors. Never create, use, or request approval for a temporary or isolated Cargo target. Do not override `RUSTC`, `RUSTC_WRAPPER`, or `PATH` to get around MBX either. Stop and diagnose the MBX-managed cache using the supported checks above; if MBX cannot run the gate after its documented recovery, report its exact error and stop build operations.
 
+Before executing any Rust command proposed by a plan, script, prior transcript, or tool output, inspect its full command text for forbidden environment overrides and direct Cargo invocations. Reject and rewrite any such command to the repository's `mbx +1.99.1 <subcommand>` form; do not preserve an override just because it appeared in an earlier command or received prior approval. For Clippy, invoke `mbx +1.99.1 clippy ...` directly.
+
 When the user says `stop` or interrupts a build, cancel only the build started by this session, verify that its MBX/Cargo/rustc processes have exited, and do not launch a replacement build until the user resumes work. Before resuming, inspect the process list and identify any remaining build process by PID and full command; if it belongs to another process/session, leave it running and wait for it to exit. Never work around contention by redirecting the target directory.
 
 ## Autonomous iteration

@@ -1633,11 +1633,10 @@ fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, Form
         "+" => left.checked_add(right),
         "-" => left.checked_sub(right),
         "*" => left.checked_mul(right),
-        _ => {
-            return Err(FormatError(
-                "unsupported filename arithmetic operator".into(),
-            ))
-        }
+        // gallery-dl parses every arithmetic operator but only implements
+        // addition, subtraction, and multiplication. Unknown operators leave
+        // the value unchanged and continue through the remaining formatter.
+        _ => Some(left),
     }
     .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
     if remainder.starts_with('A') {
@@ -1673,11 +1672,7 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
         "+" => left + right,
         "-" => left - right,
         "*" => left * right,
-        _ => {
-            return Err(FormatError(
-                "unsupported filename arithmetic operator".into(),
-            ))
-        }
+        _ => left,
     };
     if !result.is_finite() {
         return Err(FormatError("filename arithmetic overflow".into()));
@@ -1710,32 +1705,24 @@ fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatE
 
 fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
-    if operator != "*" {
-        return Err(FormatError(
-            "filename arithmetic requires an integer field".into(),
-        ));
-    }
-    let count = usize::try_from(right.max(0))
-        .map_err(|_| FormatError("filename repetition count is too large".into()))?;
-    let output_len = value
-        .len()
-        .checked_mul(count)
-        .filter(|length| *length <= 240)
-        .ok_or_else(|| FormatError("filename repetition exceeds 240 bytes".into()))?;
-    let repeated = value.repeat(count);
-    debug_assert_eq!(repeated.len(), output_len);
+    let value = if operator == "*" {
+        let count = usize::try_from(right.max(0))
+            .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+        let output_len = value
+            .len()
+            .checked_mul(count)
+            .filter(|length| *length <= 240)
+            .ok_or_else(|| FormatError("filename repetition exceeds 240 bytes".into()))?;
+        let repeated = value.repeat(count);
+        debug_assert_eq!(repeated.len(), output_len);
+        repeated
+    } else {
+        value
+    };
     if remainder.starts_with('A') {
-        return apply_string_arithmetic_chain(repeated, remainder);
+        return apply_string_arithmetic_chain(value, remainder);
     }
-    if remainder.is_empty() {
-        return Ok(repeated);
-    }
-    if remainder.starts_with('C') || remainder.starts_with('R') || remainder.starts_with('?') {
-        return apply_string_formatter_chain(repeated, remainder);
-    }
-    Err(FormatError(
-        "unsupported string arithmetic format suffix".into(),
-    ))
+    apply_string_formatter_chain(value, remainder)
 }
 
 fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<String, FormatError> {
@@ -2498,7 +2485,9 @@ fn field_with_metadata(
             Some(Value::Bool(value)) => i128::from(*value),
             _ => match value.parse::<i128>() {
                 Ok(left) => left,
-                Err(_) if operator == "*" => return apply_string_arithmetic_chain(value, spec),
+                Err(_) if !matches!(operator, "+" | "-") => {
+                    return apply_string_arithmetic_chain(value, spec);
+                }
                 Err(_) => {
                     return Err(FormatError(
                         "filename arithmetic requires an integer field".into(),
