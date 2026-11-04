@@ -217,6 +217,17 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
             'j' => {
                 ordinal_day = Some(read_number(value, &mut input, 1, 3)?);
             }
+            'w' => {
+                if read_number(value, &mut input, 1, 1)? > 6 {
+                    return None;
+                }
+            }
+            'u' => {
+                let weekday = read_number(value, &mut input, 1, 1)?;
+                if !(1..=7).contains(&weekday) {
+                    return None;
+                }
+            }
             'z' => date.offset_minutes = Some(read_offset(value, &mut input)?),
             'a' | 'A' | 'b' | 'B' | 'p' | 'Z' => {
                 let word_start = input;
@@ -695,6 +706,18 @@ mod tests {
         );
         assert_eq!(
             format_datetime("Jan 2024", "D%B %Y/%m").as_deref(),
+            Some("[Invalid DateTime]")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 4", "D%Y-%m-%d %w/%Y%m%d").as_deref(),
+            Some("20240229")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 4", "D%Y-%m-%d %u/%Y%m%d").as_deref(),
+            Some("20240229")
+        );
+        assert_eq!(
+            format_datetime("2024-02-29 8", "D%Y-%m-%d %u/%Y%m%d").as_deref(),
             Some("[Invalid DateTime]")
         );
         assert_eq!(
