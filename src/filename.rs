@@ -1739,6 +1739,7 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
 }
 
 fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<String, FormatError> {
+    let mut wrappers = Vec::new();
     loop {
         if spec.starts_with('C') {
             let (conversions, remainder) =
@@ -1757,18 +1758,36 @@ fn apply_string_formatter_chain(mut value: String, mut spec: &str) -> Result<Str
             let (suffix, remainder) = rest
                 .split_once('/')
                 .ok_or_else(|| FormatError("invalid conditional filename format".into()))?;
-            value = if value.is_empty() {
-                String::new()
-            } else {
-                format!("{prefix}{value}{suffix}")
-            };
+            if !value.is_empty() {
+                wrappers.push((prefix.to_owned(), suffix.to_owned()));
+            }
             spec = remainder;
         } else if spec.is_empty() {
-            return Ok(value);
+            return Ok(apply_conditional_wrappers(value, &wrappers));
+        } else if let Some(precision) = spec.strip_prefix('.') {
+            if precision.is_empty() || !precision.bytes().all(|byte| byte.is_ascii_digit()) {
+                return Err(FormatError("invalid string precision formatting".into()));
+            }
+            let precision = precision
+                .parse::<usize>()
+                .map_err(|_| FormatError("invalid string precision".into()))?;
+            if precision > 240 {
+                return Err(FormatError("filename string precision is too large".into()));
+            }
+            let value = value.chars().take(precision).collect();
+            return Ok(apply_conditional_wrappers(value, &wrappers));
         } else {
-            return format_string_width(&value, spec);
+            let value = format_string_width(&value, spec)?;
+            return Ok(apply_conditional_wrappers(value, &wrappers));
         }
     }
+}
+
+fn apply_conditional_wrappers(mut value: String, wrappers: &[(String, String)]) -> String {
+    for (prefix, suffix) in wrappers {
+        value = format!("{prefix}{value}{suffix}");
+    }
+    value
 }
 
 fn format_string_width(value: &str, spec: &str) -> Result<String, FormatError> {
@@ -3434,7 +3453,11 @@ mod tests {
         );
         assert_eq!(
             render_with_metadata("{text:A*2/Cu/?[/]/>8}", &item, &metadata).unwrap(),
-            "  [ABAB]"
+            "[    ABAB]"
+        );
+        assert_eq!(
+            render_with_metadata("{text:A*2/Cu/.3}", &item, &metadata).unwrap(),
+            "ABA"
         );
     }
 
