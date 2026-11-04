@@ -161,6 +161,9 @@ fn parse_datetime(value: &str, format: &str) -> Option<DateTime> {
             'H' | 'k' => date.hour = read_number(value, &mut input, 1, 2)?,
             'I' | 'l' => {
                 let hour = read_number(value, &mut input, 1, 2)?;
+                if !(1..=12).contains(&hour) {
+                    return None;
+                }
                 date.hour = hour % 12;
                 twelve_hour_clock = true;
             }
@@ -593,6 +596,10 @@ mod tests {
             Some("00")
         );
         assert_eq!(format_datetime("11 PM", "D%I %p/%H").as_deref(), Some("23"));
+        assert_eq!(
+            format_datetime("13 PM", "D%I %p/%H").as_deref(),
+            Some("[Invalid DateTime]")
+        );
         assert_eq!(
             format_datetime("2024-02-30", "D%Y-%m-%d/%Y%m%d").as_deref(),
             Some("[Invalid DateTime]")
