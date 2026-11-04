@@ -72,23 +72,20 @@ impl DateTime {
 pub(crate) fn format_datetime(value: &str, spec: &str) -> Option<String> {
     let body = spec.strip_prefix('D')?;
     let (input_format, format_spec) = body.split_once('/').unwrap_or((body, ""));
-    let date = parse_datetime(value, input_format).map(DateTime::normalize_offset);
-    let (date, output_format) = match date {
-        Some(date) if format_spec.starts_with('O') => {
-            let offset_spec = format_spec.strip_prefix('O').unwrap_or_default();
-            let (offset, output_format) = offset_spec.split_once('/').unwrap_or((offset_spec, ""));
+    let mut date = parse_datetime(value, input_format).map(DateTime::normalize_offset);
+    let mut output_format = format_spec;
+    while let Some(offset_spec) = output_format.strip_prefix('O') {
+        let (offset, remainder) = offset_spec.split_once('/').unwrap_or((offset_spec, ""));
+        date = date.and_then(|date| {
             let minutes = if offset == "local" {
                 local_offset_minutes(date)
             } else {
                 parse_fixed_offset(offset)
             };
-            (
-                minutes.and_then(|minutes| date.add_minutes(minutes)),
-                output_format,
-            )
-        }
-        date => (date, format_spec),
-    };
+            minutes.and_then(|minutes| date.add_minutes(minutes))
+        });
+        output_format = remainder;
+    }
     Some(match date {
         Some(date) if date.valid() => format_datetime_value(date, output_format),
         _ => "[Invalid DateTime]".into(),
@@ -871,6 +868,14 @@ mod tests {
         assert_eq!(
             format_datetime("2024-02-29", "D%Y-%m-%d/%Y%m%d").as_deref(),
             Some("20240229")
+        );
+        assert_eq!(
+            format_datetime(
+                "2024-02-29 23:45",
+                "D%Y-%m-%d %H:%M/O+2:00/O-1:00/%Y%m%d_%H%M"
+            )
+            .as_deref(),
+            Some("20240301_0045")
         );
         assert_eq!(
             format_datetime("2024-02-29 13:04:05", "D%Y-%m-%d %H:%M:%S/%a %b %e %T").as_deref(),
