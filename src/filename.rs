@@ -851,9 +851,18 @@ fn format_general_float(number: f64, precision: usize, uppercase: bool, alternat
 }
 
 fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, FormatError> {
-    let Some(kind @ ('f' | 'F' | 'e' | 'E' | 'g' | 'G' | '%')) = spec.chars().last() else {
+    let Some(kind @ ('f' | 'F' | 'e' | 'E' | 'g' | 'G' | 'n' | '%')) = spec.chars().last() else {
         return Ok(None);
     };
+    if kind == 'n'
+        && value
+            .as_number()
+            .is_some_and(|number| number.as_i64().is_some() || number.as_u64().is_some())
+    {
+        // Keep integer `n` formatting on the exact decimal path; converting
+        // large integers to f64 would lose precision.
+        return Ok(None);
+    }
     let percent = kind == '%';
     let options = &spec[..spec.len() - kind.len_utf8()];
     let (raw_width, precision) = match options.split_once('.') {
@@ -919,6 +928,11 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
         }
         None => (width_text, None),
     };
+    if kind == 'n' && grouping.is_some() {
+        return Err(FormatError(
+            "locale numeric formatting does not accept explicit grouping".into(),
+        ));
+    }
     if !width_digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(FormatError(
             "unsupported numeric format specification".into(),
@@ -978,7 +992,7 @@ fn format_fixed_numeric(value: &Value, spec: &str) -> Result<Option<String>, For
             .as_f64()
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
         format_scientific_float(number, precision, kind == 'E')
-    } else if matches!(kind, 'g' | 'G') {
+    } else if matches!(kind, 'g' | 'G' | 'n') {
         let number = number
             .as_f64()
             .ok_or_else(|| FormatError("invalid numeric value".into()))?;
@@ -1150,6 +1164,9 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let Some(kind) = spec.chars().last() else {
         return Ok(None);
     };
+    if kind == 'n' && value.parse::<i128>().is_err() {
+        return Ok(None);
+    }
     let (base, marker, type_grouping) = match kind {
         // `n` uses the current locale in Python's numeric mini-language.
         // The pinned formatter process starts in the C numeric locale, where
