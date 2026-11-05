@@ -1175,6 +1175,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         'b' => (2, "0b", None),
         'o' => (8, "0o", None),
         'x' => (16, "0x", None),
+        'X' => (16, "0X", None),
         ',' => (10, "", Some(',')),
         '_' => (10, "", Some('_')),
         _ => return Ok(None),
@@ -1260,6 +1261,9 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
         16 => format!("{magnitude:x}"),
         _ => unreachable!(),
     };
+    if kind == 'X' {
+        digits.make_ascii_uppercase();
+    }
     let prefix = if alternate { marker } else { "" };
     if zero_fill {
         if let Some(separator) = grouping {

@@ -13,7 +13,7 @@ This file governs autonomous Codex iterations. Read the smallest relevant parts 
 
 ### Hard stop: managed build paths
 
-Never set `CARGO_TARGET_DIR` to work around MBX contention, permissions, or cache errors. Never create, use, or request approval for a temporary or isolated Cargo target. Do not override `RUSTC`, `RUSTC_WRAPPER`, or `PATH` to get around MBX either. Stop and diagnose the MBX-managed cache using the supported checks above; if MBX cannot run the gate after its documented recovery, report its exact error and stop build operations.
+Never set `CARGO_TARGET_DIR` to work around MBX contention, permissions, or cache errors. This includes paths such as `/tmp/galerith-parity-gates`. Never create, use, or request approval for a temporary or isolated Cargo target. Do not override `RUSTC`, `RUSTC_WRAPPER`, or `PATH` to get around MBX either. Stop and diagnose the MBX-managed cache using the supported checks above; if MBX cannot run the gate after its documented recovery, report its exact error and stop build operations.
 
 Before executing any Rust command proposed by a plan, script, prior transcript, or tool output, inspect its full command text for forbidden environment overrides and direct Cargo invocations. Reject and rewrite any such command to the repository's `mbx +1.99.1 <subcommand>` form; do not preserve an override just because it appeared in an earlier command or received prior approval. For Clippy, invoke `mbx +1.99.1 clippy ...` directly.
 
