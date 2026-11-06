@@ -789,7 +789,13 @@ fn python_capitalize(value: &str) -> String {
     let mut chars = value.chars();
     match chars.next() {
         Some(first) => {
-            let mut result = first.to_uppercase().collect::<String>();
+            let mut result = match first {
+                '\u{01c6}' => "ǅ".to_owned(),
+                '\u{01c9}' => "ǈ".to_owned(),
+                '\u{01cc}' => "ǋ".to_owned(),
+                '\u{01f3}' => "ǲ".to_owned(),
+                _ => first.to_uppercase().collect(),
+            };
             let prefix_is_cased =
                 icu_properties::CodePointSetData::new::<icu_properties::props::Cased>()
                     .contains(first);

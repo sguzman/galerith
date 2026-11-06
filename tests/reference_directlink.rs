@@ -2308,6 +2308,14 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "{_lit[ΟΣ]!c}",
             "Ος",
         ),
+        ("unicode-digraph-capitalize-dz", "{_lit[ǳURO]!c}", "ǲuro"),
+        (
+            "unicode-digraph-capitalize-dz-caron",
+            "{_lit[ǆURO]!c}",
+            "ǅuro",
+        ),
+        ("unicode-digraph-capitalize-lj", "{_lit[ǉUB]!c}", "ǈub"),
+        ("unicode-digraph-capitalize-nj", "{_lit[ǌUB]!c}", "ǋub"),
         (
             "unicode-final-sigma-lowercase-chain",
             "{_lit[ΟΣ]:Cl/}",
