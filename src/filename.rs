@@ -1524,14 +1524,7 @@ fn python_integer_value(source: Option<&Value>, value: &str) -> Result<String, F
             } else if let Some(value) = number.as_u64() {
                 Ok(value.to_string())
             } else if let Some(value) = number.as_f64() {
-                const I128_MIN: f64 = -170141183460469231731687303715884105728.0;
-                const I128_MAX_EXCLUSIVE: f64 = 170141183460469231731687303715884105728.0;
-                let value = value.trunc();
-                if value.is_finite() && (I128_MIN..I128_MAX_EXCLUSIVE).contains(&value) {
-                    Ok((value as i128).to_string())
-                } else {
-                    Err(invalid())
-                }
+                python_integer_from_float(value).ok_or_else(invalid)
             } else {
                 Err(invalid())
             }
@@ -1540,6 +1533,47 @@ fn python_integer_value(source: Option<&Value>, value: &str) -> Result<String, F
         Some(Value::Null | Value::Array(_) | Value::Object(_)) => Err(invalid()),
         None => normalize_python_integer_text(value).ok_or_else(invalid),
     }
+}
+
+fn python_integer_from_float(value: f64) -> Option<String> {
+    if !value.is_finite() {
+        return None;
+    }
+    let bits = value.to_bits();
+    let negative = bits >> 63 != 0;
+    let exponent_bits = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1_u64 << 52) - 1);
+    let (significand, exponent) = if exponent_bits == 0 {
+        (fraction, -1022 - 52)
+    } else {
+        ((1_u64 << 52) | fraction, exponent_bits - 1023 - 52)
+    };
+    let mut digits = if exponent >= 0 {
+        let mut digits = significand.to_string().into_bytes();
+        for _ in 0..exponent {
+            let mut carry = 0_u8;
+            for digit in digits.iter_mut().rev() {
+                let doubled = (*digit - b'0') * 2 + carry;
+                *digit = b'0' + doubled % 10;
+                carry = doubled / 10;
+            }
+            if carry != 0 {
+                digits.insert(0, b'0' + carry);
+            }
+        }
+        String::from_utf8(digits).expect("decimal float integer is ASCII")
+    } else {
+        let right_shift = exponent.unsigned_abs();
+        if right_shift >= u64::BITS {
+            "0".to_owned()
+        } else {
+            (significand >> right_shift).to_string()
+        }
+    };
+    if negative && digits != "0" {
+        digits.insert(0, '-');
+    }
+    Some(digits)
 }
 
 fn normalize_python_integer_text(value: &str) -> Option<String> {

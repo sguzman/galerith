@@ -3346,7 +3346,11 @@ fn pinned_formatter_formats_arbitrary_precision_integer_text() {
     let metadata = json!({
         "positive": "12345678901234567890123456789012345678901234567890",
         "negative": "-12345678901234567890123456789012345678901234567890",
-        "padded": "+00042"
+        "padded": "+00042",
+        "large_float": 1e100,
+        "negative_float": -1e100,
+        "fractional_float": 1.75,
+        "negative_fractional_float": -1.75
     });
     let metadata = metadata.as_object().unwrap();
     let formats = [
@@ -3356,6 +3360,10 @@ fn pinned_formatter_formats_arbitrary_precision_integer_text() {
         "{positive!i:_x}",
         "{positive!i:b}",
         "{padded!i:06d}",
+        "{large_float!i:d}",
+        "{negative_float!i:d}",
+        "{fractional_float!i:d}",
+        "{negative_fractional_float!i:d}",
     ];
     let native = formats
         .iter()
@@ -3371,7 +3379,11 @@ fn pinned_formatter_formats_arbitrary_precision_integer_text() {
             "0x8727f6369aaf83ca15026747af8c7f196ce3f0ad2",
             "8_727f_6369_aaf8_3ca1_5026_747a_f8c7_f196_ce3f_0ad2",
             "10000111001001111111011000110110100110101010111110000011110010100001010100000010011001110100011110101111100011000111111100011001011011001110001111110000101011010010",
-            "000042"
+            "000042",
+            "10000000000000000159028911097599180468360808563945281389781327557747838772170381060813469985856815104",
+            "-10000000000000000159028911097599180468360808563945281389781327557747838772170381060813469985856815104",
+            "1",
+            "-1"
         ]
     );
     let too_long = "9".repeat(4_301);
@@ -3395,7 +3407,7 @@ fn pinned_formatter_formats_arbitrary_precision_integer_text() {
         .expect("CI must declare expected upstream git revision");
     assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
     let source = format!(
-        "from gallery_dl import formatter; formats={formats:?}; data={{'positive':'12345678901234567890123456789012345678901234567890','negative':'-12345678901234567890123456789012345678901234567890','padded':'+00042'}}; output=[formatter.parse(value).format_map(data) for value in formats];\ntry: formatter.parse('{{value!i:d}}').format_map({{'value':'9'*4301}})\nexcept (TypeError, ValueError): output.append('error')\nelse: output.append('ok')\nprint('|'.join(output))"
+        "from gallery_dl import formatter; formats={formats:?}; data={{'positive':'12345678901234567890123456789012345678901234567890','negative':'-12345678901234567890123456789012345678901234567890','padded':'+00042','large_float':1e100,'negative_float':-1e100,'fractional_float':1.75,'negative_fractional_float':-1.75}}; output=[formatter.parse(value).format_map(data) for value in formats];\ntry: formatter.parse('{{value!i:d}}').format_map({{'value':'9'*4301}})\nexcept (TypeError, ValueError): output.append('error')\nelse: output.append('ok')\nprint('|'.join(output))"
     );
     let mut command = Command::new("python3");
     command.args(["-c", &source]);
