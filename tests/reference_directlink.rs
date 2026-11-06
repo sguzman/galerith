@@ -2744,7 +2744,6 @@ fn pinned_formatter_matches_native_numeric_id_radix_formats() {
             "0x00002a",
         ]
     );
-
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
@@ -2920,7 +2919,6 @@ fn pinned_numeric_float_format_specs_match_native_filename_metadata() {
             "1234.56"
         ]
     );
-
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
     }
@@ -3335,6 +3333,81 @@ fn pinned_formatter_matches_integer_formats_on_numeric_metadata() {
     command.env("PYTHONDONTWRITEBYTECODE", "1");
     let upstream = spawn(command, "pinned numeric metadata formatter");
     assert_eq!(upstream.trim(), native.join("|"));
+}
+
+#[test]
+fn pinned_formatter_formats_arbitrary_precision_integer_text() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: None,
+    };
+    let metadata = json!({
+        "positive": "12345678901234567890123456789012345678901234567890",
+        "negative": "-12345678901234567890123456789012345678901234567890",
+        "padded": "+00042"
+    });
+    let metadata = metadata.as_object().unwrap();
+    let formats = [
+        "{positive!i:d}",
+        "{negative!i:,}",
+        "{positive!i:#x}",
+        "{positive!i:_x}",
+        "{positive!i:b}",
+        "{padded!i:06d}",
+    ];
+    let native = formats
+        .iter()
+        .map(|template| {
+            galerith::filename::render_with_metadata(template, &item, metadata).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            "12345678901234567890123456789012345678901234567890",
+            "-12,345,678,901,234,567,890,123,456,789,012,345,678,901,234,567,890",
+            "0x8727f6369aaf83ca15026747af8c7f196ce3f0ad2",
+            "8_727f_6369_aaf8_3ca1_5026_747a_f8c7_f196_ce3f_0ad2",
+            "10000111001001111111011000110110100110101010111110000011110010100001010100000010011001110100011110101111100011000111111100011001011011001110001111110000101011010010",
+            "000042"
+        ]
+    );
+    let too_long = "9".repeat(4_301);
+    let oversized_metadata = json!({"value": too_long});
+    assert!(
+        galerith::filename::render_with_metadata(
+            "{value!i:d}",
+            &item,
+            oversized_metadata.as_object().unwrap()
+        )
+        .is_err(),
+        "native formatter exceeded Python's decimal integer text limit"
+    );
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for arbitrary precision integer comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream git revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let source = format!(
+        "from gallery_dl import formatter; formats={formats:?}; data={{'positive':'12345678901234567890123456789012345678901234567890','negative':'-12345678901234567890123456789012345678901234567890','padded':'+00042'}}; output=[formatter.parse(value).format_map(data) for value in formats];\ntry: formatter.parse('{{value!i:d}}').format_map({{'value':'9'*4301}})\nexcept (TypeError, ValueError): output.append('error')\nelse: output.append('ok')\nprint('|'.join(output))"
+    );
+    let mut command = Command::new("python3");
+    command.args(["-c", &source]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    let mut expected = native;
+    expected.push("error".to_owned());
+    assert_eq!(
+        spawn(command, "pinned arbitrary precision integer formatter").trim(),
+        expected.join("|")
+    );
 }
 
 #[test]

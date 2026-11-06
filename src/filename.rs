@@ -1164,7 +1164,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     let Some(kind) = spec.chars().last() else {
         return Ok(None);
     };
-    if kind == 'n' && value.parse::<i128>().is_err() {
+    if kind == 'n' && normalize_python_integer_text(value).is_none() {
         return Ok(None);
     }
     let (base, marker, type_grouping) = match kind {
@@ -1240,10 +1240,10 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
     if width > 64 {
         return Err(FormatError("filename numeric width is too large".into()));
     }
-    let number = value
-        .parse::<i128>()
-        .map_err(|_| FormatError("numeric formatting requires an integer field".into()))?;
-    let sign = if number < 0 {
+    let integer = normalize_python_integer_text(value)
+        .ok_or_else(|| FormatError("numeric formatting requires an integer field".into()))?;
+    let negative = integer.starts_with('-');
+    let sign = if negative {
         "-"
     } else {
         match sign_option {
@@ -1252,12 +1252,12 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
             _ => "",
         }
     };
-    let magnitude = number.unsigned_abs();
+    let magnitude = integer.strip_prefix('-').unwrap_or(&integer);
     let mut digits = match base {
-        10 => magnitude.to_string(),
-        2 => format!("{magnitude:b}"),
-        8 => format!("{magnitude:o}"),
-        16 => format!("{magnitude:x}"),
+        10 => magnitude.to_owned(),
+        2 => decimal_magnitude_to_radix(magnitude, 2),
+        8 => decimal_magnitude_to_radix(magnitude, 8),
+        16 => decimal_magnitude_to_radix(magnitude, 16),
         _ => unreachable!(),
     };
     let prefix = if alternate { marker } else { "" };
@@ -1298,6 +1298,30 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
             fill.repeat(right)
         )))
     }
+}
+
+fn decimal_magnitude_to_radix(value: &str, radix: u8) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    if value == "0" {
+        return "0".to_owned();
+    }
+    let mut decimal = value.bytes().map(|byte| byte - b'0').collect::<Vec<_>>();
+    let mut first = 0;
+    let mut output = Vec::new();
+    while first < decimal.len() {
+        let mut remainder = 0_u16;
+        for digit in &mut decimal[first..] {
+            let current = remainder * 10 + u16::from(*digit);
+            *digit = (current / u16::from(radix)) as u8;
+            remainder = current % u16::from(radix);
+        }
+        output.push(DIGITS[usize::from(remainder)]);
+        while first < decimal.len() && decimal[first] == 0 {
+            first += 1;
+        }
+    }
+    output.reverse();
+    String::from_utf8(output).expect("numeric radix digits are ASCII")
 }
 
 fn join_formatter_spec(spec: &str) -> Option<(&str, &str)> {
@@ -1490,21 +1514,21 @@ fn formatter_to_string(value: &Value) -> Result<String, FormatError> {
     }
 }
 
-fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, FormatError> {
+fn python_integer_value(source: Option<&Value>, value: &str) -> Result<String, FormatError> {
     let invalid = || FormatError("integer conversion requires an integer-compatible value".into());
     match source {
-        Some(Value::Bool(value)) => Ok(i128::from(*value)),
+        Some(Value::Bool(value)) => Ok(i128::from(*value).to_string()),
         Some(Value::Number(number)) => {
             if let Some(value) = number.as_i64() {
-                Ok(i128::from(value))
+                Ok(value.to_string())
             } else if let Some(value) = number.as_u64() {
-                Ok(i128::from(value))
+                Ok(value.to_string())
             } else if let Some(value) = number.as_f64() {
                 const I128_MIN: f64 = -170141183460469231731687303715884105728.0;
                 const I128_MAX_EXCLUSIVE: f64 = 170141183460469231731687303715884105728.0;
                 let value = value.trunc();
                 if value.is_finite() && (I128_MIN..I128_MAX_EXCLUSIVE).contains(&value) {
-                    Ok(value as i128)
+                    Ok((value as i128).to_string())
                 } else {
                     Err(invalid())
                 }
@@ -1512,19 +1536,25 @@ fn python_integer_value(source: Option<&Value>, value: &str) -> Result<i128, For
                 Err(invalid())
             }
         }
-        Some(Value::String(value)) => parse_python_integer_text(value).ok_or_else(invalid),
+        Some(Value::String(value)) => normalize_python_integer_text(value).ok_or_else(invalid),
         Some(Value::Null | Value::Array(_) | Value::Object(_)) => Err(invalid()),
-        None => parse_python_integer_text(value).ok_or_else(invalid),
+        None => normalize_python_integer_text(value).ok_or_else(invalid),
     }
 }
 
-fn parse_python_integer_text(value: &str) -> Option<i128> {
+fn normalize_python_integer_text(value: &str) -> Option<String> {
+    // Match CPython's default decimal string-to-int digit guard.
+    const MAX_DECIMAL_DIGITS: usize = 4_300;
     let value = value.trim();
+    if value.len() > MAX_DECIMAL_DIGITS * 2 + 1 {
+        return None;
+    }
     let bytes = value.as_bytes();
     let digits_start = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
     if digits_start == bytes.len() {
         return None;
     }
+    let mut decimal_digits = 0;
     for (index, byte) in bytes.iter().enumerate().skip(digits_start) {
         if *byte == b'_' {
             if index == digits_start
@@ -1533,11 +1563,24 @@ fn parse_python_integer_text(value: &str) -> Option<i128> {
             {
                 return None;
             }
-        } else if !byte.is_ascii_digit() {
-            return None;
+        } else {
+            if !byte.is_ascii_digit() {
+                return None;
+            }
+            decimal_digits += 1;
+            if decimal_digits > MAX_DECIMAL_DIGITS {
+                return None;
+            }
         }
     }
-    value.replace('_', "").parse().ok()
+    let digits = value[digits_start..].replace('_', "");
+    let digits = digits.trim_start_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    Some(if bytes.first() == Some(&b'-') && digits != "0" {
+        format!("-{digits}")
+    } else {
+        digits.to_owned()
+    })
 }
 
 fn python_float_value(source: Option<&Value>, value: &str) -> Result<f64, FormatError> {
