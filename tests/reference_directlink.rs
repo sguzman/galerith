@@ -2310,12 +2310,52 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ),
         ("unicode-digraph-capitalize-dz", "{_lit[ǳURO]!c}", "ǲuro"),
         (
+            "unicode-digraph-capitalize-dz-upper",
+            "{_lit[ǄURO]!c}",
+            "ǅuro",
+        ),
+        (
+            "unicode-digraph-capitalize-dz-title",
+            "{_lit[ǅURO]!c}",
+            "ǅuro",
+        ),
+        (
             "unicode-digraph-capitalize-dz-caron",
             "{_lit[ǆURO]!c}",
             "ǅuro",
         ),
         ("unicode-digraph-capitalize-lj", "{_lit[ǉUB]!c}", "ǈub"),
+        (
+            "unicode-digraph-capitalize-lj-upper",
+            "{_lit[ǇUB]!c}",
+            "ǈub",
+        ),
+        (
+            "unicode-digraph-capitalize-lj-title",
+            "{_lit[ǈUB]!c}",
+            "ǈub",
+        ),
         ("unicode-digraph-capitalize-nj", "{_lit[ǌUB]!c}", "ǋub"),
+        (
+            "unicode-digraph-capitalize-nj-upper",
+            "{_lit[ǊUB]!c}",
+            "ǋub",
+        ),
+        (
+            "unicode-digraph-capitalize-nj-title",
+            "{_lit[ǋUB]!c}",
+            "ǋub",
+        ),
+        (
+            "unicode-digraph-capitalize-dz-upper-right",
+            "{_lit[ǱURO]!c}",
+            "ǲuro",
+        ),
+        (
+            "unicode-digraph-capitalize-dz-title-right",
+            "{_lit[ǲURO]!c}",
+            "ǲuro",
+        ),
         (
             "unicode-final-sigma-lowercase-chain",
             "{_lit[ΟΣ]:Cl/}",

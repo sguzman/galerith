@@ -790,10 +790,10 @@ fn python_capitalize(value: &str) -> String {
     match chars.next() {
         Some(first) => {
             let mut result = match first {
-                '\u{01c6}' => "ǅ".to_owned(),
-                '\u{01c9}' => "ǈ".to_owned(),
-                '\u{01cc}' => "ǋ".to_owned(),
-                '\u{01f3}' => "ǲ".to_owned(),
+                '\u{01c4}'..='\u{01c6}' => "ǅ".to_owned(),
+                '\u{01c7}'..='\u{01c9}' => "ǈ".to_owned(),
+                '\u{01ca}'..='\u{01cc}' => "ǋ".to_owned(),
+                '\u{01f1}'..='\u{01f3}' => "ǲ".to_owned(),
                 _ => first.to_uppercase().collect(),
             };
             let prefix_is_cased =
