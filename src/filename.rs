@@ -5,6 +5,8 @@ use crate::{safe_filename, MediaItem};
 use serde_json::Value;
 use std::{error::Error, fmt};
 
+const MAX_INTEGER_TEXT_DIGITS: usize = 4_300;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormatError(pub String);
 
@@ -1578,9 +1580,8 @@ fn python_integer_from_float(value: f64) -> Option<String> {
 
 fn normalize_python_integer_text(value: &str) -> Option<String> {
     // Match CPython's default decimal string-to-int digit guard.
-    const MAX_DECIMAL_DIGITS: usize = 4_300;
     let value = value.trim();
-    if value.len() > MAX_DECIMAL_DIGITS * 2 + 1 {
+    if value.len() > MAX_INTEGER_TEXT_DIGITS * 2 + 1 {
         return None;
     }
     let bytes = value.as_bytes();
@@ -1602,7 +1603,7 @@ fn normalize_python_integer_text(value: &str) -> Option<String> {
                 return None;
             }
             decimal_digits += 1;
-            if decimal_digits > MAX_DECIMAL_DIGITS {
+            if decimal_digits > MAX_INTEGER_TEXT_DIGITS {
                 return None;
             }
         }
@@ -1656,7 +1657,7 @@ fn python_length_value(source: Option<&Value>, value: &str) -> Result<usize, For
     }
 }
 
-fn arithmetic_operation(spec: &str) -> Result<(&str, i128, &str), FormatError> {
+fn arithmetic_operation(spec: &str) -> Result<(&str, String, &str), FormatError> {
     let operation = spec
         .strip_prefix('A')
         .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
@@ -1666,9 +1667,8 @@ fn arithmetic_operation(spec: &str) -> Result<(&str, i128, &str), FormatError> {
     let (operator, operand) = expression
         .split_at_checked(1)
         .ok_or_else(|| FormatError("invalid filename arithmetic formatter".into()))?;
-    let right = operand
-        .parse::<i128>()
-        .map_err(|_| FormatError("invalid filename arithmetic operand".into()))?;
+    let right = normalize_python_integer_text(operand)
+        .ok_or_else(|| FormatError("invalid filename arithmetic operand".into()))?;
     Ok((operator, right, remainder))
 }
 
@@ -1724,22 +1724,21 @@ fn apply_arithmetic_string_conversion(value: String, spec: &str) -> Result<Strin
     }
 }
 
-fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, FormatError> {
+fn apply_integer_arithmetic_chain(left: &str, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
     let result = match operator {
-        "+" => left.checked_add(right),
-        "-" => left.checked_sub(right),
-        "*" => left.checked_mul(right),
+        "+" => add_signed_decimal(left, &right, false)?,
+        "-" => add_signed_decimal(left, &right, true)?,
+        "*" => multiply_signed_decimal(left, &right)?,
         // gallery-dl parses every arithmetic operator but only implements
         // addition, subtraction, and multiplication. Unknown operators leave
         // the value unchanged and continue through the remaining formatter.
-        _ => Some(left),
-    }
-    .ok_or_else(|| FormatError("filename arithmetic overflow".into()))?;
+        _ => left.to_owned(),
+    };
     if remainder.starts_with('A') {
-        return apply_integer_arithmetic_chain(result, remainder);
+        return apply_integer_arithmetic_chain(&result, remainder);
     }
-    let value = result.to_string();
+    let value = result;
     if remainder.starts_with('R') {
         return Err(FormatError(
             "filename replacement requires a string value".into(),
@@ -1762,9 +1761,147 @@ fn apply_integer_arithmetic_chain(left: i128, spec: &str) -> Result<String, Form
     ))
 }
 
+fn signed_decimal_parts(value: &str) -> (bool, &str) {
+    (
+        value.starts_with('-'),
+        value.strip_prefix('-').unwrap_or(value),
+    )
+}
+
+fn compare_decimal_magnitudes(left: &str, right: &str) -> std::cmp::Ordering {
+    left.len().cmp(&right.len()).then_with(|| left.cmp(right))
+}
+
+fn add_decimal_magnitudes(left: &str, right: &str) -> String {
+    let left = left.as_bytes();
+    let right = right.as_bytes();
+    let mut left_index = left.len();
+    let mut right_index = right.len();
+    let mut carry = 0_u8;
+    let mut digits = Vec::with_capacity(left.len().max(right.len()) + 1);
+    while left_index > 0 || right_index > 0 || carry > 0 {
+        let left_digit = if left_index > 0 {
+            left_index -= 1;
+            left[left_index] - b'0'
+        } else {
+            0
+        };
+        let right_digit = if right_index > 0 {
+            right_index -= 1;
+            right[right_index] - b'0'
+        } else {
+            0
+        };
+        let sum = left_digit + right_digit + carry;
+        digits.push(b'0' + sum % 10);
+        carry = sum / 10;
+    }
+    digits.reverse();
+    String::from_utf8(digits).expect("decimal sum is ASCII")
+}
+
+fn subtract_decimal_magnitudes(larger: &str, smaller: &str) -> String {
+    let mut smaller = smaller.bytes().rev();
+    let mut borrow = 0_i16;
+    let mut digits = Vec::with_capacity(larger.len());
+    for digit in larger.bytes().rev() {
+        let mut difference = i16::from(digit - b'0') - borrow;
+        if let Some(smaller_digit) = smaller.next() {
+            difference -= i16::from(smaller_digit - b'0');
+        }
+        if difference < 0 {
+            difference += 10;
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        digits.push(b'0' + difference as u8);
+    }
+    while digits.len() > 1 && digits.last() == Some(&b'0') {
+        digits.pop();
+    }
+    digits.reverse();
+    String::from_utf8(digits).expect("decimal difference is ASCII")
+}
+
+fn signed_decimal_result(negative: bool, magnitude: String) -> Result<String, FormatError> {
+    let magnitude = magnitude.trim_start_matches('0');
+    let magnitude = if magnitude.is_empty() { "0" } else { magnitude };
+    if magnitude.len() > MAX_INTEGER_TEXT_DIGITS {
+        return Err(FormatError(
+            "filename arithmetic result is too large".into(),
+        ));
+    }
+    Ok(if negative && magnitude != "0" {
+        format!("-{magnitude}")
+    } else {
+        magnitude.to_owned()
+    })
+}
+
+fn add_signed_decimal(
+    left: &str,
+    right: &str,
+    subtract_right: bool,
+) -> Result<String, FormatError> {
+    let (left_negative, left_magnitude) = signed_decimal_parts(left);
+    let (right_negative, right_magnitude) = signed_decimal_parts(right);
+    let right_negative = right_negative ^ subtract_right;
+    if left_negative == right_negative {
+        return signed_decimal_result(
+            left_negative,
+            add_decimal_magnitudes(left_magnitude, right_magnitude),
+        );
+    }
+    match compare_decimal_magnitudes(left_magnitude, right_magnitude) {
+        std::cmp::Ordering::Equal => signed_decimal_result(false, "0".to_owned()),
+        std::cmp::Ordering::Greater => signed_decimal_result(
+            left_negative,
+            subtract_decimal_magnitudes(left_magnitude, right_magnitude),
+        ),
+        std::cmp::Ordering::Less => signed_decimal_result(
+            right_negative,
+            subtract_decimal_magnitudes(right_magnitude, left_magnitude),
+        ),
+    }
+}
+
+fn multiply_signed_decimal(left: &str, right: &str) -> Result<String, FormatError> {
+    let (left_negative, left_magnitude) = signed_decimal_parts(left);
+    let (right_negative, right_magnitude) = signed_decimal_parts(right);
+    let mut digits = vec![0_u32; left_magnitude.len() + right_magnitude.len()];
+    for (left_index, left_digit) in left_magnitude.bytes().enumerate() {
+        for (right_index, right_digit) in right_magnitude.bytes().enumerate() {
+            digits[left_index + right_index + 1] +=
+                u32::from(left_digit - b'0') * u32::from(right_digit - b'0');
+        }
+    }
+    for index in (1..digits.len()).rev() {
+        let carry = digits[index] / 10;
+        digits[index] %= 10;
+        digits[index - 1] += carry;
+    }
+    let magnitude = digits
+        .into_iter()
+        .map(|digit| (b'0' + digit as u8) as char)
+        .collect::<String>();
+    signed_decimal_result(left_negative ^ right_negative, magnitude)
+}
+
+fn nonnegative_repeat_count(value: &str) -> Result<usize, FormatError> {
+    if value.starts_with('-') {
+        return Ok(0);
+    }
+    value
+        .parse::<usize>()
+        .map_err(|_| FormatError("filename repetition count is too large".into()))
+}
+
 fn apply_float_arithmetic_chain(left: f64, spec: &str) -> Result<String, FormatError> {
     let (operator, right, remainder) = arithmetic_operation(spec)?;
-    let right = right as f64;
+    let right = right
+        .parse::<f64>()
+        .map_err(|_| FormatError("filename arithmetic operand is too large".into()))?;
     let result = match operator {
         "+" => left + right,
         "-" => left - right,
@@ -1808,8 +1945,7 @@ fn apply_string_arithmetic_chain(value: String, spec: &str) -> Result<String, Fo
         ));
     }
     let value = if operator == "*" {
-        let count = usize::try_from(right.max(0))
-            .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+        let count = nonnegative_repeat_count(&right)?;
         let output_len = value
             .len()
             .checked_mul(count)
@@ -1839,8 +1975,7 @@ fn apply_array_arithmetic_chain(
         ));
     }
     let repeated = if operator == "*" {
-        let count = usize::try_from(right.max(0))
-            .map_err(|_| FormatError("filename repetition count is too large".into()))?;
+        let count = nonnegative_repeat_count(&right)?;
         let item_count = values
             .len()
             .checked_mul(count)
@@ -2657,6 +2792,8 @@ fn field_with_metadata(
         }
         let float_left = if conversion == "f" {
             converted_float
+        } else if conversion == "i" {
+            None
         } else {
             selected_source.as_ref().and_then(|source| match source {
                 Value::Number(number) if number.is_f64() => number.as_f64(),
@@ -2667,20 +2804,19 @@ fn field_with_metadata(
             return apply_float_arithmetic_chain(left, spec);
         }
         let left = match selected_source.as_ref() {
-            Some(Value::Bool(value)) => i128::from(*value),
-            _ => match value.parse::<i128>() {
-                Ok(left) => left,
-                Err(_) if !matches!(operator, "+" | "-") => {
-                    return apply_string_arithmetic_chain(value, spec);
-                }
-                Err(_) => {
-                    return Err(FormatError(
-                        "filename arithmetic requires an integer field".into(),
-                    ))
-                }
-            },
+            Some(Value::Bool(true)) => Some("1".to_owned()),
+            Some(Value::Bool(false)) => Some("0".to_owned()),
+            _ => normalize_python_integer_text(&value),
         };
-        return apply_integer_arithmetic_chain(left, spec);
+        let Some(left) = left else {
+            if !matches!(operator, "+" | "-") {
+                return apply_string_arithmetic_chain(value, spec);
+            }
+            return Err(FormatError(
+                "filename arithmetic requires an integer field".into(),
+            ));
+        };
+        return apply_integer_arithmetic_chain(&left, spec);
     }
     if let Some(precision) = spec.strip_prefix('.') {
         if matches!(base_name, "id" | "post_id")
@@ -3553,7 +3689,7 @@ mod tests {
     }
 
     #[test]
-    fn integer_arithmetic_specs_use_checked_operations() {
+    fn integer_arithmetic_specs_support_large_python_integers() {
         let item = sample();
         assert_eq!(render("{id:A+8/}", &item).unwrap(), "50");
         assert_eq!(render("{id:A-2/}", &item).unwrap(), "40");
@@ -3567,7 +3703,10 @@ mod tests {
         assert!(render("{id:A/2/}", &item).is_err());
         let mut large = item;
         large.post_id = Some(u64::MAX);
-        assert!(render("{id:A*170141183460469231731687303715884105727/}", &large).is_err());
+        assert_eq!(
+            render("{id:A*170141183460469231731687303715884105727/}", &large).unwrap(),
+            "3138550867693340381747753528143363976301043674442423599105"
+        );
     }
 
     #[test]
