@@ -771,15 +771,39 @@ fn python_json_value(value: &Value) -> String {
 fn slugify(value: &str) -> String {
     let mut result = String::with_capacity(value.len());
     let mut separator = false;
-    for character in value.chars().flat_map(char::to_lowercase) {
-        if character.is_whitespace() || character == '-' {
-            separator = true;
-        } else if character.is_alphanumeric() || character == '_' {
-            if separator && !result.is_empty() {
-                result.push('-');
+    let characters = value.chars().collect::<Vec<_>>();
+    let cased = icu_properties::CodePointSetData::new::<icu_properties::props::Cased>();
+    let case_ignorable =
+        icu_properties::CodePointSetData::new::<icu_properties::props::CaseIgnorable>();
+    for (index, character) in characters.iter().copied().enumerate() {
+        let lowercase = if character == '\u{03a3}' {
+            let preceded_by_cased = characters[..index]
+                .iter()
+                .rev()
+                .find(|candidate| !case_ignorable.contains(**candidate))
+                .is_some_and(|candidate| cased.contains(*candidate));
+            let followed_by_cased = characters[index + 1..]
+                .iter()
+                .find(|candidate| !case_ignorable.contains(**candidate))
+                .is_some_and(|candidate| cased.contains(*candidate));
+            if preceded_by_cased && !followed_by_cased {
+                '\u{03c2}'.to_string()
+            } else {
+                '\u{03c3}'.to_string()
             }
-            result.push(character);
-            separator = false;
+        } else {
+            character.to_lowercase().collect()
+        };
+        for character in lowercase.chars() {
+            if character.is_whitespace() || character == '-' {
+                separator = true;
+            } else if character.is_alphanumeric() || character == '_' {
+                if separator && !result.is_empty() {
+                    result.push('-');
+                }
+                result.push(character);
+                separator = false;
+            }
         }
     }
     result.trim_matches(['-', '_']).to_owned()

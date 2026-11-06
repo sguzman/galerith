@@ -2291,6 +2291,9 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("slug-conversion", "{_lit[Hello, World]!g}", "hello-world"),
         ("punctuation-slug-conversion", "{_lit[foo,bar]!g}", "foobar"),
         ("unicode-slug-conversion", "{_lit[猫 World]!g}", "猫-world"),
+        ("unicode-final-sigma-slug", "{_lit[ΟΣ]!g}", "ος"),
+        ("unicode-medial-sigma-slug", "{_lit[ΟΣΑ]!g}", "οσα"),
+        ("unicode-final-sigma-after-ignorable", "{_lit[ΌΣ]!g}", "ος"),
         ("internal-underscore-slug", "{_lit[foo__bar]!g}", "foo__bar"),
         ("repr-conversion", r#"{_lit[foo]!r:R'/_/}"#, "_foo_"),
         (
