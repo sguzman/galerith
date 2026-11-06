@@ -689,25 +689,6 @@ fn python_string_repr(value: &str, ascii_only: bool) -> String {
     result
 }
 
-fn python_capitalize(value: &str) -> String {
-    let mut chars = value.chars();
-    match chars.next() {
-        Some(first) => first
-            .to_uppercase()
-            .chain(chars.flat_map(char::to_lowercase))
-            .collect(),
-        None => String::new(),
-    }
-}
-
-fn python_capwords(value: &str) -> String {
-    value
-        .split_whitespace()
-        .map(python_capitalize)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 fn python_json_string(value: &str) -> String {
     let mut result = String::with_capacity(value.len() + 2);
     result.push('"');
@@ -768,42 +749,80 @@ fn python_json_value(value: &Value) -> String {
     }
 }
 
-fn slugify(value: &str) -> String {
-    let mut result = String::with_capacity(value.len());
-    let mut separator = false;
+fn python_lowercase_from(value: &str, prefix_is_cased: bool) -> String {
     let characters = value.chars().collect::<Vec<_>>();
     let cased = icu_properties::CodePointSetData::new::<icu_properties::props::Cased>();
     let case_ignorable =
         icu_properties::CodePointSetData::new::<icu_properties::props::CaseIgnorable>();
+    let mut lowercase = String::with_capacity(value.len());
     for (index, character) in characters.iter().copied().enumerate() {
-        let lowercase = if character == '\u{03a3}' {
-            let preceded_by_cased = characters[..index]
+        if character == '\u{03a3}' {
+            let preceding_character = characters[..index]
                 .iter()
                 .rev()
                 .find(|candidate| !case_ignorable.contains(**candidate))
-                .is_some_and(|candidate| cased.contains(*candidate));
+                .copied();
+            let preceded_by_cased = preceding_character
+                .map(|candidate| cased.contains(candidate))
+                .unwrap_or(prefix_is_cased);
             let followed_by_cased = characters[index + 1..]
                 .iter()
                 .find(|candidate| !case_ignorable.contains(**candidate))
                 .is_some_and(|candidate| cased.contains(*candidate));
             if preceded_by_cased && !followed_by_cased {
-                '\u{03c2}'.to_string()
+                lowercase.push('\u{03c2}');
             } else {
-                '\u{03c3}'.to_string()
+                lowercase.push('\u{03c3}');
             }
         } else {
-            character.to_lowercase().collect()
-        };
-        for character in lowercase.chars() {
-            if character.is_whitespace() || character == '-' {
-                separator = true;
-            } else if character.is_alphanumeric() || character == '_' {
-                if separator && !result.is_empty() {
-                    result.push('-');
-                }
-                result.push(character);
-                separator = false;
+            lowercase.extend(character.to_lowercase());
+        }
+    }
+    lowercase
+}
+
+fn python_lowercase(value: &str) -> String {
+    python_lowercase_from(value, false)
+}
+
+fn python_capitalize(value: &str) -> String {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) => {
+            let mut result = first.to_uppercase().collect::<String>();
+            let prefix_is_cased =
+                icu_properties::CodePointSetData::new::<icu_properties::props::Cased>()
+                    .contains(first);
+            result.push_str(&python_lowercase_from(
+                &chars.collect::<String>(),
+                prefix_is_cased,
+            ));
+            result
+        }
+        None => String::new(),
+    }
+}
+
+fn python_capwords(value: &str) -> String {
+    value
+        .split_whitespace()
+        .map(python_capitalize)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn slugify(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut separator = false;
+    for character in python_lowercase(value).chars() {
+        if character.is_whitespace() || character == '-' {
+            separator = true;
+        } else if character.is_alphanumeric() || character == '_' {
+            if separator && !result.is_empty() {
+                result.push('-');
             }
+            result.push(character);
+            separator = false;
         }
     }
     result.trim_matches(['-', '_']).to_owned()
@@ -1379,18 +1398,9 @@ fn convert_string_chain(value: &str, conversions: &str) -> Result<String, Format
     let mut value = value.to_owned();
     for conversion in conversions.chars() {
         value = match conversion {
-            'l' => value.to_lowercase(),
+            'l' => python_lowercase(&value),
             'u' => value.to_uppercase(),
-            'c' => {
-                let mut chars = value.chars();
-                match chars.next() {
-                    Some(first) => first
-                        .to_uppercase()
-                        .chain(chars.flat_map(char::to_lowercase))
-                        .collect(),
-                    None => String::new(),
-                }
-            }
+            'c' => python_capitalize(&value),
             'C' => python_capwords(&value),
             't' => value.trim().to_owned(),
             'S' => value,
@@ -2653,7 +2663,7 @@ fn field_with_metadata(
         "L" => language_name(&value).map(str::to_owned).ok_or_else(|| {
             FormatError("language conversion produces a non-string filename value".into())
         })?,
-        "l" => value.to_lowercase(),
+        "l" => python_lowercase(&value),
         "u" => value.to_uppercase(),
         "c" => python_capitalize(&value),
         "C" => python_capwords(&value),

@@ -2293,7 +2293,31 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
         ("unicode-slug-conversion", "{_lit[猫 World]!g}", "猫-world"),
         ("unicode-final-sigma-slug", "{_lit[ΟΣ]!g}", "ος"),
         ("unicode-medial-sigma-slug", "{_lit[ΟΣΑ]!g}", "οσα"),
-        ("unicode-final-sigma-after-ignorable", "{_lit[ΌΣ]!g}", "ος"),
+        (
+            "unicode-final-sigma-after-ignorable",
+            "{_lit[Ο\u{0301}Σ]!g}",
+            "ος",
+        ),
+        (
+            "unicode-final-sigma-lowercase-conversion",
+            "{_lit[ΟΣ]!l}",
+            "ος",
+        ),
+        (
+            "unicode-final-sigma-capitalize-conversion",
+            "{_lit[ΟΣ]!c}",
+            "Ος",
+        ),
+        (
+            "unicode-final-sigma-lowercase-chain",
+            "{_lit[ΟΣ]:Cl/}",
+            "ος",
+        ),
+        (
+            "unicode-final-sigma-capitalize-chain",
+            "{_lit[ΟΣ]:Cc/}",
+            "Ος",
+        ),
         ("internal-underscore-slug", "{_lit[foo__bar]!g}", "foo__bar"),
         ("repr-conversion", r#"{_lit[foo]!r:R'/_/}"#, "_foo_"),
         (
