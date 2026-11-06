@@ -749,64 +749,20 @@ fn python_json_value(value: &Value) -> String {
     }
 }
 
-fn python_lowercase_from(value: &str, prefix_is_cased: bool) -> String {
-    let characters = value.chars().collect::<Vec<_>>();
-    let cased = icu_properties::CodePointSetData::new::<icu_properties::props::Cased>();
-    let case_ignorable =
-        icu_properties::CodePointSetData::new::<icu_properties::props::CaseIgnorable>();
-    let mut lowercase = String::with_capacity(value.len());
-    for (index, character) in characters.iter().copied().enumerate() {
-        if character == '\u{03a3}' {
-            let preceding_character = characters[..index]
-                .iter()
-                .rev()
-                .find(|candidate| !case_ignorable.contains(**candidate))
-                .copied();
-            let preceded_by_cased = preceding_character
-                .map(|candidate| cased.contains(candidate))
-                .unwrap_or(prefix_is_cased);
-            let followed_by_cased = characters[index + 1..]
-                .iter()
-                .find(|candidate| !case_ignorable.contains(**candidate))
-                .is_some_and(|candidate| cased.contains(*candidate));
-            if preceded_by_cased && !followed_by_cased {
-                lowercase.push('\u{03c2}');
-            } else {
-                lowercase.push('\u{03c3}');
-            }
-        } else {
-            lowercase.extend(character.to_lowercase());
-        }
-    }
-    lowercase
-}
-
 fn python_lowercase(value: &str) -> String {
-    python_lowercase_from(value, false)
+    let language = icu_locale_core::langid!("und");
+    icu_casemap::CaseMapper::new()
+        .lowercase_to_string(value, &language)
+        .into_owned()
 }
 
 fn python_capitalize(value: &str) -> String {
-    let mut chars = value.chars();
-    match chars.next() {
-        Some(first) => {
-            let mut result = match first {
-                '\u{01c4}'..='\u{01c6}' => "ǅ".to_owned(),
-                '\u{01c7}'..='\u{01c9}' => "ǈ".to_owned(),
-                '\u{01ca}'..='\u{01cc}' => "ǋ".to_owned(),
-                '\u{01f1}'..='\u{01f3}' => "ǲ".to_owned(),
-                _ => first.to_uppercase().collect(),
-            };
-            let prefix_is_cased =
-                icu_properties::CodePointSetData::new::<icu_properties::props::Cased>()
-                    .contains(first);
-            result.push_str(&python_lowercase_from(
-                &chars.collect::<String>(),
-                prefix_is_cased,
-            ));
-            result
-        }
-        None => String::new(),
-    }
+    let language = icu_locale_core::langid!("und");
+    let mut options = icu_casemap::options::TitlecaseOptions::default();
+    options.leading_adjustment = Some(icu_casemap::options::LeadingAdjustment::None);
+    icu_casemap::CaseMapper::new()
+        .titlecase_segment_with_only_case_data_to_string(value, &language, options)
+        .into_owned()
 }
 
 fn python_capwords(value: &str) -> String {

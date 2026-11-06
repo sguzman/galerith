@@ -2357,6 +2357,17 @@ fn pinned_and_native_clients_save_the_same_formatted_filename() {
             "ǲuro",
         ),
         (
+            "unicode-titlecase-capital-sharp-s",
+            "{_lit[ßETA]!c}",
+            "Sseta",
+        ),
+        ("unicode-titlecase-ligature-ffi", "{_lit[ﬃLE]!c}", "Ffile"),
+        (
+            "unicode-titlecase-does-not-skip-leading-punctuation",
+            "{_lit['hELLO]!c}",
+            "'hello",
+        ),
+        (
             "unicode-final-sigma-lowercase-chain",
             "{_lit[ΟΣ]:Cl/}",
             "ος",

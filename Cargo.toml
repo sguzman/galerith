@@ -12,7 +12,8 @@ clap = { version = "4.5", features = ["derive"] }
 fs2 = "0.4"
 html-escape = "=0.2.15"
 httpdate = "1.0"
-icu_properties = "=2.1.2"
+icu_casemap = "=2.1.1"
+icu_locale_core = "=2.1.1"
 percent-encoding = "2.3"
 rusqlite = { version = "0.32", features = ["bundled"] }
 roxmltree = "0.20"
