@@ -1239,7 +1239,7 @@ fn format_integer(value: &str, spec: &str) -> Result<Option<String>, FormatError
             .parse::<usize>()
             .map_err(|_| FormatError("invalid numeric width".into()))?
     };
-    if width > 64 {
+    if width > 240 {
         return Err(FormatError("filename numeric width is too large".into()));
     }
     let integer = normalize_python_integer_text(value)
@@ -2844,7 +2844,7 @@ fn field_with_metadata(
         let parsed = width
             .parse::<usize>()
             .map_err(|_| FormatError("invalid numeric width".into()))?;
-        if parsed > 64 {
+        if parsed > 240 {
             return Err(FormatError("filename numeric width is too large".into()));
         }
         return if width.starts_with('0') {
@@ -3852,7 +3852,14 @@ mod tests {
         assert_eq!(render("{id:8x}", &item).unwrap(), "      2a");
         assert_eq!(render("{id:08x}", &item).unwrap(), "0000002a");
         assert_eq!(render("{id:#08x}", &item).unwrap(), "0x00002a");
-        assert!(render("{id:#065x}", &item).is_err());
+        assert_eq!(
+            render("{id:#065x}", &item).unwrap(),
+            format!("0x{}2a", "0".repeat(61))
+        );
+        assert_eq!(
+            render("{id:0240d}", &item).unwrap(),
+            format!("{}42", "0".repeat(238))
+        );
         assert!(render("{id:X}", &item).is_err());
         assert!(render("{filename:x}", &item).is_err());
     }

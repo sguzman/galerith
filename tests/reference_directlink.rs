@@ -5171,6 +5171,55 @@ fn pinned_python_mimetypes_matches_extended_mime_suffix_table() {
 }
 
 #[test]
+fn pinned_integer_numeric_widths_use_the_filename_size_limit() {
+    let item = galerith::MediaItem {
+        url: "https://example.org/image.jpg".into(),
+        filename: "image.jpg".into(),
+        extractor: "directlink",
+        post_id: Some(42),
+    };
+    let metadata = json!({"count": 42});
+    let metadata = metadata.as_object().unwrap();
+    let formats = ["{count:065d}", "{count:240d}", "{id:0240d}"];
+    let native = formats
+        .iter()
+        .map(|template| {
+            galerith::filename::render_with_metadata(template, &item, metadata).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native,
+        [
+            format!("{}42", "0".repeat(63)),
+            format!("{}42", " ".repeat(238)),
+            format!("{}42", "0".repeat(238)),
+        ]
+    );
+    assert!(galerith::filename::render_with_metadata("{count:241d}", &item, metadata).is_err());
+
+    if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
+        return;
+    }
+    let root = env::var("GALERITH_PINNED_REFERENCE_ROOT")
+        .expect("pinned source required for integer width comparison");
+    let commit = env::var("GALERITH_PINNED_REFERENCE_SHA")
+        .expect("CI must declare expected upstream revision");
+    assert_eq!(commit, PINNED, "upstream pin changed without acceptance");
+    let source = format!(
+        "from gallery_dl import formatter; formats={formats:?}; data={{'id':42,'count':42}}; print('|'.join(formatter.parse(value).format_map(data) for value in formats))"
+    );
+    let mut command = Command::new("python3");
+    command.args(["-c", &source]);
+    command.env("PYTHONPATH", root);
+    command.env("PYTHONNOUSERSITE", "1");
+    command.env("PYTHONDONTWRITEBYTECODE", "1");
+    assert_eq!(
+        spawn(command, "pinned integer width formatter").trim(),
+        native.join("|")
+    );
+}
+
+#[test]
 fn pinned_and_native_clients_correct_aac_hls_and_dash_signatures() {
     if env::var_os("GALERITH_REFERENCE_ORACLE").is_none() {
         return;
